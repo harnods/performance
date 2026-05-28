@@ -1,0 +1,26 @@
+@layer pixel_reset, pixel_base, pixel_tokens, pixel_recipes, pixel_utilities;
+
+@import '@mekari/pixel3-styled-system/styles.css';
+
+html, body, #__nuxt {
+  height: 100%;
+}
+
+.mp-icon-box {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  line-height: 0;
+}
+.mp-icon-box > svg {
+  width: 100% !important;
+  height: 100% !important;
+  display: block;
+}
+.mp-icon-box[data-size='16'] { width: 16px; height: 16px; }
+.mp-icon-box[data-size='18'] { width: 18px; height: 18px; }
+.mp-icon-box[data-size='20'] { width: 20px; height: 20px; }
+.mp-icon-box[data-size='24'] { width: 24px; height: 24px; }
+.mp-icon-box[data-size='28'] { width: 28px; height: 28px; }
+.mp-icon-box[data-size='32'] { width: 32px; height: 32px; }
