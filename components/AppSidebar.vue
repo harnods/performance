@@ -22,30 +22,30 @@ const group2: NavItem[] = [
   {
     icon: 'performance', label: 'Reviews',
     children: [
-      { label: 'Pending Actions', path: '/reviews/pending-actions' },
-      { label: 'Review Cycles', path: '/reviews/review-cycles' },
-      { label: 'My Reviews', path: '/reviews/my-reviews' },
+      { label: 'Pending actions', path: '/reviews/pending-actions' },
+      { label: 'Review cycles', path: '/reviews/review-cycles' },
+      { label: 'My reviews', path: '/reviews/my-reviews' },
       { label: 'Calibrations', path: '/reviews/calibrations' },
     ],
   },
   {
     icon: 'goal', label: 'Goals',
     children: [
-      { label: 'Individual Goals', path: '/goals/individual-goals' },
-      { label: 'Team Goals', path: '/goals/team-goals' },
-      { label: 'Organization Goals', path: '/goals/organization-goals' },
-      { label: 'Company Goals', path: '/goals/company-goals' },
+      { label: 'Individual goals', path: '/goals/individual-goals' },
+      { label: 'Team goals', path: '/goals/team-goals' },
+      { label: 'Organization goals', path: '/goals/organization-goals' },
+      { label: 'Company goals', path: '/goals/company-goals' },
       { divider: true },
-      { label: 'Goal Hierarchy', path: '/goals/goal-hierarchy' },
-      { label: 'Goal Categories', path: '/goals/goal-categories' },
-      { label: 'Goal Settings', path: '/goals/goal-settings' },
+      { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
+      { label: 'Goal categories', path: '/goals/goal-categories' },
+      { label: 'Goal settings', path: '/goals/goal-settings' },
     ],
   },
   {
     icon: 'talent-management', label: 'Talents',
     children: [
-      { label: 'Talent Directory', path: '/talents/talent-directory' },
-      { label: 'Succession Plans', path: '/talents/succession-plans' },
+      { label: 'Talent directory', path: '/talents/talent-directory' },
+      { label: 'Succession plans', path: '/talents/succession-plans' },
       { label: 'IDPs', path: '/talents/idps' },
       { label: 'Competencies', path: '/talents/competencies' },
     ],
@@ -56,11 +56,11 @@ const group3: NavItem[] = [
   {
     icon: 'settings', label: 'Settings',
     children: [
-      { label: 'Manage Users', path: '/settings/manage-users' },
+      { label: 'Manage users', path: '/settings/manage-users' },
       { label: 'Templates', path: '/settings/templates' },
       { label: 'Reminders', path: '/settings/reminders' },
-      { label: 'Payroll Groups', path: '/settings/payroll-groups' },
-      { label: '9 Box Configurations', path: '/settings/9-box-configurations' },
+      { label: 'Payroll groups', path: '/settings/payroll-groups' },
+      { label: '9 box configurations', path: '/settings/9-box-configurations' },
     ],
   },
 ]
@@ -169,7 +169,7 @@ const railBase = {
   textDecoration: 'none', transition: 'background-color 120ms ease',
 } as const
 const railDefault = css({ ...railBase, bg: 'transparent', color: 'text.default', _hover: { bg: 'transparent', color: 'text.link' } })
-const railActive = css({ ...railBase, bg: 'background.brand.selected', _hover: { bg: 'background.brand.selected' } })
+const railActive = css({ ...railBase, bg: '[#E7EDF5]', _hover: { bg: '[#E7EDF5]' } })
 
 const childBase = {
   display: 'flex', alignItems: 'center', w: 'full', height: '36px', px: '3',
@@ -191,10 +191,13 @@ const sectionTitle = css({
   textTransform: 'uppercase', color: 'text.link', whiteSpace: 'nowrap',
 })
 
+const isChildActive = (child: NavChild) =>
+  route.path === child.path || route.path.startsWith(child.path + '/')
+
 const itemClassFull = (item: NavItem) => cx(isItemActive(item) ? itemActive : itemDefault)
 const itemClassRail = (item: NavItem) => cx(isItemActive(item) ? railActive : railDefault)
 const childClass = (child: NavChild) =>
-  route.path === child.path ? childActive : childDefault
+  isChildActive(child) ? childActive : childDefault
 
 /* ---------- popover dark styles ---------- */
 const popoverWrap = css({ py: '1', px: '1', minW: '180px' })
@@ -244,7 +247,7 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
                       <NuxtLink
                         v-else
                         :to="child.path"
-                        :class="route.path === child.path ? popoverItemActive : popoverItem"
+                        :class="isChildActive(child) ? popoverItemActive : popoverItem"
                       >
                         {{ child.label }}
                       </NuxtLink>
@@ -326,7 +329,7 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
                         <NuxtLink
                           v-else
                           :to="child.path"
-                          :class="route.path === child.path ? popoverItemActive : popoverItem"
+                          :class="isChildActive(child) ? popoverItemActive : popoverItem"
                         >
                           {{ child.label }}
                         </NuxtLink>
@@ -389,7 +392,7 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
                 v-else
                 :to="item.path"
                 :class="childClass(item)"
-                :aria-current="route.path === item.path ? 'page' : undefined"
+                :aria-current="isChildActive(item) ? 'page' : undefined"
               >
                 {{ item.label }}
               </NuxtLink>
