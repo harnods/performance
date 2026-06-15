@@ -103,7 +103,11 @@ const cycles = ref<Cycle[]>([
   { name: 'Probation Evaluation - August 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 3, done: 1 },
   { name: 'Leadership Performance Assessment', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Jul 2025', repeatCaption: null, total: 4, done: 2 },
   { name: 'Cross-functional Competency Audit', purpose: 'competency', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 0 },
-  { name: 'Year-End Evaluation 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 3, done: 1 },
+  { name: 'Probation Evaluation – Batch Jan 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 4, done: 2 },
+  { name: 'Probation Evaluation – Batch Sep 2025', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 1, done: 1 },
+  { name: 'Contract Evaluation – Batch Mar 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 1, done: 1 },
+  { name: 'Contract Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: 'Sep 2026', repeatCaption: 'Based on contract duration', total: 1, done: 0 },
+  { name: 'Part-timer Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 0, done: 0 },
 ])
 
 // Filtering + search
@@ -306,8 +310,7 @@ const clickableRow = css({ cursor: 'pointer' })
                   <MpProgress
                     variant="linear"
                     size="sm"
-                    :value="Math.round((cycle.done / cycle.total) * 100)"
-                    :style="{ '--mp-progress-color': 'var(--mp-colors-violet-500)' }"
+                    :value="cycle.total > 0 ? Math.round((cycle.done / cycle.total) * 100) : 0"
                   />
                 </MpFlex>
               </MpTableCell>

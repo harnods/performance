@@ -47,6 +47,13 @@ html, body, #__nuxt {
   transform: none !important;
 }
 
+/* MpSkeleton: solid fill, no shimmer animation or gradient */
+.mp-skeleton-component {
+  animation: none !important;
+  background-image: none !important;
+  background-color: var(--mp-colors-background-neutral-subtle) !important;
+}
+
 /* Clearable MpSelect: show the clear (×) immediately when a value is selected,
    instead of only revealing it on hover. */
 .mp-select__root:has(select[data-value]:not([data-value=''])) .mp-select__clear {

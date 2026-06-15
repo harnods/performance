@@ -14,6 +14,10 @@ import {
   MpFormControl,
   MpFormLabel,
   MpTooltip,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerDescription,
+  toast,
   css,
 } from '@mekari/pixel3'
 
@@ -71,6 +75,8 @@ const templateOptions = [
 ]
 
 // Review period
+const reviewPeriodType = ref<'single' | 'multiple'>('single')
+
 const reviewStart = ref('7')
 const reviewStartOptions = [
   { value: '7', label: '7 days' },
@@ -78,6 +84,9 @@ const reviewStartOptions = [
   { value: '30', label: '30 days' },
   { value: 'custom', label: 'Custom' },
 ]
+
+const reviewEvery = ref<number | ''>('')
+const reviewWindow = ref<number | ''>('')
 
 const reviewer = ref('approval-line')
 const reviewerOptions = [
@@ -114,9 +123,6 @@ const totalWeight = computed(() => {
 // Review outcome
 const reviewerCanDecide = ref(false)
 const lockReview = ref(false)
-
-// Publish score
-const publishScore = ref<'all-reviewers' | 'period-ends' | 'both'>('both')
 
 // ─── Layout ───────────────────────────────────────────────────────────────────
 const gridArea = css({
@@ -194,10 +200,59 @@ const footerBar = css({
   paddingTop: '4',
 })
 
+// Multiple review period banner
+const bannerBox = css({
+  background: 'background.neutral.subtle',
+  border: '1px solid',
+  borderColor: 'border.default',
+  borderRadius: 'md',
+  padding: '4',
+})
+
+const timelineWrapper = css({
+  position: 'relative',
+  display: 'flex',
+  justifyContent: 'space-between',
+  marginBottom: '2',
+  paddingTop: '1',
+})
+
+const timelineConnector = css({
+  position: 'absolute',
+  top: '9px',
+  left: '16%',
+  right: '16%',
+  height: '2px',
+  background: 'background.brand.bold',
+})
+
+const timelineDot = css({
+  width: '10px',
+  height: '10px',
+  borderRadius: 'full',
+  background: 'background.brand.bold',
+  marginBottom: '2',
+  flexShrink: '0',
+})
+
+const timelineCol = css({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '0',
+  flex: '1',
+})
+
 function onCancel() {
   router.push('/reviews/review-cycles')
 }
 function onSave() {
+  toast.notify({
+    id: 'review-cycle-created',
+    position: 'top-center',
+    variant: 'success',
+    title: 'Review cycle created',
+  })
   router.push('/reviews/review-cycles')
 }
 </script>
@@ -217,7 +272,7 @@ function onSave() {
             <template v-if="!isEditingName">
               <MpText :class="h2Class">{{ cycleName || 'Untitled cycle' }}</MpText>
               <MpTooltip label="Rename cycle" use-portal>
-                <MpButton variant="ghost" size="sm" left-icon="edit" @click="startEditName" />
+                <MpButton variant="ghost" left-icon="edit" @click="startEditName" />
               </MpTooltip>
             </template>
             <template v-else>
@@ -274,13 +329,104 @@ function onSave() {
         </MpText>
       </div>
       <div :class="fields">
-        <MpFormControl id="review-start">
-          <MpFormLabel>Review start</MpFormLabel>
-          <MpFlex align="center" gap="4">
-            <PxSelectPopover v-model="reviewStart" :options="reviewStartOptions" :width="selectWidth" />
-            <MpText size="label" color="text.default">before the employee's end date</MpText>
-          </MpFlex>
-        </MpFormControl>
+        <!-- Single review radio -->
+        <MpRadio
+          name="review-period-type"
+          value="single"
+          :is-checked="reviewPeriodType === 'single'"
+          @update:is-checked="reviewPeriodType = 'single'"
+        >
+          Single review
+          <template #description>One review is generated before the employee's end date.</template>
+        </MpRadio>
+
+        <!-- Review start — indented, visible only when single -->
+        <div v-if="reviewPeriodType === 'single'" :class="css({ paddingLeft: '8' })">
+          <MpFormControl id="review-start">
+            <MpFormLabel>Review start</MpFormLabel>
+            <MpFlex align="center" gap="4">
+              <PxSelectPopover v-model="reviewStart" :options="reviewStartOptions" :width="selectWidth" />
+              <MpText size="label" color="text.default">before the employee's end date</MpText>
+            </MpFlex>
+          </MpFormControl>
+        </div>
+
+        <!-- Multiple review periods radio -->
+        <MpRadio
+          name="review-period-type"
+          value="multiple"
+          :is-checked="reviewPeriodType === 'multiple'"
+          @update:is-checked="reviewPeriodType = 'multiple'"
+        >
+          Multiple review periods
+          <template #description>Reviews are generated at regular intervals throughout the employment period.</template>
+        </MpRadio>
+
+        <!-- Review every + Review window — indented, visible only when multiple -->
+        <template v-if="reviewPeriodType === 'multiple'">
+          <div :class="css({ paddingLeft: '8', display: 'flex', flexDirection: 'column', gap: '4' })">
+            <!-- Two fields side by side -->
+            <MpFlex gap="4">
+              <MpFormControl id="review-every" :class="css({ flex: '1' })">
+                <MpFormLabel>Review every</MpFormLabel>
+                <MpInputGroup>
+                  <MpInput v-model="reviewEvery" type="number" min="1" />
+                  <MpInputRightAddon>Months</MpInputRightAddon>
+                </MpInputGroup>
+              </MpFormControl>
+              <MpFormControl id="review-windows" :class="css({ flex: '1' })">
+                <MpFormLabel>Review window</MpFormLabel>
+                <MpInputGroup>
+                  <MpInput v-model="reviewWindow" type="number" min="1" />
+                  <MpInputRightAddon>Days</MpInputRightAddon>
+                </MpInputGroup>
+              </MpFormControl>
+            </MpFlex>
+
+            <!-- Warning banner: shown when review every = 1 month -->
+            <MpBanner v-if="+reviewEvery === 1" variant="warning" is-inline>
+              <MpBannerIcon />
+              <MpBannerDescription>This configuration may generate a high number of review periods per employee depending on their contract duration.</MpBannerDescription>
+            </MpBanner>
+
+            <!-- Explanatory banner -->
+            <div :class="bannerBox">
+              <MpText size="label" :class="css({ fontWeight: '600', color: 'text.default', display: 'block', marginBottom: '3' })">
+                6-month contract example
+              </MpText>
+
+              <!-- Timeline -->
+              <div :class="timelineWrapper">
+                <div :class="timelineConnector" />
+                <div :class="timelineCol">
+                  <div :class="timelineDot" />
+                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Period 1</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 2</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days after month 2</MpText>
+                </div>
+                <div :class="timelineCol">
+                  <div :class="timelineDot" />
+                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Period 2</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 4</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days after month 4</MpText>
+                </div>
+                <div :class="timelineCol">
+                  <div :class="timelineDot" />
+                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Final</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 6</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
+                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days before end</MpText>
+                </div>
+              </div>
+
+              <MpText size="label-small" color="text.secondary">
+                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-days review period.
+              </MpText>
+            </div>
+          </div>
+        </template>
 
         <MpFormControl id="reviewer">
           <MpFormLabel>Reviewer</MpFormLabel>
@@ -308,15 +454,15 @@ function onSave() {
       <div :class="css({ display: 'flex', flexDirection: 'column', gap: '0' })">
         <div :class="toggleRow">
           <MpToggle :is-checked="includeGoal" @update:is-checked="(v) => (includeGoal = v)">Goal</MpToggle>
-          <MpButton variant="secondary" size="sm" :is-disabled="!includeGoal">Manage</MpButton>
+          <MpButton variant="secondary" :is-disabled="!includeGoal">Manage</MpButton>
         </div>
         <div :class="toggleRow">
           <MpToggle :is-checked="includeAttendance" @update:is-checked="(v) => (includeAttendance = v)">Attendance</MpToggle>
-          <MpButton variant="secondary" size="sm" :is-disabled="!includeAttendance">Manage</MpButton>
+          <MpButton variant="secondary" :is-disabled="!includeAttendance">Manage</MpButton>
         </div>
         <div :class="toggleRow">
           <MpToggle :is-checked="includeReprimand" @update:is-checked="(v) => (includeReprimand = v)">Reprimand</MpToggle>
-          <MpButton variant="secondary" size="sm" :is-disabled="!includeReprimand">Manage</MpButton>
+          <MpButton variant="secondary" :is-disabled="!includeReprimand">Manage</MpButton>
         </div>
 
         <!-- Aspects weight — visible when any toggle is on -->
@@ -399,7 +545,7 @@ function onSave() {
               Deduct points from the final score based on attendance, time off, and reprimand data.
             </template>
           </MpToggle>
-          <MpButton variant="secondary" size="sm" :is-disabled="!deductionScore">Manage</MpButton>
+          <MpButton variant="secondary" :is-disabled="!deductionScore">Manage</MpButton>
         </div>
       </div>
 
@@ -417,43 +563,6 @@ function onSave() {
         <MpCheckbox :is-checked="lockReview" @update:is-checked="(v) => (lockReview = v)">
           Lock review after submission
         </MpCheckbox>
-      </div>
-
-      <!-- ── Publish score ───────────────────────────────────────────── -->
-      <div :class="sectionHeader">
-        <MpText as="h2" :class="h2Class">Publish score</MpText>
-        <MpText size="label" color="text.secondary">
-          Decide when employees can see their final review score.
-        </MpText>
-      </div>
-      <div :class="fields">
-        <MpRadio
-          name="publish-score"
-          value="all-reviewers"
-          :is-checked="publishScore === 'all-reviewers'"
-          @update:is-checked="publishScore = 'all-reviewers'"
-        >
-          After all reviewers submit
-          <template #description>When all reviewers have submitted their feedback.</template>
-        </MpRadio>
-        <MpRadio
-          name="publish-score"
-          value="period-ends"
-          :is-checked="publishScore === 'period-ends'"
-          @update:is-checked="publishScore = 'period-ends'"
-        >
-          After review period ends
-          <template #description>When the review period officially closes.</template>
-        </MpRadio>
-        <MpRadio
-          name="publish-score"
-          value="both"
-          :is-checked="publishScore === 'both'"
-          @update:is-checked="publishScore = 'both'"
-        >
-          After both conditions are met
-          <template #description>When all reviewers have submitted and the review period has ended.</template>
-        </MpRadio>
       </div>
 
       <!-- ── Footer ─────────────────────────────────────────────────── -->

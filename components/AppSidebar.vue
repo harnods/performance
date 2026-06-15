@@ -119,10 +119,10 @@ const rootRailOrSubmenu = css({ display: 'flex', flexDirection: 'row', h: '100%'
 
 const railBoxBase = { display: 'flex', flexDirection: 'column', w: '56px', h: '100%', flexShrink: 0 } as const
 const railBoxSubmenu = css({
-  ...railBoxBase, bg: 'background.surface', position: 'relative', zIndex: 1,
+  ...railBoxBase, bg: 'background.nav.parent', position: 'relative', zIndex: 1,
   borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default',
 })
-const railBoxOnly = css({ ...railBoxBase, bg: 'transparent' })
+const railBoxOnly = css({ ...railBoxBase, bg: 'background.nav.parent' })
 
 const panelBase = css({
   display: 'flex', flexDirection: 'column', h: '100%', flexShrink: 0,
@@ -169,7 +169,7 @@ const railBase = {
   textDecoration: 'none', transition: 'background-color 120ms ease',
 } as const
 const railDefault = css({ ...railBase, bg: 'transparent', color: 'text.default', _hover: { bg: 'transparent', color: 'text.link' } })
-const railActive = css({ ...railBase, bg: '[#E7EDF5]', _hover: { bg: '[#E7EDF5]' } })
+const railActive = css({ ...railBase, bg: 'background.nav.parent', _hover: { bg: 'background.nav.parent' } })
 
 const childBase = {
   display: 'flex', alignItems: 'center', w: 'full', height: '36px', px: '3',

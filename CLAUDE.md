@@ -1,0 +1,115 @@
+# Talenta Performance — Project Rules for Claude
+
+## Stack
+- **Nuxt 3** + **Vue 3** SFC with `<script setup lang="ts">`
+- **Mekari Pixel 3** (`@mekari/pixel3`) design system
+- **Panda CSS** via `css()` from `@mekari/pixel3` for all styling
+
+---
+
+## Design Tokens
+- **Always DT 2.4. Never DT 2.1. No exceptions.**
+- Never use raw hex colors (e.g. `#4B61DD`) — always use semantic tokens
+- Never use inline `style=""` attributes — always use `css()`
+- Token examples: `text.default`, `text.secondary`, `border.default`, `background.neutral.subtle`, `background.brand.bold`, `background.information.bold`
+
+---
+
+## Styling with `css()`
+
+```ts
+import { css } from '@mekari/pixel3'
+
+const myClass = css({
+  fontSize: '14px',
+  color: 'text.default',
+  borderBottom: '1px solid',
+  borderBottomColor: 'border.default',
+})
+```
+
+- Use `css()` for all custom styles — no Tailwind, no raw CSS classes
+- Responsive via Panda CSS object syntax: `{ base: 'span 12 / span 12', lg: 'span 6 / span 6' }`
+- `lg` breakpoint = ≥1024px (desktop). Below lg = tablet/mobile.
+
+---
+
+## Mekari Taste Principles
+
+### Layout
+- **No cards for form sections** — use flat sections with `border-bottom` separators only
+- Section headers: H2 (`fontSize: '20px', fontWeight: '600', lineHeight: '32px'`) — do NOT use `MpText size="h2"` (CSS recipe broken)
+- Sub-headers: H3 (`fontSize: '16px', fontWeight: '600', lineHeight: '24px'`)
+- Description text under section headers: `size="label"` (14px/regular/lh20), `color="text.secondary"`
+- No divider lines between sections — spacing only
+
+### Forms
+- Every field wrapped in `MpFormControl` + `MpFormLabel`
+- All dropdowns/selects use `PxSelectPopover` (custom component) — never raw `MpSelect` in forms
+- Select width = `50%` of form column by default (3/12 grid = ~264px on desktop)
+- Buttons default size = **md** (never `size="sm"` unless explicitly requested)
+- `MpToggle`, `MpCheckbox`, `MpRadio` — use built-in `default` and `#description` slots for labels/captions (do not wrap in external `MpFlex`)
+- Input with unit suffix: use `MpInputGroup` + `MpInputRightAddon`
+
+### Grid
+- Content area uses 12-column grid
+- Form column: `span 6 / span 6` on desktop (`lg`), `span 12 / span 12` on tablet/mobile (`base`)
+- Gap between grid cells: `gap: '6'`
+- Gap between form fields: `gap: '4'` (16px)
+- Margin between sections: `marginTop: '10'` (top), `marginBottom: '3'` (before first field)
+
+---
+
+## Page Layout (`layouts/default.vue`)
+- Outer: `MpFlex direction="column" height="100vh"` — full viewport
+- `AppHeader` sticky at top
+- `AppSidebar` + main column in flex row
+- Main column: `overflowY="auto"` — scrollable
+- Page header: **fixed 72px** — never change this height
+- Breadcrumb: set via `definePageMeta({ breadcrumb: { label: '...', to: '/...' } })`
+- Page title: set via `definePageMeta({ title: '...' })`
+- Page header action buttons: use `<Teleport to="#page-header-actions" defer>`
+
+---
+
+## Components
+
+### `PxSelectPopover`
+Custom popover-driven select. Always use this for form dropdowns.
+```vue
+<PxSelectPopover
+  v-model="value"
+  :options="[{ value: 'a', label: 'Option A', description?: '...' }]"
+  placeholder="Select..."
+  :width="selectWidth"
+  :searchable="true"
+  search-placeholder="Search..."
+  :is-clearable="true"
+/>
+```
+
+### `PxNoAssignmentNotice`
+Empty state notice for pages with no assignments yet.
+
+### Pixel components commonly used
+`MpFlex`, `MpText`, `MpButton`, `MpInput`, `MpInputGroup`, `MpInputRightAddon`, `MpInputLeftAddon`, `MpIcon`, `MpToggle`, `MpCheckbox`, `MpRadio`, `MpBadge`, `MpFormControl`, `MpFormLabel`, `MpTooltip`, `MpPopover`, `MpPopoverTrigger`, `MpPopoverContent`, `MpPopoverList`, `MpPopoverListItem`, `MpTextlink`
+
+---
+
+## Routing & Navigation
+- Active submenu state: `route.path === child.path || route.path.startsWith(child.path + '/')`
+- Catch-all `pages/[...slug].vue` redirects unknown routes to `/`
+- Nested page directories follow Nuxt file-based routing (e.g. `pages/reviews/review-cycles/create.vue`)
+
+---
+
+## Dev Server
+- Runs on **port 3003** via `npm run dev`
+- Launch config: `.claude/launch.json`
+
+---
+
+## Branch Strategy
+- `feat/review-cycles-create` — Review cycles (Evaluation form)
+- `feat/flexible-competency-assignment` — Talents: competency assignment & succession plans
+- Main branch: `main`
