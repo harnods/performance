@@ -385,7 +385,6 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
                       <MpPopoverListItem>View reviewer</MpPopoverListItem>
                       <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
                       <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
-                      <MpPopoverListItem>Extend review period</MpPopoverListItem>
                       <MpPopoverListItem>Remove employee</MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
