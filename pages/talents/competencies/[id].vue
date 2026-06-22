@@ -32,7 +32,7 @@ definePageMeta({
 
 // Mock detail (in production this is fetched by id). Mirrors the matrix create form.
 const detail = {
-  position: 'Product Manager',
+  positions: ['Product Manager', 'Senior Product Manager'],
   scope: 'Job level' as string | null,
   columns: ['Associate', 'Specialist', 'Senior', 'Manager'],
   groups: [
@@ -67,7 +67,9 @@ const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
     <MpFlex direction="column" gap="4">
       <div :class="fieldRow">
         <MpText size="label-small" :class="labelText">Job position</MpText>
-        <MpText size="label" :class="valueText">{{ detail.position }}</MpText>
+        <MpFlex align="center" gap="2" wrap="wrap">
+          <MpTag v-for="p in detail.positions" :key="p" variant="neutral">{{ p }}</MpTag>
+        </MpFlex>
       </div>
       <div :class="fieldRow">
         <MpText size="label-small" :class="labelText">Scope attribute</MpText>
