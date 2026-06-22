@@ -512,4 +512,11 @@ const captionText = css({ color: 'text.secondary' })
 
     </div>
   </div>
+
+  <PxVersionSwitcher
+    :versions="[
+      { label: 'Version 1', to: '/talents/competencies/create' },
+      { label: 'Version 2', to: '/talents/competencies/create-v2' },
+    ]"
+  />
 </template>
