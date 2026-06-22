@@ -1,46 +1,28 @@
 <!--
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
   Mekari Talenta Performance — Create competency assignment
-  Source: Flexible Competency Assignment PRD — US1 (Create Assignment page)
+  Source: Figma — Competencies / Create assignment (node 4203:2694)
   Token mode: Pixel 2.4
-  Patterns used: layout-shell, form-view, conditional fields, dynamic sub-section table
+  Patterns used: layout-shell, form-view, matrix builder (group × scoping-value grid)
+
+  Layout:
+    - Scoping is a single "Scoping attribute" type picker (no inline value picker).
+    - Set group is a MATRIX: rows = competency groups, columns = scoping values
+      (e.g. job levels). Each cell is a target-rating select.
+    - "+" adds a value column; per-column "−" removes it; "Add competency group"
+      adds a row; per-row "−" removes it.
+    - "Not applicable" rating for cells where a group doesn't apply to a value.
+    - Assignment name has a 0/60 character counter. Submit verb = "Save".
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  STATES INCLUDED:
-    - Happy path (scoped + unscoped Set group variants)
-    - Conditional reveal: scope value picker appears when "Scope by" ≠ None
-    - Empty Set group: illustrated-lite empty block, "+ Add competency group" above it
-    - Error: form-level danger banner (missing fields) + uniqueness-conflict banner
-    - Null-safe: placeholders, em dash where applicable
-
-  CONFIRMED DECISIONS (from requirement Q&A 2026-06-03):
-    - Single value per scoping attribute (e.g. one job level)
-    - One "Scope by" dropdown (None / Job level / Grade / Class) + dependent value picker
-    - D1: cannot combine two scoping attributes; D3: (position + scope value) unique;
-      D4: job position always required; D6: unscoped = existing behavior, unchanged.
-
-  COPY DEFAULTS (PRD didn't specify exact strings — iterate freely):
-    - Scope-by label "Scope by", helper as below
-    - Submit verb "Create assignment"; success toast "Assignment created" (PRD)
-    - Uniqueness error copy (see UNIQUE_ERROR)
-
-  DEVIATIONS / OPEN ITEMS:
-    - Success uses an inline success banner on the list page (?created=1) instead of a
-      global toast — pixel3 `toast.notify` needs a mounted MpToastManager which this app
-      doesn't have yet. Swap to toast once the manager is mounted in the layout.
-    - Job position is a multi-select built from MpPopover + MpTag (no dedicated Pixel
-      multi-select used in this codebase yet).
-    - Unscoped "Group name | Select job level | + Add job level" mirrors existing behavior;
-      exact column labels to be reconciled against the current production screenshot.
 -->
 <script setup lang="ts">
 import {
   MpFlex,
   MpButton,
   MpInput,
+  MpInputTag,
   MpText,
   MpIcon,
-  MpTag,
   MpFormControl,
   MpFormLabel,
   MpFormHelpText,
@@ -49,45 +31,38 @@ import {
   MpBannerIcon,
   MpBannerTitle,
   MpBannerDescription,
-  MpPopover,
-  MpPopoverTrigger,
-  MpPopoverContent,
-  MpPopoverList,
-  MpPopoverListItem,
   css,
 } from '@mekari/pixel3'
 
 definePageMeta({
   title: 'Create assignment',
   layout: 'default',
-  breadcrumb: { label: 'Competency assignment', to: '/talents/competencies' },
+  breadcrumb: { label: 'Assignments', to: '/talents/competencies' },
 })
 
 const router = useRouter()
 
-// ─── Copy constants (iterate freely) ───────────────────────────────────────────
+const NAME_MAX = 60
+
 const COPY = {
   nameLabel: 'Assignment name',
-  namePlaceholder: 'e.g. Product Manager — Manager level',
   positionLabel: 'Job position',
-  positionPlaceholder: 'Select one or more job positions',
-  positionHelper: 'Competencies are assigned to everyone in the selected job positions.',
-  scopeLabel: 'Scope by',
-  scopeHelper: 'Optional. Narrow this assignment to one job level, grade, or class within the selected job position.',
-  scopeValuePrefix: 'Select',
-  setGroupTitle: 'Set group',
-  setGroupHelperScoped: 'Set one target rating per competency group. The level/grade/class is fixed by the scope above.',
-  setGroupHelperUnscoped: 'Add competency groups and set a target rating per job level.',
+  positionPlaceholder: 'Select job position',
+  positionHelper: 'You can add multiple job positions',
+  scopeLabel: 'Scoping attribute',
+  scopePlaceholder: 'Select attribute type',
+  columnPlaceholderEmpty: 'Select scoping attribute first',
+  columnPlaceholder: 'Select value',
+  groupsTitle: 'Competency groups',
+  groupsHelper:
+    'Add competency groups and set a target rating per grade. Choose "Not applicable" if a group doesn\'t apply to a specific value.',
+  groupNameCol: 'Group name',
   addGroup: 'Add competency group',
-  addLevel: 'Add job level',
-  emptyTitle: 'No competency group added yet',
-  emptyHelper: 'Add a group from the Add competency group button.',
-  submit: 'Create assignment',
+  groupPlaceholder: 'Select group',
+  ratingPlaceholder: 'Select rating',
   cancel: 'Cancel',
+  submit: 'Save',
 }
-
-const UNIQUE_ERROR = (position: string, value: string) =>
-  `An assignment already exists for ${position} and ${value}. Choose a different value, or edit the existing assignment.`
 
 // ─── Option data (mock) ─────────────────────────────────────────────────────────
 const jobPositionOptions = [
@@ -99,16 +74,15 @@ const jobPositionOptions = [
   { value: 'sales-executive', label: 'Sales Executive' },
 ]
 
-// "None" first → reverts the Set group to existing per-level behavior.
 const scopeTypeOptions = [
-  { value: '', label: 'None (all levels)' },
   { value: 'job-level', label: 'Job level' },
-  { value: 'grade', label: 'Grade' },
-  { value: 'class', label: 'Class' },
+  { value: 'grade', label: 'Job grade' },
+  { value: 'class', label: 'Job class' },
 ]
 
 const jobLevelOptions = [
-  { value: 'staff', label: 'Staff' },
+  { value: 'associate', label: 'Associate' },
+  { value: 'specialist', label: 'Specialist' },
   { value: 'senior', label: 'Senior' },
   { value: 'manager', label: 'Manager' },
   { value: 'senior-manager', label: 'Senior Manager' },
@@ -127,6 +101,7 @@ const competencyGroupOptions = [
   { value: 'execution', label: 'Execution' },
 ]
 const ratingOptions = [
+  { value: 'na', label: 'Not applicable' },
   { value: '1', label: '1 — Needs development' },
   { value: '2', label: '2 — Developing' },
   { value: '3', label: '3 — Proficient' },
@@ -134,32 +109,31 @@ const ratingOptions = [
   { value: '5', label: '5 — Expert' },
 ]
 
-// Mock of already-existing (position + scope value) combinations — drives the
-// uniqueness conflict demo (D3). In production this is a server-side constraint.
-const existingCombos = [
-  { position: 'product-manager', scopeType: 'job-level', scopeValue: 'manager' },
-]
-
 // ─── Form state ──────────────────────────────────────────────────────────────
 const assignmentName = ref('')
 const selectedPositions = ref<string[]>([])
 const scopeType = ref<'' | 'job-level' | 'grade' | 'class'>('')
-const scopeValue = ref('')
 
-interface LevelRow { lid: number; levelId: string; rating: string }
-interface GroupRow { gid: number; groupId: string; targetRating: string; levels: LevelRow[] }
+// Matrix model: columns are scoping values, rows are competency groups.
+interface Column { cid: number; value: string }
+interface GroupRow { rid: number; groupId: string; ratings: Record<number, string> }
 
 let uid = 0
 const nextId = () => ++uid
-const makeLevel = (): LevelRow => ({ lid: nextId(), levelId: '', rating: '' })
-const makeGroup = (): GroupRow => ({ gid: nextId(), groupId: '', targetRating: '', levels: [makeLevel()] })
+const makeColumn = (value = ''): Column => ({ cid: nextId(), value })
+const makeRow = (): GroupRow => ({ rid: nextId(), groupId: '', ratings: {} })
 
-const groups = ref<GroupRow[]>([])
+// First run: no scoping attribute chosen yet, so the matrix has NO attribute
+// columns — just the group rows. Columns are added once an attribute is picked.
+const columns = ref<Column[]>([])
+const rows = ref<GroupRow[]>([makeRow()])
 
 // ─── Derived ───────────────────────────────────────────────────────────────────
 const isScoped = computed(() => scopeType.value !== '')
 
-const scopeValueOptions = computed(() => {
+// Column header value options follow the chosen scoping attribute.
+// Before one is chosen there are NO values to pick — the columns stay disabled.
+const columnValueOptions = computed(() => {
   switch (scopeType.value) {
     case 'job-level': return jobLevelOptions
     case 'grade': return gradeOptions
@@ -168,34 +142,90 @@ const scopeValueOptions = computed(() => {
   }
 }) as ComputedRef<{ value: string; label: string }[]>
 
-const scopeTypeLabel = computed(() =>
-  scopeTypeOptions.find(o => o.value === scopeType.value)?.label.toLowerCase().replace(' (all levels)', '') ?? '',
-)
-const scopeValuePlaceholder = computed(() =>
-  `${COPY.scopeValuePrefix} ${isScoped.value ? scopeTypeLabel.value : 'value'}`,
-)
+const nameCount = computed(() => assignmentName.value.length)
 
-const positionLabelOf = (v: string) => jobPositionOptions.find(o => o.value === v)?.label ?? v
-
-// Reset the dependent value when the type changes.
-watch(scopeType, () => { scopeValue.value = '' })
-
-// ─── Multi-select (job position) ────────────────────────────────────────────────
-function togglePosition(v: string) {
-  const i = selectedPositions.value.indexOf(v)
-  if (i === -1) selectedPositions.value.push(v)
-  else selectedPositions.value.splice(i, 1)
+// Each competency group / attribute value can only be picked once: hide options
+// already chosen elsewhere, but keep the current select's own value visible.
+const selectedGroupIds = computed(() => rows.value.map(r => r.groupId).filter(Boolean))
+function groupOptionsFor(current: string) {
+  return competencyGroupOptions.filter(o => o.value === current || !selectedGroupIds.value.includes(o.value))
 }
-function removePosition(v: string) {
-  selectedPositions.value = selectedPositions.value.filter(p => p !== v)
+const selectedColumnValues = computed(() => columns.value.map(c => c.value).filter(Boolean))
+function columnOptionsFor(current: string) {
+  return columnValueOptions.value.filter(o => o.value === current || !selectedColumnValues.value.includes(o.value))
 }
 
-// ─── Set group mutations ─────────────────────────────────────────────────────────
-function addGroup() { groups.value.push(makeGroup()) }
-function removeGroup(gid: number) { groups.value = groups.value.filter(g => g.gid !== gid) }
-function addLevel(group: GroupRow) { group.levels.push(makeLevel()) }
-function removeLevel(group: GroupRow, lid: number) {
-  group.levels = group.levels.filter(l => l.lid !== lid)
+// When the scoping dimension changes: clear all ratings, and seed a single
+// empty attribute column (ready to fill) — or none when cleared back to "".
+watch(scopeType, () => {
+  columns.value = scopeType.value ? [makeColumn()] : []
+  rows.value.forEach(r => (r.ratings = {}))
+})
+
+// ─── Job position (MpInputTag, pick from suggestions only) ───────────────────────
+const positionSuggestions = jobPositionOptions.map(o => ({ id: o.value, label: o.label, value: o.value }))
+function onPositionChange(data: { value?: string; text?: string }[]) {
+  selectedPositions.value = data.map(d => d.value ?? d.text ?? '').filter(Boolean)
+}
+
+// ─── Matrix mutations ────────────────────────────────────────────────────────────
+function addColumn() { columns.value.push(makeColumn()) }
+function removeColumn(cid: number) {
+  columns.value = columns.value.filter(c => c.cid !== cid)
+  rows.value.forEach(r => delete r.ratings[cid])
+}
+function addRow() { rows.value.push(makeRow()) }
+function removeRow(rid: number) { rows.value = rows.value.filter(r => r.rid !== rid) }
+
+// ─── Drag & drop (native) — reorder attribute columns and group rows ───────────────
+// Ratings are keyed by column id, so reordering the columns array is enough.
+// `over*` drives the live insertion-line indicator while dragging.
+const dragColIndex = ref<number | null>(null)
+const overColIndex = ref<number | null>(null)
+function onColumnDragStart(i: number, e: DragEvent) {
+  dragColIndex.value = i
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)) }
+}
+function onColumnDragEnter(i: number) {
+  if (dragColIndex.value !== null) overColIndex.value = i
+}
+function resetColDrag() { dragColIndex.value = null; overColIndex.value = null }
+function onColumnDrop(i: number) {
+  const from = dragColIndex.value
+  resetColDrag()
+  if (from === null || from === i) return
+  const arr = columns.value.slice()
+  arr.splice(i, 0, arr.splice(from, 1)[0])
+  columns.value = arr
+}
+
+const dragRowIndex = ref<number | null>(null)
+const overRowIndex = ref<number | null>(null)
+function onRowDragStart(i: number, e: DragEvent) {
+  dragRowIndex.value = i
+  if (e.dataTransfer) { e.dataTransfer.effectAllowed = 'move'; e.dataTransfer.setData('text/plain', String(i)) }
+}
+function onRowDragEnter(i: number) {
+  if (dragRowIndex.value !== null) overRowIndex.value = i
+}
+function resetRowDrag() { dragRowIndex.value = null; overRowIndex.value = null }
+function onRowDrop(i: number) {
+  const from = dragRowIndex.value
+  resetRowDrag()
+  if (from === null || from === i) return
+  const arr = rows.value.slice()
+  arr.splice(i, 0, arr.splice(from, 1)[0])
+  rows.value = arr
+}
+
+// Body cells accept whichever drag is active (column or group row).
+function onCellDragEnter(ci: number, idx: number) {
+  if (dragColIndex.value !== null) overColIndex.value = ci
+  else if (dragRowIndex.value !== null) overRowIndex.value = idx
+}
+function onCellDrop(ci: number, idx: number) {
+  if (dragColIndex.value !== null) onColumnDrop(ci)
+  else if (dragRowIndex.value !== null) onRowDrop(idx)
 }
 
 // ─── Validation ──────────────────────────────────────────────────────────────────
@@ -204,13 +234,12 @@ const formError = ref('')
 
 const nameInvalid = computed(() => submitted.value && !assignmentName.value.trim())
 const positionInvalid = computed(() => submitted.value && selectedPositions.value.length === 0)
-const scopeValueInvalid = computed(() => submitted.value && isScoped.value && !scopeValue.value)
 
-function groupInvalid(g: GroupRow): boolean {
+function rowInvalid(r: GroupRow): boolean {
   if (!submitted.value) return false
-  if (!g.groupId) return true
-  if (isScoped.value) return !g.targetRating
-  return !g.levels.some(l => l.levelId && l.rating)
+  if (!r.groupId) return true
+  // Every defined column needs a rating (Not applicable counts as a rating).
+  return columns.value.some(c => c.value && !r.ratings[c.cid])
 }
 
 function validate(): boolean {
@@ -218,25 +247,15 @@ function validate(): boolean {
   const missing
     = nameInvalid.value
     || positionInvalid.value
-    || scopeValueInvalid.value
-    || groups.value.length === 0
-    || groups.value.some(groupInvalid)
+    || !scopeType.value
+    || columns.value.length === 0
+    || columns.value.some(c => !c.value)
+    || rows.value.length === 0
+    || rows.value.some(rowInvalid)
 
   if (missing) {
-    formError.value = 'Please complete the highlighted fields before creating the assignment.'
+    formError.value = 'Please complete the highlighted fields before saving the assignment.'
     return false
-  }
-
-  // Uniqueness (D3) — only relevant when scoped.
-  if (isScoped.value) {
-    const clash = selectedPositions.value.find(p =>
-      existingCombos.some(c => c.position === p && c.scopeType === scopeType.value && c.scopeValue === scopeValue.value),
-    )
-    if (clash) {
-      const valueLabel = scopeValueOptions.value.find(o => o.value === scopeValue.value)?.label ?? scopeValue.value
-      formError.value = UNIQUE_ERROR(positionLabelOf(clash), valueLabel)
-      return false
-    }
   }
   return true
 }
@@ -254,269 +273,314 @@ function onCancel() {
 }
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────────
-const gridArea = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '6' })
-const formColumn = css({
-  gridColumn: { base: 'span 12 / span 12', lg: 'span 7 / span 7' },
-  display: 'flex',
-  flexDirection: 'column',
-  gap: '4',
-})
-const selectWidth = '320px'
+// 12-column form grid. Each field starts at column 1 so it gets its own row;
+// input/inputtag span 6 cols, select spans 3 (per the Pixel form rule).
+const formColumn = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', columnGap: '6', rowGap: '4' })
+const span6 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 6' } })
+const span3 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 3' } })
+const span12 = css({ gridColumn: '1 / -1' })
 
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '6', marginBottom: '3' })
 const h2Class = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
-const divider = css({ height: '1px', background: 'border.default', marginTop: '6' })
-
-const scopeBox = css({
-  display: 'flex', flexDirection: 'column', gap: '3',
-  padding: '4',
-  border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
-  background: 'background.surface',
-})
-
-// Multi-select trigger box
-const msField = css({
-  display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2',
-  minHeight: '40px', width: selectWidth, paddingInline: '3', paddingBlock: '1',
-  border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
-  cursor: 'pointer', background: 'background.stage',
-})
-const msFieldInvalid = css({
-  display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '2',
-  minHeight: '40px', width: selectWidth, paddingInline: '3', paddingBlock: '1',
-  border: '1px solid', borderColor: 'border.danger', borderRadius: 'md',
-  cursor: 'pointer', background: 'background.stage',
-})
-
-const groupCard = css({
-  display: 'flex', flexDirection: 'column', gap: '3',
-  paddingBlock: '4', borderTop: '1px solid', borderTopColor: 'border.default',
-})
-const groupHead = css({ display: 'flex', alignItems: 'flex-end', justifyContent: 'space-between', gap: '4' })
-const levelRow = css({ display: 'flex', alignItems: 'flex-end', gap: '3', paddingLeft: '4' })
-
-const emptyBlock = css({
-  display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1',
-  paddingBlock: '10', border: '1px dashed', borderColor: 'border.default', borderRadius: 'md',
-  background: 'background.surface',
-})
-const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2', paddingTop: '6' })
 const captionText = css({ color: 'text.secondary' })
+const counterText = css({ color: 'text.secondary', fontVariantNumeric: 'tabular-nums' })
+
+const labelRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%' })
+
+// ─── Matrix grid ──────────────────────────────────────────────────────────────────
+// Attribute select and rating select share the same width (200px). Each column
+// is two tracks: the select + a narrow track for the per-column remove button
+// (kept empty under the rating cells so columns stay aligned).
+const RATING_COL = '200px'
+const GROUP_COL = '240px'
+// The trailing action track (+ / remove-group) is the last column.
+// (repeat(0, …) is invalid CSS, so omit the middle track when there are no columns.)
+const matrixTemplate = computed(() => {
+  const mid = columns.value.length ? `repeat(${columns.value.length}, auto auto) ` : ''
+  return `auto ${mid}auto`
+})
+
+// Outer bordered container (rounded) wrapping the whole table; fit-content +
+// maxWidth 100% so it hugs its content but scrolls (and the sticky action column
+// pins to the right) once it grows wider than the stage.
+// Scroll container + a small top gutter so the hover drag-grip can straddle the
+// table's top border (Notion-style) without being clipped by overflow.
+const matrixScroll = css({
+  overflowX: 'auto',
+  maxWidth: '100%',
+  paddingTop: '11px',
+})
+// Inner bordered box (rounded). fit-content so it hugs content but scrolls inside
+// the outer container once it grows wider than the stage.
+const matrixBox = css({
+  width: 'fit-content',
+  border: '1px solid',
+  borderColor: 'neutral.400',
+  borderRadius: 'md',
+})
+// alignItems stretch so every cell fills the full row height — the header bg
+// then covers the whole row (no gaps above/below the controls).
+const matrixGrid = css({
+  display: 'grid', alignItems: 'stretch', rowGap: '0', columnGap: '0',
+  '& > *': { transition: 'opacity 0.15s ease, box-shadow 0.15s ease, background 0.15s ease' },
+})
+
+// Drag interaction states.
+const dimDrag = css({ opacity: '0.4' })
+const dropColLine = css({ boxShadow: 'inset 3px 0 0 0 var(--mp-colors-border-brand)' })  // insertion line at column's left
+const dropRowLine = css({ boxShadow: 'inset 0 3px 0 0 var(--mp-colors-border-brand)' })  // insertion line at row's top
+
+const HEAD_BG = 'background.surface'
+
+// ── Body cells (flex+center so the control sits centered in the full-height cell) ──
+const cell = css({ display: 'flex', alignItems: 'center', paddingInline: '3', paddingBlock: '3' })
+const groupCell = css({ display: 'flex', alignItems: 'center', gap: '1', paddingInline: '3', paddingBlock: '3', borderRight: '1px solid', borderRightColor: 'border.default' })
+const edgeCell = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center', paddingInline: '1', paddingBlock: '3',
+  borderRight: '1px solid', borderRightColor: 'border.default',
+})
+
+// ── Header cells (shaded background) ──
+const headCell = css({
+  display: 'flex', alignItems: 'center', gap: '1', paddingInline: '3', paddingBlock: '3',
+  background: HEAD_BG, borderRight: '1px solid', borderRightColor: 'border.default',
+})
+const headSelectCell = css({
+  position: 'relative',
+  display: 'flex', alignItems: 'center', paddingInline: '3', paddingBlock: '3', background: HEAD_BG,
+  // Notion-style: reveal the small drag grip (above the column) only on hover.
+  '&:hover [data-col-grip]': { opacity: '1', pointerEvents: 'auto' },
+})
+// Small grip pill floating at the top-center of the column header.
+const colGrip = css({
+  position: 'absolute', top: '-11px', left: '50%', transform: 'translateX(-50%)',
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  paddingInline: '1', paddingBlock: '0',
+  borderRadius: 'sm', background: 'background.stage',
+  border: '1px solid', borderColor: 'border.default',
+  color: 'icon.secondary', cursor: 'grab',
+  opacity: '0', pointerEvents: 'none', transition: 'opacity 0.12s ease',
+  zIndex: '3', _active: { cursor: 'grabbing' },
+})
+// Shrink the grip glyph so it reads as a subtle handle, not a button.
+const colGripIcon = css({ transform: 'scale(0.7)' })
+const headEdgeCell = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center', gap: '1', paddingInline: '1', paddingBlock: '3',
+  background: HEAD_BG, borderRight: '1px solid', borderRightColor: 'border.default',
+})
+const headLabel = css({ fontWeight: '600', color: 'text.default' })
+
+// Drag handle (grip) + a matching spacer to keep the header label aligned over the group selects.
+const dragHandle = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center', width: '18px', flexShrink: '0',
+  cursor: 'grab', color: 'icon.secondary', _active: { cursor: 'grabbing' },
+})
+const handleLane = css({ width: '18px', flexShrink: '0' })
+
+// ── Sticky action column (pinned right while scrolling) ──
+const stickyBase = {
+  display: 'flex', alignItems: 'center', justifyContent: 'center', paddingInline: '1', paddingBlock: '3',
+  position: 'sticky', right: '0', zIndex: '1', borderLeft: '1px solid', borderLeftColor: 'border.default',
+} as const
+const stickyHead = css({ ...stickyBase, background: HEAD_BG })
+const stickyBody = css({ ...stickyBase, background: 'background.stage' })
+// Full-span lines: a header underline + a separator under every group row.
+const headDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'border.default' })
+const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'border.default' })
 </script>
 
 <template>
-  <Teleport to="#page-header-actions" defer>
-    <MpButton variant="ghost" @click="onCancel">{{ COPY.cancel }}</MpButton>
-    <MpButton variant="primary" @click="onSubmit">{{ COPY.submit }}</MpButton>
-  </Teleport>
+  <div :class="formColumn">
 
-  <div :class="gridArea">
-    <div :class="formColumn">
+    <!-- ═════ Form-level error banner ═════ -->
+    <MpBanner v-if="formError" variant="danger" :class="span12">
+      <MpBannerIcon />
+      <MpBannerTitle>Couldn't save assignment</MpBannerTitle>
+      <MpBannerDescription>{{ formError }}</MpBannerDescription>
+    </MpBanner>
 
-      <!-- ═════ Form-level error banner ═════ -->
-      <MpBanner v-if="formError" variant="danger">
-        <MpBannerIcon />
-        <MpBannerTitle>Couldn't create assignment</MpBannerTitle>
-        <MpBannerDescription>{{ formError }}</MpBannerDescription>
-      </MpBanner>
-
-      <!-- ═════ Assignment name ═════ -->
-      <MpFormControl id="assignment-name" :is-required="true" :is-invalid="nameInvalid">
+    <!-- ═════ Assignment name (with counter) — input: 6 grid col ═════ -->
+    <MpFormControl id="assignment-name" :is-required="true" :is-invalid="nameInvalid" :class="span6">
+      <div :class="labelRow">
         <MpFormLabel>{{ COPY.nameLabel }}</MpFormLabel>
-        <MpInput
-          v-model="assignmentName"
-          :placeholder="COPY.namePlaceholder"
-          :class="css({ width: selectWidth })"
-        />
-        <MpFormErrorMessage>Assignment name is required.</MpFormErrorMessage>
-      </MpFormControl>
-
-      <!-- ═════ Job position (multi-select) ═════ -->
-      <MpFormControl id="job-position" :is-required="true" :is-invalid="positionInvalid">
-        <MpFormLabel>{{ COPY.positionLabel }}</MpFormLabel>
-        <MpPopover is-adaptive-width use-portal placement="bottom-start">
-          <MpPopoverTrigger>
-            <div :class="positionInvalid ? msFieldInvalid : msField">
-              <template v-if="selectedPositions.length">
-                <MpTag
-                  v-for="p in selectedPositions"
-                  :key="p"
-                  variant="primary"
-                  @close="removePosition(p)"
-                >
-                  {{ positionLabelOf(p) }}
-                </MpTag>
-              </template>
-              <MpText v-else size="label" :class="captionText">{{ COPY.positionPlaceholder }}</MpText>
-              <MpIcon name="chevron-down" :class="css({ marginLeft: 'auto', color: 'icon.default' })" />
-            </div>
-          </MpPopoverTrigger>
-          <MpPopoverContent>
-            <MpPopoverList>
-              <MpPopoverListItem
-                v-for="opt in jobPositionOptions"
-                :key="opt.value"
-                :is-active="selectedPositions.includes(opt.value)"
-                @click="togglePosition(opt.value)"
-              >
-                <MpFlex align="center" justify="space-between" gap="3" :class="css({ width: '100%' })">
-                  {{ opt.label }}
-                  <MpIcon v-if="selectedPositions.includes(opt.value)" name="check" :class="css({ color: 'icon.brand' })" />
-                </MpFlex>
-              </MpPopoverListItem>
-            </MpPopoverList>
-          </MpPopoverContent>
-        </MpPopover>
-        <MpFormHelpText>{{ COPY.positionHelper }}</MpFormHelpText>
-        <MpFormErrorMessage>Select at least one job position.</MpFormErrorMessage>
-      </MpFormControl>
-
-      <!-- ═════ Scope by (NEW) — type dropdown + dependent value picker ═════ -->
-      <div :class="scopeBox">
-        <MpFormControl id="scope-type">
-          <MpFormLabel>{{ COPY.scopeLabel }}</MpFormLabel>
-          <MpFlex align="flex-start" gap="3" wrap="wrap">
-            <PxSelectPopover
-              v-model="scopeType"
-              :options="scopeTypeOptions"
-              :width="'200px'"
-            />
-            <!-- Dependent value picker — revealed only when a type is chosen -->
-            <PxSelectPopover
-              v-if="isScoped"
-              v-model="scopeValue"
-              :options="scopeValueOptions"
-              :placeholder="scopeValuePlaceholder"
-              :width="'200px'"
-              searchable
-            />
-          </MpFlex>
-          <MpFormHelpText>{{ COPY.scopeHelper }}</MpFormHelpText>
-        </MpFormControl>
-        <MpText v-if="scopeValueInvalid" size="label-small" :class="css({ color: 'text.danger' })">
-          Select a {{ scopeTypeLabel }} value, or set Scope by to None.
-        </MpText>
+        <MpText size="label-small" :class="counterText">{{ nameCount }} / {{ NAME_MAX }}</MpText>
       </div>
+      <MpInput
+        v-model="assignmentName"
+        :maxlength="NAME_MAX"
+        :class="css({ width: '100%' })"
+      />
+      <MpFormErrorMessage>Assignment name is required.</MpFormErrorMessage>
+    </MpFormControl>
 
-      <!-- ═════ Set group ═════ -->
-      <div :class="divider" />
-      <div :class="sectionHeader">
-        <MpText as="h2" :class="h2Class">{{ COPY.setGroupTitle }}</MpText>
-        <MpText size="label" :class="captionText">
-          {{ isScoped ? COPY.setGroupHelperScoped : COPY.setGroupHelperUnscoped }}
-        </MpText>
-      </div>
+    <!-- ═════ Job position (MpInputTag) — 6 grid col ═════ -->
+    <MpFormControl id="job-position" :is-required="true" :is-invalid="positionInvalid" :class="span6">
+      <MpFormLabel>{{ COPY.positionLabel }}</MpFormLabel>
+      <MpInputTag
+        id="job-position-input"
+        :placeholder="COPY.positionPlaceholder"
+        :suggestions="positionSuggestions"
+        suggestion-key="label"
+        :is-show-suggestions="true"
+        :is-enable-create-new-tag="false"
+        :is-show-icon-chevron-down="true"
+        :is-invalid="positionInvalid"
+        use-portal
+        @change="onPositionChange"
+      />
+      <MpFormHelpText>{{ COPY.positionHelper }}</MpFormHelpText>
+      <MpFormErrorMessage>Select at least one job position.</MpFormErrorMessage>
+    </MpFormControl>
 
-      <!-- Add action sits ABOVE the list (reachable whether empty or populated) -->
-      <MpFlex>
-        <MpButton variant="secondary" size="sm" left-icon="add" @click="addGroup">
-          {{ COPY.addGroup }}
-        </MpButton>
-      </MpFlex>
+    <!-- ═════ Scoping attribute — select: 3 grid col ═════ -->
+    <MpFormControl id="scope-type" :is-invalid="submitted && !scopeType" :class="span3">
+      <MpFormLabel>{{ COPY.scopeLabel }}</MpFormLabel>
+      <PxSelectPopover
+        v-model="scopeType"
+        :options="scopeTypeOptions"
+        :placeholder="COPY.scopePlaceholder"
+        :width="'100%'"
+      />
+      <MpFormErrorMessage>Select a scoping attribute.</MpFormErrorMessage>
+    </MpFormControl>
 
-      <!-- Empty state -->
-      <div v-if="groups.length === 0" :class="emptyBlock">
-        <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">{{ COPY.emptyTitle }}</MpText>
-        <MpText size="label-small" :class="captionText">
-          Add a group from the <strong>{{ COPY.addGroup }}</strong> button.
-        </MpText>
-      </div>
+    <!-- ═════ Competency groups (matrix) — full width ═════ -->
+    <div :class="[sectionHeader, span12]">
+      <MpText as="h2" :class="h2Class">{{ COPY.groupsTitle }}</MpText>
+      <MpText size="label" :class="captionText">{{ COPY.groupsHelper }}</MpText>
+    </div>
 
-      <!-- Group rows -->
-      <template v-else>
-        <div v-for="group in groups" :key="group.gid" :class="groupCard">
-          <div :class="groupHead">
-            <MpFormControl :id="`group-${group.gid}`" :is-invalid="submitted && !group.groupId">
-              <MpFormLabel>Competency group</MpFormLabel>
-              <PxSelectPopover
-                v-model="group.groupId"
-                :options="competencyGroupOptions"
-                placeholder="Select group"
-                :width="'260px'"
-                searchable
-              />
-            </MpFormControl>
+    <div :class="[matrixScroll, span12]">
+      <div :class="matrixBox">
+      <div :class="matrixGrid" :style="{ gridTemplateColumns: matrixTemplate }">
 
-            <!-- Scoped: one rating for the whole group -->
-            <MpFormControl
-              v-if="isScoped"
-              :id="`rating-${group.gid}`"
-              :is-invalid="submitted && !group.targetRating"
+        <!-- Header row -->
+        <div :class="headCell">
+          <div :class="handleLane" />
+          <MpText size="label" :class="headLabel">{{ COPY.groupNameCol }}</MpText>
+        </div>
+        <template v-for="(col, ci) in columns" :key="`h-${col.cid}`">
+          <div
+            :class="[headSelectCell, ci === dragColIndex && dimDrag, ci === overColIndex && dropColLine]"
+            @dragenter.prevent="onColumnDragEnter(ci)"
+            @dragover.prevent
+            @drop="onColumnDrop(ci)"
+          >
+            <div
+              :class="colGrip"
+              data-col-grip
+              draggable="true"
+              aria-label="Drag to reorder column"
+              @dragstart="onColumnDragStart(ci, $event)"
+              @dragend="resetColDrag"
             >
-              <MpFormLabel>Target rating</MpFormLabel>
-              <PxSelectPopover
-                v-model="group.targetRating"
-                :options="ratingOptions"
-                placeholder="Select rating"
-                :width="'200px'"
-              />
-            </MpFormControl>
-
+              <MpIcon name="drag" size="sm" :class="colGripIcon" />
+            </div>
+            <PxSelectPopover
+              v-model="col.value"
+              :options="columnOptionsFor(col.value)"
+              :placeholder="isScoped ? COPY.columnPlaceholder : COPY.columnPlaceholderEmpty"
+              :is-disabled="!isScoped"
+              :width="RATING_COL"
+            />
+          </div>
+          <div
+            :class="[headEdgeCell, ci === dragColIndex && dimDrag]"
+            @dragenter.prevent="onColumnDragEnter(ci)"
+            @dragover.prevent
+            @drop="onColumnDrop(ci)"
+          >
             <MpButton
               variant="ghost"
               size="sm"
-              left-icon="delete"
-              aria-label="Remove group"
-              @click="removeGroup(group.gid)"
+              left-icon="minus-circular"
+              aria-label="Remove column"
+              :is-disabled="columns.length === 1"
+              @click="removeColumn(col.cid)"
             />
           </div>
+        </template>
+        <div :class="stickyHead">
+          <MpButton
+            variant="ghost"
+            size="sm"
+            left-icon="add"
+            aria-label="Add column"
+            :is-disabled="!isScoped"
+            @click="addColumn"
+          />
+        </div>
+        <!-- Header underline -->
+        <div :class="headDivider" />
 
-          <!-- Unscoped: existing per-level target table -->
-          <template v-if="!isScoped">
-            <div v-for="level in group.levels" :key="level.lid" :class="levelRow">
-              <MpFormControl :id="`level-${level.lid}`">
-                <MpFormLabel>Job level</MpFormLabel>
-                <PxSelectPopover
-                  v-model="level.levelId"
-                  :options="jobLevelOptions"
-                  placeholder="Select job level"
-                  :width="'200px'"
-                />
-              </MpFormControl>
-              <MpFormControl :id="`level-rating-${level.lid}`">
-                <MpFormLabel>Target rating</MpFormLabel>
-                <PxSelectPopover
-                  v-model="level.rating"
-                  :options="ratingOptions"
-                  placeholder="Select rating"
-                  :width="'200px'"
-                />
-              </MpFormControl>
-              <MpButton
-                variant="ghost"
-                size="sm"
-                left-icon="delete"
-                aria-label="Remove level"
-                :is-disabled="group.levels.length === 1"
-                @click="removeLevel(group, level.lid)"
+        <!-- Group rows -->
+        <template v-for="(row, idx) in rows" :key="`r-${row.rid}`">
+          <div
+            :class="[groupCell, idx === dragRowIndex && dimDrag, idx === overRowIndex && dropRowLine]"
+            @dragenter.prevent="onRowDragEnter(idx)"
+            @dragover.prevent
+            @drop="onRowDrop(idx)"
+          >
+            <div
+              :class="dragHandle"
+              draggable="true"
+              aria-label="Drag to reorder group"
+              @dragstart="onRowDragStart(idx, $event)"
+              @dragend="resetRowDrag"
+            >
+              <MpIcon name="drag" size="sm" />
+            </div>
+            <PxSelectPopover
+              v-model="row.groupId"
+              :options="groupOptionsFor(row.groupId)"
+              :placeholder="COPY.groupPlaceholder"
+              :width="GROUP_COL"
+              searchable
+            />
+          </div>
+          <template v-for="(col, ci) in columns" :key="`c-${row.rid}-${col.cid}`">
+            <div
+              :class="[cell, (ci === dragColIndex || idx === dragRowIndex) && dimDrag, idx === overRowIndex && dropRowLine, ci === overColIndex && dropColLine]"
+              @dragenter.prevent="onCellDragEnter(ci, idx)"
+              @dragover.prevent
+              @drop="onCellDrop(ci, idx)"
+            >
+              <PxSelectPopover
+                v-model="row.ratings[col.cid]"
+                :options="ratingOptions"
+                :placeholder="COPY.ratingPlaceholder"
+                :width="RATING_COL"
               />
             </div>
-            <MpFlex :class="css({ paddingLeft: '4' })">
-              <MpButton variant="ghost" size="sm" left-icon="add" @click="addLevel(group)">
-                {{ COPY.addLevel }}
-              </MpButton>
-            </MpFlex>
+            <div :class="[edgeCell, (ci === dragColIndex || idx === dragRowIndex) && dimDrag]" />
           </template>
-
-          <MpText v-if="groupInvalid(group)" size="label-small" :class="css({ color: 'text.danger' })">
-            {{ isScoped ? 'Select a group and a target rating.' : 'Select a group and at least one job level with a rating.' }}
-          </MpText>
-        </div>
-      </template>
-
-      <!-- ═════ Footer ═════ -->
-      <div :class="footerBar">
-        <MpButton variant="ghost" @click="onCancel">{{ COPY.cancel }}</MpButton>
-        <MpButton variant="primary" @click="onSubmit">{{ COPY.submit }}</MpButton>
+          <div :class="[stickyBody, idx === dragRowIndex && dimDrag]">
+            <MpButton
+              variant="ghost"
+              size="sm"
+              left-icon="minus-circular"
+              aria-label="Remove group"
+              :is-disabled="rows.length === 1"
+              @click="removeRow(row.rid)"
+            />
+          </div>
+          <!-- Row separator (between rows only; container border closes the bottom) -->
+          <div v-if="idx < rows.length - 1" :class="rowDivider" />
+        </template>
       </div>
-
+      </div>
     </div>
-  </div>
 
-  <PxVersionSwitcher
-    :versions="[
-      { label: 'Version 1', to: '/talents/competencies/create' },
-      { label: 'Version 2', to: '/talents/competencies/create-v2' },
-    ]"
-  />
+    <MpFlex :class="span12">
+      <MpButton variant="ghost" size="sm" left-icon="add" @click="addRow">
+        {{ COPY.addGroup }}
+      </MpButton>
+    </MpFlex>
+
+    <!-- ═════ Footer ═════ -->
+    <MpFlex justify="flex-end" gap="2" :class="[span12, css({ paddingTop: '6' })]">
+      <MpButton variant="ghost" @click="onCancel">{{ COPY.cancel }}</MpButton>
+      <MpButton variant="primary" @click="onSubmit">{{ COPY.submit }}</MpButton>
+    </MpFlex>
+  </div>
 </template>
