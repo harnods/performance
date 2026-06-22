@@ -24,3 +24,32 @@ html, body, #__nuxt {
 .mp-icon-box[data-size='24'] { width: 24px; height: 24px; }
 .mp-icon-box[data-size='28'] { width: 28px; height: 28px; }
 .mp-icon-box[data-size='32'] { width: 32px; height: 32px; }
+.mp-icon-box[data-size='40'] { width: 40px; height: 40px; }
+.mp-icon-box[data-size='48'] { width: 48px; height: 48px; }
+
+.mp-popover-list-item { width: 100%; transition: background-color .12s ease; }
+.mp-popover-list-item:not([disabled]):hover,
+.mp-popover-list-item:not([disabled]):focus-visible {
+  background-color: var(--mp-colors-background-neutral-hovered);
+}
+
+/* Create cycle modal: override Pixel's inline max-width so 760px fits 3 cards */
+.mp-modal__content--create-cycle {
+  max-width: 760px !important;
+  width: 760px !important;
+}
+
+/* MpModal: skip enter animation so overlay + content appear immediately */
+.mp-modal__overlay,
+.mp-modal__contentChild {
+  animation: none !important;
+  opacity: 1 !important;
+  transform: none !important;
+}
+
+/* Clearable MpSelect: show the clear (×) immediately when a value is selected,
+   instead of only revealing it on hover. */
+.mp-select__root:has(select[data-value]:not([data-value=''])) .mp-select__clear {
+  opacity: 1 !important;
+  visibility: visible !important;
+}

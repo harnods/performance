@@ -1,0 +1,92 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="680" height="760" viewBox="0 0 680 760" font-family="Inter, sans-serif">
+  <!-- ===== base / content area (white stage) ===== -->
+  <rect x="0" y="0" width="680" height="760" fill="#FFFFFF"/>
+
+  <!-- ===== Top bar (white, 56px) ===== -->
+  <rect x="0" y="0" width="680" height="56" fill="#FFFFFF"/>
+  <line x1="0" y1="56" x2="680" y2="56" stroke="#DCDFE4" stroke-width="1"/>
+  <text x="16" y="33" font-size="14" font-weight="600" fill="#272B32">mekari </text>
+  <text x="62" y="33" font-size="14" font-weight="600" fill="#E0001B">talenta</text>
+  <!-- right cluster -->
+  <circle cx="560" cy="28" r="9" fill="none" stroke="#656F80" stroke-width="1.4"/>
+  <circle cx="600" cy="28" r="9" fill="none" stroke="#656F80" stroke-width="1.4"/>
+  <circle cx="640" cy="28" r="12" fill="#D6DBF7"/>
+
+  <!-- ===== Nav rail (surface) ===== -->
+  <rect x="0" y="56" width="150" height="704" fill="#F1F5F9"/>
+  <line x1="150" y1="56" x2="150" y2="760" stroke="#DCDFE4" stroke-width="1"/>
+  <text x="16" y="96" font-size="12" fill="#656F80">Dashboard</text>
+  <text x="16" y="124" font-size="12" fill="#656F80">Reviews</text>
+  <text x="16" y="152" font-size="12" fill="#656F80">Goals</text>
+  <!-- active: Competency -->
+  <rect x="0" y="166" width="150" height="30" fill="#D6DBF7"/>
+  <text x="16" y="186" font-size="12" font-weight="600" fill="#4B61DC">Competency</text>
+  <text x="28" y="214" font-size="11" fill="#4B61DC">Assignment</text>
+  <text x="28" y="238" font-size="11" fill="#656F80">Gap chart</text>
+  <text x="16" y="270" font-size="12" fill="#656F80">Succession</text>
+
+  <!-- ===== Page header (surface) ===== -->
+  <rect x="150" y="56" width="530" height="92" fill="#F1F5F9"/>
+  <text x="174" y="88" font-size="12" fill="#656F80">Competency / Assignment / Create assignment</text>
+  <text x="174" y="122" font-size="24" font-weight="600" fill="#272B32">Create assignment</text>
+
+  <!-- ===== Content (white) ===== -->
+  <!-- Field: Assignment name -->
+  <text x="174" y="186" font-size="14" font-weight="600" fill="#272B32">Assignment name</text>
+  <text x="305" y="186" font-size="14" fill="#C33E35">*</text>
+  <rect x="174" y="196" width="380" height="40" rx="6" fill="#FFFFFF" stroke="#DCDFE4"/>
+  <text x="186" y="221" font-size="13" fill="#656F80">e.g. Product Manager — Manager level</text>
+
+  <!-- Field: Job position (multi) -->
+  <text x="174" y="270" font-size="14" font-weight="600" fill="#272B32">Job position</text>
+  <text x="248" y="270" font-size="14" fill="#C33E35">*</text>
+  <rect x="174" y="280" width="380" height="40" rx="6" fill="#FFFFFF" stroke="#DCDFE4"/>
+  <rect x="186" y="290" width="92" height="20" rx="10" fill="#D6DBF7"/>
+  <text x="196" y="304" font-size="11" fill="#4B61DC">Product Manager ×</text>
+  <text x="540" y="305" font-size="13" fill="#656F80">▾</text>
+  <text x="174" y="338" font-size="12" fill="#656F80">Select one or more job positions.</text>
+
+  <!-- Field: Scope by (NEW) -->
+  <rect x="166" y="356" width="396" height="120" rx="6" fill="#FFFFFF" stroke="#4B61DC" stroke-dasharray="4 3"/>
+  <text x="174" y="376" font-size="11" font-weight="600" fill="#4B61DC">NEW</text>
+  <text x="174" y="398" font-size="14" font-weight="600" fill="#272B32">Scope by</text>
+  <text x="234" y="398" font-size="12" fill="#656F80">(optional)</text>
+  <rect x="174" y="408" width="184" height="40" rx="6" fill="#FFFFFF" stroke="#DCDFE4"/>
+  <text x="186" y="433" font-size="13" fill="#272B32">Job level</text>
+  <text x="344" y="433" font-size="13" fill="#656F80">▾</text>
+  <!-- dependent value picker (revealed) -->
+  <rect x="370" y="408" width="184" height="40" rx="6" fill="#FFFFFF" stroke="#DCDFE4"/>
+  <text x="382" y="433" font-size="13" fill="#656F80">Select job level</text>
+  <text x="540" y="433" font-size="13" fill="#656F80">▾</text>
+  <text x="174" y="468" font-size="11" fill="#656F80">None / Job level / Grade / Class — pick one; value picker appears on the right.</text>
+
+  <!-- Divider -->
+  <line x1="174" y1="498" x2="554" y2="498" stroke="#DCDFE4" stroke-width="1"/>
+
+  <!-- Set group sub-section -->
+  <text x="174" y="528" font-size="16" font-weight="600" fill="#272B32">Set group</text>
+  <text x="174" y="548" font-size="12" fill="#656F80">Scoped → one target rating per competency group (level/grade/class fixed by header).</text>
+
+  <!-- table header -->
+  <rect x="174" y="560" width="380" height="32" fill="#F1F5F9"/>
+  <text x="186" y="580" font-size="12" font-weight="600" fill="#272B32">Competency group</text>
+  <text x="420" y="580" font-size="12" font-weight="600" fill="#272B32">Target rating</text>
+  <!-- row 1 -->
+  <line x1="174" y1="624" x2="554" y2="624" stroke="#DCDFE4" stroke-width="1"/>
+  <rect x="186" y="600" width="200" height="18" rx="4" fill="#F1F5F9"/>
+  <rect x="412" y="600" width="120" height="18" rx="4" fill="#F1F5F9"/>
+  <!-- row 2 -->
+  <line x1="174" y1="656" x2="554" y2="656" stroke="#DCDFE4" stroke-width="1"/>
+  <rect x="186" y="632" width="200" height="18" rx="4" fill="#F1F5F9"/>
+  <rect x="412" y="632" width="120" height="18" rx="4" fill="#F1F5F9"/>
+  <!-- add group -->
+  <text x="174" y="684" font-size="13" font-weight="600" fill="#4B61DC">+ Add competency group</text>
+
+  <!-- annotation: default variant -->
+  <rect x="174" y="700" width="380" height="34" rx="6" fill="#FFF8E1" stroke="#956400" stroke-dasharray="3 3"/>
+  <text x="184" y="715" font-size="10.5" fill="#956400">When Scope by = None: table reverts to existing</text>
+  <text x="184" y="728" font-size="10.5" fill="#956400">Group name | Select job level | + Add job level (per-level targets).</text>
+
+  <!-- footer -->
+  <line x1="150" y1="746" x2="680" y2="746" stroke="#DCDFE4" stroke-width="1"/>
+</svg>
