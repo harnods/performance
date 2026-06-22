@@ -1,7 +1,7 @@
 <script setup lang="ts">
 import { MpFlex, MpText, MpIcon, MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem, css, cx, token } from '@mekari/pixel3'
 
-interface NavChild { label: string; path: string }
+interface NavChild { label: string; path?: string; children?: NavChild[] }
 interface NavDivider { divider: true }
 type PanelItem = NavChild | NavDivider
 
@@ -47,7 +47,16 @@ const group2: NavItem[] = [
       { label: 'Talent directory', path: '/talents/talent-directory' },
       { label: 'Succession plans', path: '/talents/succession-plans' },
       { label: 'IDPs', path: '/talents/idps' },
-      { label: 'Competencies', path: '/talents/competencies' },
+      {
+        label: 'Competencies',
+        children: [
+          { label: 'Assignments', path: '/talents/competencies' },
+          { label: 'Import competency results', path: '/talents/competencies/import-results' },
+          { label: 'Competency groups', path: '/talents/competencies/groups' },
+          { label: 'Competency items', path: '/talents/competencies/items' },
+          { label: 'Rating scale', path: '/talents/competencies/rating-scale' },
+        ],
+      },
     ],
   },
 ]
@@ -72,14 +81,37 @@ const isChild = (item: PanelItem): item is NavChild => !('divider' in item)
 
 const route = useRoute()
 
-const hasActiveChild = (item: NavItem) =>
-  !!item.children?.some(c => isChild(c) && (route.path === c.path || route.path.startsWith(c.path + '/')))
+// Flatten every leaf path (including accordion grandchildren) so active state can
+// pick the *most specific* match — e.g. /talents/competencies/groups beats the
+// shorter /talents/competencies (Assignments) prefix.
+const leafPathsOf = (item: NavItem): string[] => {
+  const out: string[] = []
+  for (const c of item.children ?? []) {
+    if (!isChild(c)) continue
+    if (c.path) out.push(c.path)
+    for (const sub of c.children ?? []) if (sub.path) out.push(sub.path)
+  }
+  return out
+}
+const allLeafPaths = computed(() => allItems.flatMap(leafPathsOf))
+const activeLeafPath = computed(() =>
+  allLeafPaths.value
+    .filter(p => route.path === p || route.path.startsWith(p + '/'))
+    .sort((a, b) => b.length - a.length)[0] ?? null,
+)
+
+const hasActiveChild = (item: NavItem) => leafPathsOf(item).includes(activeLeafPath.value ?? '')
 
 const isItemActive = (item: NavItem) =>
   item.path ? route.path === item.path : hasActiveChild(item)
 
-const itemTarget = (item: NavItem) =>
-  item.path ?? (item.children?.find(isChild) as NavChild | undefined)?.path ?? '/'
+const firstLeafPath = (item: NavItem): string => {
+  const first = item.children?.find(isChild) as NavChild | undefined
+  return first?.path ?? (first?.children?.find(isChild) as NavChild | undefined)?.path ?? '/'
+}
+const itemTarget = (item: NavItem) => item.path ?? firstLeafPath(item)
+// Target for a panel child (handles an accordion child → its first sub-page).
+const childLink = (c: NavChild) => c.path ?? (c.children?.find(isChild) as NavChild | undefined)?.path ?? '/'
 
 const activeParent = computed<NavItem | undefined>(() => allItems.find(hasActiveChild))
 const isSubmenuMode = computed(() => !!activeParent.value)
@@ -172,12 +204,28 @@ const railDefault = css({ ...railBase, bg: 'transparent', color: 'text.default',
 const railActive = css({ ...railBase, bg: '[#E7EDF5]', _hover: { bg: '[#E7EDF5]' } })
 
 const childBase = {
-  display: 'flex', alignItems: 'center', w: 'full', height: '36px', px: '3',
+  display: 'flex', alignItems: 'center', w: 'full', minHeight: '36px', px: '3', paddingBlock: '2',
   border: 'none', cursor: 'pointer', borderRadius: 'md', textDecoration: 'none',
   fontFamily: 'body', fontSize: 'md', lineHeight: 'md', transition: 'color 120ms ease',
 } as const
 const childDefault = css({ ...childBase, bg: 'transparent', color: 'text.default', fontWeight: 'regular', _hover: { bg: 'transparent', color: 'text.link' } })
 const childActive = css({ ...childBase, bg: 'background.brand.selected', color: 'text.link', fontWeight: 'semiBold', _hover: { bg: 'background.brand.selected' } })
+
+// Accordion toggle row (e.g. "Competencies") + its indented sub-children.
+const accordionToggle = css({
+  ...childBase, justifyContent: 'space-between', gap: '2', textAlign: 'left',
+  bg: 'transparent', color: 'text.default', fontWeight: 'regular',
+  _hover: { bg: 'transparent', color: 'text.link' },
+})
+const accordionToggleActive = css({
+  ...childBase, justifyContent: 'space-between', gap: '2', textAlign: 'left',
+  bg: 'transparent', color: 'text.link', fontWeight: 'semiBold',
+  _hover: { bg: 'transparent', color: 'text.link' },
+})
+const subChildBase = { ...childBase, paddingLeft: '6' } as const
+const subChildDefault = css({ ...subChildBase, bg: 'transparent', color: 'text.default', fontWeight: 'regular', _hover: { bg: 'transparent', color: 'text.link' } })
+const subChildActive = css({ ...subChildBase, bg: 'background.brand.selected', color: 'text.link', fontWeight: 'semiBold', _hover: { bg: 'background.brand.selected' } })
+const subChildClass = (child: NavChild) => (isChildActive(child) ? subChildActive : subChildDefault)
 
 const ghostBtn = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', w: '36px', h: '36px',
@@ -192,7 +240,16 @@ const sectionTitle = css({
 })
 
 const isChildActive = (child: NavChild) =>
-  route.path === child.path || route.path.startsWith(child.path + '/')
+  child.path != null && child.path === activeLeafPath.value
+
+// ---- Accordion (a panel child that itself has children, e.g. Competencies) ----
+const accordionHasActive = (acc: NavChild) =>
+  !!acc.children?.some(s => isChild(s) && s.path === activeLeafPath.value)
+const manualOpen = ref<Record<string, boolean>>({})
+const isAccordionOpen = (acc: NavChild) => manualOpen.value[acc.label] ?? accordionHasActive(acc)
+const toggleAccordion = (acc: NavChild) => {
+  manualOpen.value = { ...manualOpen.value, [acc.label]: !isAccordionOpen(acc) }
+}
 
 const itemClassFull = (item: NavItem) => cx(isItemActive(item) ? itemActive : itemDefault)
 const itemClassRail = (item: NavItem) => cx(isItemActive(item) ? railActive : railDefault)
@@ -246,8 +303,8 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
                       <div v-if="'divider' in child" :class="popoverDivider" />
                       <NuxtLink
                         v-else
-                        :to="child.path"
-                        :class="isChildActive(child) ? popoverItemActive : popoverItem"
+                        :to="childLink(child)"
+                        :class="(child.children ? accordionHasActive(child) : isChildActive(child)) ? popoverItemActive : popoverItem"
                       >
                         {{ child.label }}
                       </NuxtLink>
@@ -388,9 +445,33 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
           <MpFlex direction="column" flex="1" paddingInline="2" overflowY="auto" minHeight="0" paddingBlock="2">
             <template v-for="(item, idx) in activeParent?.children" :key="idx">
               <div v-if="'divider' in item" :class="panelDivider" />
+              <!-- Accordion: a child that has its own children (e.g. Competencies) -->
+              <template v-else-if="item.children">
+                <button
+                  type="button"
+                  :class="accordionHasActive(item) ? accordionToggleActive : accordionToggle"
+                  :aria-expanded="isAccordionOpen(item)"
+                  @click="toggleAccordion(item)"
+                >
+                  <span :class="itemLabel">{{ item.label }}</span>
+                  <MpIcon :name="isAccordionOpen(item) ? 'caret-down' : 'caret-right'" size="sm" />
+                </button>
+                <template v-if="isAccordionOpen(item)">
+                  <NuxtLink
+                    v-for="sub in item.children"
+                    :key="sub.path"
+                    :to="sub.path!"
+                    :class="subChildClass(sub)"
+                    :aria-current="isChildActive(sub) ? 'page' : undefined"
+                  >
+                    {{ sub.label }}
+                  </NuxtLink>
+                </template>
+              </template>
+              <!-- Leaf child -->
               <NuxtLink
                 v-else
-                :to="item.path"
+                :to="item.path!"
                 :class="childClass(item)"
                 :aria-current="isChildActive(item) ? 'page' : undefined"
               >
