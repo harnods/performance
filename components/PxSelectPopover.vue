@@ -3,8 +3,6 @@ import {
   MpFlex,
   MpSelect,
   MpInput,
-  MpInputGroup,
-  MpInputLeftAddon,
   MpIcon,
   MpText,
   MpPopover,
@@ -22,6 +20,7 @@ const props = defineProps<{
   options: Option[]
   placeholder?: string
   isClearable?: boolean
+  isDisabled?: boolean
   width?: string
   searchable?: boolean
   searchPlaceholder?: string
@@ -56,6 +55,16 @@ const searchBar = css({
   flexShrink: '0',
   overflow: 'hidden',
 })
+// Search field: icon overlaid at left, inner input padded so text never collides.
+const searchWrap = css({
+  position: 'relative',
+  width: '100%',
+  '& input': { paddingLeft: '36px' },
+})
+const searchIcon = css({
+  position: 'absolute', left: '3', top: '50%', transform: 'translateY(-50%)',
+  color: 'icon.default', pointerEvents: 'none', zIndex: '1',
+})
 const listWrap = css({
   display: 'flex',
   flexDirection: 'column',
@@ -74,13 +83,14 @@ function set(v: string) {
 
 <template>
   <div :style="wrapperStyle">
-    <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start">
+    <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start" :is-disabled="isDisabled">
       <MpPopoverTrigger>
-        <MpFlex :class="fieldClass">
+        <MpFlex :class="isDisabled ? undefined : fieldClass">
           <MpSelect
             :model-value="modelValue"
             :placeholder="placeholder"
             :is-clearable="isClearable"
+            :is-disabled="isDisabled"
             tabindex="-1"
             aria-hidden="true"
             @update:model-value="set"
@@ -93,15 +103,13 @@ function set(v: string) {
       </MpPopoverTrigger>
       <MpPopoverContent>
         <div v-if="searchable" :class="searchBar" @click.stop>
-          <MpInputGroup>
-            <MpInputLeftAddon>
-              <MpIcon name="search" />
-            </MpInputLeftAddon>
+          <div :class="searchWrap">
+            <MpIcon name="search" :class="searchIcon" />
             <MpInput
               v-model="searchTerm"
               :placeholder="searchPlaceholder ?? 'Search'"
             />
-          </MpInputGroup>
+          </div>
         </div>
         <div :class="listWrap">
         <MpPopoverList>
