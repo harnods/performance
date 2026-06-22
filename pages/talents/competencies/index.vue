@@ -60,26 +60,26 @@ const scopeLabel: Record<Exclude<ScopeAttr, null>, string> = {
 interface Assignment {
   id: string
   name: string
-  position: string
+  positions: string[]
   scope: ScopeAttr
   groups: number
 }
 
 const assignments = ref<Assignment[]>([
-  { id: 'pm-manager', name: 'Product Manager — Manager level', position: 'Product Manager', scope: 'job-level', groups: 4 },
-  { id: 'eng-baseline', name: 'Engineering competency baseline', position: 'Software Engineer', scope: null, groups: 6 },
-  { id: 'sales-grade-3', name: 'Sales — Grade 3', position: 'Sales Executive', scope: 'job-grade', groups: 3 },
-  { id: 'ux-senior', name: 'UX Designer — Senior', position: 'UX Designer', scope: 'job-level', groups: 5 },
-  { id: 'data-class-a', name: 'Data Analyst — Class A', position: 'Data Analyst', scope: 'job-class', groups: 4 },
-  { id: 'em-leadership', name: 'Engineering Manager leadership', position: 'Engineering Manager', scope: 'job-level', groups: 6 },
-  { id: 'sales-baseline', name: 'Sales competency baseline', position: 'Sales Executive', scope: null, groups: 3 },
-  { id: 'pm-grade-5', name: 'Product Manager — Grade 5', position: 'Product Manager', scope: 'job-grade', groups: 4 },
-  { id: 'ux-class-b', name: 'UX Designer — Class B', position: 'UX Designer', scope: 'job-class', groups: 4 },
-  { id: 'eng-senior', name: 'Software Engineer — Senior', position: 'Software Engineer', scope: 'job-level', groups: 5 },
-  { id: 'data-baseline', name: 'Data competency baseline', position: 'Data Analyst', scope: null, groups: 5 },
-  { id: 'em-grade-7', name: 'Engineering Manager — Grade 7', position: 'Engineering Manager', scope: 'job-grade', groups: 6 },
-  { id: 'sales-class-c', name: 'Sales Executive — Class C', position: 'Sales Executive', scope: 'job-class', groups: 3 },
-  { id: 'pm-baseline', name: 'Product competency baseline', position: 'Product Manager', scope: null, groups: 4 },
+  { id: 'pm-manager', name: 'Product Manager — Manager level', positions: ['Product Manager', 'Senior Product Manager'], scope: 'job-level', groups: 4 },
+  { id: 'eng-baseline', name: 'Engineering competency baseline', positions: ['Software Engineer', 'Frontend Engineer', 'Backend Engineer'], scope: null, groups: 6 },
+  { id: 'sales-grade-3', name: 'Sales — Grade 3', positions: ['Sales Executive'], scope: 'job-grade', groups: 3 },
+  { id: 'ux-senior', name: 'UX Designer — Senior', positions: ['UX Designer', 'Product Designer'], scope: 'job-level', groups: 5 },
+  { id: 'data-class-a', name: 'Data Analyst — Class A', positions: ['Data Analyst'], scope: 'job-class', groups: 4 },
+  { id: 'em-leadership', name: 'Engineering Manager leadership', positions: ['Engineering Manager', 'Tech Lead'], scope: 'job-level', groups: 6 },
+  { id: 'sales-baseline', name: 'Sales competency baseline', positions: ['Sales Executive', 'Account Executive'], scope: null, groups: 3 },
+  { id: 'pm-grade-5', name: 'Product Manager — Grade 5', positions: ['Product Manager'], scope: 'job-grade', groups: 4 },
+  { id: 'ux-class-b', name: 'UX Designer — Class B', positions: ['UX Designer'], scope: 'job-class', groups: 4 },
+  { id: 'eng-senior', name: 'Software Engineer — Senior', positions: ['Software Engineer', 'Backend Engineer'], scope: 'job-level', groups: 5 },
+  { id: 'data-baseline', name: 'Data competency baseline', positions: ['Data Analyst', 'Data Scientist'], scope: null, groups: 5 },
+  { id: 'em-grade-7', name: 'Engineering Manager — Grade 7', positions: ['Engineering Manager'], scope: 'job-grade', groups: 6 },
+  { id: 'sales-class-c', name: 'Sales Executive — Class C', positions: ['Sales Executive'], scope: 'job-class', groups: 3 },
+  { id: 'pm-baseline', name: 'Product competency baseline', positions: ['Product Manager', 'Associate PM'], scope: null, groups: 4 },
 ])
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
@@ -210,7 +210,12 @@ const captionText = css({ color: 'text.secondary' })
                 <MpTextlink as="button" @click="navigateTo(detailTarget(a))">{{ a.name }}</MpTextlink>
               </MpTableCell>
               <MpTableCell as="td" :class="tightCell">
-                <MpText size="label" :class="valueText">{{ a.position }}</MpText>
+                <MpFlex align="center" gap="2">
+                  <MpText size="label" :class="valueText">{{ a.positions[0] }}</MpText>
+                  <MpTooltip v-if="a.positions.length > 1" :label="a.positions.slice(1).join(', ')" use-portal>
+                    <MpTag variant="neutral">+{{ a.positions.length - 1 }}</MpTag>
+                  </MpTooltip>
+                </MpFlex>
               </MpTableCell>
               <MpTableCell as="td" :class="scopeCell">
                 <MpTag v-if="a.scope" variant="info">{{ scopeLabel[a.scope] }}</MpTag>
