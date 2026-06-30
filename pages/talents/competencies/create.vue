@@ -38,9 +38,18 @@ definePageMeta({
   title: 'Create assignment',
   layout: 'default',
   breadcrumb: { label: 'Assignments', to: '/talents/competencies' },
+  // Set the page title before render (SSR-correct, no hydration mismatch) so the
+  // header reads "Edit assignment" the moment we arrive with ?edit=<id>.
+  middleware: [(to) => { to.meta.title = to.query.edit ? 'Edit assignment' : 'Create assignment' }],
 })
 
 const router = useRouter()
+const route = useRoute()
+
+// Edit mode — reached from the list / detail page via ?edit=<id>. The scoping
+// attribute is locked once an assignment exists (S10): type + values are shown
+// read-only; only name, positions, groups, and target ratings stay editable.
+const isEdit = computed(() => !!route.query.edit)
 
 const NAME_MAX = 60
 
@@ -51,6 +60,8 @@ const COPY = {
   positionHelper: 'You can add multiple job positions',
   scopeLabel: 'Scoping attribute',
   scopePlaceholder: 'Select attribute type',
+  scopeLockedHelper:
+    'The scoping attribute can’t be changed after the assignment is created. To change it, delete this assignment and create a new one.',
   columnPlaceholderEmpty: 'Select scoping attribute first',
   columnPlaceholder: 'Select value',
   groupsTitle: 'Competency groups',
@@ -112,6 +123,8 @@ const ratingOptions = [
 // ─── Form state ──────────────────────────────────────────────────────────────
 const assignmentName = ref('')
 const selectedPositions = ref<string[]>([])
+// Initial tags fed to MpInputTag via :data (used when prefilling in edit mode).
+const positionTags = ref<{ id: string; text: string; value: string }[]>([])
 const scopeType = ref<'' | 'job-level' | 'grade' | 'class'>('')
 
 // Matrix model: columns are scoping values, rows are competency groups.
@@ -157,10 +170,65 @@ function columnOptionsFor(current: string) {
 
 // When the scoping dimension changes: clear all ratings, and seed a single
 // empty attribute column (ready to fill) — or none when cleared back to "".
+// Skipped in edit mode: the scope is locked, so this watcher must never wipe
+// the prefilled matrix.
 watch(scopeType, () => {
+  if (isEdit.value) return
   columns.value = scopeType.value ? [makeColumn()] : []
   rows.value.forEach(r => (r.ratings = {}))
 })
+
+// ─── Read-only scoping (edit mode) ───────────────────────────────────────────────
+// Locked scope shown as plain text; unscoped (pre-feature) assignments read "All".
+const scopeReadonlyLabel = computed(() => {
+  switch (scopeType.value) {
+    case 'job-level': return 'Job level'
+    case 'grade': return 'Grade'
+    case 'class': return 'Class'
+    default: return 'All'
+  }
+})
+function columnLabel(value: string): string {
+  if (!isScoped.value) return 'All employees'
+  return columnValueOptions.value.find(o => o.value === value)?.label ?? value
+}
+
+// ─── Edit prefill (mock) ─────────────────────────────────────────────────────────
+// The list/detail pass ?edit, ?name and ?scope. With no backend we reconstruct a
+// believable matrix from the scope type (mirrors the detail page's mock shape).
+function mapScope(q?: string): '' | 'job-level' | 'grade' | 'class' {
+  if (q === 'job-level') return 'job-level'
+  if (q === 'job-grade' || q === 'grade') return 'grade'
+  if (q === 'job-class' || q === 'class') return 'class'
+  return ''
+}
+function buildEditPrefill() {
+  assignmentName.value = (route.query.name as string) || ''
+  scopeType.value = mapScope(route.query.scope as string | undefined)
+
+  positionTags.value = [{ id: 'tag-product-manager', text: 'Product Manager', value: 'product-manager' }]
+  selectedPositions.value = positionTags.value.map(t => t.value)
+
+  const colValues
+    = scopeType.value === 'job-level' ? ['associate', 'specialist', 'senior', 'manager']
+    : scopeType.value === 'grade' ? ['grade-1', 'grade-2', 'grade-3', 'grade-4']
+    : scopeType.value === 'class' ? ['class-a', 'class-b', 'class-c', 'class-d']
+    : ['all'] // unscoped → single synthetic "All employees" column
+  columns.value = colValues.map(v => makeColumn(v))
+
+  const mockGroups = [
+    { groupId: 'leadership', ratings: ['1', '2', '3', '4'] },
+    { groupId: 'communication', ratings: ['2', '3', '3', '4'] },
+    { groupId: 'product-thinking', ratings: ['na', '2', '3', '4'] },
+    { groupId: 'execution', ratings: ['2', '3', '4', '5'] },
+  ]
+  rows.value = mockGroups.map((g) => {
+    const ratings: Record<number, string> = {}
+    columns.value.forEach((c, i) => { ratings[c.cid] = g.ratings[i] ?? g.ratings[g.ratings.length - 1] })
+    return { rid: nextId(), groupId: g.groupId, ratings }
+  })
+}
+if (isEdit.value) buildEditPrefill()
 
 // ─── Job position (MpInputTag, pick from suggestions only) ───────────────────────
 const positionSuggestions = jobPositionOptions.map(o => ({ id: o.value, label: o.label, value: o.value }))
@@ -244,12 +312,12 @@ function rowInvalid(r: GroupRow): boolean {
 
 function validate(): boolean {
   formError.value = ''
+  // Scope + columns are read-only (and pre-valid) in edit mode, so only check
+  // them on create.
   const missing
     = nameInvalid.value
     || positionInvalid.value
-    || !scopeType.value
-    || columns.value.length === 0
-    || columns.value.some(c => !c.value)
+    || (!isEdit.value && (!scopeType.value || columns.value.length === 0 || columns.value.some(c => !c.value)))
     || rows.value.length === 0
     || rows.value.some(rowInvalid)
 
@@ -260,12 +328,16 @@ function validate(): boolean {
   return true
 }
 
+const submitLabel = computed(() => (isEdit.value ? 'Save changes' : COPY.submit))
+
 function onSubmit() {
   submitted.value = true
   if (!validate()) return
   router.push({
     path: '/talents/competencies',
-    query: { created: '1', name: assignmentName.value.trim() },
+    query: isEdit.value
+      ? { updated: '1', name: assignmentName.value.trim() }
+      : { created: '1', name: assignmentName.value.trim() },
   })
 }
 function onCancel() {
@@ -369,6 +441,8 @@ const headEdgeCell = css({
   background: HEAD_BG, borderRight: '1px solid', borderRightColor: 'border.default',
 })
 const headLabel = css({ fontWeight: '600', color: 'text.default' })
+// Read-only column header (edit mode) — same width as the value select for alignment.
+const readonlyColHead = css({ display: 'flex', alignItems: 'center', width: RATING_COL, fontWeight: '600', color: 'text.default' })
 
 // Drag handle (grip) + a matching spacer to keep the header label aligned over the group selects.
 const dragHandle = css({
@@ -418,6 +492,7 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
       <MpFormLabel>{{ COPY.positionLabel }}</MpFormLabel>
       <MpInputTag
         id="job-position-input"
+        :data="positionTags"
         :placeholder="COPY.positionPlaceholder"
         :suggestions="positionSuggestions"
         suggestion-key="label"
@@ -432,16 +507,22 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
       <MpFormErrorMessage>Select at least one job position.</MpFormErrorMessage>
     </MpFormControl>
 
-    <!-- ═════ Scoping attribute — select: 3 grid col ═════ -->
-    <MpFormControl id="scope-type" :is-invalid="submitted && !scopeType" :class="span3">
+    <!-- ═════ Scoping attribute — select: 3 grid col (read-only after create) ═════ -->
+    <MpFormControl id="scope-type" :is-invalid="!isEdit && submitted && !scopeType" :class="span3">
       <MpFormLabel>{{ COPY.scopeLabel }}</MpFormLabel>
-      <PxSelectPopover
-        v-model="scopeType"
-        :options="scopeTypeOptions"
-        :placeholder="COPY.scopePlaceholder"
-        :width="'100%'"
-      />
-      <MpFormErrorMessage>Select a scoping attribute.</MpFormErrorMessage>
+      <template v-if="isEdit">
+        <MpInput :model-value="scopeReadonlyLabel" is-disabled :class="css({ width: '100%' })" />
+        <MpFormHelpText>{{ COPY.scopeLockedHelper }}</MpFormHelpText>
+      </template>
+      <template v-else>
+        <PxSelectPopover
+          v-model="scopeType"
+          :options="scopeTypeOptions"
+          :placeholder="COPY.scopePlaceholder"
+          :width="'100%'"
+        />
+        <MpFormErrorMessage>Select a scoping attribute.</MpFormErrorMessage>
+      </template>
     </MpFormControl>
 
     <!-- ═════ Competency groups (matrix) — full width ═════ -->
@@ -467,6 +548,7 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
             @drop="onColumnDrop(ci)"
           >
             <div
+              v-if="!isEdit"
               :class="colGrip"
               data-col-grip
               draggable="true"
@@ -477,12 +559,16 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
               <MpIcon name="drag" size="sm" :class="colGripIcon" />
             </div>
             <PxSelectPopover
+              v-if="!isEdit"
               v-model="col.value"
               :options="columnOptionsFor(col.value)"
               :placeholder="isScoped ? COPY.columnPlaceholder : COPY.columnPlaceholderEmpty"
               :is-disabled="!isScoped"
               :width="RATING_COL"
             />
+            <div v-else :class="readonlyColHead">
+              <MpText size="label" :class="headLabel">{{ columnLabel(col.value) }}</MpText>
+            </div>
           </div>
           <div
             :class="[headEdgeCell, ci === dragColIndex && dimDrag]"
@@ -491,6 +577,7 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
             @drop="onColumnDrop(ci)"
           >
             <MpButton
+              v-if="!isEdit"
               variant="ghost"
               size="sm"
               left-icon="minus-circular"
@@ -502,6 +589,7 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
         </template>
         <div :class="stickyHead">
           <MpButton
+            v-if="!isEdit"
             variant="ghost"
             size="sm"
             left-icon="add"
@@ -580,7 +668,7 @@ const rowDivider = css({ gridColumn: '1 / -1', height: '1px', background: 'borde
     <!-- ═════ Footer ═════ -->
     <MpFlex justify="flex-end" gap="2" :class="[span12, css({ paddingTop: '6' })]">
       <MpButton variant="ghost" @click="onCancel">{{ COPY.cancel }}</MpButton>
-      <MpButton variant="primary" @click="onSubmit">{{ COPY.submit }}</MpButton>
+      <MpButton variant="primary" @click="onSubmit">{{ submitLabel }}</MpButton>
     </MpFlex>
   </div>
 </template>

@@ -57,7 +57,7 @@ const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
       <MpButton
         variant="primary"
         left-icon="edit"
-        @click="navigateTo({ path: '/talents/competencies/create', query: { edit: id, name } })"
+        @click="navigateTo({ path: '/talents/competencies/create', query: { edit: id, name, scope: 'job-level' } })"
       >
         Edit
       </MpButton>

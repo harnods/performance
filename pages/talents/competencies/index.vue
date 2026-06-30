@@ -48,6 +48,7 @@ definePageMeta({ title: 'Assignments', layout: 'default' })
 
 const route = useRoute()
 const showSuccess = ref(!!route.query.created)
+const showUpdated = ref(!!route.query.updated)
 
 // Scope attribute is one of three dimensions only (or none).
 type ScopeAttr = 'job-level' | 'job-grade' | 'job-class' | null
@@ -117,7 +118,7 @@ watch([scopeFilter, search], () => { currentPage.value = 1 })
 
 // ─── Navigation / actions ────────────────────────────────────────────────────
 const detailTarget = (a: Assignment) => ({ path: `/talents/competencies/${a.id}`, query: { name: a.name } })
-const editTarget = (a: Assignment) => ({ path: '/talents/competencies/create', query: { edit: a.id, name: a.name } })
+const editTarget = (a: Assignment) => ({ path: '/talents/competencies/create', query: { edit: a.id, name: a.name, scope: a.scope ?? '' } })
 
 const deleteModalOpen = ref(false)
 const toDelete = ref<Assignment | null>(null)
@@ -149,6 +150,12 @@ const captionText = css({ color: 'text.secondary' })
       <MpBannerIcon />
       <MpBannerTitle>Assignment created</MpBannerTitle>
       <MpBannerCloseButton @click="showSuccess = false" />
+    </MpBanner>
+
+    <MpBanner v-if="showUpdated" variant="success">
+      <MpBannerIcon />
+      <MpBannerTitle>Assignment updated</MpBannerTitle>
+      <MpBannerCloseButton @click="showUpdated = false" />
     </MpBanner>
 
     <!-- ═════ Filter bar ═════ -->
