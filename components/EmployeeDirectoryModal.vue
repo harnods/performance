@@ -234,7 +234,12 @@ const emptyList = css({ padding: '4', fontSize: '14px', color: 'text.secondary',
 const rightPanel = css({
   flex: '1 1 0', minWidth: '0', overflowY: 'auto', padding: '6',
   background: 'var(--mp-colors-background)',
+  display: 'flex', flexDirection: 'column', gap: '4',
 })
+// Page title (selected employee) above the stage box.
+const pageTitle = css({ display: 'flex', flexDirection: 'column', gap: '1' })
+const pageTitleName = css({ fontSize: '24px', fontWeight: '600', lineHeight: '32px', color: 'text.default', letterSpacing: '-0.48px' })
+const pageTitleMeta = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const stageBox = css({
   background: 'white', border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
   padding: '6', display: 'flex', flexDirection: 'column', gap: '6',
@@ -321,6 +326,12 @@ const gapCellClass = (g: number) => (g < 0 ? gapNeg : g > 0 ? gapPos : numCell)
 
         <!-- Right: stage boxes -->
         <section :class="rightPanel">
+          <!-- Page title — selected employee -->
+          <div :class="pageTitle">
+            <MpText as="h1" :class="pageTitleName">{{ selected?.name }}</MpText>
+            <span v-if="selected" :class="pageTitleMeta">{{ employeeMeta(selected) }}</span>
+          </div>
+
           <!-- Stage box 1 — Competency assessments (full width) -->
           <div :class="stageBox">
             <div :class="stageHeader">
