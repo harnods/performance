@@ -97,7 +97,7 @@ const productDropdown = css({
 
       <MpFlex align="center" gap="2">
         <ClientOnly>
-          <MpAvatar name="Rizal Candra" size="lg" variant="circle" variantColor="sky" />
+          <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
         </ClientOnly>
         <MpFlex direction="column">
           <span :class="profileName">Rizal Candra</span>

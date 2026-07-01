@@ -28,6 +28,16 @@ html, body, #__nuxt {
 .mp-icon-box[data-size='48'] { width: 48px; height: 48px; }
 
 .mp-popover-list-item { width: 100%; transition: background-color .12s ease; }
+
+/* PxSelectPopover: normalise list item left padding to 12px so grouped section
+   headers (also 12px) line up on the same vertical edge as the option labels. */
+.px-select-list .mp-popover-list-item { padding-inline: 12px !important; }
+
+/* Skeleton pulse (used by custom skeleton blocks). */
+@keyframes px-skeleton-pulse {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.45; }
+}
 .mp-popover-list-item:not([disabled]):hover,
 .mp-popover-list-item:not([disabled]):focus-visible {
   background-color: var(--mp-colors-background-neutral-hovered);

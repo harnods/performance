@@ -9,6 +9,10 @@ const pageTitle = computed(() =>
 )
 const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefined))
 
+// Boxed mode (e.g. Home dashboard): flat grey canvas with standalone stage boxes,
+// instead of the default single white stage panel. Opt in via definePageMeta({ boxed: true }).
+const boxed = computed(() => !!route.meta.boxed)
+
 // Intermediate breadcrumb for nested pages (e.g. timeframe detail inside a cycle).
 // Carry name + purpose so the cycle detail page resolves the right cycle (it reads
 // ?name= and ?purpose=, not the route param).
@@ -33,7 +37,14 @@ const cycleBreadcrumb = computed(() => {
     <MpFlex flex="1" minHeight="0">
       <AppSidebar />
 
-      <MpFlex as="main" direction="column" flex="1" minWidth="0" overflowY="auto">
+      <MpFlex
+        as="main"
+        direction="column"
+        flex="1"
+        minWidth="0"
+        overflowY="auto"
+        :style="boxed ? { background: 'var(--mp-colors-background)' } : undefined"
+      >
         <MpFlex
           align="center"
           justify="space-between"
@@ -87,14 +98,14 @@ const cycleBreadcrumb = computed(() => {
         <MpFlex
           direction="column"
           flex="1"
-          background="background.neutral"
-          paddingInline="6"
-          paddingBlock="6"
-          borderTopLeftRadius="md"
-          borderTop="1px solid"
-          borderTopColor="border.default"
-          borderLeft="1px solid"
-          borderLeftColor="border.default"
+          :background="boxed ? undefined : 'background.neutral'"
+          :paddingInline="boxed ? '0' : '6'"
+          :paddingBlock="boxed ? '0' : '6'"
+          :borderTopLeftRadius="boxed ? undefined : 'md'"
+          :borderTop="boxed ? undefined : '1px solid'"
+          :borderTopColor="boxed ? undefined : 'border.default'"
+          :borderLeft="boxed ? undefined : '1px solid'"
+          :borderLeftColor="boxed ? undefined : 'border.default'"
         >
           <slot />
         </MpFlex>

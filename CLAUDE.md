@@ -58,6 +58,13 @@ const myClass = css({
 - Gap between form fields: `gap: '4'` (16px)
 - Margin between sections: `marginTop: '10'` (top), `marginBottom: '3'` (before first field)
 
+### Tables
+- Row hover state ONLY when the row is interactive (clickable → opens detail / navigates).
+  For read-only / display tables, disable it with `<MpTable :is-hoverable="false">` — a hover
+  highlight implies clickability that isn't there.
+- Numeric columns right-aligned; use `fontVariantNumeric: 'tabular-nums'`.
+- 1px bottom row border only (Pixel default) — no zebra striping, no outer border.
+
 ---
 
 ## Page Layout (`layouts/default.vue`)

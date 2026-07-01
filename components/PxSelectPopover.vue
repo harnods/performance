@@ -13,7 +13,7 @@ import {
   css,
 } from '@mekari/pixel3'
 
-interface Option { value: string; label: string; description?: string }
+interface Option { value: string; label: string; description?: string; group?: string }
 
 const props = defineProps<{
   modelValue: string
@@ -46,6 +46,27 @@ const filteredOptions = computed(() =>
         o.description?.toLowerCase().includes(searchTerm.value.toLowerCase()),
       ),
 )
+
+// Group options by their optional `group` label, preserving first-seen order.
+// When no option has a group, render a single unlabeled group (existing behavior).
+const groupedOptions = computed(() => {
+  const hasGroups = filteredOptions.value.some(o => o.group)
+  if (!hasGroups) return [{ group: '', items: filteredOptions.value }]
+  const map = new Map<string, Option[]>()
+  for (const o of filteredOptions.value) {
+    const g = o.group ?? ''
+    if (!map.has(g)) map.set(g, [])
+    map.get(g)!.push(o)
+  }
+  return Array.from(map, ([group, items]) => ({ group, items }))
+})
+
+// paddingInline matches the popover list item's left padding so group headers and
+// option labels line up on the same vertical edge.
+const groupHeader = css({
+  paddingInline: '3', paddingTop: '2', paddingBottom: '1',
+  fontSize: '12px', lineHeight: '16px', fontWeight: 'semiBold', color: 'text.secondary',
+})
 
 const searchBar = css({
   paddingInline: '3',
@@ -111,20 +132,23 @@ function set(v: string) {
             />
           </div>
         </div>
-        <div :class="listWrap">
+        <div :class="listWrap" class="px-select-list">
         <MpPopoverList>
-          <MpPopoverListItem
-            v-for="opt in filteredOptions"
-            :key="opt.value"
-            :is-active="opt.value === modelValue"
-            @click="set(opt.value)"
-          >
-            <div v-if="opt.description" :class="itemBody">
-              <MpText size="label" :class="itemLabel">{{ opt.label }}</MpText>
-              <MpText size="label-small" :class="itemCaption">{{ opt.description }}</MpText>
-            </div>
-            <template v-else>{{ opt.label }}</template>
-          </MpPopoverListItem>
+          <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
+            <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
+            <MpPopoverListItem
+              v-for="opt in grp.items"
+              :key="opt.value"
+              :is-active="opt.value === modelValue"
+              @click="set(opt.value)"
+            >
+              <div v-if="opt.description" :class="itemBody">
+                <MpText size="label" :class="itemLabel">{{ opt.label }}</MpText>
+                <MpText size="label-small" :class="itemCaption">{{ opt.description }}</MpText>
+              </div>
+              <template v-else>{{ opt.label }}</template>
+            </MpPopoverListItem>
+          </template>
         </MpPopoverList>
         </div>
       </MpPopoverContent>
