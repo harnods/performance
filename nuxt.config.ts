@@ -1,4 +1,5 @@
 export default defineNuxtConfig({
+  build: { transpile: ['@ds/proto-review'] },
   compatibilityDate: '2025-05-28',
   devtools: { enabled: false },
   css: ['~/assets/css/main.css'],
