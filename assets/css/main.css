@@ -49,9 +49,12 @@ html, body, #__nuxt {
   width: 760px !important;
 }
 
-/* MpModal: skip enter animation so overlay + content appear immediately */
-.mp-modal__overlay,
-.mp-modal__contentChild {
+/* MpModal: skip enter animation so overlay + content appear immediately.
+   Excludes MpDrawer* (data-pixel-component) — drawers keep Pixel's built-in
+   slide-in/fade transition (animejs sets these as plain inline styles, which
+   this !important override would otherwise freeze at `none` every frame). */
+.mp-modal__overlay:not([data-pixel-component='MpDrawerOverlay']),
+.mp-modal__contentChild:not([data-pixel-component='MpDrawerContent']) {
   animation: none !important;
   opacity: 1 !important;
   transform: none !important;

@@ -1,5 +1,31 @@
 <script setup lang="ts">
-import { MpFlex, MpIcon, MpAvatar, css } from '@mekari/pixel3'
+import {
+  MpFlex,
+  MpIcon,
+  MpAvatar,
+  MpText,
+  MpTextlink,
+  MpPopover,
+  MpPopoverTrigger,
+  MpPopoverContent,
+  toast,
+  css,
+} from '@mekari/pixel3'
+
+function signOut() { /* hook real auth here */ }
+
+const { resetToSeed } = useGoalCyclesStore()
+const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
+function resetDemoData() {
+  resetToSeed()
+  resetGoalsToSeed()
+  toast.notify({
+    id: 'demo-data-reset',
+    position: 'top-center',
+    variant: 'success',
+    title: 'Demo data reset',
+  })
+}
 
 const launcherButton = css({
   display: 'inline-flex',
@@ -47,6 +73,63 @@ const productDropdown = css({
   _hover: { color: 'text.link' },
   transition: 'color 120ms ease',
 })
+
+// ── User dropdown (ported from mekari-account/components/AppHeader.vue) ────
+const profileTrigger = css({
+  display: 'inline-flex',
+  alignItems: 'center',
+  gap: '2',
+  background: 'transparent',
+  border: 'none',
+  cursor: 'pointer',
+  padding: '1',
+  borderRadius: 'md',
+  _hover: { background: 'background.neutral.hovered' },
+})
+
+const popoverInner = css({ width: '320px' })
+
+const popoverHeader = css({
+  display: 'flex',
+  flexDirection: 'column',
+  alignItems: 'center',
+  gap: '2',
+  paddingBlock: '4',
+  paddingInline: '4',
+  background: 'background.neutral.subtle',
+  borderTopLeftRadius: 'md',
+  borderTopRightRadius: 'md',
+})
+
+const menuRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  gap: '2',
+  paddingInline: '4',
+  height: '40px',
+  width: '100%',
+  background: 'transparent',
+  border: 'none',
+  textAlign: 'left',
+  fontFamily: 'body',
+  fontSize: 'md',
+  lineHeight: 'lg',
+  color: 'text.default',
+  cursor: 'pointer',
+  _hover: { background: 'background.neutral.hovered' },
+})
+
+const popoverDivider = css({ height: '1px', background: 'border.default' })
+
+const popoverFooter = css({
+  display: 'flex',
+  flexDirection: 'column',
+  gap: '1',
+  paddingBlock: '3',
+  paddingInline: '4',
+})
+
+const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
 </script>
 
 <template>
@@ -95,15 +178,63 @@ const productDropdown = css({
         <PxIcon name="shortcuts" :size="20" />
       </button>
 
-      <MpFlex align="center" gap="2">
-        <ClientOnly>
-          <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
-        </ClientOnly>
-        <MpFlex direction="column">
-          <span :class="profileName">Rizal Candra</span>
-          <span :class="profileCompany">PT Central Perk Indonesia</span>
-        </MpFlex>
-      </MpFlex>
+      <!-- User dropdown -->
+      <MpPopover placement="bottom-end" trigger="click" use-portal>
+        <MpPopoverTrigger>
+          <button type="button" :class="profileTrigger" aria-label="Open user menu">
+            <ClientOnly>
+              <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
+            </ClientOnly>
+            <MpFlex direction="column" align="flex-start">
+              <span :class="profileName">Rizal Candra</span>
+              <span :class="profileCompany">PT Central Perk Indonesia</span>
+            </MpFlex>
+          </button>
+        </MpPopoverTrigger>
+
+        <MpPopoverContent>
+          <div :class="popoverInner">
+            <div :class="popoverHeader">
+              <ClientOnly>
+                <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
+              </ClientOnly>
+              <MpFlex direction="column" align="center" gap="0.5">
+                <MpText size="label" weight="semiBold" color="text.default">Rizal Candra</MpText>
+                <MpText size="label-small" color="text.secondary">PT Central Perk Indonesia</MpText>
+              </MpFlex>
+            </div>
+
+            <div :class="popoverDivider" />
+
+            <button type="button" :class="menuRow">
+              <MpIcon name="add" size="sm" />
+              Add another account
+            </button>
+
+            <div :class="popoverDivider" />
+
+            <button type="button" :class="menuRow" @click="resetDemoData">
+              <MpIcon name="refresh" size="sm" />
+              Reset demo data
+            </button>
+
+            <div :class="popoverDivider" />
+
+            <button type="button" :class="menuRow" @click="signOut">Sign out</button>
+
+            <div :class="popoverDivider" />
+
+            <div :class="popoverFooter">
+              <div :class="footerLinkRow">
+                <MpTextlink as="a" href="#" variant="primary"><MpText size="label-small">Privacy</MpText></MpTextlink>
+                <MpTextlink as="a" href="#" variant="primary"><MpText size="label-small">Terms of use</MpText></MpTextlink>
+                <MpTextlink as="a" href="#" variant="primary"><MpText size="label-small">About Mekari Talenta</MpText></MpTextlink>
+              </div>
+              <MpText size="overline" color="text.secondary">© {{ new Date().getFullYear() }} Mekari</MpText>
+            </div>
+          </div>
+        </MpPopoverContent>
+      </MpPopover>
     </MpFlex>
   </MpFlex>
 </template>

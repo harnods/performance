@@ -15,7 +15,6 @@
     "vue-router": "^4.4.5"
   },
   "dependencies": {
-    "@ds/proto-review": "github:harnods/proto-review",
     "@mekari/pixel3": "^1.0.12",
     "@mekari/pixel3-postcss": "^1.0.12"
   }

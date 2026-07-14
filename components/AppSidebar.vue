@@ -18,7 +18,29 @@ const group1: NavItem[] = [
   { icon: 'reports', label: 'Reports', path: '/reports' },
 ]
 
-const group2: NavItem[] = [
+// Toggled from Goals settings ("Use the new Goals interface"). Swaps the
+// Goals level-2 sitemap between the current menu and the new-experience menu.
+const goalsNewInterface = useCookie('goals-new-interface', { default: () => false })
+
+const goalsChildrenCurrent: PanelItem[] = [
+  { label: 'Individual goals', path: '/goals/individual-goals' },
+  { label: 'Team goals', path: '/goals/team-goals' },
+  { label: 'Organization goals', path: '/goals/organization-goals' },
+  { label: 'Company goals', path: '/goals/company-goals' },
+  { divider: true },
+  { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
+  { label: 'Goal categories', path: '/goals/goal-categories' },
+  { label: 'Goal settings', path: '/goals/goal-settings' },
+]
+
+const goalsChildrenNew: PanelItem[] = [
+  { label: 'Goal cycles', path: '/goals/goal-cycles' },
+  { divider: true },
+  { label: 'Goal categories', path: '/goals/goal-categories' },
+  { label: 'Goal settings', path: '/goals/goal-settings' },
+]
+
+const group2 = computed<NavItem[]>(() => [
   {
     icon: 'performance', label: 'Reviews',
     children: [
@@ -30,16 +52,7 @@ const group2: NavItem[] = [
   },
   {
     icon: 'goal', label: 'Goals',
-    children: [
-      { label: 'Individual goals', path: '/goals/individual-goals' },
-      { label: 'Team goals', path: '/goals/team-goals' },
-      { label: 'Organization goals', path: '/goals/organization-goals' },
-      { label: 'Company goals', path: '/goals/company-goals' },
-      { divider: true },
-      { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
-      { label: 'Goal categories', path: '/goals/goal-categories' },
-      { label: 'Goal settings', path: '/goals/goal-settings' },
-    ],
+    children: goalsNewInterface.value ? goalsChildrenNew : goalsChildrenCurrent,
   },
   {
     icon: 'talent-management', label: 'Talents',
@@ -59,7 +72,7 @@ const group2: NavItem[] = [
       },
     ],
   },
-]
+])
 
 const group3: NavItem[] = [
   {
@@ -74,8 +87,8 @@ const group3: NavItem[] = [
   },
 ]
 
-const allGroups = [group1, group2, group3]
-const allItems = [...group1, ...group2, ...group3]
+const allGroups = computed(() => [group1, group2.value, group3])
+const allItems = computed(() => [...group1, ...group2.value, ...group3])
 
 const isChild = (item: PanelItem): item is NavChild => !('divider' in item)
 
@@ -93,7 +106,7 @@ const leafPathsOf = (item: NavItem): string[] => {
   }
   return out
 }
-const allLeafPaths = computed(() => allItems.flatMap(leafPathsOf))
+const allLeafPaths = computed(() => allItems.value.flatMap(leafPathsOf))
 const activeLeafPath = computed(() =>
   allLeafPaths.value
     .filter(p => route.path === p || route.path.startsWith(p + '/'))
@@ -113,7 +126,7 @@ const itemTarget = (item: NavItem) => item.path ?? firstLeafPath(item)
 // Target for a panel child (handles an accordion child → its first sub-page).
 const childLink = (c: NavChild) => c.path ?? (c.children?.find(isChild) as NavChild | undefined)?.path ?? '/'
 
-const activeParent = computed<NavItem | undefined>(() => allItems.find(hasActiveChild))
+const activeParent = computed<NavItem | undefined>(() => allItems.value.find(hasActiveChild))
 const isSubmenuMode = computed(() => !!activeParent.value)
 
 const isMainNavCollapsed = useState('sidebar-main-collapsed', () => false)
