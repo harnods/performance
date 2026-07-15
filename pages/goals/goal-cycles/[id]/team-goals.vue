@@ -4,22 +4,23 @@
   Source: Figma — Goals (fileKey E5Ab98G8lF0UejH49bBHnU, node 4488:94974)
   Token mode: Pixel 2.4
 
-  Two nested accordion levels: Department (Accounting, Front of house, HR,
-  Kitchen, Management, Marketing, Sales — only Accounting expanded by default)
-  then Team within that department (only Accounting's one team is expanded
-  by default). A collapsed team/department row is a single full-width cell
-  (colspan across every column) showing just its name + caret, matching the
-  source exactly.
-
-  Team is its own first-class goal level (useGoalsStore().teamGoals) sourced
-  from H1_2026_Goals_CentralPerk.xlsx's Team sheet, not derived from
-  Individual goals — each team has exactly one named Team Lead who owns that
-  team's whole goal set (the source gives no team roster, only a lead), so
-  there's no member-aggregation here, just that one owner's own goals. Only
-  4 of the 7 departments have a team in the source: Sales has two (Retail,
-  Wholesale), Kitchen/Front of House/Accounting each have one — HR,
-  Marketing, and Management have none, so those 3 departments always render
-  the "no teams in this department yet" empty state.
+  Goals are grouped by department via an accordion, same as ../organization-
+  goals — but unlike Organization (always exactly one dept-head owner) and
+  Individual (one row-group per owner), a department's "Team" level goals
+  are typically owned by SEVERAL different people at once (a dept head plus
+  individual contributors, e.g. Sales: Ali, Daud, Jessie). The source has no
+  named team entity or roster to hang that on, so it's modeled as: one flat
+  table per department (rows sorted by owner then category — each owner's
+  own Category/Sub-category/weight still never merges with a colleague's,
+  same rule as everywhere else), with a leading "Team" column showing an
+  avatar group of every distinct owner in that department's table, rowspan-
+  merged across the whole thing — a visual stand-in for "this department's
+  team", not a real roster. Each row's own Goal/Owner/Progress/Status still
+  shows that specific goal's real owner. Only 4 of 7 departments have any
+  Team-tagged goals in the source (Sales, Kitchen, Front of House,
+  Accounting); Accounting (top of the list) is expanded by default anyway,
+  same as ../organization-goals and ../individual-goals — consistent across
+  all 3 pages even though it shows the empty state here.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -->
 <script setup lang="ts">
@@ -87,7 +88,6 @@ const goalsView = ref<GoalsViewKey>('team')
 const scopedRoutes: Partial<Record<GoalsViewKey, string>> = {
   company: 'company-goals',
   organization: 'organization-goals',
-  team: 'team-goals',
   individual: 'individual-goals',
 }
 
@@ -121,23 +121,21 @@ const visibleColumns = reactive<Record<ColumnKey, boolean>>({
   progress: true,
   status: true,
 })
-// Team + Goal + Actions are always rendered; the rest follow visibleColumns.
-const totalCols = computed(() => 3 + Object.values(visibleColumns).filter(Boolean).length)
 
-// ─── Live data — read from the goals mini-DB (useGoalsStore). Each team is
-// its own goal set with a single owner (the Team Lead), sorted by category
-// into rowspan groups — a single-owner group, so groupByOwner stays at its
-// default (true), same as ../individual-goals and ../organization-goals.
-// ───────────────────────────────────────────────────────────────────────
+// ─── Live data — read from the goals mini-DB (useGoalsStore), grouped by
+// department. Each department's rows span every owner who has a Team-level
+// goal there, sorted by owner then category (so each owner's own Category
+// cells stay separate — never merged with a colleague's, same rule as
+// every other Goals page). ────────────────────────────────────────────────
 type GoalStatus = 'green' | 'orange' | 'gray'
 
 const DEPARTMENTS = ['Accounting', 'Front of House', 'HR', 'Kitchen', 'Management', 'Marketing', 'Sales'] as const
 
-function slugify(name: string) {
-  return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
+function deptKey(name: string) {
+  return name.toLowerCase().replace(/\s+/g, '-')
 }
 
-const { teamGoals } = useGoalsStore()
+const { teamGoals, goals } = useGoalsStore()
 
 // Status filter (single-select) and Organization filter (multi-select) both
 // narrow the same underlying rows — empty selection means "no filter, show
@@ -150,78 +148,72 @@ function toggleDepartmentFilter(dept: string, checked: boolean) {
     : departmentFilter.value.filter(d => d !== dept)
 }
 
+// "View aligned goals" inserts a real row per aligned goal right below its
+// parent — Category/Sub-category keep merging across them (rowspan
+// extended in expandAlignedRows), while Goal/Owner/Progress/Status each get
+// their own row for every aligned child, since those are per-goal values.
+const expandedAligned = reactive<Record<string, boolean>>({})
+function toggleAligned(id: string) {
+  expandedAligned[id] = !expandedAligned[id]
+}
+
 const departments = computed(() => DEPARTMENTS
-  .filter(deptName => departmentFilter.value.length === 0 || departmentFilter.value.includes(deptName))
-  .map((deptName) => {
-    const deptTeamGoals = teamGoals.value.filter(g => g.department === deptName)
-    const teamNames = [...new Set(deptTeamGoals.map(g => g.team!))]
-    const teams = teamNames.map((teamName, ti) => {
-      const allTeamGoals = deptTeamGoals.filter(g => g.team === teamName)
-      const filteredGoals = allTeamGoals.filter(g => !statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
-      const rows = withRowSpans(sortByCategory(filteredGoals)).map(g => ({
-        id: g.id,
-        showCategory: g.showCategory,
-        categoryRowspan: g.categoryRowspan,
-        category: g.category,
-        categoryWeight: g.categoryWeight,
-        showSubCategory: g.showSubCategory,
-        subCategoryRowspan: g.subCategoryRowspan,
-        subCategory: g.subCategory,
-        code: g.code,
-        title: g.title,
-        weight: g.weight,
-        hasAligned: g.hasAligned,
-        owner: ownerOf(g.ownerId),
-        status: g.status,
-        unit: g.unit,
-        value: g.value,
-        pill: g.pill,
-        min: g.min,
-        max: g.max,
-      }))
-      const lead = ownerOf(allTeamGoals[0].ownerId)
-      // The source spreadsheet only names one Team Lead per team, no full
-      // roster — fill out the avatar stack with other real employees from
-      // the same department (lead always first) purely for the visual
-      // "who's on this team" display, capped at 3.
-      const avatarMembers = [
-        lead,
-        ...EMPLOYEES.filter(e => e.department === deptName && e.id !== lead.id).map(e => ownerOf(e.id)),
-      ].slice(0, 3)
-      return {
-        key: slugify(teamName),
-        name: `Team ${ti + 1}`,
-        lead,
-        avatarMembers,
-        rows,
-      }
-    })
-    return { key: slugify(deptName), name: deptName, teams }
+  .filter(name => departmentFilter.value.length === 0 || departmentFilter.value.includes(name))
+  .map((name) => {
+    const filteredGoals = teamGoals.value.filter(g =>
+      g.department === name && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
+      && matchesSearch(g, search.value),
+    )
+    const rows = withRowSpans(sortByCategory(filteredGoals)).map(g => ({
+      id: g.id,
+      showCategory: g.showCategory,
+      categoryRowspan: g.categoryRowspan,
+      category: g.category,
+      categoryWeight: g.categoryWeight,
+      showSubCategory: g.showSubCategory,
+      subCategoryRowspan: g.subCategoryRowspan,
+      subCategory: g.subCategory,
+      code: g.code,
+      title: g.title,
+      weight: g.weight,
+      alignedGoals: alignedGoalsOf(g, goals.value),
+      owner: ownerOf(g.ownerId),
+      status: g.status,
+      unit: g.unit,
+      value: g.value,
+      pill: g.pill,
+      min: g.min,
+      max: g.max,
+    }))
+    // Distinct owners across this department's (unfiltered-by-status/search)
+    // Team goals — a decorative "who's on this team" avatar stack, not
+    // affected by the Status/Search filters narrowing the rows below it.
+    const avatarMembers = [...new Set(teamGoals.value.filter(g => g.department === name).map(g => g.ownerId))]
+      .map(id => ownerOf(id))
+    return {
+      key: deptKey(name),
+      name,
+      avatarMembers,
+      rows: expandAlignedRows(rows, expandedAligned),
+    }
   }))
 
-const expandedDepts = reactive<Record<string, boolean>>({ accounting: true })
-const expandedTeams = reactive<Record<string, boolean>>({ 'finance-compliance-team': true })
-function toggleDept(key: string) {
-  expandedDepts[key] = !expandedDepts[key]
-}
-function toggleTeam(key: string) {
-  expandedTeams[key] = !expandedTeams[key]
+// Accounting (top of DEPARTMENTS) starts expanded, same as ../organization-
+// goals and ../individual-goals — consistent across all 3 pages even though
+// Accounting happens to have no Team-tagged goals (shows the empty state).
+const expanded = reactive<Record<string, boolean>>({ accounting: true })
+function toggle(key: string) {
+  expanded[key] = !expanded[key]
 }
 function collapseAll() {
-  for (const d of departments.value) expandedDepts[d.key] = false
-  for (const d of departments.value) for (const t of d.teams) expandedTeams[t.key] = false
+  for (const d of departments.value) expanded[d.key] = false
 }
 
 // Selecting an Organization filter should surface its results immediately —
-// expand every department the filter just matched, and every team inside
-// it, instead of leaving the user to manually open each level.
+// expand every department the filter just matched, instead of leaving the
+// user to manually open each one.
 watch(departmentFilter, (selected) => {
-  for (const dept of selected) {
-    const deptKey = slugify(dept)
-    expandedDepts[deptKey] = true
-    const match = departments.value.find(d => d.key === deptKey)
-    match?.teams.forEach(t => (expandedTeams[t.key] = true))
-  }
+  for (const dept of selected) expanded[deptKey(dept)] = true
 })
 
 function formatNumber(n: number): string {
@@ -264,18 +256,28 @@ const collapseAllBtn = css({
   color: 'text.secondary', fontSize: '12px', lineHeight: '16px',
 })
 
-// Team header row: caret + name (+ known avatars, else a member-count caption)
-const teamHeaderCell = css({
-  display: 'flex', alignItems: 'flex-start', gap: '2',
-  paddingTop: '2', paddingBottom: '2', paddingLeft: '9', paddingRight: '4',
-  cursor: 'pointer', border: 'none', background: 'white', width: '100%', textAlign: 'left',
-})
-const teamLabel = css({ display: 'flex', flexDirection: 'column', gap: '2', minWidth: '0', overflowWrap: 'break-word' })
-
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default' })
 const headerLabel = css({ display: 'inline-flex', alignItems: 'center', gap: '1' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const firstColCell = css({ paddingLeft: '9' })
+
+// Team avatar-group cell — rowspans the whole department table.
+const teamCell = css({
+  display: 'flex', alignItems: 'center', paddingLeft: '9', paddingRight: '4',
+})
+
+// Fixed table layout so every column keeps a stable width regardless of which
+// optional columns are toggled on/off via Column settings. Goal is
+// intentionally the one column with no fixed width — it absorbs all
+// remaining space, pushing the 52px action column flush against the right
+// edge instead of it stretching along with everything else.
+const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
+const colTeam = css({ width: '132px' })
+const colCategory = css({ width: '160px' })
+const colSubCategory = css({ width: '184px' })
+const colOwner = css({ width: '200px' })
+const colProgress = css({ width: '200px' })
+const colStatus = css({ width: '136px' })
 // Action column is a hard 52px: 36px icon button + 8px padding each side.
 const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
@@ -285,28 +287,13 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 // like every other column divider, not a heavier "sticky" emphasis.
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
-
-// Fixed table layout — a collapsed team row (colspan across every column) vs.
-// an expanded team's normal cells would otherwise make the browser recompute
-// column widths on every toggle, shifting the whole table. Explicit widths +
-// table-layout:fixed keep every column pinned regardless of which rows exist.
-const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
-const colTeam = css({ width: '184px' })
-const colCategory = css({ width: '160px' })
-const colSubCategory = css({ width: '184px' })
-// Goal is intentionally the one column with no fixed width — in a
-// table-layout:fixed table it absorbs all remaining space, pushing the
-// 52px action column flush against the right edge instead of it stretching.
-const colOwner = css({ width: '200px' })
-const colProgress = css({ width: '200px' })
-const colStatus = css({ width: '136px' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
 // Flex children default to min-width:auto, so long unbroken text refuses to
-// shrink below its own intrinsic width and bleeds out of the fixed-width
-// cell — min-width:0 lets the flex box shrink, break-word lets long text
-// wrap. Applied to every cell's content wrapper, not just Goal.
+// shrink below its own intrinsic width and bleeds out of the cell —
+// min-width:0 lets the flex box shrink, break-word lets long text wrap.
+// Applied to every cell's content wrapper, not just Goal.
 const cellContent = css({ minWidth: '0', width: '100%', whiteSpace: 'normal', overflowWrap: 'break-word' })
 const goalCode = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const alignedLink = css({
@@ -314,6 +301,13 @@ const alignedLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.default', fontSize: '14px', lineHeight: '20px',
 })
+// A real inserted row for one aligned child goal — no background tint (stays
+// white), just a blue left border on the Goal cell to mark it as a child row.
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+// Indent = the "View aligned goals" icon (size sm = 1.25rem) + its gap
+// (spacing.1 = 0.25rem) — lines the child row's code/title/weight up with
+// that button's text, not its icon.
+const alignedGoalIndent = css({ paddingLeft: '1.5rem' })
 
 const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', background: 'border.default', overflow: 'hidden' })
@@ -413,7 +407,7 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
             <MpPopoverList>
               <MpPopoverListItem v-for="dept in DEPARTMENTS" :key="dept">
                 <MpCheckbox
-                  :id="`dept-filter-${slugify(dept)}`"
+                  :id="`dept-filter-${deptKey(dept)}`"
                   :is-checked="departmentFilter.includes(dept)"
                   @update:is-checked="(checked) => toggleDepartmentFilter(dept, checked)"
                 >
@@ -432,7 +426,7 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
           <MpPopoverTrigger>
             <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
           </MpPopoverTrigger>
-          <MpPopoverContent>
+          <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
               <MpPopoverListItem is-disabled>
                 <MpCheckbox id="col-team" is-checked is-disabled>Team</MpCheckbox>
@@ -457,12 +451,13 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
       </MpFlex>
     </MpFlex>
 
-    <!-- Team goals — Department accordion, each containing a Team accordion -->
+    <!-- Team goals — one accordion group per department, with a leading
+         Team avatar-group column spanning the whole table -->
     <div :class="tableOuterBorder">
       <div v-for="(dept, di) in departments" :key="dept.key">
-        <button type="button" :class="accordionHeader" @click="toggleDept(dept.key)">
+        <button type="button" :class="accordionHeader" @click="toggle(dept.key)">
           <span :class="accordionLeft">
-            <MpIcon :name="expandedDepts[dept.key] ? 'caret-down' : 'caret-right'" size="sm" />
+            <MpIcon :name="expanded[dept.key] ? 'caret-down' : 'caret-right'" size="sm" />
             <MpText size="label" weight="semiBold" :class="valueText">{{ dept.name }}</MpText>
           </span>
           <span v-if="di === 0" :class="collapseAllBtn" @click.stop="collapseAll">
@@ -474,8 +469,8 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
           </span>
         </button>
 
-        <template v-if="expandedDepts[dept.key]">
-          <MpFlex v-if="dept.teams.length === 0" :class="emptyState">No teams in this department yet.</MpFlex>
+        <template v-if="expanded[dept.key]">
+          <MpFlex v-if="dept.rows.length === 0" :class="emptyState">No goals in this department yet.</MpFlex>
 
           <MpTableContainer v-else>
             <MpTable :is-hoverable="false" :class="fixedTable">
@@ -492,124 +487,99 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
                 </MpTableRow>
               </MpTableHead>
               <MpTableBody>
-                <template v-for="team in dept.teams" :key="team.key">
-                  <!-- Collapsed, or expanded with no rows yet: one full-width row.
-                       (An expanded team with an empty rows[] must still render
-                       something here — v-for over [] would otherwise vanish it.) -->
-                  <MpTableRow v-if="!expandedTeams[team.key] || team.rows.length === 0">
-                    <MpTableCell as="td" :colspan="totalCols" :class="tightCell">
-                      <button type="button" :class="teamHeaderCell" @click="toggleTeam(team.key)">
-                        <MpIcon :name="expandedTeams[team.key] ? 'caret-down' : 'caret-right'" size="sm" />
-                        <div :class="teamLabel">
-                          <MpText size="label" :class="valueText">{{ team.name }}</MpText>
-                        </div>
+                <MpTableRow v-for="(row, ri) in dept.rows" :key="row.id">
+                  <!-- Team (avatar group) — rowspans the whole department table -->
+                  <MpTableCell v-if="ri === 0" as="td" :rowspan="dept.rows.length" :class="[tightCell, colDivider, firstColCell, colTeam]">
+                    <div :class="teamCell">
+                      <MpAvatarGroup v-if="dept.avatarMembers.length > 1" :id="`avatars-${dept.key}`" size="lg" :max="dept.avatarMembers.length" spacing="-2">
+                        <MpAvatar v-for="m in dept.avatarMembers" :key="m.id" :id="`avatar-${dept.key}-${m.id}`" :name="m.name" :src="m.photo" variant-color="gray" />
+                      </MpAvatarGroup>
+                      <MpAvatar v-else-if="dept.avatarMembers[0]" :id="`avatar-${dept.key}`" size="lg" :name="dept.avatarMembers[0].name" :src="dept.avatarMembers[0].photo" variant-color="gray" />
+                    </div>
+                  </MpTableCell>
+
+                  <!-- Category -->
+                  <MpTableCell v-if="visibleColumns.category && row.kind === 'main' && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
+                    <MpFlex direction="column" gap="0" :class="cellContent">
+                      <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
+                      <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
+                    </MpFlex>
+                  </MpTableCell>
+
+                  <!-- Sub-category -->
+                  <MpTableCell v-if="visibleColumns.subCategory && row.kind === 'main' && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
+                    <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
+                  </MpTableCell>
+
+                  <!-- Goal -->
+                  <MpTableCell as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
+                    <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
+                      <span :class="goalCode">{{ row.code }}</span>
+                      <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
+                      <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
+                      <button v-if="row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                        <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                        View aligned goals ({{ row.alignedGoals.length }})
                       </button>
-                      <MpText v-if="expandedTeams[team.key]" size="label-small" :class="[captionText, css({ paddingLeft: '9', paddingTop: '2' })]">
-                        No goals for this team yet.
-                      </MpText>
-                    </MpTableCell>
-                  </MpTableRow>
+                    </MpFlex>
+                  </MpTableCell>
 
-                  <!-- Expanded team with rows: Team cell rowspans across all of
-                       them, exactly like Category does — NOT a separate row. -->
-                  <template v-else>
-                    <MpTableRow v-for="(row, ri) in team.rows" :key="row.id">
-                      <MpTableCell v-if="ri === 0" as="td" :rowspan="team.rows.length" :class="[tightCell, colDivider, firstColCell, colTeam]">
-                        <button type="button" :class="teamHeaderCell" @click="toggleTeam(team.key)">
-                          <MpIcon name="caret-down" size="sm" />
-                          <div :class="teamLabel">
-                            <MpText size="label" :class="valueText">{{ team.name }}</MpText>
-                            <MpAvatarGroup :id="`avatars-${team.key}`" size="lg" :max="team.avatarMembers.length" spacing="-2">
-                              <MpAvatar v-for="m in team.avatarMembers" :key="m.id" :id="`avatar-${team.key}-${m.id}`" :name="m.name" :src="m.photo" variant-color="gray" />
-                            </MpAvatarGroup>
-                          </div>
-                        </button>
-                      </MpTableCell>
+                  <!-- Owner -->
+                  <MpTableCell v-if="visibleColumns.owner" as="td" :class="[tightCell, colDivider, colOwner]">
+                    <MpFlex direction="column" gap="0" :class="cellContent">
+                      <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
+                      <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
+                      <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
+                      <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
+                    </MpFlex>
+                  </MpTableCell>
 
-                      <!-- Category -->
-                      <MpTableCell v-if="visibleColumns.category && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
-                        <MpFlex direction="column" gap="0" :class="cellContent">
-                          <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
-                          <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
-                        </MpFlex>
-                      </MpTableCell>
+                  <!-- Progress -->
+                  <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]">
+                    <MpFlex v-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
+                      <MpFlex align="center" gap="1">
+                        <MpText size="label" :class="valueText">
+                          {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
+                        </MpText>
+                        <span :class="pillGreen">{{ row.pill }}%</span>
+                      </MpFlex>
+                      <div :class="progressTrack">
+                        <div :class="[progressFill, row.status === 'green' ? fillGreen : fillOrange]" :style="{ width: `${row.pill}%` }" />
+                      </div>
+                      <MpFlex justify="space-between">
+                        <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.secondary' })">
+                          {{ row.unit === 'currency' ? `Rp${formatNumber(row.min ?? 0)}` : `${row.min}${row.unit === 'percent' ? '%' : ''}` }}
+                        </span>
+                        <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.default' })">
+                          {{ row.unit === 'currency' ? `Rp${formatNumber(row.max ?? 0)}` : `${row.max}${row.unit === 'percent' ? '%' : ''}` }}
+                        </span>
+                      </MpFlex>
+                    </MpFlex>
+                    <span v-else :class="captionText">—</span>
+                  </MpTableCell>
 
-                      <!-- Sub-category -->
-                      <MpTableCell v-if="visibleColumns.subCategory && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
-                        <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
-                      </MpTableCell>
+                  <!-- Status -->
+                  <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]">
+                    <span :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
+                  </MpTableCell>
 
-                      <!-- Goal -->
-                      <MpTableCell as="td" :class="[tightCell, colDivider]">
-                        <MpFlex direction="column" gap="0" :class="cellContent">
-                          <span :class="goalCode">{{ row.code }}</span>
-                          <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
-                          <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                          <button v-if="row.hasAligned" type="button" :class="alignedLink">
-                            <MpIcon name="caret-right" size="sm" />
-                            View aligned goals
-                          </button>
-                        </MpFlex>
-                      </MpTableCell>
-
-                      <!-- Owner -->
-                      <MpTableCell v-if="visibleColumns.owner" as="td" :class="[tightCell, colDivider, colOwner]">
-                        <MpFlex direction="column" gap="0" :class="cellContent">
-                          <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
-                          <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
-                          <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
-                          <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
-                        </MpFlex>
-                      </MpTableCell>
-
-                      <!-- Progress -->
-                      <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]">
-                        <MpFlex v-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
-                          <MpFlex align="center" gap="1">
-                            <MpText size="label" :class="valueText">
-                              {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
-                            </MpText>
-                            <span :class="pillGreen">{{ row.pill }}%</span>
-                          </MpFlex>
-                          <div :class="progressTrack">
-                            <div :class="[progressFill, row.status === 'green' ? fillGreen : fillOrange]" :style="{ width: `${row.pill}%` }" />
-                          </div>
-                          <MpFlex justify="space-between">
-                            <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.secondary' })">
-                              {{ row.unit === 'currency' ? `Rp${formatNumber(row.min ?? 0)}` : `${row.min}${row.unit === 'percent' ? '%' : ''}` }}
-                            </span>
-                            <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.default' })">
-                              {{ row.unit === 'currency' ? `Rp${formatNumber(row.max ?? 0)}` : `${row.max}${row.unit === 'percent' ? '%' : ''}` }}
-                            </span>
-                          </MpFlex>
-                        </MpFlex>
-                        <span v-else :class="captionText">—</span>
-                      </MpTableCell>
-
-                      <!-- Status -->
-                      <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]">
-                        <span :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
-                      </MpTableCell>
-
-                      <!-- Actions -->
-                      <MpTableCell as="td" is-fixed :class="[actionCell, fixedRightCol, fixedBodyBg]">
-                        <MpPopover is-close-on-select use-portal placement="bottom-end">
-                          <MpPopoverTrigger>
-                            <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
-                          </MpPopoverTrigger>
-                          <MpPopoverContent>
-                            <MpPopoverList>
-                              <MpPopoverListItem>View details</MpPopoverListItem>
-                              <MpPopoverListItem>Update goal progress</MpPopoverListItem>
-                              <MpPopoverListItem>Edit</MpPopoverListItem>
-                              <MpPopoverListItem>Delete</MpPopoverListItem>
-                            </MpPopoverList>
-                          </MpPopoverContent>
-                        </MpPopover>
-                      </MpTableCell>
-                    </MpTableRow>
-                  </template>
-                </template>
+                  <!-- Actions -->
+                  <MpTableCell as="td" is-fixed :class="[actionCell, fixedRightCol, fixedBodyBg]">
+                    <MpPopover is-close-on-select use-portal placement="bottom-end">
+                      <MpPopoverTrigger>
+                        <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
+                      </MpPopoverTrigger>
+                      <MpPopoverContent>
+                        <MpPopoverList>
+                          <MpPopoverListItem>View details</MpPopoverListItem>
+                          <MpPopoverListItem>Update goal progress</MpPopoverListItem>
+                          <MpPopoverListItem>Edit</MpPopoverListItem>
+                          <MpPopoverListItem>Delete</MpPopoverListItem>
+                        </MpPopoverList>
+                      </MpPopoverContent>
+                    </MpPopover>
+                  </MpTableCell>
+                </MpTableRow>
               </MpTableBody>
             </MpTable>
           </MpTableContainer>

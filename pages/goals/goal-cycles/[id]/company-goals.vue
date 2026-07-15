@@ -119,9 +119,14 @@ const visibleColumns = reactive<Record<ColumnKey, boolean>>({
 // independent budget and must never merge with a colleague's row. ────────
 type GoalStatus = 'green' | 'orange' | 'gray'
 
-const { companyGoals } = useGoalsStore()
+const { companyGoals, goals } = useGoalsStore()
 
-const rows = computed(() => withRowSpans(sortByCategory(companyGoals.value, { groupByOwner: false }), { groupByOwner: false }).map(g => ({
+const filteredGoals = computed(() => companyGoals.value.filter(g =>
+  (!statusFilter.value || g.status === ({ ontrack: 'green', atrisk: 'orange' } as Record<string, GoalStatus>)[statusFilter.value])
+  && matchesSearch(g, search.value),
+))
+
+const rows = computed(() => withRowSpans(sortByCategory(filteredGoals.value, { groupByOwner: false }), { groupByOwner: false }).map(g => ({
   id: g.id,
   showCategory: g.showCategory,
   categoryRowspan: g.categoryRowspan,
@@ -133,7 +138,7 @@ const rows = computed(() => withRowSpans(sortByCategory(companyGoals.value, { gr
   code: g.code,
   title: g.title,
   weight: g.weight,
-  hasAligned: g.hasAligned,
+  alignedGoals: alignedGoalsOf(g, goals.value),
   owner: ownerOf(g.ownerId),
   status: g.status,
   unit: g.unit,
@@ -142,6 +147,20 @@ const rows = computed(() => withRowSpans(sortByCategory(companyGoals.value, { gr
   min: g.min,
   max: g.max,
 })))
+
+// "View aligned goals" inserts a real row per aligned goal right below its
+// parent — Category/Sub-category keep merging across them (rowspan
+// extended in expandAlignedRows), while Goal/Owner/Progress/Status each get
+// their own row for every aligned child, since those are per-goal values.
+const expandedAligned = reactive<Record<string, boolean>>({})
+function toggleAligned(id: string) {
+  expandedAligned[id] = !expandedAligned[id]
+}
+const displayRows = computed(() => expandAlignedRows(rows.value, expandedAligned))
+
+function formatNumber(n: number): string {
+  return n.toLocaleString('id-ID')
+}
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
@@ -208,6 +227,13 @@ const alignedLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.default', fontSize: '14px', lineHeight: '20px',
 })
+// A real inserted row for one aligned child goal — no background tint (stays
+// white), just a blue left border on the Goal cell to mark it as a child row.
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+// Indent = the "View aligned goals" icon (size sm = 1.25rem) + its gap
+// (spacing.1 = 0.25rem) — lines the child row's code/title/weight up with
+// that button's text, not its icon.
+const alignedGoalIndent = css({ paddingLeft: '1.5rem' })
 
 const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', background: 'border.default', overflow: 'hidden' })
@@ -293,7 +319,7 @@ const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Of
           <MpPopoverTrigger>
             <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
           </MpPopoverTrigger>
-          <MpPopoverContent>
+          <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
               <MpPopoverListItem is-disabled>
                 <MpCheckbox id="col-goal" is-checked is-disabled>Goal</MpCheckbox>
@@ -337,9 +363,9 @@ const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Of
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="row in rows" :key="row.id">
+            <MpTableRow v-for="row in displayRows" :key="row.id">
               <!-- Category -->
-              <MpTableCell v-if="visibleColumns.category && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
+              <MpTableCell v-if="visibleColumns.category && row.kind === 'main' && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
                 <MpFlex direction="column" gap="0" :class="cellContent">
                   <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
                   <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
@@ -347,19 +373,19 @@ const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Of
               </MpTableCell>
 
               <!-- Sub-category -->
-              <MpTableCell v-if="visibleColumns.subCategory && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
+              <MpTableCell v-if="visibleColumns.subCategory && row.kind === 'main' && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
                 <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
               </MpTableCell>
 
               <!-- Goal -->
-              <MpTableCell as="td" :class="[tightCell, colDivider]">
-                <MpFlex direction="column" gap="0" :class="cellContent">
+              <MpTableCell as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
+                <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
                   <span :class="goalCode">{{ row.code }}</span>
                   <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
                   <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                  <button v-if="row.hasAligned" type="button" :class="alignedLink">
-                    <MpIcon name="caret-right" size="sm" />
-                    View aligned goals
+                  <button v-if="row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                    <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                    View aligned goals ({{ row.alignedGoals.length }})
                   </button>
                 </MpFlex>
               </MpTableCell>
@@ -378,15 +404,21 @@ const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Of
               <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]">
                 <MpFlex v-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
                   <MpFlex align="center" gap="1">
-                    <MpText size="label" :class="valueText">{{ row.value }}{{ row.unit === 'percent' ? '%' : '' }}</MpText>
+                    <MpText size="label" :class="valueText">
+                      {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
+                    </MpText>
                     <span :class="pillGreen">{{ row.pill }}%</span>
                   </MpFlex>
                   <div :class="progressTrack">
                     <div :class="[progressFill, row.status === 'green' ? fillGreen : fillOrange]" :style="{ width: `${row.pill}%` }" />
                   </div>
                   <MpFlex justify="space-between">
-                    <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.secondary' })">{{ row.min }}{{ row.unit === 'percent' ? '%' : '' }}</span>
-                    <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.default' })">{{ row.max }}{{ row.unit === 'percent' ? '%' : '' }}</span>
+                    <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.secondary' })">
+                      {{ row.unit === 'currency' ? `Rp${formatNumber(row.min ?? 0)}` : `${row.min}${row.unit === 'percent' ? '%' : ''}` }}
+                    </span>
+                    <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.default' })">
+                      {{ row.unit === 'currency' ? `Rp${formatNumber(row.max ?? 0)}` : `${row.max}${row.unit === 'percent' ? '%' : ''}` }}
+                    </span>
                   </MpFlex>
                 </MpFlex>
                 <span v-else :class="captionText">—</span>

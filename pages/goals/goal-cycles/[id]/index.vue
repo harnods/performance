@@ -140,34 +140,101 @@ const GOAL_TYPE_LABEL: Record<string, string> = {
 
 const { goals, myGoals, myDirectReportsGoals } = useGoalsStore()
 
+const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
+
 const sourceGoals = computed(() => {
-  if (goalsView.value === 'my') return myGoals.value
-  if (goalsView.value === 'direct-reports') return myDirectReportsGoals.value
-  return goals.value
+  const base = goalsView.value === 'my'
+    ? myGoals.value
+    : goalsView.value === 'direct-reports' ? myDirectReportsGoals.value : goals.value
+  return base.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value))
 })
 
 const rows = computed(() => sortByCategory(sourceGoals.value)
-  .map(g => ({ ...g, owner: ownerOf(g.ownerId), goalType: GOAL_TYPE_LABEL[g.level] }))
+  .map(g => ({ ...g, owner: ownerOf(g.ownerId), goalType: GOAL_TYPE_LABEL[g.level], alignedGoals: alignedGoalsOf(g, goals.value) }))
   .sort((a, b) => a.owner.name.localeCompare(b.owner.name)))
 
+// "View aligned goals" inserts a real row per aligned goal right below its
+// parent — Goal/Goal type/Progress/Status each get their own row, since
+// those are per-goal values. An aligned child can belong to a different
+// owner than its parent, so it always gets its own Owner cell rather than
+// being folded into an ancestor's merged rowspan — see visibleRows below.
+const expandedAligned = reactive<Record<string, boolean>>({})
+function toggleAligned(id: string) {
+  expandedAligned[id] = !expandedAligned[id]
+}
+
 // Progressive pagination — same pattern as
-// pages/reviews/review-cycles/[id]/index.vue's "Load more" bars: reveal
-// PAGE_SIZE more rows at a time behind a simulated fetch delay, instead of
-// classic numbered pages.
+// pages/reviews/review-cycles/[id]/index.vue's "Load more" bars, but the
+// PAGE_SIZE unit is OWNERS, not raw goal rows — "Load more" reveals the next
+// PAGE_SIZE employees' full goal lists, never a group cut off mid-owner.
 const PAGE_SIZE = 10
-const visibleCount = ref(PAGE_SIZE)
+const visibleOwnerCount = ref(PAGE_SIZE)
 const loadingMore = ref(false)
-const visibleRows = computed(() => rows.value.slice(0, visibleCount.value))
-const hasMore = computed(() => visibleCount.value < rows.value.length)
+// `rows` is already sorted by owner name, so distinct owner ids appear in
+// the same stable order the table renders them in.
+const distinctOwnerIds = computed(() => {
+  const seen = new Set<string>()
+  for (const row of rows.value) seen.add(row.ownerId)
+  return [...seen]
+})
+const visibleOwnerIds = computed(() => new Set(distinctOwnerIds.value.slice(0, visibleOwnerCount.value)))
+const slicedRows = computed(() => rows.value.filter(row => visibleOwnerIds.value.has(row.ownerId)))
+// Owner rowspan is computed on the sliced+expanded (currently visible) rows,
+// not the full list — otherwise a rowspan computed against the full list
+// would overshoot what's actually rendered. An inserted aligned row always
+// breaks an owner merge in two (it gets its own cell, showing its own real
+// owner), which is correct since it isn't necessarily that owner's goal.
+const visibleRows = computed(() => {
+  const sliced = slicedRows.value
+  const flat: Array<{ kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>, category: string, subCategory: string, categoryWeight: number, code: string, title: string, weight: number, goalType: string, alignedGoals: ReturnType<typeof alignedGoalsOf>, status: (typeof sliced)[number]['status'], unit?: (typeof sliced)[number]['unit'], value?: number, pill?: number, min?: number, max?: number }> = []
+  for (const row of sliced) {
+    flat.push({ kind: 'main', ...row })
+    if (expandedAligned[row.id]) {
+      for (const ag of row.alignedGoals) {
+        flat.push({
+          kind: 'aligned',
+          id: `${row.id}::${ag.id}`,
+          ownerId: ag.ownerId,
+          owner: ownerOf(ag.ownerId),
+          category: ag.category,
+          subCategory: ag.subCategory,
+          categoryWeight: 0,
+          code: ag.code,
+          title: ag.title,
+          weight: ag.weight,
+          goalType: GOAL_TYPE_LABEL[ag.level],
+          alignedGoals: [],
+          status: ag.status,
+          unit: ag.unit,
+          value: ag.value,
+          pill: ag.pill,
+          min: ag.min,
+          max: ag.max,
+        })
+      }
+    }
+  }
+  return flat.map((row, i) => {
+    if (row.kind === 'aligned') return { ...row, showOwner: true, ownerRowspan: 1 }
+    const prev = flat[i - 1]
+    const showOwner = i === 0 || prev.kind !== 'main' || prev.ownerId !== row.ownerId
+    return {
+      ...row,
+      showOwner,
+      ownerRowspan: showOwner ? countWhile(flat, i, r => r.kind === 'main' && r.ownerId === row.ownerId) : 0,
+    }
+  })
+})
+const hasMore = computed(() => visibleOwnerCount.value < distinctOwnerIds.value.length)
 function loadMore() {
   if (loadingMore.value) return
   loadingMore.value = true
   setTimeout(() => {
-    visibleCount.value += PAGE_SIZE
+    visibleOwnerCount.value += PAGE_SIZE
     loadingMore.value = false
   }, 800)
 }
-watch(goalsView, () => { visibleCount.value = PAGE_SIZE })
+watch(goalsView, () => { visibleOwnerCount.value = PAGE_SIZE })
 
 function formatNumber(n: number): string {
   return n.toLocaleString('id-ID')
@@ -238,6 +305,13 @@ const alignedLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.default', fontSize: '14px', lineHeight: '20px',
 })
+// A real inserted row for one aligned child goal — no background tint (stays
+// white), just a blue left border on the Goal cell to mark it as a child row.
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+// Indent = the "View aligned goals" icon (size sm = 1.25rem) + its gap
+// (spacing.1 = 0.25rem) — lines the child row's code/title/weight up with
+// that button's text, not its icon.
+const alignedGoalIndent = css({ paddingLeft: '1.5rem' })
 
 const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '6px', borderRadius: 'full', background: 'gray.50', overflow: 'hidden' })
@@ -338,7 +412,7 @@ const awaitingBadge = css({
           <MpPopoverTrigger>
             <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
           </MpPopoverTrigger>
-          <MpPopoverContent>
+          <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
               <MpPopoverListItem is-disabled>
                 <MpCheckbox id="col-goal-owner" is-checked is-disabled>Goal owner</MpCheckbox>
@@ -384,10 +458,13 @@ const awaitingBadge = css({
         </MpTableHead>
         <MpTableBody>
           <MpTableRow v-for="row in visibleRows" :key="row.id">
-            <!-- Goal owner: a normal per-row column now (this table spans many
-                 owners), sticky-left so it stays visible while scrolling. -->
-            <MpTableCell as="td" is-fixed :class="[ownerCell, fixedLeftCol, fixedBodyBg, colOwner]">
-              <MpFlex direction="column" gap="0" :class="cellContent">
+            <!-- Goal owner: rowspan-merged across this owner's consecutive
+                 goals (this table spans many owners at once), sticky-left so
+                 it stays visible while scrolling. Aligned/child rows leave
+                 this blank — their owner already shows inline in the Goal
+                 cell ("Owner: X"), so repeating it here would be redundant. -->
+            <MpTableCell v-if="row.showOwner" as="td" :rowspan="row.ownerRowspan" is-fixed :class="[ownerCell, fixedLeftCol, fixedBodyBg, colOwner]">
+              <MpFlex v-if="row.kind === 'main'" direction="column" gap="0" :class="cellContent">
                 <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
                 <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
                 <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
@@ -399,7 +476,7 @@ const awaitingBadge = css({
             <MpTableCell v-if="visibleColumns.category" as="td" :class="[tightCell, colDivider, colCategory]">
               <MpFlex direction="column" gap="0" :class="cellContent">
                 <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
-                <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
+                <MpText v-if="row.kind === 'main'" size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
               </MpFlex>
             </MpTableCell>
 
@@ -409,14 +486,21 @@ const awaitingBadge = css({
             </MpTableCell>
 
             <!-- Goal -->
-            <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider]">
-              <MpFlex direction="column" gap="0" :class="cellContent">
+            <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
+              <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
                 <span v-if="visibleColumns.goalId" :class="goalCode">{{ row.code }}</span>
                 <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                <button v-if="visibleColumns.alignedGoals && row.hasAligned" type="button" :class="alignedLink">
-                  <MpIcon name="caret-right" size="sm" />
-                  View aligned goals
+                <MpFlex v-if="row.kind === 'aligned'" align="flex-start" gap="1" :class="css({ marginTop: '1' })">
+                  <MpText size="label-small" :class="captionText">Owner:</MpText>
+                  <MpFlex direction="column" gap="0">
+                    <MpText size="label-small" :class="captionText">{{ row.owner.name }}</MpText>
+                    <MpText size="label-small" :class="captionText">{{ row.owner.id }} | {{ row.owner.title }} | {{ row.owner.department }}</MpText>
+                  </MpFlex>
+                </MpFlex>
+                <button v-if="visibleColumns.alignedGoals && row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                  <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                  View aligned goals ({{ row.alignedGoals.length }})
                 </button>
               </MpFlex>
             </MpTableCell>
@@ -475,7 +559,7 @@ const awaitingBadge = css({
 
           <!-- Skeleton rows: progressive load-more (appended after existing rows) -->
           <template v-if="loadingMore">
-            <MpTableRow v-for="i in Math.min(PAGE_SIZE, rows.length - visibleCount)" :key="`skel-${i}`">
+            <MpTableRow v-for="i in Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount)" :key="`skel-${i}`">
               <MpTableCell as="td" :class="[ownerCell, fixedLeftCol, fixedBodyBg, colOwner]">
                 <MpFlex direction="column" gap="1">
                   <MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" />
@@ -502,10 +586,10 @@ const awaitingBadge = css({
         :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
       >
         <MpText size="label" :class="captionText">
-          Showing {{ Math.min(visibleCount, rows.length) }} of {{ rows.length }} goals.
+          Showing {{ slicedRows.length }} of {{ rows.length }} goals ({{ Math.min(visibleOwnerCount, distinctOwnerIds.length) }} of {{ distinctOwnerIds.length }} employees).
         </MpText>
         <MpTextlink v-if="hasMore && !loadingMore" size="label" @click="loadMore">
-          Load {{ Math.min(PAGE_SIZE, rows.length - visibleCount) }} more.
+          Load {{ Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount) }} more employees.
         </MpTextlink>
       </MpFlex>
     </div>

@@ -7,9 +7,11 @@
   Department accordion (Accounting expanded; Front of house, HR, Kitchen,
   Management, Marketing, Sales collapsed), then Goal owner rowspan-grouped
   within — no Team layer here (owner IS the group, one level shallower than
-  ../team-goals). Only Agung Setiawarman is expanded with row data (3 goals);
-  the other 6 owners in Accounting are collapsed with no rows revealed, shown
-  as a single "CODE | Title | Department" line exactly as in the frame.
+  ../team-goals). Only Evelyn Bellinda (Accounting's head, and one of the 10
+  employees who actually own goals under the source's flat model) is
+  expanded with row data by default; the other Accounting employees are
+  collapsed with no rows revealed, shown as a single "CODE | Title |
+  Department" line — most own no goals at all under this model.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -->
 <script setup lang="ts">
@@ -120,7 +122,7 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-const { individualGoals } = useGoalsStore()
+const { individualGoals, goals } = useGoalsStore()
 
 // Status filter (single-select) and Organization filter (multi-select) both
 // narrow the same underlying rows — empty selection means "no filter, show
@@ -139,7 +141,8 @@ const departments = computed(() => DEPARTMENTS
   const deptEmployees = EMPLOYEES.filter(e => e.department === deptName)
   const owners = deptEmployees.map((emp) => {
     const rows = withRowSpans(sortByCategory(individualGoals.value.filter(g =>
-      g.ownerId === emp.id && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]),
+      g.ownerId === emp.id && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
+      && matchesSearch(g, search.value),
     ))).map(g => ({
       id: g.id,
       showCategory: g.showCategory,
@@ -152,7 +155,7 @@ const departments = computed(() => DEPARTMENTS
       code: g.code,
       title: g.title,
       weight: g.weight,
-      hasAligned: g.hasAligned,
+      alignedGoals: alignedGoalsOf(g, goals.value),
       status: g.status,
       unit: g.unit,
       value: g.value,
@@ -166,7 +169,7 @@ const departments = computed(() => DEPARTMENTS
 }))
 
 const expandedDepts = reactive<Record<string, boolean>>({ accounting: true })
-const expandedOwners = reactive<Record<string, boolean>>({ agung: true })
+const expandedOwners = reactive<Record<string, boolean>>({ evelyn: true })
 function toggleDept(key: string) {
   expandedDepts[key] = !expandedDepts[key]
 }
@@ -396,7 +399,7 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
           <MpPopoverTrigger>
             <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
           </MpPopoverTrigger>
-          <MpPopoverContent>
+          <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
               <MpPopoverListItem is-disabled>
                 <MpCheckbox id="col-goal-owner" is-checked is-disabled>Goal owner</MpCheckbox>
@@ -508,9 +511,9 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
                           <span :class="goalCode">{{ row.code }}</span>
                           <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
                           <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                          <button v-if="row.hasAligned" type="button" :class="alignedLink">
+                          <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
                             <MpIcon name="caret-right" size="sm" />
-                            View aligned goals
+                            View aligned goals ({{ row.alignedGoals.length }})
                           </button>
                         </MpFlex>
                       </MpTableCell>

@@ -5,9 +5,18 @@
 // `rowspan`, exactly like the hand-authored mock data before it.
 // ─────────────────────────────────────────────────────────────────────────────
 import { EMPLOYEES } from './employees'
-import type { GoalCategory } from '~/composables/useGoalsStore'
+import type { GoalCategory, GoalLevel, GoalStatus, GoalUnit } from '~/composables/useGoalsStore'
 
 const CATEGORY_ORDER: GoalCategory[] = ['Financial', 'Customer', 'Internal Process', 'Learning & Growth']
+
+// The Search box on every Goals table matches a goal's own code, title, or
+// owner name — case-insensitive substring, same as any basic table search.
+export function matchesSearch(goal: { code: string, title: string, ownerId: string }, query: string): boolean {
+  const q = query.trim().toLowerCase()
+  if (!q) return true
+  const ownerName = ownerOf(goal.ownerId).name
+  return goal.code.toLowerCase().includes(q) || goal.title.toLowerCase().includes(q) || ownerName.toLowerCase().includes(q)
+}
 
 // ownerId sorts first (by default) so category/sub-category rowspans (below)
 // only merge rows belonging to the same owner. Without this, a multi-owner
@@ -52,11 +61,10 @@ export interface RowSpanFields {
 // this check that pair would wrongly look like one contiguous run.
 //
 // categoryWeight is computed from whichever rows actually get merged into
-// this rowspan group — it's the average of their own `weight`, not a stored
-// field. For a single-owner group that average is just that one goal's (or
-// those goals') own weight; for a merged multi-owner group (company goals,
-// or team goals with groupByOwner:false) it's the average across everyone
-// merged into that cell, not their sum.
+// this rowspan group — it's the SUM of their own `weight`, not a stored
+// field. A category's weight is its share of the owner's 100% budget, so
+// all of an owner's categories must sum back to 100% — e.g. Company's
+// Financial category (5 goals at 10/5/5/5/5%) is 30%, not their 6% average.
 export function withRowSpans<T extends { category: string, subCategory: string, ownerId?: string, weight: number }>(
   rows: T[],
   { groupByOwner = true }: { groupByOwner?: boolean } = {},
@@ -66,28 +74,24 @@ export function withRowSpans<T extends { category: string, subCategory: string, 
     const showCategory = i === 0 || !sameOwner(rows[i - 1], row) || rows[i - 1].category !== row.category
     const showSubCategory = showCategory || rows[i - 1].subCategory !== row.subCategory
     const categoryRowspan = showCategory ? countWhile(rows, i, r => sameOwner(r, row) && r.category === row.category) : 0
-    const categoryWeight = showCategory ? averageWeightWhile(rows, i, r => sameOwner(r, row) && r.category === row.category) : 0
+    const categoryWeight = showCategory ? sumWeightWhile(rows, i, r => sameOwner(r, row) && r.category === row.category) : 0
     const subCategoryRowspan = showSubCategory ? countWhile(rows, i, r => sameOwner(r, row) && r.category === row.category && r.subCategory === row.subCategory) : 0
     return { ...row, showCategory, categoryRowspan, categoryWeight, showSubCategory, subCategoryRowspan }
   })
 }
 
-function countWhile<T>(rows: T[], startIdx: number, pred: (r: T) => boolean): number {
+export function countWhile<T>(rows: T[], startIdx: number, pred: (r: T) => boolean): number {
   let count = 0
   for (let i = startIdx; i < rows.length && pred(rows[i]); i++) count++
   return count
 }
 
-function averageWeightWhile<T extends { weight: number }>(rows: T[], startIdx: number, pred: (r: T) => boolean): number {
+function sumWeightWhile<T extends { weight: number }>(rows: T[], startIdx: number, pred: (r: T) => boolean): number {
   let sum = 0
-  let count = 0
-  for (let i = startIdx; i < rows.length && pred(rows[i]); i++) {
-    sum += rows[i].weight
-    count++
-  }
-  // Rounded to 1 decimal — an unrounded average (e.g. 36.666666666666664)
-  // would otherwise print every repeating digit straight into the UI.
-  return count > 0 ? Math.round((sum / count) * 10) / 10 : 0
+  for (let i = startIdx; i < rows.length && pred(rows[i]); i++) sum += rows[i].weight
+  // Rounded to 1 decimal as a safety net against float drift (e.g. 0.1 + 0.2) —
+  // every real weight in the seed data is already a whole percentage.
+  return Math.round(sum * 10) / 10
 }
 
 export interface GoalOwner {
@@ -102,4 +106,159 @@ export function ownerOf(ownerId: string): GoalOwner {
   const e = EMPLOYEES.find(e => e.id === ownerId)
   if (!e) throw new Error(`useGoalsStore: unknown employee id "${ownerId}"`)
   return { name: e.name, id: e.code, title: e.title, department: e.department, photo: e.photo }
+}
+
+export interface AlignedGoal {
+  id: string
+  code: string
+  title: string
+  weight: number
+  level: GoalLevel
+  ownerId: string
+  category: string
+  subCategory: string
+  status: GoalStatus
+  unit?: GoalUnit
+  value?: number
+  pill?: number
+  min?: number
+  max?: number
+}
+
+// "Aligned goals" are the exact children of this goal — every goal whose
+// `alignedToId` points back at it. This is real source data (the "Aligned
+// To" column, cross-validated against the source's own "Cascade Tree"
+// reference sheet), a precise reverse lookup rather than a guess. Most
+// goals have no children (only 47 of 88 goals in the source have a parent
+// link at all).
+export function alignedGoalsOf<T extends {
+  level: GoalLevel
+  category: string
+  subCategory: string
+  id: string
+  code: string
+  title: string
+  weight: number
+  ownerId: string
+  alignedToId?: string
+  status: GoalStatus
+  unit?: GoalUnit
+  value?: number
+  pill?: number
+  min?: number
+  max?: number
+}>(
+  goal: T,
+  allGoals: T[],
+): AlignedGoal[] {
+  return allGoals
+    .filter(g => g.alignedToId === goal.id)
+    .map(g => ({
+      id: g.id, code: g.code, title: g.title, weight: g.weight, level: g.level, ownerId: g.ownerId,
+      category: g.category, subCategory: g.subCategory,
+      status: g.status, unit: g.unit, value: g.value, pill: g.pill, min: g.min, max: g.max,
+    }))
+}
+
+export interface DisplayGoalRow {
+  kind: 'main' | 'aligned'
+  id: string
+  showCategory: boolean
+  categoryRowspan: number
+  category: string
+  categoryWeight: number
+  showSubCategory: boolean
+  subCategoryRowspan: number
+  subCategory: string
+  code: string
+  title: string
+  weight: number
+  alignedGoals: AlignedGoal[]
+  owner: GoalOwner
+  status: GoalStatus
+  unit?: GoalUnit
+  value?: number
+  pill?: number
+  min?: number
+  max?: number
+}
+
+// Flattens rowspan-grouped goal rows into real display rows: every expanded
+// row's aligned goals become their own rows right below it (not stacked
+// inside one cell), so Goal/Goal type/Progress/Status each get their own
+// row height — exactly like a real child row would. Category/Sub-category
+// keep merging across the inserted rows too, so their rowspan is extended
+// here to cover however many child rows fall within each run.
+// categoryWeight is untouched — it's still only the sum of the REAL goals'
+// own weight, never the aligned children's, since those belong to a
+// different level's 100% budget entirely.
+export function expandAlignedRows<T extends RowSpanFields & { id: string, category: string, subCategory: string, code: string, title: string, weight: number, alignedGoals: AlignedGoal[], owner: GoalOwner, status: GoalStatus, unit?: GoalUnit, value?: number, pill?: number, min?: number, max?: number }>(
+  rows: T[],
+  expanded: Record<string, boolean>,
+): DisplayGoalRow[] {
+  const out: DisplayGoalRow[] = []
+  for (let i = 0; i < rows.length; i++) {
+    const row = rows[i]
+    let extraCategory = 0
+    if (row.showCategory) {
+      for (let j = i; j < i + row.categoryRowspan; j++) {
+        if (expanded[rows[j].id]) extraCategory += rows[j].alignedGoals.length
+      }
+    }
+    let extraSubCategory = 0
+    if (row.showSubCategory) {
+      for (let j = i; j < i + row.subCategoryRowspan; j++) {
+        if (expanded[rows[j].id]) extraSubCategory += rows[j].alignedGoals.length
+      }
+    }
+    out.push({
+      kind: 'main',
+      id: row.id,
+      showCategory: row.showCategory,
+      categoryRowspan: row.categoryRowspan + extraCategory,
+      category: row.category,
+      categoryWeight: row.categoryWeight,
+      showSubCategory: row.showSubCategory,
+      subCategoryRowspan: row.subCategoryRowspan + extraSubCategory,
+      subCategory: row.subCategory,
+      code: row.code,
+      title: row.title,
+      weight: row.weight,
+      alignedGoals: row.alignedGoals,
+      owner: row.owner,
+      status: row.status,
+      unit: row.unit,
+      value: row.value,
+      pill: row.pill,
+      min: row.min,
+      max: row.max,
+    })
+    if (expanded[row.id]) {
+      for (const child of row.alignedGoals) {
+        out.push({
+          kind: 'aligned',
+          id: `${row.id}::${child.id}`,
+          showCategory: false,
+          categoryRowspan: 0,
+          category: child.category,
+          categoryWeight: 0,
+          showSubCategory: false,
+          subCategoryRowspan: 0,
+          subCategory: child.subCategory,
+          code: child.code,
+          title: child.title,
+          weight: child.weight,
+          alignedGoals: [],
+          owner: ownerOf(child.ownerId),
+          status: child.status,
+          unit: child.unit,
+          value: child.value,
+          pill: child.pill,
+          min: child.min,
+          max: child.max,
+        })
+      }
+    }
+  }
+  return out
 }

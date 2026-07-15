@@ -126,7 +126,7 @@ function deptKey(name: string) {
   return name.toLowerCase().replace(/\s+/g, '-')
 }
 
-const { organizationGoals } = useGoalsStore()
+const { organizationGoals, goals } = useGoalsStore()
 
 // Status filter (single-select) and Organization filter (multi-select) both
 // narrow the same underlying rows — empty selection means "no filter, show
@@ -139,36 +139,47 @@ function toggleDepartmentFilter(dept: string, checked: boolean) {
     : departmentFilter.value.filter(d => d !== dept)
 }
 
+// "View aligned goals" inserts a real row per aligned goal right below its
+// parent — Category/Sub-category keep merging across them (rowspan
+// extended in expandAlignedRows), while Goal/Owner/Progress/Status each get
+// their own row for every aligned child, since those are per-goal values.
+const expandedAligned = reactive<Record<string, boolean>>({})
+function toggleAligned(id: string) {
+  expandedAligned[id] = !expandedAligned[id]
+}
+
 const departments = computed(() => DEPARTMENTS
   .filter(name => departmentFilter.value.length === 0 || departmentFilter.value.includes(name))
   .map((name) => {
     const filteredGoals = organizationGoals.value.filter(g =>
-      g.department === name && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]),
+      g.department === name && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
+      && matchesSearch(g, search.value),
     )
+    const rows = withRowSpans(sortByCategory(filteredGoals)).map(g => ({
+      id: g.id,
+      showCategory: g.showCategory,
+      categoryRowspan: g.categoryRowspan,
+      category: g.category,
+      categoryWeight: g.categoryWeight,
+      showSubCategory: g.showSubCategory,
+      subCategoryRowspan: g.subCategoryRowspan,
+      subCategory: g.subCategory,
+      code: g.code,
+      title: g.title,
+      weight: g.weight,
+      alignedGoals: alignedGoalsOf(g, goals.value),
+      owner: ownerOf(g.ownerId),
+      status: g.status,
+      unit: g.unit,
+      value: g.value,
+      pill: g.pill,
+      min: g.min,
+      max: g.max,
+    }))
     return {
       key: deptKey(name),
       name,
-      rows: withRowSpans(sortByCategory(filteredGoals)).map(g => ({
-        id: g.id,
-        showCategory: g.showCategory,
-        categoryRowspan: g.categoryRowspan,
-        category: g.category,
-        categoryWeight: g.categoryWeight,
-        showSubCategory: g.showSubCategory,
-        subCategoryRowspan: g.subCategoryRowspan,
-        subCategory: g.subCategory,
-        code: g.code,
-        title: g.title,
-        weight: g.weight,
-        hasAligned: g.hasAligned,
-        owner: ownerOf(g.ownerId),
-        status: g.status,
-        unit: g.unit,
-        value: g.value,
-        pill: g.pill,
-        min: g.min,
-        max: g.max,
-      })),
+      rows: expandAlignedRows(rows, expandedAligned),
     }
   }))
 
@@ -267,6 +278,13 @@ const alignedLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.default', fontSize: '14px', lineHeight: '20px',
 })
+// A real inserted row for one aligned child goal — no background tint (stays
+// white), just a blue left border on the Goal cell to mark it as a child row.
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+// Indent = the "View aligned goals" icon (size sm = 1.25rem) + its gap
+// (spacing.1 = 0.25rem) — lines the child row's code/title/weight up with
+// that button's text, not its icon.
+const alignedGoalIndent = css({ paddingLeft: '1.5rem' })
 
 const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', background: 'border.default', overflow: 'hidden' })
@@ -385,7 +403,7 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
           <MpPopoverTrigger>
             <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
           </MpPopoverTrigger>
-          <MpPopoverContent>
+          <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
               <MpPopoverListItem is-disabled>
                 <MpCheckbox id="col-goal" is-checked is-disabled>Goal</MpCheckbox>
@@ -446,7 +464,7 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
               <MpTableBody>
                 <MpTableRow v-for="row in dept.rows" :key="row.id">
                   <!-- Category -->
-                  <MpTableCell v-if="visibleColumns.category && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, firstColCell, colCategory]">
+                  <MpTableCell v-if="visibleColumns.category && row.kind === 'main' && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, firstColCell, colCategory]">
                     <MpFlex direction="column" gap="0" :class="cellContent">
                       <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
                       <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
@@ -454,19 +472,19 @@ const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px'
                   </MpTableCell>
 
                   <!-- Sub-category -->
-                  <MpTableCell v-if="visibleColumns.subCategory && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
+                  <MpTableCell v-if="visibleColumns.subCategory && row.kind === 'main' && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
                     <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
                   </MpTableCell>
 
                   <!-- Goal -->
-                  <MpTableCell as="td" :class="[tightCell, colDivider, !visibleColumns.category && firstColCell]">
-                    <MpFlex direction="column" gap="0" :class="cellContent">
+                  <MpTableCell as="td" :class="[tightCell, colDivider, !visibleColumns.category && firstColCell, row.kind === 'aligned' && alignedGoalCell]">
+                    <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
                       <span :class="goalCode">{{ row.code }}</span>
                       <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
                       <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                      <button v-if="row.hasAligned" type="button" :class="alignedLink">
-                        <MpIcon name="caret-right" size="sm" />
-                        View aligned goals
+                      <button v-if="row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                        <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                        View aligned goals ({{ row.alignedGoals.length }})
                       </button>
                     </MpFlex>
                   </MpTableCell>
