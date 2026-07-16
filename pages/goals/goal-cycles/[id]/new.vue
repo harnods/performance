@@ -216,6 +216,48 @@ function onSave() {
   persistAndLeave(false)
 }
 
+// Warn before losing drafted-but-unsaved goals. Two separate mechanisms,
+// because a real browser refresh/close can only trigger the browser's own
+// native "Leave site?" dialog (no custom text/buttons allowed since
+// Chrome/Firefox locked this down) — in-app navigation (Cancel button,
+// breadcrumb, sidebar, browser back) goes through Vue Router instead, where
+// we CAN show our own modal with a real "Save as draft" action.
+function handleBeforeUnload(e: BeforeUnloadEvent) {
+  if (goals.value.length === 0) return
+  e.preventDefault()
+  e.returnValue = ''
+}
+onMounted(() => window.addEventListener('beforeunload', handleBeforeUnload))
+onUnmounted(() => window.removeEventListener('beforeunload', handleBeforeUnload))
+
+const isLeaveConfirmOpen = ref(false)
+let bypassLeaveGuard = false
+let resolveLeaveGuard: ((allow: boolean) => void) | null = null
+
+onBeforeRouteLeave(() => {
+  if (bypassLeaveGuard || goals.value.length === 0) return true
+  isLeaveConfirmOpen.value = true
+  return new Promise<boolean>((resolve) => { resolveLeaveGuard = resolve })
+})
+
+function cancelLeave() {
+  isLeaveConfirmOpen.value = false
+  resolveLeaveGuard?.(false)
+  resolveLeaveGuard = null
+}
+function discardAndLeave() {
+  isLeaveConfirmOpen.value = false
+  resolveLeaveGuard?.(true)
+  resolveLeaveGuard = null
+}
+function saveAsDraftAndLeave() {
+  isLeaveConfirmOpen.value = false
+  resolveLeaveGuard?.(false)
+  resolveLeaveGuard = null
+  bypassLeaveGuard = true
+  onSaveAsDraft()
+}
+
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 // Root wrapper stretches to at least fill the visible content area (its
 // flex:1 parent in layouts/default.vue) so a short goal list doesn't leave
@@ -522,6 +564,31 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpButtonGroup>
           <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
           <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
+        </MpButtonGroup>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
+
+  <!-- Leave without saving -->
+  <ClientOnly>
+  <MpModal :is-open="isLeaveConfirmOpen" @close="cancelLeave">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Leave without saving?
+        <MpModalCloseButton @click="cancelLeave" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          The goals you've added haven't been saved yet and will be lost if you leave this page. Save as draft to keep them.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButtonGroup>
+          <MpButton variant="ghost" @click="cancelLeave">Cancel</MpButton>
+          <MpButton variant="danger" @click="discardAndLeave">Discard</MpButton>
+          <MpButton variant="primary" @click="saveAsDraftAndLeave">Save as draft</MpButton>
         </MpButtonGroup>
       </MpModalFooter>
     </MpModalContent>
