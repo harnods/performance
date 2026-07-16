@@ -587,8 +587,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpModalFooter>
         <MpButtonGroup>
           <MpButton variant="ghost" @click="cancelLeave">Cancel</MpButton>
-          <MpButton variant="danger" @click="discardAndLeave">Discard</MpButton>
-          <MpButton variant="primary" @click="saveAsDraftAndLeave">Save as draft</MpButton>
+          <MpButton variant="secondary" @click="saveAsDraftAndLeave">Save as draft</MpButton>
+          <MpButton variant="primary" @click="discardAndLeave">Discard</MpButton>
         </MpButtonGroup>
       </MpModalFooter>
     </MpModalContent>
