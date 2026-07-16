@@ -40,3 +40,7 @@ export const EMPLOYEES: Employee[] = [
 
 // Display string used under each employee name: "CODE | Title | Department".
 export const employeeMeta = (e: Employee) => `${e.code} | ${e.title} | ${e.department}`
+
+export function employeeById(id: string): Employee | undefined {
+  return EMPLOYEES.find(e => e.id === id)
+}

@@ -38,21 +38,34 @@ import {
   MpDrawerFooter,
   MpDrawerOverlay,
   MpButtonGroup,
+  MpDatePicker,
   css,
 } from '@mekari/pixel3'
 import { type Employee, EMPLOYEES, employeeMeta } from '~/utils/employees'
-import { GOAL_CATEGORIES, GOAL_TYPE_OPTIONS, MEASUREMENT_UNIT_OPTIONS, REPEAT_INTERVAL_OPTIONS, type MeasurementUnit } from '~/utils/goalTaxonomy'
+import { CURRENCY_OPTIONS, type CurrencyCode, GOAL_CATEGORIES, GOAL_TYPE_OPTIONS, MEASUREMENT_UNIT_OPTIONS, type MeasurementUnit } from '~/utils/goalTaxonomy'
 import { type DraftGoal, type DraftKeyResult, nextGoalCode } from '~/utils/goalDraft'
+import { addDays, clampEndDate, computeRepeatPeriods, toDate, toISO } from '~/utils/goalSchedule'
+import { type DeadlineRule, MAX_DEADLINE_RULES, validateDeadlineRules } from '~/utils/goalDeadline'
+import { formatDateShort } from '~/utils/periodPicker'
 
 const props = defineProps<{
   isOpen: boolean
+  drawerId?: string
   owners: Employee[]
   alreadyUsedWeight: number
+  cycleStartDate: string
+  cycleEndDate: string
+  editingDraft?: DraftGoal | null
 }>()
+const resolvedDrawerId = computed(() => props.drawerId ?? 'drawer-add-goal')
 const emit = defineEmits<{
   'update:isOpen': [boolean]
   'save': [DraftGoal]
 }>()
+
+const isEditing = computed(() => !!props.editingDraft)
+const drawerTitle = computed(() => (isEditing.value ? 'Edit goal' : 'Add goal'))
+const saveButtonLabel = computed(() => (isEditing.value ? 'Save changes' : 'Save'))
 
 const nameMax = 120
 const descriptionMax = 1000
@@ -64,12 +77,16 @@ const category = ref('')
 const subCategory = ref('')
 const weight = ref<number | ''>('')
 const repeat = ref(false)
-const repeatEvery = ref('monthly')
+const scheduleEnd = ref<Date | null>(null)
 const measurementUnit = ref<MeasurementUnit>('percentage')
+const currency = ref<CurrencyCode>('IDR')
 const startValue = ref<number | ''>('')
 const targetValue = ref<number | ''>('')
 const useBaseline = ref(true)
 const direction = ref<'higher' | 'lower'>('higher')
+const deadlineDate = ref<Date | null>(null)
+const deadlineRulesEnabled = ref(false)
+const deadlineRules = ref<DeadlineRule[]>([])
 const contributorsByOwner = reactive<Record<string, string[]>>({})
 const viewerIds = ref<string[]>([])
 const keyResults = ref<DraftKeyResult[]>([])
@@ -78,34 +95,84 @@ const showKeyResultForm = ref(false)
 const keyResultTitle = ref('')
 const keyResultTarget = ref('')
 
-const errors = reactive({ name: false, goalType: false, category: false, weight: false })
+const errors = reactive({ name: false, goalType: false, category: false, weight: false, deadlineDate: false, startValue: false, targetValue: false })
+const startValueErrorMessage = ref('')
+const targetValueErrorMessage = ref('')
+const deadlineDateErrorMessage = ref('')
 watch(name, () => { errors.name = false })
 watch(goalType, () => { errors.goalType = false })
 watch(category, () => { errors.category = false })
 watch(weight, () => { errors.weight = false })
+watch(deadlineDate, () => { errors.deadlineDate = false })
+watch([startValue, useBaseline], () => { errors.startValue = false })
+watch([startValue, targetValue, direction, useBaseline], () => { errors.targetValue = false })
 
 function resetForm() {
   errors.name = false
   errors.goalType = false
   errors.category = false
   errors.weight = false
-  name.value = ''
-  description.value = ''
-  goalType.value = ''
-  category.value = ''
-  subCategory.value = ''
-  weight.value = ''
-  repeat.value = false
-  repeatEvery.value = 'monthly'
-  measurementUnit.value = 'percentage'
-  startValue.value = ''
-  targetValue.value = ''
-  useBaseline.value = true
-  direction.value = 'higher'
-  for (const key of Object.keys(contributorsByOwner)) delete contributorsByOwner[key]
-  for (const owner of props.owners) contributorsByOwner[owner.id] = []
-  viewerIds.value = []
-  keyResults.value = []
+  errors.deadlineDate = false
+  errors.startValue = false
+  errors.targetValue = false
+  startValueErrorMessage.value = ''
+  targetValueErrorMessage.value = ''
+  deadlineDateErrorMessage.value = ''
+
+  const d = props.editingDraft
+  if (d) {
+    name.value = d.name
+    description.value = d.description
+    goalType.value = GOAL_TYPE_OPTIONS.find(t => t.label === d.goalType)?.value ?? ''
+    category.value = GOAL_CATEGORIES.find(c => c.label === d.category)?.value ?? ''
+    weight.value = d.weight
+    repeat.value = d.repeat
+    scheduleEnd.value = d.endDate ? toDate(d.endDate) : (props.cycleEndDate ? toDate(props.cycleEndDate) : null)
+    measurementUnit.value = d.measurementUnit
+    currency.value = d.currency
+    startValue.value = d.startValue
+    targetValue.value = d.targetValue
+    useBaseline.value = d.useBaseline
+    direction.value = d.direction
+    deadlineDate.value = d.deadlineDate ? toDate(d.deadlineDate) : null
+    deadlineRulesEnabled.value = (d.deadlineRules?.length ?? 0) > 0
+    deadlineRules.value = d.deadlineRules ? [...d.deadlineRules] : []
+    for (const key of Object.keys(contributorsByOwner)) delete contributorsByOwner[key]
+    for (const owner of props.owners) contributorsByOwner[owner.id] = [...(d.contributorsByOwner[owner.id] ?? [])]
+    viewerIds.value = [...d.viewerIds]
+    keyResults.value = d.keyResults.map(kr => ({ ...kr }))
+    // subCategory depends on category — the watcher below resets it to ''
+    // the moment `category.value` changes, so it must be set *after* that
+    // watcher has flushed, not in the same synchronous pass.
+    nextTick(() => {
+      const cat = GOAL_CATEGORIES.find(c => c.label === d.category)
+      subCategory.value = cat?.subCategories.find(s => s.label === d.subCategory)?.value ?? ''
+    })
+  }
+  else {
+    name.value = ''
+    description.value = ''
+    goalType.value = ''
+    category.value = ''
+    subCategory.value = ''
+    weight.value = ''
+    repeat.value = false
+    scheduleEnd.value = props.cycleEndDate ? toDate(props.cycleEndDate) : null
+    measurementUnit.value = 'percentage'
+    currency.value = 'IDR'
+    startValue.value = ''
+    targetValue.value = ''
+    useBaseline.value = true
+    direction.value = 'higher'
+    deadlineDate.value = null
+    deadlineRulesEnabled.value = false
+    deadlineRules.value = []
+    for (const key of Object.keys(contributorsByOwner)) delete contributorsByOwner[key]
+    for (const owner of props.owners) contributorsByOwner[owner.id] = []
+    viewerIds.value = []
+    keyResults.value = []
+  }
+  deadlineRuleErrors.value = []
   contributorDrawerOwnerId.value = null
   viewerDrawerOpen.value = false
   showKeyResultForm.value = false
@@ -142,10 +209,112 @@ const targetValueAmountDisplay = computed({
   get: () => formatThousands(targetValue.value),
   set: (v: string) => { targetValue.value = parseThousands(v) },
 })
+const currencySymbol = computed(() => CURRENCY_OPTIONS.find(c => c.value === currency.value)?.symbol ?? '')
+
+const isDeadlineUnit = computed(() => measurementUnit.value === 'deadline')
+
+// Deadline achievement is a date, not a baseline/target scale — switching
+// to it clears fields that only make sense for the other units (and vice
+// versa) so stale values from a previous unit never get silently saved.
+// Deadline goals also can't repeat (there's no "period length" to cascade).
+watch(measurementUnit, (unit) => {
+  if (unit === 'deadline') {
+    startValue.value = ''
+    targetValue.value = ''
+    useBaseline.value = true
+    direction.value = 'higher'
+    repeat.value = false
+  }
+  else {
+    deadlineDate.value = null
+    deadlineRulesEnabled.value = false
+    deadlineRules.value = []
+  }
+})
+
+function addDeadlineRule() {
+  if (deadlineRules.value.length >= MAX_DEADLINE_RULES) return
+  deadlineRules.value = [...deadlineRules.value, { id: `deadline-rule-${deadlineRules.value.length}-${Date.now()}`, daysExceed: '', percentage: '' }]
+}
+function removeDeadlineRule(id: string) {
+  deadlineRules.value = deadlineRules.value.filter(r => r.id !== id)
+}
+
+// Turning the toggle on should immediately give the user something to fill
+// in rather than an empty box with just an "Add rule" link.
+watch(deadlineRulesEnabled, (enabled) => {
+  if (enabled && deadlineRules.value.length === 0) addDeadlineRule()
+})
+
+// Required-field errors ("Days exceeded and achievement % are required.")
+// should only appear once the user tries to Save — not live while an empty
+// row is just sitting there waiting to be filled in. save() populates this;
+// any edit to the rules clears it so a fixed row's error disappears right away.
+const deadlineRuleErrors = ref<{ index: number, message: string }[]>([])
+watch(deadlineRules, () => { deadlineRuleErrors.value = [] }, { deep: true })
+
+const cycleStartAsDate = computed(() => (props.cycleStartDate ? toDate(props.cycleStartDate) : null))
+const cycleEndAsDate = computed(() => (props.cycleEndDate ? toDate(props.cycleEndDate) : null))
+// The goal's end date must be at least one day after its start date — a
+// same-day goal isn't a valid period.
+const minScheduleEnd = computed(() => (cycleStartAsDate.value ? addDays(cycleStartAsDate.value, 1) : null))
+
+function isEndDateDisabled(date: Date): boolean {
+  if (minScheduleEnd.value && date < minScheduleEnd.value) return true
+  if (cycleEndAsDate.value && date > cycleEndAsDate.value) return true
+  return false
+}
+
+// The deadline itself must fall within the GOAL's own period (start date up
+// to its own end date), not just the wider cycle — a goal that ends before
+// the cycle does can't have a deadline sitting in that leftover cycle time.
+function isDeadlineDateDisabled(date: Date): boolean {
+  if (cycleStartAsDate.value && date < cycleStartAsDate.value) return true
+  if (scheduleEnd.value && date > scheduleEnd.value) return true
+  return false
+}
+
+// disabled-date only grays out invalid calendar cells — it doesn't stop a
+// value arriving out of range some other way (typed input, a shortcut). Also
+// re-clamp the actual ref so a goal's period can never end outside the
+// cycle's bounds no matter how the value got set.
+watch(scheduleEnd, (val) => {
+  if (!val || !cycleStartAsDate.value || !cycleEndAsDate.value || !minScheduleEnd.value) return
+  const clamped = clampEndDate(val, cycleStartAsDate.value, cycleEndAsDate.value, minScheduleEnd.value)
+  if (clamped.getTime() !== val.getTime()) scheduleEnd.value = clamped
+})
+
+// Same defense for the deadline: re-clamp to the goal's own period no
+// matter how the value got set, and re-clamp again if the goal's own end
+// date later moves earlier than an already-picked deadline.
+watch(deadlineDate, (val) => {
+  if (!val || !cycleStartAsDate.value || !scheduleEnd.value) return
+  const clamped = clampEndDate(val, cycleStartAsDate.value, scheduleEnd.value, cycleStartAsDate.value)
+  if (clamped.getTime() !== val.getTime()) deadlineDate.value = clamped
+})
+watch(scheduleEnd, (val) => {
+  if (!deadlineDate.value || !val || !cycleStartAsDate.value) return
+  const clamped = clampEndDate(deadlineDate.value, cycleStartAsDate.value, val, cycleStartAsDate.value)
+  if (clamped.getTime() !== deadlineDate.value.getTime()) deadlineDate.value = clamped
+})
+
+const repeatPreview = computed(() => {
+  if (!repeat.value || !cycleStartAsDate.value || !scheduleEnd.value || !props.cycleEndDate) return []
+  const periods = computeRepeatPeriods(props.cycleStartDate, toISO(scheduleEnd.value), props.cycleEndDate)
+  return periods.map(p => `${formatDateShort(toDate(p.startDate))} - ${formatDateShort(toDate(p.endDate))}`)
+})
 
 function employeeById(id: string): Employee | undefined {
   return EMPLOYEES.find(e => e.id === id)
 }
+
+// "Name, Name and N more" — mirrors the 2-avatar-then-"+N" cap on the
+// avatar group above so the text and the avatars always agree on count.
+const ownerNamesSummary = computed(() => {
+  const names = props.owners.map(o => o.name)
+  if (names.length <= 2) return names.join(' and ')
+  return `${names[0]}, ${names[1]} and ${names.length - 2} more`
+})
 
 const contributorDrawerOwnerId = ref<string | null>(null)
 const viewerDrawerOpen = ref(false)
@@ -176,16 +345,65 @@ function save() {
   errors.name = !name.value.trim()
   errors.goalType = !goalType.value
   errors.category = !category.value
-  errors.weight = weight.value === '' || Number(weight.value) <= 0
-  if (errors.name || errors.goalType || errors.category || errors.weight) return
+  errors.weight = weight.value === '' || Number(weight.value) <= 0 || Number(weight.value) > 100
+  errors.deadlineDate = false
+  errors.startValue = false
+  errors.targetValue = false
+  startValueErrorMessage.value = ''
+  targetValueErrorMessage.value = ''
+
+  deadlineRuleErrors.value = []
+  deadlineDateErrorMessage.value = ''
+  if (isDeadlineUnit.value) {
+    if (!deadlineDate.value) {
+      errors.deadlineDate = true
+      deadlineDateErrorMessage.value = 'Deadline date is required.'
+    }
+    else if ((cycleStartAsDate.value && deadlineDate.value < cycleStartAsDate.value) || (scheduleEnd.value && deadlineDate.value > scheduleEnd.value)) {
+      errors.deadlineDate = true
+      deadlineDateErrorMessage.value = 'Deadline must not be later than the goal period.'
+    }
+    if (deadlineRulesEnabled.value) deadlineRuleErrors.value = validateDeadlineRules(deadlineRules.value)
+  }
+  else {
+    const startNum = startValue.value === '' ? null : Number(startValue.value)
+    const targetNum = targetValue.value === '' ? null : Number(targetValue.value)
+    if (useBaseline.value && startNum === null) {
+      errors.startValue = true
+      startValueErrorMessage.value = 'Start value is required.'
+    }
+    if (targetNum === null) {
+      errors.targetValue = true
+      targetValueErrorMessage.value = 'Target value is required.'
+    }
+    else if (!useBaseline.value && targetNum === 0) {
+      errors.targetValue = true
+      targetValueErrorMessage.value = 'Target value cannot be 0 when there is no baseline.'
+    }
+    else if (useBaseline.value && startNum !== null) {
+      if (direction.value === 'higher' && startNum >= targetNum) {
+        errors.targetValue = true
+        targetValueErrorMessage.value = 'Target value must be greater than the start value for "Higher is better".'
+      }
+      else if (direction.value === 'lower' && startNum <= targetNum) {
+        errors.targetValue = true
+        targetValueErrorMessage.value = 'Target value must be lower than the start value for "Lower is better".'
+      }
+    }
+  }
+
+  if (errors.name || errors.goalType || errors.category || errors.weight || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length) return
   const categoryLabel = GOAL_CATEGORIES.find(c => c.value === category.value)?.label ?? category.value
   const subCategoryLabel = subCategoryOptions.value.find(s => s.value === subCategory.value)?.label ?? ''
   const goalTypeLabel = GOAL_TYPE_OPTIONS.find(t => t.value === goalType.value)?.label ?? goalType.value
-  const repeatEveryLabel = REPEAT_INTERVAL_OPTIONS.find(r => r.value === repeatEvery.value)?.label ?? repeatEvery.value
+
+  let finalEnd = scheduleEnd.value
+  if (finalEnd && cycleStartAsDate.value && cycleEndAsDate.value && minScheduleEnd.value)
+    finalEnd = clampEndDate(finalEnd, cycleStartAsDate.value, cycleEndAsDate.value, minScheduleEnd.value)
 
   const draft: DraftGoal = {
-    id: `goal-${Date.now()}`,
-    code: nextGoalCode(),
+    id: props.editingDraft?.id ?? `goal-${Date.now()}`,
+    code: props.editingDraft?.code ?? nextGoalCode(),
     category: categoryLabel,
     subCategory: subCategoryLabel,
     name: name.value.trim(),
@@ -193,13 +411,17 @@ function save() {
     goalType: goalTypeLabel,
     weight: Number(weight.value),
     repeat: repeat.value,
-    repeatEvery: repeatEveryLabel,
+    startDate: props.cycleStartDate,
+    endDate: finalEnd ? toISO(finalEnd) : props.cycleEndDate,
     measurementUnit: measurementUnit.value,
+    currency: currency.value,
     startValue: startValue.value === '' ? 0 : Number(startValue.value),
     targetValue: targetValue.value === '' ? 0 : Number(targetValue.value),
     useBaseline: useBaseline.value,
     baselineValue: startValue.value === '' ? 0 : Number(startValue.value),
     direction: direction.value,
+    deadlineDate: deadlineDate.value ? toISO(deadlineDate.value) : '',
+    deadlineRules: deadlineRulesEnabled.value ? [...deadlineRules.value] : [],
     contributorsByOwner: JSON.parse(JSON.stringify(contributorsByOwner)),
     viewerIds: [...viewerIds.value],
     keyResults: [...keyResults.value],
@@ -223,6 +445,17 @@ const noSpinner = css({
   '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { display: 'none', margin: '0' },
 })
 const helperText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+const repeatPreviewBox = css({
+  display: 'flex', flexDirection: 'column', gap: '1',
+  padding: '3', borderRadius: '6px', background: 'background.neutral.subtle',
+})
+const deadlineRulesBox = css({
+  display: 'flex', flexDirection: 'column', gap: '3',
+  padding: '3', borderRadius: '6px', border: '1px solid', borderColor: 'border.default',
+})
+const deadlineRuleRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
+const deadlineRuleRemoveWrap = css({ display: 'flex', alignItems: 'center', height: '36px' })
+const deadlineRuleError = css({ fontSize: '12px', lineHeight: '16px', color: 'text.danger' })
 
 const ownerBox = css({
   display: 'flex', alignItems: 'center', gap: '2',
@@ -247,10 +480,10 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
 
 <template>
   <ClientOnly>
-    <MpDrawer id="drawer-add-goal" :is-open="isOpen" placement="right" size="lg" is-keep-alive @close="close">
+    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="lg" is-keep-alive @close="close">
       <MpDrawerContent>
         <MpDrawerHeader>
-          Add goal
+          {{ drawerTitle }}
           <MpDrawerCloseButton @click="close" />
         </MpDrawerHeader>
         <MpDrawerBody>
@@ -265,13 +498,13 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
               <MpFormControl id="goal-owner">
                 <MpFormLabel>Goal owner</MpFormLabel>
                 <div :class="ownerBox">
-                  <MpAvatarGroup v-if="owners.length > 1" id="goal-owner-avatars" size="sm" :max="owners.length">
+                  <MpAvatarGroup v-if="owners.length > 1" id="goal-owner-avatars" size="lg" :max="2">
                     <MpAvatar v-for="o in owners" :key="o.id" :id="o.id" :name="o.name" :src="o.photo" variant-color="gray" />
                   </MpAvatarGroup>
                   <MpAvatar v-else-if="owners[0]" :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="sm" variant-color="gray" />
                   <MpText size="label" :class="css({ color: owners.length ? 'text.default' : 'text.secondary' })">
                     <template v-if="owners.length === 1">{{ owners[0].name }} ({{ owners[0].code }})</template>
-                    <template v-else>{{ owners.length }} goal owners — {{ owners.map(o => o.name).join(', ') }}</template>
+                    <template v-else>{{ ownerNamesSummary }}</template>
                   </MpText>
                 </div>
               </MpFormControl>
@@ -328,7 +561,7 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                   <MpInput v-model="weight" type="number" min="0" max="100" />
                   <MpInputRightAddon>%</MpInputRightAddon>
                 </MpInputGroup>
-                <MpFormErrorMessage>Goal weight is required and must be greater than 0.</MpFormErrorMessage>
+                <MpFormErrorMessage>Goal weight is required and must be between 1 and 100.</MpFormErrorMessage>
                 <span v-if="!errors.weight" :class="helperText">{{ remainingWeight }}% remaining from total weight</span>
               </MpFormControl>
             </div>
@@ -339,11 +572,31 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                 <span :class="sectionTitle">Goal schedule</span>
                 <span :class="sectionDesc">Define when this goal is active within the goal cycle.</span>
               </div>
-              <MpCheckbox id="repeat-goal" v-model:is-checked="repeat">Repeat this goal</MpCheckbox>
-              <MpFormControl v-if="repeat" id="repeat-every">
-                <MpFormLabel>Repeat every</MpFormLabel>
-                <PxSelectPopover v-model="repeatEvery" :options="REPEAT_INTERVAL_OPTIONS" width="100%" />
-              </MpFormControl>
+              <MpFlex gap="4">
+                <MpFormControl id="schedule-start" :class="css({ flex: '1' })">
+                  <MpFormLabel>Start date</MpFormLabel>
+                  <MpInput :model-value="cycleStartAsDate ? formatDateShort(cycleStartAsDate) : ''" is-disabled />
+                </MpFormControl>
+                <MpFormControl id="schedule-end" :class="css({ flex: '1' })">
+                  <MpFormLabel>End date</MpFormLabel>
+                  <MpDatePicker
+                    v-model="scheduleEnd"
+                    value-type="date"
+                    format="D MMM YYYY"
+                    placeholder="Select end date"
+                    use-portal
+                    :is-show-shortcut="false"
+                    :disabled-date="isEndDateDisabled"
+                  />
+                </MpFormControl>
+              </MpFlex>
+
+              <MpCheckbox id="repeat-goal" v-model:is-checked="repeat" :is-disabled="isDeadlineUnit">Repeat this goal</MpCheckbox>
+              <span v-if="isDeadlineUnit" :class="helperText">Repeat isn't available for Deadline-measured goals.</span>
+              <div v-if="repeat && repeatPreview.length > 1" :class="repeatPreviewBox">
+                <span :class="helperText">This goal will automatically repeat within the goal cycle:</span>
+                <span v-for="(label, i) in repeatPreview" :key="label" :class="helperText">{{ i + 1 }}. {{ label }}</span>
+              </div>
             </div>
 
             <!-- Goal measurement -->
@@ -369,44 +622,116 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                       {{ opt.label }}
                     </MpRadio>
                     <div v-if="measurementUnit === opt.value" :class="radioIndent">
-                      <MpCheckbox id="use-baseline" v-model:is-checked="useBaseline">Use baseline</MpCheckbox>
-                      <MpFlex gap="4">
-                        <MpFormControl v-if="useBaseline" id="start-value" :class="css({ flex: '1' })">
-                          <MpFormLabel>Start value</MpFormLabel>
-                          <MpInputGroup v-if="opt.value === 'amount'">
-                            <MpInputLeftAddon>Rp</MpInputLeftAddon>
-                            <MpInput v-model="startValueAmountDisplay" type="text" inputmode="numeric" />
-                          </MpInputGroup>
-                          <MpInputGroup v-else>
-                            <MpInput v-model="startValue" type="number" :class="noSpinner" />
-                            <MpInputRightAddon>{{ opt.value === 'percentage' ? '%' : '#' }}</MpInputRightAddon>
-                          </MpInputGroup>
-                        </MpFormControl>
-                        <MpFormControl id="target-value" :class="css({ flex: '1' })">
-                          <MpFormLabel>Target value</MpFormLabel>
-                          <MpInputGroup v-if="opt.value === 'amount'">
-                            <MpInputLeftAddon>Rp</MpInputLeftAddon>
-                            <MpInput v-model="targetValueAmountDisplay" type="text" inputmode="numeric" />
-                          </MpInputGroup>
-                          <MpInputGroup v-else>
-                            <MpInput v-model="targetValue" type="number" :class="noSpinner" />
-                            <MpInputRightAddon>{{ opt.value === 'percentage' ? '%' : '#' }}</MpInputRightAddon>
-                          </MpInputGroup>
-                        </MpFormControl>
-                      </MpFlex>
+                      <!-- Deadline: a single date + optional graduated achievement rules, no baseline/target/direction -->
+                      <template v-if="opt.value === 'deadline'">
+                        <MpFlex gap="4">
+                          <MpFormControl id="deadline-date" :class="css({ flex: '1' })" :is-invalid="errors.deadlineDate">
+                            <MpFormLabel>Deadline date</MpFormLabel>
+                            <MpDatePicker
+                              v-model="deadlineDate"
+                              value-type="date"
+                              format="D MMM YYYY"
+                              placeholder="Select deadline date"
+                              use-portal
+                              :is-show-shortcut="false"
+                              :disabled-date="isDeadlineDateDisabled"
+                            />
+                            <MpFormErrorMessage>{{ deadlineDateErrorMessage }}</MpFormErrorMessage>
+                            <span v-if="!errors.deadlineDate" :class="helperText">Achievement is 100% if updated on or before the deadline, 0% if updated after — unless deadline rules below are set.</span>
+                          </MpFormControl>
+                          <div :class="css({ flex: '1' })" />
+                        </MpFlex>
+
+                        <MpCheckbox id="deadline-rules-enabled" v-model:is-checked="deadlineRulesEnabled">Set deadline rules</MpCheckbox>
+                        <div v-if="deadlineRulesEnabled" :class="deadlineRulesBox">
+                          <div v-for="(rule, index) in deadlineRules" :key="rule.id">
+                            <div :class="deadlineRuleRow">
+                              <MpFormControl :id="`deadline-rule-days-${rule.id}`" :class="css({ flex: '1' })">
+                                <MpFormLabel>Days exceeded</MpFormLabel>
+                                <MpInputGroup>
+                                  <MpInput v-model="rule.daysExceed" type="number" min="0" :class="noSpinner" />
+                                  <MpInputRightAddon>days</MpInputRightAddon>
+                                </MpInputGroup>
+                              </MpFormControl>
+                              <MpFormControl :id="`deadline-rule-pct-${rule.id}`" :class="css({ flex: '1' })">
+                                <MpFormLabel>Achievement</MpFormLabel>
+                                <MpInputGroup>
+                                  <MpInput v-model="rule.percentage" type="number" min="0" max="100" :class="noSpinner" />
+                                  <MpInputRightAddon>%</MpInputRightAddon>
+                                </MpInputGroup>
+                              </MpFormControl>
+                              <MpFormControl :class="css({ flexShrink: '0' })">
+                                <MpFormLabel :class="css({ visibility: 'hidden' })">&nbsp;</MpFormLabel>
+                                <div :class="deadlineRuleRemoveWrap">
+                                  <button type="button" :class="removeBtn" aria-label="Remove deadline rule" @click="removeDeadlineRule(rule.id)">
+                                    <MpIcon name="minus-circular" size="sm" />
+                                  </button>
+                                </div>
+                              </MpFormControl>
+                            </div>
+                            <span v-for="err in deadlineRuleErrors.filter(e => e.index === index)" :key="err.message" :class="deadlineRuleError">{{ err.message }}</span>
+                          </div>
+                          <button type="button" :class="addLink" :disabled="deadlineRules.length >= MAX_DEADLINE_RULES" @click="addDeadlineRule">
+                            <MpIcon name="add" size="sm" />
+                            Add rule
+                          </button>
+                          <span v-if="deadlineRules.length >= MAX_DEADLINE_RULES" :class="helperText">Maximum {{ MAX_DEADLINE_RULES }} rules.</span>
+                        </div>
+                      </template>
+
+                      <!-- Percentage / Number / Amount: baseline + target on a numeric scale -->
+                      <template v-else>
+                        <MpCheckbox id="use-baseline" v-model:is-checked="useBaseline">Use baseline</MpCheckbox>
+                        <MpFlex gap="4">
+                          <MpFormControl v-if="opt.value === 'amount'" id="goal-currency" :class="css({ flex: '1' })">
+                            <MpFormLabel>Currency</MpFormLabel>
+                            <PxSelectPopover v-model="currency" :options="CURRENCY_OPTIONS" width="100%" />
+                          </MpFormControl>
+                          <MpFormControl v-if="useBaseline" id="start-value" :class="css({ flex: '1' })" :is-invalid="errors.startValue">
+                            <MpFormLabel>Start value</MpFormLabel>
+                            <MpInputGroup v-if="opt.value === 'amount'">
+                              <MpInputLeftAddon>{{ currencySymbol }}</MpInputLeftAddon>
+                              <MpInput v-model="startValueAmountDisplay" type="text" inputmode="numeric" />
+                            </MpInputGroup>
+                            <MpInputGroup v-else>
+                              <MpInput v-model="startValue" type="number" :class="noSpinner" />
+                              <MpInputRightAddon>{{ opt.value === 'percentage' ? '%' : '#' }}</MpInputRightAddon>
+                            </MpInputGroup>
+                            <MpFormErrorMessage>{{ startValueErrorMessage }}</MpFormErrorMessage>
+                          </MpFormControl>
+                          <MpFormControl id="target-value" :class="css({ flex: '1' })" :is-invalid="errors.targetValue">
+                            <MpFormLabel>Target value</MpFormLabel>
+                            <MpInputGroup v-if="opt.value === 'amount'">
+                              <MpInputLeftAddon>{{ currencySymbol }}</MpInputLeftAddon>
+                              <MpInput v-model="targetValueAmountDisplay" type="text" inputmode="numeric" />
+                            </MpInputGroup>
+                            <MpInputGroup v-else>
+                              <MpInput v-model="targetValue" type="number" :class="noSpinner" />
+                              <MpInputRightAddon>{{ opt.value === 'percentage' ? '%' : '#' }}</MpInputRightAddon>
+                            </MpInputGroup>
+                            <MpFormErrorMessage>{{ targetValueErrorMessage }}</MpFormErrorMessage>
+                          </MpFormControl>
+                        </MpFlex>
+                      </template>
                     </div>
                   </template>
                 </MpFlex>
               </MpFormControl>
 
-              <MpFormControl id="goal-direction">
+              <MpFormControl v-if="!isDeadlineUnit" id="goal-direction">
                 <MpFlex align="center" gap="1">
                   <MpFormLabel>Goal direction</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
                 <MpFlex direction="column" gap="2">
-                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" @update:is-checked="direction = 'higher'">Higher is better</MpRadio>
-                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" @update:is-checked="direction = 'lower'">Lower is better</MpRadio>
+                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" @update:is-checked="direction = 'higher'">
+                    Higher is better
+                    <template #description>Achievement increases as the value goes up — e.g. revenue, satisfaction score.</template>
+                  </MpRadio>
+                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" @update:is-checked="direction = 'lower'">
+                    Lower is better
+                    <template #description>Achievement increases as the value goes down — e.g. cost, defect rate, response time.</template>
+                  </MpRadio>
                 </MpFlex>
               </MpFormControl>
             </div>
@@ -527,7 +852,7 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
         <MpDrawerFooter>
           <MpButtonGroup>
             <MpButton variant="ghost" @click="close">Cancel</MpButton>
-            <MpButton variant="primary" @click="save">Save</MpButton>
+            <MpButton variant="primary" @click="save">{{ saveButtonLabel }}</MpButton>
           </MpButtonGroup>
         </MpDrawerFooter>
       </MpDrawerContent>
@@ -536,6 +861,7 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
   </ClientOnly>
 
   <SelectEmployeesDrawer
+    drawer-id="drawer-select-contributors"
     :is-open="!!contributorDrawerOwnerId"
     title="Select goal contributor"
     description="People who contribute to this goal's progress."
@@ -546,10 +872,12 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
     @continue="(ids) => { if (contributorDrawerOwnerId) contributorsByOwner[contributorDrawerOwnerId] = ids }"
   />
   <SelectEmployeesDrawer
+    drawer-id="drawer-select-viewers"
     :is-open="viewerDrawerOpen"
     title="Select goal viewers"
     description="People who can view this goal and align their goals to it."
     :initial-selected="viewerIds"
+    :exclude-ids="owners.map(o => o.id)"
     :is-required="false"
     @update:is-open="viewerDrawerOpen = $event"
     @continue="(ids) => { viewerIds = ids }"

@@ -38,6 +38,15 @@ import {
   MpTableCell,
   MpSkeleton,
   MpTextlink,
+  MpBadge,
+  MpModal,
+  MpModalOverlay,
+  MpModalContent,
+  MpModalHeader,
+  MpModalCloseButton,
+  MpModalBody,
+  MpModalFooter,
+  MpButtonGroup,
   css,
 } from '@mekari/pixel3'
 
@@ -138,7 +147,20 @@ const GOAL_TYPE_LABEL: Record<string, string> = {
   individual: 'Individual goal',
 }
 
-const { goals, myGoals, myDirectReportsGoals } = useGoalsStore()
+const { goals, myGoals, myDirectReportsGoals } = useGoalsStore(route.params.id as string)
+const { cycles } = useGoalCyclesStore()
+const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
+
+const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
+function editRow(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) openEditGoal(g)
+}
+const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
+function deleteRow(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) askDeleteGoal(g)
+}
 
 const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
 
@@ -177,6 +199,23 @@ const distinctOwnerIds = computed(() => {
   for (const row of rows.value) seen.add(row.ownerId)
   return [...seen]
 })
+
+// Arriving from "New goals" (see new.vue's persistAndLeave) with a
+// ?newOwners hint — expand the visible page far enough that whichever
+// owner(s) just got a goal saved are guaranteed to be on-screen, instead of
+// silently sitting behind a "Load more" the user has no reason to click.
+const newOwnerIds = computed(() => {
+  const raw = route.query.newOwners
+  const list = Array.isArray(raw) ? raw[0] : raw
+  return (list ?? '').split(',').filter(Boolean)
+})
+watch(distinctOwnerIds, (ids) => {
+  if (!newOwnerIds.value.length) return
+  const lastIndex = Math.max(...newOwnerIds.value.map(id => ids.indexOf(id)))
+  if (lastIndex >= 0) visibleOwnerCount.value = Math.max(visibleOwnerCount.value, lastIndex + 1)
+  router.replace({ query: { ...route.query, newOwners: undefined } })
+}, { immediate: true })
+
 const visibleOwnerIds = computed(() => new Set(distinctOwnerIds.value.slice(0, visibleOwnerCount.value)))
 const slicedRows = computed(() => rows.value.filter(row => visibleOwnerIds.value.has(row.ownerId)))
 // Owner rowspan is computed on the sliced+expanded (currently visible) rows,
@@ -186,7 +225,7 @@ const slicedRows = computed(() => rows.value.filter(row => visibleOwnerIds.value
 // owner), which is correct since it isn't necessarily that owner's goal.
 const visibleRows = computed(() => {
   const sliced = slicedRows.value
-  const flat: Array<{ kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>, category: string, subCategory: string, categoryWeight: number, code: string, title: string, weight: number, goalType: string, alignedGoals: ReturnType<typeof alignedGoalsOf>, status: (typeof sliced)[number]['status'], unit?: (typeof sliced)[number]['unit'], value?: number, pill?: number, min?: number, max?: number }> = []
+  const flat: Array<{ kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>, category: string, subCategory: string, categoryWeight: number, code: string, title: string, weight: number, goalType: string, alignedGoals: ReturnType<typeof alignedGoalsOf>, status: (typeof sliced)[number]['status'], unit?: (typeof sliced)[number]['unit'], value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean }> = []
   for (const row of sliced) {
     flat.push({ kind: 'main', ...row })
     if (expandedAligned[row.id]) {
@@ -333,6 +372,14 @@ const awaitingBadge = css({
   minWidth: '20px', height: '20px', paddingInline: '1.5', borderRadius: 'full',
   background: 'orange.400', color: 'white', fontSize: '14px', lineHeight: '20px',
 })
+
+// Empty state — a brand-new goal cycle has no goals at all yet, so replace
+// the filter bar + table entirely (same pattern as
+// pages/reviews/review-cycles/[id]/index.vue's "No review timeframe yet").
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 </script>
 
 <template>
@@ -376,7 +423,7 @@ const awaitingBadge = css({
       </MpPopover>
       <button type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
         Awaiting approval
-        <span :class="awaitingBadge">2</span>
+        <span v-if="goals.length" :class="awaitingBadge">2</span>
       </button>
       <button type="button" :class="activeTab === 'info' ? tabItemActive : tabItem" @click="activeTab = 'info'">
         Goal cycle info
@@ -385,6 +432,17 @@ const awaitingBadge = css({
   </Teleport>
 
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
+    <!-- Empty state: brand-new goal cycle, no goals at all yet -->
+    <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+        <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
+        <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
+      </MpFlex>
+      <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
+    </MpFlex>
+
+    <template v-else>
     <!-- Filter bar -->
     <MpFlex align="center" justify="space-between" gap="4">
       <MpFlex align="center" gap="4">
@@ -489,7 +547,10 @@ const awaitingBadge = css({
             <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
               <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
                 <span v-if="visibleColumns.goalId" :class="goalCode">{{ row.code }}</span>
-                <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
+                <MpFlex align="center" gap="2">
+                  <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
+                  <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                </MpFlex>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
                 <MpFlex v-if="row.kind === 'aligned'" align="flex-start" gap="1" :class="css({ marginTop: '1' })">
                   <MpText size="label-small" :class="captionText">Owner:</MpText>
@@ -545,12 +606,14 @@ const awaitingBadge = css({
                 <MpPopoverTrigger>
                   <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
                 </MpPopoverTrigger>
-                <MpPopoverContent>
+                <MpPopoverContent :class="css({ minWidth: '160px' })">
                   <MpPopoverList>
                     <MpPopoverListItem>View details</MpPopoverListItem>
                     <MpPopoverListItem>Update goal progress</MpPopoverListItem>
-                    <MpPopoverListItem>Edit</MpPopoverListItem>
-                    <MpPopoverListItem>Delete</MpPopoverListItem>
+                    <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
+                    <MpPopoverListItem @click="deleteRow(row)">
+                      <span :class="css({ color: 'text.danger' })">Delete</span>
+                    </MpPopoverListItem>
                   </MpPopoverList>
                 </MpPopoverContent>
               </MpPopover>
@@ -593,6 +656,7 @@ const awaitingBadge = css({
         </MpTextlink>
       </MpFlex>
     </div>
+    </template>
   </MpFlex>
 
   <!-- Goal cycle info -->
@@ -600,4 +664,40 @@ const awaitingBadge = css({
 
   <!-- Select employee(s) for the new goal(s) -->
   <SelectEmployeesDrawer v-model:is-open="isSelectEmployeeOpen" @continue="continueToNewGoals" />
+
+  <!-- Edit an existing goal -->
+  <AddGoalDrawer
+    drawer-id="drawer-add-goal-edit"
+    v-model:is-open="isEditDrawerOpen"
+    :owners="editingOwners"
+    :already-used-weight="alreadyUsedWeightForEdit"
+    :cycle-start-date="cycle?.startDate ?? ''"
+    :cycle-end-date="cycle?.endDate ?? ''"
+    :editing-draft="editingDraft"
+    @save="saveEdit"
+  />
+
+  <!-- Delete confirmation -->
+  <ClientOnly>
+  <MpModal :is-open="isDeleteModalOpen" @close="isDeleteModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Delete goal?
+        <MpModalCloseButton @click="isDeleteModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButtonGroup>
+          <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
+          <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
+        </MpButtonGroup>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
 </template>

@@ -13,7 +13,7 @@ import {
   css,
 } from '@mekari/pixel3'
 
-interface Option { value: string; label: string; description?: string; group?: string }
+interface Option { value: string; label: string; description?: string; trailing?: string; group?: string }
 
 const props = defineProps<{
   modelValue: string
@@ -43,7 +43,8 @@ const filteredOptions = computed(() =>
     ? props.options
     : props.options.filter(o =>
         o.label.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        o.description?.toLowerCase().includes(searchTerm.value.toLowerCase()),
+        o.description?.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
+        o.trailing?.toLowerCase().includes(searchTerm.value.toLowerCase()),
       ),
 )
 
@@ -95,6 +96,9 @@ const listWrap = css({
 const itemBody = css({ display: 'flex', flexDirection: 'column', gap: '0', paddingBlock: '1' })
 const itemLabel = css({ color: 'text.default', fontWeight: 'semiBold' })
 const itemCaption = css({ color: 'text.secondary' })
+// For a short right-aligned value (e.g. a currency symbol next to its code)
+// rather than description's longer explanatory caption stacked below.
+const itemRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '3' })
 
 function set(v: string) {
   emit('update:modelValue', v)
@@ -145,6 +149,10 @@ function set(v: string) {
               <div v-if="opt.description" :class="itemBody">
                 <MpText size="label" :class="itemLabel">{{ opt.label }}</MpText>
                 <MpText size="label-small" :class="itemCaption">{{ opt.description }}</MpText>
+              </div>
+              <div v-else-if="opt.trailing" :class="itemRow">
+                <MpText size="label">{{ opt.label }}</MpText>
+                <MpText size="label" :class="itemCaption">{{ opt.trailing }}</MpText>
               </div>
               <template v-else>{{ opt.label }}</template>
             </MpPopoverListItem>

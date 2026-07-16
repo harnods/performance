@@ -6,20 +6,54 @@
   Shared "Goal cycle info" tab content — every goal-cycle-details page
   (All goals, Company goals, Organization goals, Team goals, Individual
   goals) has the same tab bar and must show identical info here, so it
-  lives in one component instead of being copy-pasted per page.
+  lives in one component instead of being copy-pasted per page. Reads the
+  real cycle straight from the mini-DB (matched by route.params.id) rather
+  than hardcoding a single cycle's data.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -->
 <script setup lang="ts">
 import { MpFlex, MpText, MpButton, css } from '@mekari/pixel3'
 
+const PROGRESS_UPDATE_METHOD_LABEL: Record<string, string> = {
+  manual: 'Manual entry',
+  'log-based': 'Log-based',
+}
+const PROGRESS_UPDATE_METHOD_CAPTION: Record<string, string> = {
+  manual: 'Update total progress manually by entering achievement values.',
+  'log-based': 'Achievement entries are automatically summed to update total progress.',
+}
+
+const MONTH_SHORT = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+function formatUpdatedAt(iso: string): string {
+  const d = new Date(iso)
+  const hh = String(d.getHours()).padStart(2, '0')
+  const mm = String(d.getMinutes()).padStart(2, '0')
+  return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`
+}
+
 interface CycleInfoRow { label: string, value: string, caption?: string }
-const cycleInfoRows: CycleInfoRow[] = [
-  { label: 'Goal cycle name', value: '26 H1' },
-  { label: 'Goal period', value: 'H1 2026 (1 Jan 2026 - 31 Jun 2026)', caption: 'Goals repeat automatically' },
-  { label: 'Progress update method', value: 'Manual entry', caption: 'Update total progress manually by entering achievement values.' },
-  { label: 'Goal progress display', value: 'Display progress as actual value', caption: 'Show the raw measurement value instead of the completion percentage.' },
-  { label: 'Last updated', value: '20 Dec 2025, 14:50', caption: 'Rizal Candra' },
-]
+
+const route = useRoute()
+const { cycles } = useGoalCyclesStore()
+const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
+
+const cycleInfoRows = computed<CycleInfoRow[]>(() => {
+  if (!cycle.value) return []
+  return [
+    { label: 'Goal cycle name', value: cycle.value.name },
+    { label: 'Goal period', value: cycle.value.period },
+    {
+      label: 'Progress update method',
+      value: PROGRESS_UPDATE_METHOD_LABEL[cycle.value.progressUpdateMethod],
+      caption: PROGRESS_UPDATE_METHOD_CAPTION[cycle.value.progressUpdateMethod],
+    },
+    {
+      label: 'Last updated',
+      value: cycle.value.updatedAt ? formatUpdatedAt(cycle.value.updatedAt) : '—',
+      caption: cycle.value.updatedBy,
+    },
+  ]
+})
 
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })

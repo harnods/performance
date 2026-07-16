@@ -44,10 +44,13 @@
 // aligned-goals feature.
 // ─────────────────────────────────────────────────────────────────────────────
 
+import type { DeadlineRule } from '~/utils/goalDeadline'
+import type { DraftKeyResult } from '~/utils/goalDraft'
+
 export type GoalLevel = 'company' | 'organization' | 'team' | 'individual'
 export type GoalCategory = 'Financial' | 'Customer' | 'Internal Process' | 'Learning & Growth'
 export type GoalStatus = 'green' | 'orange' | 'gray'
-export type GoalUnit = 'currency' | 'percent' | 'count'
+export type GoalUnit = 'currency' | 'percent' | 'count' | 'deadline'
 
 export interface Goal {
   id: string
@@ -65,10 +68,21 @@ export interface Goal {
   alignedToId?: string // the parent Goal.id this goal cascades from, if any
   status: GoalStatus
   unit?: GoalUnit
+  currency?: string // only meaningful when unit === 'currency'
   value?: number
   pill?: number
   min?: number
   max?: number
+  startDate?: string // ISO yyyy-mm-dd — goals created via the "New goals" flow only
+  endDate?: string // ISO yyyy-mm-dd
+  repeat?: boolean
+  deadlineDate?: string // ISO yyyy-mm-dd — only meaningful when unit === 'deadline'
+  deadlineRules?: DeadlineRule[]
+  isDraft?: boolean // saved via "Save as draft" on the "New goals" page rather than "Save"
+  description?: string
+  useBaseline?: boolean
+  direction?: 'higher' | 'lower'
+  keyResults?: DraftKeyResult[]
 }
 
 // A goal's own `weight` is authored — every owner's goals (across all
@@ -721,7 +735,13 @@ function loadFromStorage() {
   persist()
 }
 
-export function useGoalsStore() {
+// Only the '26 H1' cycle (id CYCLE_ID) ships with the 88 pre-seeded goals —
+// every other goal cycle a user creates starts with none at all. `cycleId`
+// scopes every read below (including categoryWeight, which must never mix
+// one owner's weights across two different cycles) to just that cycle;
+// omit it only for actions that operate across all cycles at once (e.g. the
+// goal-cycles list page's delete-cycle flow).
+export function useGoalsStore(cycleId?: string) {
   loadFromStorage()
 
   function resetToSeed() {
@@ -729,18 +749,42 @@ export function useGoalsStore() {
     persist()
   }
 
-  function deleteGoalsByCycle(cycleId: string) {
-    goals.value = goals.value.filter(g => g.cycleId !== cycleId)
+  function deleteGoalsByCycle(targetCycleId: string) {
+    goals.value = goals.value.filter(g => g.cycleId !== targetCycleId)
     persist()
   }
 
+  function deleteGoal(id: string) {
+    goals.value = goals.value.filter(g => g.id !== id)
+    persist()
+  }
+
+  // Used by the "New goals" flow — each drafted goal becomes one real Goal
+  // per selected owner, starting unstarted (status:'gray', no unit/value)
+  // since it's newly created, not a historical snapshot.
+  function addGoals(newGoals: Omit<Goal, 'cycleId'>[], targetCycleId: string) {
+    goals.value = [...goals.value, ...newGoals.map(g => ({ ...g, cycleId: targetCycleId }))]
+    persist()
+  }
+
+  // Used by the Edit goal flow — replaces an existing goal's editable
+  // fields in place, keeping its id/ownerId/cycleId (and anything else the
+  // patch doesn't mention, e.g. alignedToId) untouched.
+  function updateGoal(id: string, patch: Partial<Goal>) {
+    goals.value = goals.value.map(g => (g.id === id ? { ...g, ...patch } : g))
+    persist()
+  }
+
+  const cycleGoals = computed(() => cycleId ? goals.value.filter(g => g.cycleId === cycleId) : goals.value)
+
   // Category weight is derived, not authored — see GoalWithCategoryWeight
   // above. It's the SUM of the matching goals' own weight, scoped to this
-  // owner across ALL levels (every employee has exactly one 100% budget
-  // now, not a separate one per level), matching the source's own Category
-  // Weight reference sheet exactly.
-  const goalsWithCategoryWeight = computed<GoalWithCategoryWeight[]>(() => goals.value.map((goal) => {
-    const matching = goals.value.filter(g => g.category === goal.category && g.ownerId === goal.ownerId)
+  // owner across ALL levels within THIS cycle (every employee has exactly
+  // one 100% budget per cycle, not a separate one per level, and it must
+  // never mix weights across two different cycles either), matching the
+  // source's own Category Weight reference sheet exactly.
+  const goalsWithCategoryWeight = computed<GoalWithCategoryWeight[]>(() => cycleGoals.value.map((goal) => {
+    const matching = cycleGoals.value.filter(g => g.category === goal.category && g.ownerId === goal.ownerId)
     return {
       ...goal,
       // Rounded to 1 decimal as a safety net against float drift — every
@@ -768,6 +812,9 @@ export function useGoalsStore() {
     goals: goalsWithCategoryWeight,
     resetToSeed,
     deleteGoalsByCycle,
+    deleteGoal,
+    addGoals,
+    updateGoal,
     companyGoals,
     organizationGoals,
     teamGoals,

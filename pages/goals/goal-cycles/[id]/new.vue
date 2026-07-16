@@ -31,12 +31,21 @@ import {
   MpPopoverContent,
   MpPopoverList,
   MpPopoverListItem,
+  MpModal,
+  MpModalOverlay,
+  MpModalContent,
+  MpModalHeader,
+  MpModalCloseButton,
+  MpModalBody,
+  MpModalFooter,
+  MpButtonGroup,
   toast,
   css,
 } from '@mekari/pixel3'
-import { EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { type Employee, EMPLOYEES, employeeMeta } from '~/utils/employees'
 import { MEASUREMENT_UNIT_OPTIONS } from '~/utils/goalTaxonomy'
 import type { DraftGoal } from '~/utils/goalDraft'
+import { goalFromDraft, LEVEL_TO_GOAL_TYPE_LABEL } from '~/utils/goalMapping'
 
 definePageMeta({
   layout: 'default',
@@ -47,9 +56,17 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 const { cycles } = useGoalCyclesStore()
+const { goals: allGoals, addGoals } = useGoalsStore()
 
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 const weightMandatory = computed(() => cycle.value?.weightMandatory ?? false)
+
+// Each drafted goal becomes one real Goal per selected owner — "each
+// selected owner will receive their own copy of this goal" (see the owner
+// summary banner above).
+function goalsFromDraft(draft: DraftGoal, forOwners: Employee[], isDraft: boolean) {
+  return forOwners.map(owner => goalFromDraft(draft, owner, isDraft))
+}
 
 const ownerIds = computed(() => {
   const raw = route.query.employees
@@ -61,9 +78,55 @@ const owners = computed(() => EMPLOYEES.filter(e => ownerIds.value.includes(e.id
 const goals = ref<DraftGoal[]>([])
 const isDrawerOpen = ref(false)
 const hasWeightError = ref(false)
+const weightErrorOwnerName = ref('')
+const weightErrorTotal = ref(0)
 
 const totalWeight = computed(() => goals.value.reduce((sum, g) => sum + g.weight, 0))
 watch(totalWeight, () => { hasWeightError.value = false })
+
+// Weight is a single 100%-of-total budget per OWNER across every goal they
+// have in this cycle — not just whatever's drafted in this one visit to
+// this page. Without this, leaving and coming back to add more goals for
+// someone who already has a full 100% could silently push them over.
+const existingWeightByOwner = computed(() => {
+  const map = new Map<string, number>()
+  for (const owner of owners.value) {
+    const existing = allGoals.value
+      .filter(g => g.cycleId === route.params.id && g.ownerId === owner.id)
+      .reduce((sum, g) => sum + g.weight, 0)
+    map.set(owner.id, existing)
+  }
+  return map
+})
+// The drawer only takes one shared number — use the highest existing total
+// across the selected owners so no owner can be pushed over 100%, even
+// though each owner's own existing total may differ.
+const maxExistingWeight = computed(() => Math.max(0, ...Array.from(existingWeightByOwner.value.values())))
+const alreadyUsedWeightForDrawer = computed(() => maxExistingWeight.value + totalWeight.value)
+// For a single owner (the common case) this is their real running total;
+// for multiple owners each has their own baseline, so this is session-only.
+const totalWeightDisplay = computed(() => (
+  owners.value.length === 1
+    ? (existingWeightByOwner.value.get(owners.value[0].id) ?? 0) + totalWeight.value
+    : totalWeight.value
+))
+
+const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
+const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
+
+// Goals already saved for the selected owner(s) in this cycle, from an
+// earlier visit to this page — shown right in the same table (still a
+// draft until finalized, so it belongs alongside what's being drafted now).
+const existingGoalsByOwner = computed(() => owners.value
+  .map(owner => ({
+    owner,
+    goals: allGoals.value.filter(g => g.cycleId === route.params.id && g.ownerId === owner.id),
+  }))
+  .filter(entry => entry.goals.length > 0))
+const hasExistingGoals = computed(() => existingGoalsByOwner.value.length > 0)
+const existingGoalsFlat = computed(() => existingGoalsByOwner.value.flatMap(
+  entry => entry.goals.map(g => ({ ...g, ownerName: entry.owner.name })),
+))
 
 function openAddGoal() {
   isDrawerOpen.value = true
@@ -95,28 +158,78 @@ function contributorsFor(goal: DraftGoal, ownerId: string) {
     .filter((e): e is typeof EMPLOYEES[number] => Boolean(e))
 }
 
+// layouts/default.vue's page title reads route.query.name (same convention
+// as pages/reviews/review-cycles/[id]/index.vue) — carry it on every
+// navigation back to the cycle page, or the title silently goes blank.
 function onCancel() {
-  router.push(`/goals/goal-cycles/${route.params.id}`)
+  router.push({ path: `/goals/goal-cycles/${route.params.id}`, query: { name: cycle.value?.name } })
 }
-function persistAndLeave() {
+function persistAndLeave(isDraft: boolean) {
+  const goalsToSave = goals.value.flatMap(draft => goalsFromDraft(draft, owners.value, isDraft))
+  addGoals(goalsToSave, route.params.id as string)
   toast.notify({
     id: 'new-goals-saved',
     position: 'top-center',
     variant: 'success',
     title: 'Goals saved',
   })
-  router.push(`/goals/goal-cycles/${route.params.id}`)
+  // The "All goals" index paginates by owner, alphabetically — a
+  // newly-saved owner can land past the first page and be invisible on
+  // arrival unless we tell the index which owners to make sure are loaded.
+  router.push({ path: `/goals/goal-cycles/${route.params.id}`, query: { name: cycle.value?.name, newOwners: ownerIds.value.join(',') } })
 }
 function onSaveAsDraft() {
-  persistAndLeave()
+  if (goals.value.length === 0) {
+    toast.notify({
+      id: 'no-goals-to-save',
+      position: 'top-center',
+      variant: 'error',
+      title: 'Add at least one goal before saving as draft',
+    })
+    return
+  }
+  persistAndLeave(true)
 }
 function onSave() {
-  hasWeightError.value = weightMandatory.value && totalWeight.value !== 100
+  if (goals.value.length === 0) {
+    toast.notify({
+      id: 'no-goals-to-save',
+      position: 'top-center',
+      variant: 'error',
+      title: 'Add at least one goal before saving',
+    })
+    return
+  }
+  hasWeightError.value = false
+  if (weightMandatory.value) {
+    for (const owner of owners.value) {
+      const combined = (existingWeightByOwner.value.get(owner.id) ?? 0) + totalWeight.value
+      if (combined !== 100) {
+        hasWeightError.value = true
+        weightErrorOwnerName.value = owner.name
+        weightErrorTotal.value = combined
+        break
+      }
+    }
+  }
   if (hasWeightError.value) return
-  persistAndLeave()
+  persistAndLeave(false)
 }
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
+// Root wrapper stretches to at least fill the visible content area (its
+// flex:1 parent in layouts/default.vue) so a short goal list doesn't leave
+// the action bar floating right under it — `marginTop: 'auto'` on the bar
+// below then pushes it all the way down to fill that space. When the goals
+// table is long enough to overflow, this wrapper naturally grows taller
+// instead, marginTop:auto collapses, and `position: sticky` takes over to
+// pin the bar to the viewport while layouts/default.vue's <main> scrolls.
+const pageRoot = css({ minHeight: '100%' })
+const stickyActionBar = css({
+  position: 'sticky', bottom: '0', zIndex: '1', marginTop: 'auto',
+  background: 'background.neutral', paddingTop: '5', paddingBottom: '6',
+  borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default',
+})
 const ownersBar = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBottom: '5' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
@@ -128,7 +241,7 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', white
 
 const goalCode = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const descText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
-const detailGrid = css({ display: 'grid', gridTemplateColumns: 'auto 1fr', columnGap: '3', rowGap: '1', marginTop: '2' })
+const detailRow = css({ marginTop: '2' })
 const detailLabel = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const detailValue = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 
@@ -147,10 +260,18 @@ const totalRow = css({
   paddingInline: '4', paddingBlock: '3',
   borderTop: '1px solid', borderTopColor: 'border.default',
 })
+
+// Empty state — no goals drafted yet in this session (same illustrated
+// pattern as the goal cycle's own Company/Organization/Team/Individual/All
+// goals pages when the cycle itself has none).
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 </script>
 
 <template>
-  <MpFlex direction="column" gap="0">
+  <MpFlex direction="column" gap="0" :class="pageRoot">
     <!-- Owner summary -->
     <div :class="ownersBar">
       <template v-if="owners.length === 1">
@@ -174,8 +295,22 @@ const totalRow = css({
       </template>
     </div>
 
-    <!-- Goals table -->
-    <MpTableContainer :class="tableOuterBorder">
+    <!-- Empty state: nothing drafted this session AND nothing existing
+         either (no border box, matching the goal cycle pages' own empty
+         state) -->
+    <MpFlex v-if="goals.length === 0 && !hasExistingGoals" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+        <MpText :class="emptyTitle">No goals added yet</MpText>
+        <MpText size="label" :class="captionText">Goals you add will appear here.</MpText>
+      </MpFlex>
+      <MpButton variant="primary" left-icon="add" @click="openAddGoal">Add goal</MpButton>
+    </MpFlex>
+
+    <!-- Goals table — goals already saved for the selected owner(s) from an
+         earlier visit to this page (still a draft until finalized) come
+         first, then whatever's being drafted right now this session. -->
+    <MpTableContainer v-else :class="tableOuterBorder">
       <MpTable :is-hoverable="false">
         <MpTableHead>
           <MpTableRow>
@@ -188,11 +323,47 @@ const totalRow = css({
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>
-          <MpTableRow v-if="goals.length === 0">
-            <MpTableCell as="td" :colspan="6" :class="css({ textAlign: 'center', paddingBlock: '8' })">
-              <MpText size="label" :class="captionText">No goals yet. Click "Add goal" to create one.</MpText>
+          <!-- Already saved (existing) goals for the selected owner(s) -->
+          <MpTableRow v-for="g in existingGoalsFlat" :key="`existing-${g.id}`">
+            <MpTableCell as="td" :class="[tightCell, colDivider]">
+              <MpText size="label" :class="valueText">{{ g.category }}</MpText>
+              <MpText size="label-small" :class="captionText">Weight: {{ g.weight }}%</MpText>
+            </MpTableCell>
+            <MpTableCell as="td" :class="[tightCell, colDivider]">
+              <MpText size="label" :class="valueText">{{ g.subCategory || '—' }}</MpText>
+            </MpTableCell>
+            <MpTableCell as="td" :class="[tightCell, colDivider]">
+              <span :class="goalCode">{{ g.code }}</span>
+              <MpFlex align="center" gap="2">
+                <MpText size="label" :class="valueText">{{ g.title }}</MpText>
+                <MpBadge v-if="g.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+              </MpFlex>
+              <MpText v-if="owners.length > 1" size="label-small" :class="captionText">Owner: {{ g.ownerName }}</MpText>
+            </MpTableCell>
+            <MpTableCell as="td" :class="[tightCell, colDivider]">
+              <MpText size="label" :class="valueText">{{ LEVEL_TO_GOAL_TYPE_LABEL[g.level] }}</MpText>
+            </MpTableCell>
+            <MpTableCell as="td" :class="[tightCell, colDivider]">
+              <MpText size="label" :class="valueText">{{ g.weight }}%</MpText>
+            </MpTableCell>
+            <MpTableCell as="td" :class="actionCell">
+              <MpPopover is-close-on-select use-portal placement="bottom-end">
+                <MpPopoverTrigger>
+                  <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Goal actions" />
+                </MpPopoverTrigger>
+                <MpPopoverContent :class="css({ minWidth: '160px' })">
+                  <MpPopoverList>
+                    <MpPopoverListItem @click="openEditGoal(g)">Edit</MpPopoverListItem>
+                    <MpPopoverListItem @click="askDeleteGoal(g)">
+                      <span :class="css({ color: 'text.danger' })">Delete</span>
+                    </MpPopoverListItem>
+                  </MpPopoverList>
+                </MpPopoverContent>
+              </MpPopover>
             </MpTableCell>
           </MpTableRow>
+
+          <!-- Drafted this session, not yet saved -->
           <MpTableRow v-for="goal in goals" :key="goal.id">
             <MpTableCell as="td" :class="[tightCell, colDivider]">
               <MpText size="label" :class="valueText">{{ goal.category }}</MpText>
@@ -206,30 +377,51 @@ const totalRow = css({
               <MpText size="label" :class="valueText">{{ goal.name }}</MpText>
               <MpText v-if="goal.description" :class="descText">{{ goal.description }}</MpText>
 
-              <div :class="detailGrid">
-                <span :class="detailLabel">Measurement unit</span>
-                <span :class="detailValue">
-                  {{ measurementUnitLabel(goal) }}
-                  <span :class="captionText">· {{ directionLabel(goal) }}</span>
-                </span>
-                <span :class="detailLabel">Target</span>
-                <span :class="detailValue">
-                  {{ formatValue(goal, goal.targetValue) }}
-                  <span v-if="goal.useBaseline" :class="captionText">· Baseline: {{ formatValue(goal, goal.baselineValue) }}</span>
-                </span>
-              </div>
-
-              <!-- Single owner: flat contributor list -->
-              <div v-if="owners.length === 1" :class="ownerContribBlockFirst">
-                <span :class="detailLabel">Goal contributor</span>
-                <MpFlex v-if="contributorsFor(goal, owners[0].id).length" gap="1">
-                  <MpAvatar v-for="c in contributorsFor(goal, owners[0].id)" :key="c!.id" :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
+              <!-- Single owner: Measurement unit / Target / Goal contributor
+                   sit side by side, each its own label-above-value column -->
+              <MpFlex v-if="owners.length === 1" gap="6" :class="detailRow">
+                <MpFlex direction="column" gap="0">
+                  <span :class="detailLabel">Measurement unit</span>
+                  <span :class="detailValue">
+                    {{ measurementUnitLabel(goal) }}
+                    <span :class="captionText">· {{ directionLabel(goal) }}</span>
+                  </span>
                 </MpFlex>
-                <span v-else :class="captionText">—</span>
-              </div>
+                <MpFlex direction="column" gap="0">
+                  <span :class="detailLabel">Target</span>
+                  <span :class="detailValue">
+                    {{ formatValue(goal, goal.targetValue) }}
+                    <span v-if="goal.useBaseline" :class="captionText">· Baseline: {{ formatValue(goal, goal.baselineValue) }}</span>
+                  </span>
+                </MpFlex>
+                <MpFlex direction="column" gap="0">
+                  <span :class="detailLabel">Goal contributor</span>
+                  <MpFlex v-if="contributorsFor(goal, owners[0].id).length" gap="1">
+                    <MpAvatar v-for="c in contributorsFor(goal, owners[0].id)" :key="c!.id" :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
+                  </MpFlex>
+                  <span v-else :class="captionText">—</span>
+                </MpFlex>
+              </MpFlex>
 
-              <!-- Multiple owners: nested per-owner block -->
+              <!-- Multiple owners: Measurement unit / Target inline, then a
+                   nested per-owner block for owner + contributor -->
               <template v-else>
+                <MpFlex gap="6" :class="detailRow">
+                  <MpFlex direction="column" gap="0">
+                    <span :class="detailLabel">Measurement unit</span>
+                    <span :class="detailValue">
+                      {{ measurementUnitLabel(goal) }}
+                      <span :class="captionText">· {{ directionLabel(goal) }}</span>
+                    </span>
+                  </MpFlex>
+                  <MpFlex direction="column" gap="0">
+                    <span :class="detailLabel">Target</span>
+                    <span :class="detailValue">
+                      {{ formatValue(goal, goal.targetValue) }}
+                      <span v-if="goal.useBaseline" :class="captionText">· Baseline: {{ formatValue(goal, goal.baselineValue) }}</span>
+                    </span>
+                  </MpFlex>
+                </MpFlex>
                 <div v-for="(owner, oi) in owners" :key="owner.id" :class="oi === 0 ? ownerContribBlockFirst : ownerContribBlock">
                   <span :class="detailLabel">Goal owner</span>
                   <span :class="detailValue">{{ owner.name }}</span>
@@ -253,7 +445,7 @@ const totalRow = css({
                 <MpPopoverTrigger>
                   <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Goal actions" />
                 </MpPopoverTrigger>
-                <MpPopoverContent>
+                <MpPopoverContent :class="css({ minWidth: '160px' })">
                   <MpPopoverList>
                     <MpPopoverListItem @click="removeGoal(goal.id)">
                       <span :class="css({ color: 'text.danger' })">Remove</span>
@@ -266,10 +458,10 @@ const totalRow = css({
         </MpTableBody>
       </MpTable>
 
-      <div v-if="weightMandatory && goals.length" :class="totalRow">
+      <div v-if="weightMandatory && (goals.length || hasExistingGoals)" :class="totalRow">
         <MpText size="label" weight="semiBold" :class="valueText">Total goal weight</MpText>
-        <MpText size="label" :class="totalWeight === 100 ? css({ color: 'text.success' }) : css({ color: 'text.danger' })">
-          {{ totalWeight }}% of 100%
+        <MpText size="label" :class="totalWeightDisplay === 100 ? css({ color: 'text.success' }) : css({ color: 'text.danger' })">
+          {{ totalWeightDisplay }}% of 100%
         </MpText>
       </div>
 
@@ -279,9 +471,9 @@ const totalRow = css({
       </button>
     </MpTableContainer>
 
-    <MpFlex align="center" justify="space-between" :class="css({ paddingTop: '5' })">
+    <MpFlex align="center" justify="space-between" :class="stickyActionBar">
       <MpText v-if="hasWeightError" size="label" :class="css({ color: 'text.danger' })">
-        Total goal weight must equal 100% before saving — currently at {{ totalWeight }}%.
+        {{ weightErrorOwnerName }}'s total goal weight would be {{ weightErrorTotal }}% — it must equal exactly 100%.
       </MpText>
       <span v-else />
       <MpFlex gap="2">
@@ -292,10 +484,47 @@ const totalRow = css({
     </MpFlex>
 
     <AddGoalDrawer
+      drawer-id="drawer-add-goal-create"
       v-model:is-open="isDrawerOpen"
       :owners="owners"
-      :already-used-weight="totalWeight"
+      :already-used-weight="alreadyUsedWeightForDrawer"
+      :cycle-start-date="cycle?.startDate ?? ''"
+      :cycle-end-date="cycle?.endDate ?? ''"
       @save="onGoalSaved"
     />
+    <AddGoalDrawer
+      drawer-id="drawer-add-goal-edit"
+      v-model:is-open="isEditDrawerOpen"
+      :owners="editingOwners"
+      :already-used-weight="alreadyUsedWeightForEdit"
+      :cycle-start-date="cycle?.startDate ?? ''"
+      :cycle-end-date="cycle?.endDate ?? ''"
+      :editing-draft="editingDraft"
+      @save="saveEdit"
+    />
   </MpFlex>
+
+  <!-- Delete confirmation -->
+  <ClientOnly>
+  <MpModal :is-open="isDeleteModalOpen" @close="isDeleteModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Delete goal?
+        <MpModalCloseButton @click="isDeleteModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButtonGroup>
+          <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
+          <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
+        </MpButtonGroup>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
 </template>

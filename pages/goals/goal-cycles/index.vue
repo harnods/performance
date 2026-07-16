@@ -134,7 +134,7 @@ function openDrawer() {
 function openEditDrawer(cycle: GoalCycle) {
   editingCycleId.value = cycle.id
   cycleName.value = cycle.name
-  cyclePeriod.value = { mode: 'custom', label: cycle.period, startDate: '', endDate: '' }
+  cyclePeriod.value = { mode: 'custom', label: cycle.period, startDate: cycle.startDate, endDate: cycle.endDate }
   progressMethod.value = cycle.progressUpdateMethod
   weightMandatory.value = cycle.weightMandatory
   errors.name = false
@@ -150,6 +150,8 @@ function saveCycle() {
   const input = {
     name: cycleName.value.trim(),
     period: cyclePeriod.value!.label,
+    startDate: cyclePeriod.value!.startDate,
+    endDate: cyclePeriod.value!.endDate,
     progressUpdateMethod: progressMethod.value,
     weightMandatory: weightMandatory.value,
   }

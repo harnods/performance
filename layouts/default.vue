@@ -4,8 +4,21 @@ import { MpFlex, MpText, MpTextlink, css } from '@mekari/pixel3'
 type Breadcrumb = { label: string, to?: string | Record<string, unknown> }
 const route = useRoute()
 const router = useRouter()
+
+// Goal cycle detail pages resolve their title from ?name= (see cycleBreadcrumb
+// below for the same convention on review cycles) — but that query param
+// isn't guaranteed on every navigation path into these pages (deep links,
+// bookmarks, a missed router.push elsewhere). Falling back to the real
+// cycle record (always resolvable from route.params.id) means the title
+// never goes blank regardless of how the page was reached.
+const { cycles: goalCycles } = useGoalCyclesStore()
+const goalCycleTitleFallback = computed(() => {
+  if (!route.path.startsWith('/goals/goal-cycles/')) return ''
+  return goalCycles.value.find(c => c.id === route.params.id)?.name ?? ''
+})
+
 const pageTitle = computed(() =>
-  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || ''
+  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || ''
 )
 const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefined))
 
