@@ -56,6 +56,11 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+// The Actions column only pins itself (sticky + boundary shadow) once the
+// table actually needs to scroll horizontally — otherwise it's just a
+// normal last column.
+const { wrapperRef, hasOverflow } = useTableHorizontalScroll()
+
 // "New goals" entry point — pick one or more employees in the drawer, then
 // continue to the bulk "New goals" page (./new) where every goal added
 // applies to all of them.
@@ -117,8 +122,6 @@ const visibleColumns = reactive<Record<ColumnKey, boolean>>({
   progress: true,
   status: true,
 })
-// Goal owner + Goal + Actions are always rendered; the rest follow visibleColumns.
-const totalCols = computed(() => 3 + Object.values(visibleColumns).filter(Boolean).length)
 
 // ─── Live data — read from the goals mini-DB (useGoalsStore), grouped by
 // department then by owner. Each owner's rows are their individual-level
@@ -145,6 +148,22 @@ function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
+
+// Bulk select — Select is always the first column; every row here is a
+// real goal (no aligned-row nesting on this page, unlike the other 4). One
+// shared selection set across every department's table; each table's own
+// "select all" only touches the rows currently visible in that department
+// (collapsed owners contribute none).
+const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
+function selectableIdsForDept(dept: { owners: { key: string, rows: { id: string }[] }[] }) {
+  return dept.owners.filter(o => expandedOwners[o.key]).flatMap(o => o.rows.map(r => r.id))
+}
+// Select + Goal owner + Goal + Actions are always rendered; the rest follow visibleColumns.
+const totalCols = computed(() => 4 + Object.values(visibleColumns).filter(Boolean).length)
+function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
+  router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
+}
+const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
 
 // Status filter (single-select) and Organization filter (multi-select) both
 // narrow the same underlying rows — empty selection means "no filter, show
@@ -267,20 +286,23 @@ const ownerLabel = css({ display: 'flex', flexDirection: 'column', minWidth: '0'
 
 // Fixed table layout so toggling an owner's expand/collapse never shifts the
 // other columns (see team-goals.vue for the same fix and why it's needed).
-const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
+// minWidth on the table is required here too: without it, table-layout:fixed
+// squeezes Goal down to ~0 on a narrow viewport instead of overflowing into
+// horizontal scroll, which breaks its text one character per line.
+const fixedTable = css({ tableLayout: 'fixed', width: '100%', minWidth: '1264px' })
 const colOwner = css({ width: '184px' })
 const colCategory = css({ width: '160px' })
 const colSubCategory = css({ width: '184px' })
 // Goal is intentionally the one column with no fixed width — in a
 // table-layout:fixed table it absorbs all remaining space, pushing the
 // 52px action column flush against the right edge instead of it stretching.
+const colGoal = css({ minWidth: '300px' })
 const colProgress = css({ width: '200px' })
 const colStatus = css({ width: '136px' })
 
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default' })
 const headerLabel = css({ display: 'inline-flex', alignItems: 'center', gap: '1' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
-const firstColCell = css({ paddingLeft: '9' })
 // Action column is a hard 52px: 36px icon button + 8px padding each side.
 const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
@@ -290,6 +312,10 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 // like every other column divider, not a heavier "sticky" emphasis.
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
+const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
+// Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
+// height/fill is exactly what renders — no extra cell padding stacking on top.
+const noCellPadding = css({ padding: '0' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -385,9 +411,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpFlex>
 
     <template v-else>
-    <!-- Filter bar -->
-    <MpFlex align="center" justify="space-between" gap="4">
-      <MpFlex align="center" gap="4">
+    <!-- Filter bar — always visible; the bulk-action summary replaces the
+         table's own header row instead (see MpTableHead below), not this bar. -->
+    <MpFlex align="center" justify="space-between" gap="4" wrap="wrap">
+      <MpFlex align="center" gap="4" wrap="wrap">
         <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start">
           <MpPopoverTrigger>
             <MpFlex :class="statusFieldClass">
@@ -470,7 +497,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
     <!-- Individual goals — Department accordion, each containing an Owner
          rowspan-group (no Team layer, unlike ../team-goals) -->
-    <div :class="tableOuterBorder">
+    <div ref="wrapperRef" :class="tableOuterBorder">
       <div v-for="(dept, di) in departments" :key="dept.key">
         <button type="button" :class="accordionHeader" @click="toggleDept(dept.key)">
           <span :class="accordionLeft">
@@ -491,15 +518,50 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
           <MpTableContainer v-else>
             <MpTable :is-hoverable="false" :class="fixedTable">
+              <!-- table-layout:fixed derives column widths from the first row's
+                   cells — when the header row collapses to a single colspan
+                   cell (bulk-select summary), that row can no longer supply
+                   per-column widths, so the body columns would shift. An
+                   explicit colgroup fixes every column's width independent of
+                   whichever header row is currently rendered. -->
+              <colgroup>
+                <col :class="colCheckbox">
+                <col :class="colGoal">
+                <col :class="colOwner">
+                <col v-if="visibleColumns.category" :class="colCategory">
+                <col v-if="visibleColumns.subCategory" :class="colSubCategory">
+                <col v-if="visibleColumns.progress" :class="colProgress">
+                <col v-if="visibleColumns.status" :class="colStatus">
+                <col :class="actionHead">
+              </colgroup>
               <MpTableHead>
-                <MpTableRow>
-                  <MpTableCell as="th" :class="[colDivider, firstColCell, colOwner]"><span :class="headerLabel">Goal owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
+                <!-- Selection summary replaces the column-header row entirely
+                     (not a bar above the table) while 1+ rows are selected. -->
+                <MpTableRow v-if="selectedCount > 0">
+                  <MpTableCell as="th" :colspan="totalCols" :class="noCellPadding">
+                    <GoalBulkActionBar
+                      :selected-count="selectedCount"
+                      :is-all-selected="isAllSelected(selectableIdsForDept(dept))"
+                      @toggle-select-all="toggleSelectAll(selectableIdsForDept(dept))"
+                      @clear="clearSelection"
+                      @edit-goals="goToImport('edit-goals')"
+                      @update-progress="goToImport('update-progress')"
+                      @close-goals="goToImport('close-goals')"
+                      @delete-goals="isBulkDeleteModalOpen = true"
+                    />
+                  </MpTableCell>
+                </MpTableRow>
+                <MpTableRow v-else>
+                  <MpTableCell as="th" :class="[colDivider, colCheckbox]">
+                    <MpCheckbox :is-checked="isAllSelected(selectableIdsForDept(dept))" @update:is-checked="toggleSelectAll(selectableIdsForDept(dept))" aria-label="Select all" />
+                  </MpTableCell>
+                  <MpTableCell as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
+                  <MpTableCell as="th" :class="[colDivider, colOwner]"><span :class="headerLabel">Goal owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.category" as="th" :class="[colDivider, colCategory]"><span :class="headerLabel">Category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.subCategory" as="th" :class="[colDivider, colSubCategory]"><span :class="headerLabel">Sub-category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.progress" as="th" :class="[colDivider, colProgress]"><span :class="headerLabel">Progress <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.status" as="th" :class="[colDivider, colStatus]"><span :class="headerLabel">Status <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell as="th" is-fixed :class="[actionHead, fixedRightCol]" />
+                  <MpTableCell as="th" :is-fixed="hasOverflow" :class="[actionHead, hasOverflow && fixedRightCol]" />
                 </MpTableRow>
               </MpTableHead>
               <MpTableBody>
@@ -524,7 +586,32 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                        them, exactly like Category does — NOT a separate row. -->
                   <template v-else>
                     <MpTableRow v-for="(row, ri) in owner.rows" :key="row.id">
-                      <MpTableCell v-if="ri === 0" as="td" :rowspan="owner.rows.length" :class="[tightCell, colDivider, firstColCell, colOwner]">
+                      <!-- Select — every row here is a real goal. -->
+                      <MpTableCell as="td" :class="[colDivider, colCheckbox]">
+                        <MpCheckbox
+                          :is-checked="isSelected(row.id)"
+                          @update:is-checked="toggleSelect(row.id)"
+                          :aria-label="`Select ${row.title}`"
+                        />
+                      </MpTableCell>
+
+                      <!-- Goal -->
+                      <MpTableCell as="td" :class="[tightCell, colDivider]">
+                        <MpFlex direction="column" gap="0" :class="cellContent">
+                          <span :class="goalCode">{{ row.code }}</span>
+                          <MpFlex align="center" gap="2">
+                            <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
+                            <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                          </MpFlex>
+                          <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
+                          <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
+                            <MpIcon name="caret-right" size="sm" />
+                            View aligned goals ({{ row.alignedGoals.length }})
+                          </button>
+                        </MpFlex>
+                      </MpTableCell>
+
+                      <MpTableCell v-if="ri === 0" as="td" :rowspan="owner.rows.length" :class="[tightCell, colDivider, colOwner]">
                         <button type="button" :class="ownerHeaderCell" @click="toggleOwner(owner.key)">
                           <MpIcon name="caret-down" size="sm" />
                           <MpFlex direction="column" gap="0" :class="cellContent">
@@ -547,22 +634,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       <!-- Sub-category -->
                       <MpTableCell v-if="visibleColumns.subCategory && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
                         <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
-                      </MpTableCell>
-
-                      <!-- Goal -->
-                      <MpTableCell as="td" :class="[tightCell, colDivider]">
-                        <MpFlex direction="column" gap="0" :class="cellContent">
-                          <span :class="goalCode">{{ row.code }}</span>
-                          <MpFlex align="center" gap="2">
-                            <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
-                            <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
-                          </MpFlex>
-                          <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                          <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
-                            <MpIcon name="caret-right" size="sm" />
-                            View aligned goals ({{ row.alignedGoals.length }})
-                          </button>
-                        </MpFlex>
                       </MpTableCell>
 
                       <!-- Progress -->
@@ -595,7 +666,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       </MpTableCell>
 
                       <!-- Actions -->
-                      <MpTableCell as="td" is-fixed :class="[actionCell, fixedRightCol, fixedBodyBg]">
+                      <MpTableCell as="td" :is-fixed="hasOverflow" :class="[actionCell, hasOverflow && fixedRightCol, fixedBodyBg]">
                         <MpPopover is-close-on-select use-portal placement="bottom-end">
                           <MpPopoverTrigger>
                             <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
@@ -660,6 +731,30 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpButtonGroup>
           <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
           <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
+        </MpButtonGroup>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
+
+  <!-- Bulk delete confirmation -->
+  <ClientOnly>
+  <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Delete {{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }}?
+        <MpModalCloseButton @click="isBulkDeleteModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          {{ selectedCount }} selected goal{{ selectedCount === 1 ? '' : 's' }} will be permanently deleted and cannot be recovered.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButtonGroup>
+          <MpButton variant="ghost" @click="isBulkDeleteModalOpen = false">Cancel</MpButton>
+          <MpButton variant="danger" @click="confirmBulkDelete([...selectedIds]); clearSelection()">Delete</MpButton>
         </MpButtonGroup>
       </MpModalFooter>
     </MpModalContent>

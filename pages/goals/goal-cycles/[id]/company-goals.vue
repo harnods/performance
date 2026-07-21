@@ -55,6 +55,11 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+// The Actions column only pins itself (sticky + boundary shadow) once the
+// table actually needs to scroll horizontally — otherwise it's just a
+// normal last column.
+const { wrapperRef, hasOverflow } = useTableHorizontalScroll()
+
 // "New goals" entry point — pick one or more employees in the drawer, then
 // continue to the bulk "New goals" page (./new) where every goal added
 // applies to all of them.
@@ -143,6 +148,20 @@ function deleteRow(row: { id: string }) {
   if (g) askDeleteGoal(g)
 }
 
+// Bulk select — Select is always the first column; only real 'main' rows
+// are selectable (aligned rows are a nested reference to a goal already
+// listed under its own owner elsewhere).
+const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
+function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
+  router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
+}
+const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
+// Select + Goal + Actions are always rendered; the rest follow visibleColumns.
+// Used as the colspan for the single merged cell that replaces this header
+// row's columns while 1+ rows are selected.
+const headerColCount = computed(() => 3
+  + [visibleColumns.category, visibleColumns.subCategory, visibleColumns.owner, visibleColumns.progress, visibleColumns.status].filter(Boolean).length)
+
 const filteredGoals = computed(() => companyGoals.value.filter(g =>
   (!statusFilter.value || g.status === ({ ontrack: 'green', atrisk: 'orange' } as Record<string, GoalStatus>)[statusFilter.value])
   && matchesSearch(g, search.value),
@@ -180,6 +199,7 @@ function toggleAligned(id: string) {
   expandedAligned[id] = !expandedAligned[id]
 }
 const displayRows = computed(() => expandAlignedRows(rows.value, expandedAligned))
+const selectableIds = computed(() => displayRows.value.filter(r => r.kind === 'main').map(r => r.id))
 
 function formatNumber(n: number): string {
   return n.toLocaleString('id-ID')
@@ -220,10 +240,14 @@ const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top
 // optional columns are toggled on/off via Column settings. Goal is
 // intentionally the one column with no fixed width — it absorbs all
 // remaining space, pushing the 52px action column flush against the right
-// edge instead of it stretching along with everything else.
-const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
+// edge instead of it stretching along with everything else. minWidth on the
+// table is required here: without it, table-layout:fixed squeezes Goal down
+// to ~0 on a narrow viewport instead of overflowing into horizontal scroll,
+// which breaks its text one character per line.
+const fixedTable = css({ tableLayout: 'fixed', width: '100%', minWidth: '1280px' })
 const colCategory = css({ width: '160px' })
 const colSubCategory = css({ width: '184px' })
+const colGoal = css({ minWidth: '300px' })
 const colOwner = css({ width: '200px' })
 const colProgress = css({ width: '200px' })
 const colStatus = css({ width: '136px' })
@@ -236,6 +260,10 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 // other column divider, not a heavier "sticky" emphasis.
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
+const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
+// Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
+// height/fill is exactly what renders — no extra cell padding stacking on top.
+const noCellPadding = css({ padding: '0' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -334,9 +362,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpFlex>
 
     <template v-else>
-    <!-- Filter bar -->
-    <MpFlex align="center" justify="space-between" gap="4">
-      <MpFlex align="center" gap="4">
+    <!-- Filter bar — always visible; the bulk-action summary replaces the
+         table's own header row instead (see MpTableHead below), not this bar. -->
+    <MpFlex align="center" justify="space-between" gap="4" wrap="wrap">
+      <MpFlex align="center" gap="4" wrap="wrap">
         <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start">
           <MpPopoverTrigger>
             <MpFlex :class="statusFieldClass">
@@ -387,36 +416,68 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpFlex>
 
     <!-- Company goals table -->
-    <div :class="tableOuterBorder">
+    <div ref="wrapperRef" :class="tableOuterBorder">
       <div :class="accordionHeader">
         <MpText size="label" weight="semiBold" :class="valueText">Company-wide goals</MpText>
       </div>
       <MpTableContainer>
         <MpTable :is-hoverable="false" :class="fixedTable">
+          <!-- table-layout:fixed derives column widths from the first row's
+               cells — when the header row collapses to a single colspan
+               cell (bulk-select summary), that row can no longer supply
+               per-column widths, so the body columns would shift. An
+               explicit colgroup fixes every column's width independent of
+               whichever header row is currently rendered. -->
+          <colgroup>
+            <col :class="colCheckbox">
+            <col :class="colGoal">
+            <col v-if="visibleColumns.category" :class="colCategory">
+            <col v-if="visibleColumns.subCategory" :class="colSubCategory">
+            <col v-if="visibleColumns.owner" :class="colOwner">
+            <col v-if="visibleColumns.progress" :class="colProgress">
+            <col v-if="visibleColumns.status" :class="colStatus">
+            <col :class="actionHead">
+          </colgroup>
           <MpTableHead>
-            <MpTableRow>
+            <!-- Selection summary replaces the column-header row entirely
+                 (not a bar above the table) while 1+ rows are selected. -->
+            <MpTableRow v-if="selectedCount > 0">
+              <MpTableCell as="th" :colspan="headerColCount" :class="noCellPadding">
+                <GoalBulkActionBar
+                  :selected-count="selectedCount"
+                  :is-all-selected="isAllSelected(selectableIds)"
+                  @toggle-select-all="toggleSelectAll(selectableIds)"
+                  @clear="clearSelection"
+                  @edit-goals="goToImport('edit-goals')"
+                  @update-progress="goToImport('update-progress')"
+                  @close-goals="goToImport('close-goals')"
+                  @delete-goals="isBulkDeleteModalOpen = true"
+                />
+              </MpTableCell>
+            </MpTableRow>
+            <MpTableRow v-else>
+              <MpTableCell as="th" :class="[colDivider, colCheckbox]">
+                <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
+              </MpTableCell>
+              <MpTableCell as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.category" as="th" :class="[colDivider, colCategory]"><span :class="headerLabel">Category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.subCategory" as="th" :class="[colDivider, colSubCategory]"><span :class="headerLabel">Sub-category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-              <MpTableCell as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.owner" as="th" :class="[colDivider, colOwner]"><span :class="headerLabel">Owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.progress" as="th" :class="[colDivider, colProgress]"><span :class="headerLabel">Progress <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.status" as="th" :class="[colDivider, colStatus]"><span :class="headerLabel">Status <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-              <MpTableCell as="th" is-fixed :class="[actionHead, fixedRightCol]" />
+              <MpTableCell as="th" :is-fixed="hasOverflow" :class="[actionHead, hasOverflow && fixedRightCol]" />
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
             <MpTableRow v-for="row in displayRows" :key="row.id">
-              <!-- Category -->
-              <MpTableCell v-if="visibleColumns.category && row.kind === 'main' && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
-                <MpFlex direction="column" gap="0" :class="cellContent">
-                  <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
-                  <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
-                </MpFlex>
-              </MpTableCell>
-
-              <!-- Sub-category -->
-              <MpTableCell v-if="visibleColumns.subCategory && row.kind === 'main' && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
-                <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
+              <!-- Select — only real goals (kind 'main') are selectable. -->
+              <MpTableCell as="td" :class="[colDivider, colCheckbox]">
+                <MpCheckbox
+                  v-if="row.kind === 'main'"
+                  :is-checked="isSelected(row.id)"
+                  @update:is-checked="toggleSelect(row.id)"
+                  :aria-label="`Select ${row.title}`"
+                />
               </MpTableCell>
 
               <!-- Goal -->
@@ -433,6 +494,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                     View aligned goals ({{ row.alignedGoals.length }})
                   </button>
                 </MpFlex>
+              </MpTableCell>
+
+              <!-- Category -->
+              <MpTableCell v-if="visibleColumns.category && row.kind === 'main' && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
+                <MpFlex direction="column" gap="0" :class="cellContent">
+                  <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
+                  <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
+                </MpFlex>
+              </MpTableCell>
+
+              <!-- Sub-category -->
+              <MpTableCell v-if="visibleColumns.subCategory && row.kind === 'main' && row.showSubCategory" as="td" :rowspan="row.subCategoryRowspan" :class="[tightCell, colDivider, colSubCategory]">
+                <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
               </MpTableCell>
 
               <!-- Owner -->
@@ -475,7 +549,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               </MpTableCell>
 
               <!-- Actions -->
-              <MpTableCell as="td" is-fixed :class="[actionCell, fixedRightCol, fixedBodyBg]">
+              <MpTableCell as="td" :is-fixed="hasOverflow" :class="[actionCell, hasOverflow && fixedRightCol, fixedBodyBg]">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
                     <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
@@ -536,6 +610,30 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpButtonGroup>
           <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
           <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
+        </MpButtonGroup>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
+
+  <!-- Bulk delete confirmation -->
+  <ClientOnly>
+  <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Delete {{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }}?
+        <MpModalCloseButton @click="isBulkDeleteModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          {{ selectedCount }} selected goal{{ selectedCount === 1 ? '' : 's' }} will be permanently deleted and cannot be recovered.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButtonGroup>
+          <MpButton variant="ghost" @click="isBulkDeleteModalOpen = false">Cancel</MpButton>
+          <MpButton variant="danger" @click="confirmBulkDelete([...selectedIds]); clearSelection()">Delete</MpButton>
         </MpButtonGroup>
       </MpModalFooter>
     </MpModalContent>
