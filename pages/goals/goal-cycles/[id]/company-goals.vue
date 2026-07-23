@@ -55,6 +55,10 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+const { pendingItemsCount, submissions } = useGoalApprovalsStore(route.params.id as string)
+const { currentUserId } = useCurrentUser()
+const myPendingRequestsCount = computed(() => submissions.value.filter(s => s.ownerId === currentUserId.value && s.status === 'pending').length)
+
 // The Actions column only pins itself (sticky + boundary shadow) once the
 // table actually needs to scroll horizontally — otherwise it's just a
 // normal last column.
@@ -72,8 +76,16 @@ function continueToNewGoals(employeeIds: string[]) {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
 }
 
-type Tab = 'all' | 'awaiting' | 'info'
+type Tab = 'all' | 'requests' | 'awaiting' | 'info'
 const activeTab = ref<Tab>('all')
+
+// Switching "View as" persona can make the active tab invisible (e.g. an
+// admin on "Awaiting approval" switches to a non-admin persona) — fall back
+// to "All goals" rather than leaving stale, no-longer-permitted content on screen.
+watch(currentUserId, () => {
+  if (activeTab.value === 'awaiting' && !isSuperAdmin(currentUserId.value)) activeTab.value = 'all'
+  if (activeTab.value === 'requests' && !hasManager(currentUserId.value)) activeTab.value = 'all'
+})
 
 const goalsViewOptions = [
   { key: 'all', label: 'All goals' },
@@ -136,6 +148,12 @@ type GoalStatus = 'green' | 'orange' | 'gray'
 const { companyGoals, goals } = useGoalsStore(route.params.id as string)
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
+
+// Someone whose committed goals already total 100% has no weight left to
+// give a new one — keep them out of the "New goals" picker entirely rather
+// than letting them through only to hit the "must equal 100%" block at Save.
+// Only matters when this cycle actually enforces the weight rule.
+const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
 
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
@@ -340,9 +358,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
-      <button type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
+      <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
+        My requests
+        <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
+      </button>
+      <button v-if="isSuperAdmin(currentUserId)" type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
         Awaiting approval
-        <span v-if="goals.length" :class="awaitingBadge">2</span>
+        <span v-if="pendingItemsCount > 0" :class="awaitingBadge">{{ pendingItemsCount }}</span>
       </button>
       <button type="button" :class="activeTab === 'info' ? tabItemActive : tabItem" @click="activeTab = 'info'">
         Goal cycle info
@@ -351,6 +373,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </Teleport>
 
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
+    <GoalMyRequestsList v-if="activeTab === 'requests'" :cycle-id="route.params.id as string" />
+    <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
+    <template v-else>
     <!-- Empty state: brand-new goal cycle, no Company-level goals yet -->
     <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
       <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
@@ -572,13 +597,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpTableContainer>
     </div>
     </template>
+    </template>
   </MpFlex>
 
   <!-- Goal cycle info -->
   <GoalCycleInfoPanel v-else />
 
   <!-- Select employee(s) for the new goal(s) -->
-  <SelectEmployeesDrawer v-model:is-open="isSelectEmployeeOpen" @continue="continueToNewGoals" />
+  <SelectEmployeesDrawer
+    v-model:is-open="isSelectEmployeeOpen"
+    :exclude-ids="[...fullOwnerIds]"
+    exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
+    @continue="continueToNewGoals"
+  />
 
   <!-- Edit an existing goal -->
   <AddGoalDrawer

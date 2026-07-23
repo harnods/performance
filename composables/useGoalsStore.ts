@@ -22,14 +22,17 @@
 // non-numeric targets ("Bi-weekly", "By June 30", "Completed") get a status
 // only, no progress bar — same as any goal with no unit.
 //
-// Every one of the 10 named employees below owns ONE 100%-summing set of
+// Every one of the 11 named employees below owns ONE 100%-summing set of
 // goals that mixes Company/Organization/Team/Individual tags together
 // (Level and Category are two independent dimensions of a goal, not
 // separate ownership hierarchies) — e.g. Ali Imran's 100% splits across 2
 // Organization + 3 Team + 4 Individual goals in a single pot, not four
-// separate 100% budgets. The other 8 employees in utils/employees.ts own no
-// goals at all under this model, though several appear as `contributorIds`
-// on goals they help deliver.
+// separate 100% budgets. Alfian Ramadhan (Rio's only direct report) owns a
+// Daud/Jessie-shaped team+individual set cascading from Rio's own HR goals,
+// added later so Rio's "My direct reports" view isn't empty. The remaining
+// employees in utils/employees.ts (Agung, Christin, Dewi, Fajar, Galih,
+// Indah, Joko, Linda) own no goals at all under this model, though several
+// appear as `contributorIds` on goals they help deliver.
 //
 // `alignedToId` is real source data (the "Aligned To" column — the exact
 // parent goal this one cascades from) and is the ONLY thing
@@ -83,6 +86,7 @@ export interface Goal {
   useBaseline?: boolean
   direction?: 'higher' | 'lower'
   keyResults?: DraftKeyResult[]
+  restrictedVisibility?: boolean // organization-level goals only — true limits viewing to the goal owner + members
 }
 
 // A goal's own `weight` is authored — every owner's goals (across all
@@ -102,6 +106,7 @@ export interface GoalWithCategoryWeight extends Goal {
 // reports to their department head.
 export const EMPLOYEE_MANAGER: Record<string, string> = {
   evelyn: 'rizal', rio: 'rizal', ali: 'rizal', bayu: 'rizal', andi: 'rizal', cinta: 'rizal',
+  dewi: 'rizal', // new hire, Head of Operations — owns no goals yet (see useGoalsStore's seed comment)
   agung: 'evelyn', christin: 'evelyn', linda: 'evelyn',
   alfian: 'rio',
   daud: 'ali', jessie: 'ali',
@@ -109,9 +114,42 @@ export const EMPLOYEE_MANAGER: Record<string, string> = {
   eka: 'cinta', fajar: 'cinta', galih: 'cinta', joko: 'cinta',
 }
 
-// The demo "logged-in" user — CEO, so "My direct reports" is the 6
-// department heads (Evelyn, Rio, Ali, Bayu, Andi, Cinta).
-export const CURRENT_USER_ID = 'rizal'
+// Rizal (CEO) is the only Super Admin in this demo — approval review is
+// centralized to him regardless of who's acting as the "logged-in" persona
+// (see useCurrentUser.ts), not distributed per-manager.
+export function isSuperAdmin(userId: string): boolean {
+  return userId === 'rizal'
+}
+
+// Everyone except the true top of the hierarchy (Rizal) has a manager —
+// used both to gate the "My requests" tab and by needsApproval below.
+export function hasManager(userId: string): boolean {
+  return userId in EMPLOYEE_MANAGER
+}
+
+// Owners whose committed (non-draft) goals already sum to 100% or more in
+// this scope — used to keep the "New goals" employee picker from offering
+// someone who has no weight left to give a newly added goal, which would
+// otherwise let them through the picker only to hit the "must equal exactly
+// 100%" block later at Save. Drafts are excluded from the sum since they
+// aren't committed yet and are exactly what "New goals" lets you keep adding to.
+export function fullyWeightedOwnerIds(goals: Goal[]): Set<string> {
+  const sums = new Map<string, number>()
+  for (const g of goals) {
+    if (g.isDraft) continue
+    sums.set(g.ownerId, (sums.get(g.ownerId) ?? 0) + g.weight)
+  }
+  return new Set([...sums].filter(([, weight]) => weight >= 100).map(([id]) => id))
+}
+
+// Whether creating/editing/deleting this owner's goal must go through the
+// approval queue (composables/useGoalApprovalsStore.ts) instead of taking
+// effect immediately. Approval is centralized to the Super Admin, so this
+// only depends on whether the OWNER has a manager at all — not on who's
+// currently acting.
+export function needsApproval(ownerId: string): boolean {
+  return hasManager(ownerId)
+}
 
 const CYCLE_ID = 'seed-26-h1'
 
@@ -283,6 +321,55 @@ function seed(): Goal[] {
     category: 'Customer', subCategory: 'HR Service',
     code: 'RP-08', title: 'HR ticket resolution time (≤ 2 biz days)',
    weight: 10, contributorIds: ['alfian'], viewerIds: [], status: 'green', unit: 'count', value: 1.8, pill: 90, min: 0, max: 2,
+  }),
+  // Alfian is Rio's only direct report (EMPLOYEE_MANAGER) and an HR Admin,
+  // not a department head — same "individual contributor" shape as
+  // Daud/Jessie under Ali: team + individual goals cascading from Rio's own
+  // organization-level HR goals above, no organization-level goals of his own.
+  g({
+    id: 'af-01', level: 'team', ownerId: 'alfian', department: 'HR',
+    category: 'Customer', subCategory: 'Employee Experience',
+    code: 'AF-01', title: 'Employee onboarding satisfaction (≥ 4.3 / 5)',
+    alignedToId: 'rp-01',
+   weight: 20, contributorIds: [], viewerIds: ['rio'], status: 'green', unit: 'count', value: 4.5, pill: 105, min: 0, max: 4.3,
+  }),
+  g({
+    id: 'af-02', level: 'team', ownerId: 'alfian', department: 'HR',
+    category: 'Internal Process', subCategory: 'Talent Acquisition',
+    code: 'AF-02', title: 'Candidate screening turnaround (≤ 3 days)',
+    alignedToId: 'rp-02',
+   weight: 20, contributorIds: [], viewerIds: ['rio'], status: 'green', unit: 'count', value: 2.6, pill: 87, min: 0, max: 3,
+  }),
+  g({
+    id: 'af-03', level: 'individual', ownerId: 'alfian', department: 'HR',
+    category: 'Financial', subCategory: 'Recruitment Cost',
+    code: 'AF-03', title: 'Recruitment admin cost savings (IDR 15M)',
+   weight: 15, contributorIds: [], viewerIds: [], status: 'green', unit: 'currency', value: 16200000, pill: 108, min: 0, max: 15000000,
+  }),
+  g({
+    id: 'af-04', level: 'individual', ownerId: 'alfian', department: 'HR',
+    category: 'Customer', subCategory: 'HR Support',
+    code: 'AF-04', title: 'Employee HR query resolution time (≤ 1 biz day)',
+    alignedToId: 'rp-08',
+   weight: 15, contributorIds: [], viewerIds: [], status: 'green', unit: 'count', value: 0.9, pill: 90, min: 0, max: 1,
+  }),
+  g({
+    id: 'af-05', level: 'individual', ownerId: 'alfian', department: 'HR',
+    category: 'Internal Process', subCategory: 'Documentation',
+    code: 'AF-05', title: 'HR policy documentation update (100%)',
+   weight: 10, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 100, pill: 100, min: 0, max: 100,
+  }),
+  g({
+    id: 'af-06', level: 'individual', ownerId: 'alfian', department: 'HR',
+    category: 'Learning & Growth', subCategory: 'Systems',
+    code: 'AF-06', title: 'HRIS system proficiency certification (Completed)',
+   weight: 10, contributorIds: [], viewerIds: [], status: 'green',
+  }),
+  g({
+    id: 'af-07', level: 'individual', ownerId: 'alfian', department: 'HR',
+    category: 'Learning & Growth', subCategory: 'Compliance',
+    code: 'AF-07', title: 'Labor law compliance training (100%)',
+   weight: 10, contributorIds: [], viewerIds: [], status: 'orange', unit: 'percent', value: 82, pill: 82, min: 0, max: 100,
   }),
   g({
     id: 'ai-01', level: 'organization', ownerId: 'ali', department: 'Sales',
@@ -708,7 +795,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 6
+const SEED_VERSION = 7
 const goals = ref<Goal[]>(seed())
 let loadedFromStorage = false
 
@@ -803,9 +890,10 @@ export function useGoalsStore(cycleId?: string) {
   // budget per employee (mixing Company/Organization/Team/Individual
   // together), so scoping to individual-level only would show a partial,
   // misleadingly-small slice of what someone actually owns.
-  const myGoals = computed(() => goalsWithCategoryWeight.value.filter(g => g.ownerId === CURRENT_USER_ID))
+  const { currentUserId } = useCurrentUser()
+  const myGoals = computed(() => goalsWithCategoryWeight.value.filter(g => g.ownerId === currentUserId.value))
   const myDirectReportsGoals = computed(() => goalsWithCategoryWeight.value.filter(
-    g => EMPLOYEE_MANAGER[g.ownerId] === CURRENT_USER_ID,
+    g => EMPLOYEE_MANAGER[g.ownerId] === currentUserId.value,
   ))
 
   return {

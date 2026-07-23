@@ -58,6 +58,10 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+const { pendingItemsCount, submissions } = useGoalApprovalsStore(route.params.id as string)
+const { currentUserId } = useCurrentUser()
+const myPendingRequestsCount = computed(() => submissions.value.filter(s => s.ownerId === currentUserId.value && s.status === 'pending').length)
+
 // The Select and Actions columns only pin themselves (sticky + boundary
 // shadow) once the table actually needs to scroll horizontally —
 // otherwise they're just normal first/last columns.
@@ -75,8 +79,16 @@ function continueToNewGoals(employeeIds: string[]) {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
 }
 
-type Tab = 'all' | 'awaiting' | 'info'
+type Tab = 'all' | 'requests' | 'awaiting' | 'info'
 const activeTab = ref<Tab>('all')
+
+// Switching "View as" persona can make the active tab invisible (e.g. an
+// admin on "Awaiting approval" switches to a non-admin persona) — fall back
+// to "All goals" rather than leaving stale, no-longer-permitted content on screen.
+watch(currentUserId, () => {
+  if (activeTab.value === 'awaiting' && !isSuperAdmin(currentUserId.value)) activeTab.value = 'all'
+  if (activeTab.value === 'requests' && !hasManager(currentUserId.value)) activeTab.value = 'all'
+})
 
 // "All goals" tab dropdown — switches which scope of goals the table shows.
 // Only "company" has a distinct Figma table design so far — it navigates to
@@ -156,6 +168,12 @@ const { goals, myGoals, myDirectReportsGoals } = useGoalsStore(route.params.id a
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
+// Someone whose committed goals already total 100% has no weight left to
+// give a new one — keep them out of the "New goals" picker entirely rather
+// than letting them through only to hit the "must equal 100%" block at Save.
+// Only matters when this cycle actually enforces the weight rule.
+const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
+
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
@@ -166,20 +184,6 @@ function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
-
-// Bulk select — Select is always the first column; only real 'main' rows
-// are selectable (aligned rows are a nested reference to a goal already
-// listed under its own owner elsewhere).
-const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
-function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
-  router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
-}
-const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
-// Select + Goal owner + Actions are always rendered; the rest follow visibleColumns.
-// Used as the colspan for the single merged cell that replaces this header
-// row's columns while 1+ rows are selected.
-const headerColCount = computed(() => 3
-  + [visibleColumns.category, visibleColumns.subCategory, visibleColumns.goal, visibleColumns.goalType, visibleColumns.progress, visibleColumns.status].filter(Boolean).length)
 
 const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
 
@@ -283,7 +287,6 @@ const visibleRows = computed(() => {
     }
   })
 })
-const selectableIds = computed(() => visibleRows.value.filter(r => r.kind === 'main').map(r => r.id))
 const hasMore = computed(() => visibleOwnerCount.value < distinctOwnerIds.value.length)
 function loadMore() {
   if (loadingMore.value) return
@@ -331,10 +334,6 @@ const fixedLeftCol = css({ position: 'sticky', left: '0', zIndex: '1', boxShadow
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
-const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
-// Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
-// height/fill is exactly what renders — no extra cell padding stacking on top.
-const noCellPadding = css({ padding: '0' })
 
 // Fixed table layout so every column keeps a stable width regardless of which
 // optional columns are toggled on/off via Column settings. Goal is
@@ -445,9 +444,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
-      <button type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
+      <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
+        My requests
+        <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
+      </button>
+      <button v-if="isSuperAdmin(currentUserId)" type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
         Awaiting approval
-        <span v-if="goals.length" :class="awaitingBadge">2</span>
+        <span v-if="pendingItemsCount > 0" :class="awaitingBadge">{{ pendingItemsCount }}</span>
       </button>
       <button type="button" :class="activeTab === 'info' ? tabItemActive : tabItem" @click="activeTab = 'info'">
         Goal cycle info
@@ -456,6 +459,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </Teleport>
 
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
+    <GoalMyRequestsList v-if="activeTab === 'requests'" :cycle-id="route.params.id as string" />
+    <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
+    <template v-else>
     <!-- Empty state: brand-new goal cycle, no goals at all yet -->
     <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
       <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
@@ -528,47 +534,25 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpTableContainer>
         <MpTable :is-hoverable="false" :class="fixedTable">
         <!-- table-layout:fixed derives column widths from the first row's
-             cells — when the header row collapses to a single colspan cell
-             (bulk-select summary), that row can no longer supply per-column
-             widths, so the body columns would shift. An explicit colgroup
-             fixes every column's width independent of whichever header row
-             is currently rendered. -->
+             cells — an explicit colgroup fixes every column's width
+             independent of which optional columns are toggled on/off via
+             Column settings. -->
         <colgroup>
-          <col :class="colCheckbox">
-          <col v-if="visibleColumns.goal">
           <col :class="colOwner">
           <col v-if="visibleColumns.category" :class="colCategory">
           <col v-if="visibleColumns.subCategory" :class="colSubCategory">
+          <col v-if="visibleColumns.goal">
           <col v-if="visibleColumns.goalType" :class="colGoalType">
           <col v-if="visibleColumns.progress" :class="colProgress">
           <col v-if="visibleColumns.status" :class="colStatus">
           <col :class="actionHead">
         </colgroup>
         <MpTableHead>
-          <!-- Selection summary replaces the column-header row entirely
-               (not a bar above the table) while 1+ rows are selected. -->
-          <MpTableRow v-if="selectedCount > 0">
-            <MpTableCell as="th" :colspan="headerColCount" :class="noCellPadding">
-              <GoalBulkActionBar
-                :selected-count="selectedCount"
-                :is-all-selected="isAllSelected(selectableIds)"
-                @toggle-select-all="toggleSelectAll(selectableIds)"
-                @clear="clearSelection"
-                @edit-goals="goToImport('edit-goals')"
-                @update-progress="goToImport('update-progress')"
-                @close-goals="goToImport('close-goals')"
-                @delete-goals="isBulkDeleteModalOpen = true"
-              />
-            </MpTableCell>
-          </MpTableRow>
-          <MpTableRow v-else>
-            <MpTableCell as="th" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, colCheckbox]">
-              <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
-            </MpTableCell>
-            <MpTableCell v-if="visibleColumns.goal" as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-            <MpTableCell as="th" :class="[colDivider, colOwner]"><span :class="headerLabel">Goal owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
+          <MpTableRow>
+            <MpTableCell as="th" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, colOwner]"><span :class="headerLabel">Goal owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.category" as="th" :class="[colDivider, colCategory]"><span :class="headerLabel">Category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.subCategory" as="th" :class="[colDivider, colSubCategory]"><span :class="headerLabel">Sub-category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
+            <MpTableCell v-if="visibleColumns.goal" as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.goalType" as="th" :class="[colDivider, colGoalType]"><span :class="headerLabel">Goal type <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.progress" as="th" :class="[colDivider, colProgress]"><span :class="headerLabel">Progress <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.status" as="th" :class="[colDivider, colStatus]"><span :class="headerLabel">Status <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
@@ -577,17 +561,32 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </MpTableHead>
         <MpTableBody>
           <MpTableRow v-for="row in visibleRows" :key="row.id">
-            <!-- Select — only real goals (kind 'main') are selectable;
-                 aligned rows are a nested reference, not their own listing
-                 entry (see selectableIds). Sticky-left so it stays visible
-                 while scrolling, but only once the table actually scrolls. -->
-            <MpTableCell as="td" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, colCheckbox]">
-              <MpCheckbox
-                v-if="row.kind === 'main'"
-                :is-checked="isSelected(row.id)"
-                @update:is-checked="toggleSelect(row.id)"
-                :aria-label="`Select ${row.title}`"
-              />
+            <!-- Goal owner: rowspan-merged across this owner's consecutive
+                 goals (this table spans many owners at once). Aligned/child
+                 rows leave this blank — their owner already shows inline in
+                 the Goal cell ("Owner: X"), so repeating it here would be
+                 redundant. Sticky-left so it stays visible while scrolling,
+                 but only once the table actually scrolls. -->
+            <MpTableCell v-if="row.showOwner" as="td" :rowspan="row.ownerRowspan" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, ownerCell, colOwner]">
+              <MpFlex v-if="row.kind === 'main'" direction="column" gap="0" :class="cellContent">
+                <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
+                <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
+                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
+                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
+              </MpFlex>
+            </MpTableCell>
+
+            <!-- Category -->
+            <MpTableCell v-if="visibleColumns.category" as="td" :class="[tightCell, colDivider, colCategory]">
+              <MpFlex direction="column" gap="0" :class="cellContent">
+                <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
+                <MpText v-if="row.kind === 'main'" size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
+              </MpFlex>
+            </MpTableCell>
+
+            <!-- Sub-category -->
+            <MpTableCell v-if="visibleColumns.subCategory" as="td" :class="[tightCell, colDivider, colSubCategory]">
+              <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
             </MpTableCell>
 
             <!-- Goal -->
@@ -611,33 +610,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   View aligned goals ({{ row.alignedGoals.length }})
                 </button>
               </MpFlex>
-            </MpTableCell>
-
-            <!-- Goal owner: rowspan-merged across this owner's consecutive
-                 goals (this table spans many owners at once). Aligned/child
-                 rows leave this blank — their owner already shows inline in
-                 the Goal cell ("Owner: X"), so repeating it here would be
-                 redundant. -->
-            <MpTableCell v-if="row.showOwner" as="td" :rowspan="row.ownerRowspan" :class="[ownerCell, colDivider, colOwner]">
-              <MpFlex v-if="row.kind === 'main'" direction="column" gap="0" :class="cellContent">
-                <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
-                <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
-                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
-                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
-              </MpFlex>
-            </MpTableCell>
-
-            <!-- Category -->
-            <MpTableCell v-if="visibleColumns.category" as="td" :class="[tightCell, colDivider, colCategory]">
-              <MpFlex direction="column" gap="0" :class="cellContent">
-                <MpText size="label" :class="[valueText, cellContent]">{{ row.category }}</MpText>
-                <MpText v-if="row.kind === 'main'" size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
-              </MpFlex>
-            </MpTableCell>
-
-            <!-- Sub-category -->
-            <MpTableCell v-if="visibleColumns.subCategory" as="td" :class="[tightCell, colDivider, colSubCategory]">
-              <MpText size="label" :class="[valueText, cellContent]">{{ row.subCategory }}</MpText>
             </MpTableCell>
 
             <!-- Goal type -->
@@ -697,9 +669,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <!-- Skeleton rows: progressive load-more (appended after existing rows) -->
           <template v-if="loadingMore">
             <MpTableRow v-for="i in Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount)" :key="`skel-${i}`">
-              <MpTableCell as="td" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, colCheckbox]" />
-              <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider]"><MpSkeleton :class="css({ width: '220px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell as="td" :class="[ownerCell, colDivider, colOwner]">
+              <MpTableCell as="td" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, ownerCell, colOwner]">
                 <MpFlex direction="column" gap="1">
                   <MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" />
                   <MpSkeleton :class="css({ width: '80px', height: '12px', borderRadius: '4px' })" />
@@ -707,6 +677,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               </MpTableCell>
               <MpTableCell v-if="visibleColumns.category" as="td" :class="[tightCell, colDivider, colCategory]"><MpSkeleton :class="css({ width: '100px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
               <MpTableCell v-if="visibleColumns.subCategory" as="td" :class="[tightCell, colDivider, colSubCategory]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
+              <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider]"><MpSkeleton :class="css({ width: '220px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
               <MpTableCell v-if="visibleColumns.goalType" as="td" :class="[tightCell, colDivider, colGoalType]"><MpSkeleton :class="css({ width: '100px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
               <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]"><MpSkeleton :class="css({ width: '160px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
               <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]"><MpSkeleton :class="css({ width: '72px', height: '22px', borderRadius: '4px' })" /></MpTableCell>
@@ -732,13 +703,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpFlex>
     </div>
     </template>
+    </template>
   </MpFlex>
 
   <!-- Goal cycle info -->
   <GoalCycleInfoPanel v-else />
 
   <!-- Select employee(s) for the new goal(s) -->
-  <SelectEmployeesDrawer v-model:is-open="isSelectEmployeeOpen" @continue="continueToNewGoals" />
+  <SelectEmployeesDrawer
+    v-model:is-open="isSelectEmployeeOpen"
+    :exclude-ids="[...fullOwnerIds]"
+    exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
+    @continue="continueToNewGoals"
+  />
 
   <!-- Edit an existing goal -->
   <AddGoalDrawer
@@ -770,30 +747,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpButtonGroup>
           <MpButton variant="ghost" @click="isDeleteModalOpen = false">Cancel</MpButton>
           <MpButton variant="danger" @click="confirmDeleteGoal">Delete</MpButton>
-        </MpButtonGroup>
-      </MpModalFooter>
-    </MpModalContent>
-  </MpModal>
-  </ClientOnly>
-
-  <!-- Bulk delete confirmation -->
-  <ClientOnly>
-  <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
-    <MpModalOverlay />
-    <MpModalContent :class="css({ marginTop: '80px' })">
-      <MpModalHeader>
-        Delete {{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }}?
-        <MpModalCloseButton @click="isBulkDeleteModalOpen = false" />
-      </MpModalHeader>
-      <MpModalBody>
-        <MpText :class="valueText">
-          {{ selectedCount }} selected goal{{ selectedCount === 1 ? '' : 's' }} will be permanently deleted and cannot be recovered.
-        </MpText>
-      </MpModalBody>
-      <MpModalFooter>
-        <MpButtonGroup>
-          <MpButton variant="ghost" @click="isBulkDeleteModalOpen = false">Cancel</MpButton>
-          <MpButton variant="danger" @click="confirmBulkDelete([...selectedIds]); clearSelection()">Delete</MpButton>
         </MpButtonGroup>
       </MpModalFooter>
     </MpModalContent>

@@ -11,8 +11,13 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import { employeeById } from '~/utils/employees'
+import { VIEW_AS_PERSONAS } from '~/composables/useCurrentUser'
 
 function signOut() { /* hook real auth here */ }
+
+const { currentUserId, setCurrentUser } = useCurrentUser()
+const activeEmployee = computed(() => employeeById(currentUserId.value))
 
 const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
@@ -121,6 +126,32 @@ const menuRow = css({
 
 const popoverDivider = css({ height: '1px', background: 'border.default' })
 
+const viewAsCaption = css({
+  paddingInline: '4',
+  paddingBlockStart: '3',
+  paddingBlockEnd: '1',
+  fontFamily: 'body',
+  fontSize: 'sm',
+  color: 'text.secondary',
+})
+
+const viewAsRow = css({
+  display: 'flex',
+  alignItems: 'center',
+  justifyContent: 'space-between',
+  gap: '2',
+  paddingInline: '4',
+  height: '48px',
+  width: '100%',
+  background: 'transparent',
+  border: 'none',
+  textAlign: 'left',
+  cursor: 'pointer',
+  _hover: { background: 'background.neutral.hovered' },
+})
+
+const viewAsRowLabel = css({ display: 'flex', flexDirection: 'column', alignItems: 'flex-start', gap: '0' })
+
 const popoverFooter = css({
   display: 'flex',
   flexDirection: 'column',
@@ -183,10 +214,10 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
         <MpPopoverTrigger>
           <button type="button" :class="profileTrigger" aria-label="Open user menu">
             <ClientOnly>
-              <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
+              <MpAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
             </ClientOnly>
             <MpFlex direction="column" align="flex-start">
-              <span :class="profileName">Rizal Candra</span>
+              <span :class="profileName">{{ activeEmployee?.name }}</span>
               <span :class="profileCompany">PT Central Perk Indonesia</span>
             </MpFlex>
           </button>
@@ -196,13 +227,30 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
           <div :class="popoverInner">
             <div :class="popoverHeader">
               <ClientOnly>
-                <MpAvatar name="Rizal Candra" src="/avatars/rizal.jpg" size="lg" variant="circle" variantColor="sky" />
+                <MpAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
               </ClientOnly>
               <MpFlex direction="column" align="center" gap="0.5">
-                <MpText size="label" weight="semiBold" color="text.default">Rizal Candra</MpText>
+                <MpText size="label" weight="semiBold" color="text.default">{{ activeEmployee?.name }}</MpText>
                 <MpText size="label-small" color="text.secondary">PT Central Perk Indonesia</MpText>
               </MpFlex>
             </div>
+
+            <div :class="popoverDivider" />
+
+            <MpText size="label-small" :class="viewAsCaption">View as</MpText>
+            <button
+              v-for="persona in VIEW_AS_PERSONAS"
+              :key="persona.id"
+              type="button"
+              :class="viewAsRow"
+              @click="setCurrentUser(persona.id)"
+            >
+              <span :class="viewAsRowLabel">
+                <MpText size="label" :class="profileName">{{ persona.label }}</MpText>
+                <MpText size="label-small" color="text.secondary">{{ persona.role }}</MpText>
+              </span>
+              <MpIcon v-if="persona.id === currentUserId" name="check" size="sm" />
+            </button>
 
             <div :class="popoverDivider" />
 

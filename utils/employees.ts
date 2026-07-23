@@ -26,6 +26,7 @@ export const EMPLOYEES: Employee[] = [
   { id: 'christin', name: 'Christin Purnama Sari', code: 'CP022', title: 'Accountant', department: 'Accounting', photo: '/avatars/christin.jpg' },
   { id: 'cinta', name: 'Cinta Ayu', code: 'CP070', title: 'Restaurant Manager', department: 'Front of House', photo: '/avatars/cinta.jpg' },
   { id: 'daud', name: 'Daud Dimas Prasetyo', code: 'CP031', title: 'Sales Representative', department: 'Sales', photo: '/avatars/daud.jpg' },
+  { id: 'dewi', name: 'Dewi Kusuma', code: 'CP090', title: 'Head of Operations', department: 'Operations' },
   { id: 'eka', name: 'Eka Setiawan', code: 'CP065', title: 'Barista', department: 'Front of House', photo: '/avatars/eka.jpg' },
   { id: 'evelyn', name: 'Evelyn Bellinda', code: 'CP020', title: 'Head of Accounting', department: 'Accounting', photo: '/avatars/evelyn.jpg' },
   { id: 'fajar', name: 'Fajar Nugraha', code: 'CP071', title: 'Waitstaff', department: 'Front of House', photo: '/avatars/fajar.jpg' },

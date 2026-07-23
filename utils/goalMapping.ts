@@ -77,6 +77,7 @@ export function goalFromDraft(draft: DraftGoal, owner: Employee, isDraft: boolea
     useBaseline: draft.useBaseline,
     direction: draft.direction,
     keyResults: draft.keyResults.map(kr => ({ ...kr })),
+    restrictedVisibility: draft.restrictedVisibility,
   }
 }
 
@@ -109,5 +110,7 @@ export function draftFromGoal(goal: Goal, owner: Employee): DraftGoal {
     contributorsByOwner: { [owner.id]: [...(goal.contributorIds ?? [])] },
     viewerIds: [...(goal.viewerIds ?? [])],
     keyResults: goal.keyResults ? goal.keyResults.map(kr => ({ ...kr })) : [],
+    restrictedVisibility: goal.restrictedVisibility ?? false,
+    ownerIds: [owner.id],
   }
 }

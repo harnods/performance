@@ -1,5 +1,4 @@
 import { employeeById } from '~/utils/employees'
-import { CURRENT_USER_ID } from './useGoalsStore'
 
 export type GoalCycleStatus = 'Current goal' | 'Inactive goals' | 'Past goal'
 export type ProgressUpdateMethod = 'manual' | 'log-based'
@@ -78,12 +77,13 @@ export function useGoalCyclesStore() {
     progressUpdateMethod: ProgressUpdateMethod
     weightMandatory: boolean
   }): GoalCycle {
+    const { currentUserId } = useCurrentUser()
     const created: GoalCycle = {
       id: `cycle-${cycles.value.length}-${input.name}`,
       status: 'Inactive goals',
       ...input,
       updatedAt: new Date().toISOString(),
-      updatedBy: employeeById(CURRENT_USER_ID)?.name,
+      updatedBy: employeeById(currentUserId.value)?.name,
     }
     cycles.value = [...cycles.value, created]
     persist()
@@ -98,8 +98,9 @@ export function useGoalCyclesStore() {
     progressUpdateMethod: ProgressUpdateMethod
     weightMandatory: boolean
   }) {
+    const { currentUserId } = useCurrentUser()
     cycles.value = cycles.value.map(c => (c.id === id
-      ? { ...c, ...input, updatedAt: new Date().toISOString(), updatedBy: employeeById(CURRENT_USER_ID)?.name }
+      ? { ...c, ...input, updatedAt: new Date().toISOString(), updatedBy: employeeById(currentUserId.value)?.name }
       : c))
     persist()
   }

@@ -7,11 +7,10 @@
   Department accordion (Accounting expanded; Front of house, HR, Kitchen,
   Management, Marketing, Sales collapsed), then Goal owner rowspan-grouped
   within — no Team layer here (owner IS the group, one level shallower than
-  ../team-goals). Only Evelyn Bellinda (Accounting's head, and one of the 10
-  employees who actually own goals under the source's flat model) is
-  expanded with row data by default; the other Accounting employees are
-  collapsed with no rows revealed, shown as a single "CODE | Title |
-  Department" line — most own no goals at all under this model.
+  ../team-goals). Unlike the department level, an owner's own rows are never
+  collapsed — every employee in an expanded department shows their goals
+  directly. An owner with none (most of them, under this model) is left out
+  of the list entirely, not shown as an empty placeholder row.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -->
 <script setup lang="ts">
@@ -56,6 +55,10 @@ definePageMeta({
 const route = useRoute()
 const router = useRouter()
 
+const { pendingItemsCount, submissions } = useGoalApprovalsStore(route.params.id as string)
+const { currentUserId } = useCurrentUser()
+const myPendingRequestsCount = computed(() => submissions.value.filter(s => s.ownerId === currentUserId.value && s.status === 'pending').length)
+
 // The Actions column only pins itself (sticky + boundary shadow) once the
 // table actually needs to scroll horizontally — otherwise it's just a
 // normal last column.
@@ -73,8 +76,16 @@ function continueToNewGoals(employeeIds: string[]) {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
 }
 
-type Tab = 'all' | 'awaiting' | 'info'
+type Tab = 'all' | 'requests' | 'awaiting' | 'info'
 const activeTab = ref<Tab>('all')
+
+// Switching "View as" persona can make the active tab invisible (e.g. an
+// admin on "Awaiting approval" switches to a non-admin persona) — fall back
+// to "All goals" rather than leaving stale, no-longer-permitted content on screen.
+watch(currentUserId, () => {
+  if (activeTab.value === 'awaiting' && !isSuperAdmin(currentUserId.value)) activeTab.value = 'all'
+  if (activeTab.value === 'requests' && !hasManager(currentUserId.value)) activeTab.value = 'all'
+})
 
 const goalsViewOptions = [
   { key: 'all', label: 'All goals' },
@@ -138,6 +149,12 @@ const { individualGoals, goals } = useGoalsStore(route.params.id as string)
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
+// Someone whose committed goals already total 100% has no weight left to
+// give a new one — keep them out of the "New goals" picker entirely rather
+// than letting them through only to hit the "must equal 100%" block at Save.
+// Only matters when this cycle actually enforces the weight rule.
+const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
+
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
@@ -155,8 +172,8 @@ function deleteRow(row: { id: string }) {
 // "select all" only touches the rows currently visible in that department
 // (collapsed owners contribute none).
 const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
-function selectableIdsForDept(dept: { owners: { key: string, rows: { id: string }[] }[] }) {
-  return dept.owners.filter(o => expandedOwners[o.key]).flatMap(o => o.rows.map(r => r.id))
+function selectableIdsForDept(dept: { owners: { rows: { id: string }[] }[] }) {
+  return dept.owners.flatMap(o => o.rows.map(r => r.id))
 }
 // Select + Goal owner + Goal + Actions are always rendered; the rest follow visibleColumns.
 const totalCols = computed(() => 4 + Object.values(visibleColumns).filter(Boolean).length)
@@ -206,32 +223,24 @@ const departments = computed(() => DEPARTMENTS
       isDraft: g.isDraft,
     }))
     return { key: emp.id, name: emp.name, code: emp.code, title: emp.title, department: emp.department, rows }
-  })
+  }).filter(owner => owner.rows.length > 0)
   return { key: slugify(deptName), name: deptName, owners }
 }))
 
 const expandedDepts = reactive<Record<string, boolean>>({ accounting: true })
-const expandedOwners = reactive<Record<string, boolean>>({ evelyn: true })
 function toggleDept(key: string) {
   expandedDepts[key] = !expandedDepts[key]
 }
-function toggleOwner(key: string) {
-  expandedOwners[key] = !expandedOwners[key]
-}
 function collapseAll() {
   for (const d of departments.value) expandedDepts[d.key] = false
-  for (const d of departments.value) for (const o of d.owners) expandedOwners[o.key] = false
 }
 
 // Selecting an Organization filter should surface its results immediately —
-// expand every department the filter just matched, and every owner inside
-// it, instead of leaving the user to manually open each level.
+// expand every department the filter just matched, instead of leaving the
+// user to manually open each one (owners inside are never collapsed).
 watch(departmentFilter, (selected) => {
   for (const dept of selected) {
-    const deptKey = slugify(dept)
-    expandedDepts[deptKey] = true
-    const match = departments.value.find(d => d.key === deptKey)
-    match?.owners.forEach(o => (expandedOwners[o.key] = true))
+    expandedDepts[slugify(dept)] = true
   }
 })
 
@@ -275,20 +284,19 @@ const collapseAllBtn = css({
   color: 'text.secondary', fontSize: '12px', lineHeight: '16px',
 })
 
-// Owner header cell — expanded shows name + 3 stacked meta lines (matches the
-// frame); collapsed shows name + one combined "CODE | Title | Dept" line.
+// Owner header cell — name + 3 stacked meta lines, always shown open.
 const ownerHeaderCell = css({
   display: 'flex', alignItems: 'flex-start', gap: '2',
   paddingTop: '2', paddingBottom: '2', paddingLeft: '9', paddingRight: '4',
-  cursor: 'pointer', border: 'none', background: 'white', width: '100%', textAlign: 'left',
+  width: '100%', textAlign: 'left',
 })
-const ownerLabel = css({ display: 'flex', flexDirection: 'column', minWidth: '0', overflowWrap: 'break-word' })
 
-// Fixed table layout so toggling an owner's expand/collapse never shifts the
-// other columns (see team-goals.vue for the same fix and why it's needed).
-// minWidth on the table is required here too: without it, table-layout:fixed
-// squeezes Goal down to ~0 on a narrow viewport instead of overflowing into
-// horizontal scroll, which breaks its text one character per line.
+// Fixed table layout so toggling a department's expand/collapse never shifts
+// the other columns (see team-goals.vue for the same fix and why it's
+// needed). minWidth on the table is required here too: without it,
+// table-layout:fixed squeezes Goal down to ~0 on a narrow viewport instead of
+// overflowing into horizontal scroll, which breaks its text one character
+// per line.
 const fixedTable = css({ tableLayout: 'fixed', width: '100%', minWidth: '1264px' })
 const colOwner = css({ width: '184px' })
 const colCategory = css({ width: '160px' })
@@ -389,9 +397,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
-      <button type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
+      <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
+        My requests
+        <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
+      </button>
+      <button v-if="isSuperAdmin(currentUserId)" type="button" :class="activeTab === 'awaiting' ? tabItemActive : tabItem" @click="activeTab = 'awaiting'">
         Awaiting approval
-        <span v-if="goals.length" :class="awaitingBadge">2</span>
+        <span v-if="pendingItemsCount > 0" :class="awaitingBadge">{{ pendingItemsCount }}</span>
       </button>
       <button type="button" :class="activeTab === 'info' ? tabItemActive : tabItem" @click="activeTab = 'info'">
         Goal cycle info
@@ -400,6 +412,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </Teleport>
 
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
+    <GoalMyRequestsList v-if="activeTab === 'requests'" :cycle-id="route.params.id as string" />
+    <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
+    <template v-else>
     <!-- Empty state: brand-new goal cycle, no Individual-level goals yet -->
     <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
       <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
@@ -565,26 +580,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 </MpTableRow>
               </MpTableHead>
               <MpTableBody>
+                <!-- Owners with zero goals are filtered out of dept.owners
+                     entirely (see `departments` computed) — every owner
+                     rendered here always has rows. Owner cell rowspans
+                     across all of them, exactly like Category does — NOT a
+                     separate row, and never collapsed (see file header). -->
                 <template v-for="owner in dept.owners" :key="owner.key">
-                  <!-- Collapsed, or expanded with no rows yet: one full-width row -->
-                  <MpTableRow v-if="!expandedOwners[owner.key] || owner.rows.length === 0">
-                    <MpTableCell as="td" :colspan="totalCols" :class="tightCell">
-                      <button type="button" :class="ownerHeaderCell" @click="toggleOwner(owner.key)">
-                        <MpIcon :name="expandedOwners[owner.key] ? 'caret-down' : 'caret-right'" size="sm" />
-                        <div :class="ownerLabel">
-                          <MpText size="label" :class="valueText">{{ owner.name }}</MpText>
-                          <MpText size="label-small" :class="captionText">{{ owner.code }} | {{ owner.title }} | {{ owner.department }}</MpText>
-                        </div>
-                      </button>
-                      <MpText v-if="expandedOwners[owner.key]" size="label-small" :class="[captionText, css({ paddingLeft: '9', paddingTop: '2' })]">
-                        No goals for this person yet.
-                      </MpText>
-                    </MpTableCell>
-                  </MpTableRow>
-
-                  <!-- Expanded owner with rows: owner cell rowspans across all of
-                       them, exactly like Category does — NOT a separate row. -->
-                  <template v-else>
                     <MpTableRow v-for="(row, ri) in owner.rows" :key="row.id">
                       <!-- Select — every row here is a real goal. -->
                       <MpTableCell as="td" :class="[colDivider, colCheckbox]">
@@ -612,15 +613,14 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       </MpTableCell>
 
                       <MpTableCell v-if="ri === 0" as="td" :rowspan="owner.rows.length" :class="[tightCell, colDivider, colOwner]">
-                        <button type="button" :class="ownerHeaderCell" @click="toggleOwner(owner.key)">
-                          <MpIcon name="caret-down" size="sm" />
+                        <div :class="ownerHeaderCell">
                           <MpFlex direction="column" gap="0" :class="cellContent">
                             <MpText size="label" :class="[valueText, cellContent]">{{ owner.name }}</MpText>
                             <MpText size="label-small" :class="captionText">{{ owner.code }}</MpText>
                             <MpText size="label-small" :class="[captionText, cellContent]">{{ owner.title }}</MpText>
                             <MpText size="label-small" :class="[captionText, cellContent]">{{ owner.department }}</MpText>
                           </MpFlex>
-                        </button>
+                        </div>
                       </MpTableCell>
 
                       <!-- Category -->
@@ -684,7 +684,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                         </MpPopover>
                       </MpTableCell>
                     </MpTableRow>
-                  </template>
                 </template>
               </MpTableBody>
             </MpTable>
@@ -693,13 +692,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </div>
     </div>
     </template>
+    </template>
   </MpFlex>
 
   <!-- Goal cycle info -->
   <GoalCycleInfoPanel v-else />
 
   <!-- Select employee(s) for the new goal(s) -->
-  <SelectEmployeesDrawer v-model:is-open="isSelectEmployeeOpen" @continue="continueToNewGoals" />
+  <SelectEmployeesDrawer
+    v-model:is-open="isSelectEmployeeOpen"
+    :exclude-ids="[...fullOwnerIds]"
+    exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
+    @continue="continueToNewGoals"
+  />
 
   <!-- Edit an existing goal -->
   <AddGoalDrawer

@@ -26,13 +26,18 @@ const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefin
 // instead of the default single white stage panel. Opt in via definePageMeta({ boxed: true }).
 const boxed = computed(() => !!route.meta.boxed)
 
-// Intermediate breadcrumb for nested pages (e.g. timeframe detail inside a cycle).
-// Carry name + purpose so the cycle detail page resolves the right cycle (it reads
-// ?name= and ?purpose=, not the route param).
+// Intermediate breadcrumb for nested pages (e.g. timeframe detail inside a
+// review cycle, or a goal submission's review page inside a goal cycle).
+// Carry ?cycleName= so this deep page can supply the intermediate label
+// without colliding with whatever query param the cycle detail page itself
+// reads (review cycles read ?name=+?purpose=; goal cycles read ?name=).
 const cycleBreadcrumb = computed(() => {
   const name = route.query.cycleName as string | undefined
   const id = route.params.id as string | undefined
   if (!name || !id || !breadcrumb.value) return null
+  if (route.path.startsWith('/goals/goal-cycles/')) {
+    return { label: name, to: { path: `/goals/goal-cycles/${id}`, query: { name } } }
+  }
   return {
     label: name,
     to: {

@@ -11,6 +11,7 @@ import type { Goal } from './useGoalsStore'
 
 export function useGoalEditor() {
   const { goals: allGoals, updateGoal } = useGoalsStore()
+  const { createSubmission } = useGoalApprovalsStore()
 
   const isEditDrawerOpen = ref(false)
   const editingGoal = ref<Goal | null>(null)
@@ -46,6 +47,40 @@ export function useGoalEditor() {
     const owner = employeeById(editingGoal.value.ownerId)
     if (!owner) return
     const updated = goalFromDraft(draft, owner, editingGoal.value.isDraft ?? false)
+
+    const { cycles } = useGoalCyclesStore()
+    const cycle = cycles.value.find(c => c.id === editingGoal.value!.cycleId)
+    if (cycle?.weightMandatory) {
+      const combined = alreadyUsedWeightForEdit.value + updated.weight
+      if (combined !== 100) {
+        toast.notify({
+          id: 'goal-edit-weight-error',
+          position: 'top-center',
+          variant: 'error',
+          title: `${owner.name}'s total goal weight would be ${combined}% — it must equal exactly 100%.`,
+        })
+        return
+      }
+    }
+
+    // A direct report's edit goes to the approval queue instead of taking
+    // effect immediately — the live goal is untouched until a manager
+    // approves it (composables/useGoalApprovalsStore.ts).
+    if (needsApproval(editingGoal.value.ownerId)) {
+      createSubmission(
+        [{ type: 'edit', goalId: editingGoal.value.id, ownerId: owner.id, cycleId: editingGoal.value.cycleId, before: editingGoal.value, after: updated }],
+        owner.id,
+        editingGoal.value.cycleId,
+      )
+      isEditDrawerOpen.value = false
+      toast.notify({
+        id: 'goal-edit-submitted',
+        position: 'top-center',
+        variant: 'success',
+        title: 'Edit submitted for approval',
+      })
+      return
+    }
     updateGoal(editingGoal.value.id, updated)
     isEditDrawerOpen.value = false
     toast.notify({

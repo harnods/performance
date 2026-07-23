@@ -35,6 +35,12 @@ export interface DraftGoal {
   contributorsByOwner: Record<string, string[]>
   viewerIds: string[]
   keyResults: DraftKeyResult[]
+  restrictedVisibility: boolean // organization goal type only
+  // Which of the page's selected owners this drafted entry still applies to.
+  // Starts as every owner selected for the page; editing one owner's row
+  // detaches them into their own DraftGoal, shrinking this list on the
+  // original. Removing the last owner drops the entry entirely.
+  ownerIds: string[]
 }
 
 let seq = 0

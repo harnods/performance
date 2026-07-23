@@ -30,6 +30,7 @@ import {
   MpFormErrorMessage,
   MpCheckbox,
   MpRadio,
+  MpToggle,
   MpDrawer,
   MpDrawerContent,
   MpDrawerHeader,
@@ -53,6 +54,14 @@ const props = defineProps<{
   drawerId?: string
   owners: Employee[]
   alreadyUsedWeight: number
+  // Optional per-owner breakdown — each owner's own existing weight total in
+  // this cycle (excluding whatever's being drafted right now). Only meaningful
+  // when owners.length > 1: with multiple owners who each already carry a
+  // different total, a single blanket "remaining weight" number is
+  // inaccurate for everyone except whichever owner it happened to be based
+  // on. When provided with more than one entry, the weight helper text below
+  // shows each owner's own remaining weight instead of one shared figure.
+  alreadyUsedWeightByOwner?: { id: string, name: string, weight: number }[]
   cycleStartDate: string
   cycleEndDate: string
   editingDraft?: DraftGoal | null
@@ -88,7 +97,13 @@ const deadlineDate = ref<Date | null>(null)
 const deadlineRulesEnabled = ref(false)
 const deadlineRules = ref<DeadlineRule[]>([])
 const contributorsByOwner = reactive<Record<string, string[]>>({})
+// How each owner's contributor list is chosen — 'all' keeps it in sync with
+// viewerIds, 'selected' lets the owner's card pick a subset via the inline
+// checklist. Not persisted itself; inferred from contributorsByOwner vs
+// viewerIds when editing (see resetForm below).
+const contributorMode = reactive<Record<string, 'all' | 'selected' | undefined>>({})
 const viewerIds = ref<string[]>([])
+const restrictedVisibility = ref(false)
 const keyResults = ref<DraftKeyResult[]>([])
 
 const showKeyResultForm = ref(false)
@@ -106,6 +121,14 @@ watch(weight, () => { errors.weight = false })
 watch(deadlineDate, () => { errors.deadlineDate = false })
 watch([startValue, useBaseline], () => { errors.startValue = false })
 watch([startValue, targetValue, direction, useBaseline], () => { errors.targetValue = false })
+
+// Order-independent set equality — used to infer whether an existing
+// goal's contributors were originally "all members" or a hand-picked subset.
+function sameIdSet(a: string[], b: string[]): boolean {
+  if (a.length !== b.length) return false
+  const setB = new Set(b)
+  return a.every(id => setB.has(id))
+}
 
 function resetForm() {
   errors.name = false
@@ -138,8 +161,14 @@ function resetForm() {
     deadlineRulesEnabled.value = (d.deadlineRules?.length ?? 0) > 0
     deadlineRules.value = d.deadlineRules ? [...d.deadlineRules] : []
     for (const key of Object.keys(contributorsByOwner)) delete contributorsByOwner[key]
-    for (const owner of props.owners) contributorsByOwner[owner.id] = [...(d.contributorsByOwner[owner.id] ?? [])]
+    for (const key of Object.keys(contributorMode)) delete contributorMode[key]
+    for (const owner of props.owners) {
+      const ids = [...(d.contributorsByOwner[owner.id] ?? [])]
+      contributorsByOwner[owner.id] = ids
+      contributorMode[owner.id] = ids.length === 0 ? undefined : (sameIdSet(ids, d.viewerIds) ? 'all' : 'selected')
+    }
     viewerIds.value = [...d.viewerIds]
+    restrictedVisibility.value = d.restrictedVisibility ?? false
     keyResults.value = d.keyResults.map(kr => ({ ...kr }))
     // subCategory depends on category — the watcher below resets it to ''
     // the moment `category.value` changes, so it must be set *after* that
@@ -168,12 +197,13 @@ function resetForm() {
     deadlineRulesEnabled.value = false
     deadlineRules.value = []
     for (const key of Object.keys(contributorsByOwner)) delete contributorsByOwner[key]
-    for (const owner of props.owners) contributorsByOwner[owner.id] = []
+    for (const key of Object.keys(contributorMode)) delete contributorMode[key]
+    for (const owner of props.owners) { contributorsByOwner[owner.id] = []; contributorMode[owner.id] = undefined }
     viewerIds.value = []
+    restrictedVisibility.value = false
     keyResults.value = []
   }
   deadlineRuleErrors.value = []
-  contributorDrawerOwnerId.value = null
   viewerDrawerOpen.value = false
   showKeyResultForm.value = false
   keyResultTitle.value = ''
@@ -192,6 +222,14 @@ watch(category, () => { subCategory.value = '' })
 const remainingWeight = computed(() => {
   const current = weight.value === '' ? 0 : Number(weight.value)
   return 100 - props.alreadyUsedWeight - current
+})
+// Only rendered when there's more than one owner with different existing
+// totals (see alreadyUsedWeightByOwner prop doc) — each owner's own
+// remaining weight, not one number borrowed from whichever owner it came from.
+const remainingWeightByOwner = computed(() => {
+  if (!props.alreadyUsedWeightByOwner || props.alreadyUsedWeightByOwner.length <= 1) return null
+  const current = weight.value === '' ? 0 : Number(weight.value)
+  return props.alreadyUsedWeightByOwner.map(o => ({ id: o.id, name: o.name, remaining: 100 - o.weight - current }))
 })
 
 function formatThousands(v: number | ''): string {
@@ -316,15 +354,38 @@ const ownerNamesSummary = computed(() => {
   return `${names[0]}, ${names[1]} and ${names.length - 2} more`
 })
 
-const contributorDrawerOwnerId = ref<string | null>(null)
 const viewerDrawerOpen = ref(false)
 
-function removeContributor(ownerId: string, employeeId: string) {
-  contributorsByOwner[ownerId] = (contributorsByOwner[ownerId] ?? []).filter(id => id !== employeeId)
-}
 function removeViewer(employeeId: string) {
   viewerIds.value = viewerIds.value.filter(id => id !== employeeId)
 }
+
+// A contributor can never be someone who isn't also a goal member — picking
+// "All members" locks the owner's contributor list to the current member
+// list; picking "Selected members" reveals a checklist scoped to members only.
+function setContributorMode(ownerId: string, mode: 'all' | 'selected') {
+  contributorMode[ownerId] = mode
+  if (mode === 'all') contributorsByOwner[ownerId] = [...viewerIds.value]
+}
+function toggleContributor(ownerId: string, employeeId: string, checked: boolean) {
+  const current = contributorsByOwner[ownerId] ?? []
+  contributorsByOwner[ownerId] = checked ? [...current, employeeId] : current.filter(id => id !== employeeId)
+}
+// Keeps the invariant true even if members change after contributors were
+// picked: "all"-mode owners stay synced to the current member list, and any
+// owner's contributor list gets stripped of anyone no longer a member.
+watch(viewerIds, (ids) => {
+  for (const owner of props.owners) {
+    contributorsByOwner[owner.id] = contributorMode[owner.id] === 'all'
+      ? [...ids]
+      : (contributorsByOwner[owner.id] ?? []).filter(id => ids.includes(id))
+  }
+}, { deep: true })
+
+// A restricted-visibility toggle only makes sense for Organization goals —
+// clear it if the type changes away so a stale "on" can't silently carry
+// over to a different goal type.
+watch(goalType, (type) => { if (type !== 'organization') restrictedVisibility.value = false })
 
 function addKeyResult() {
   if (!keyResultTitle.value.trim()) return
@@ -425,6 +486,10 @@ function save() {
     contributorsByOwner: JSON.parse(JSON.stringify(contributorsByOwner)),
     viewerIds: [...viewerIds.value],
     keyResults: [...keyResults.value],
+    restrictedVisibility: restrictedVisibility.value,
+    // Whoever this drawer instance is scoped to via `owners` — the full page
+    // selection when adding, or just one owner when detach-editing their row.
+    ownerIds: props.owners.map(o => o.id),
   }
   emit('save', draft)
   emit('update:isOpen', false)
@@ -445,6 +510,8 @@ const noSpinner = css({
   '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { display: 'none', margin: '0' },
 })
 const helperText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+const weightHintWrap = css({ marginTop: '2' })
+const warningText = css({ color: 'text.warning' })
 const repeatPreviewBox = css({
   display: 'flex', flexDirection: 'column', gap: '1',
   padding: '3', borderRadius: '6px', background: 'background.neutral.subtle',
@@ -562,7 +629,10 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                   <MpInputRightAddon>%</MpInputRightAddon>
                 </MpInputGroup>
                 <MpFormErrorMessage>Goal weight is required and must be between 1 and 100.</MpFormErrorMessage>
-                <span v-if="!errors.weight" :class="helperText">{{ remainingWeight }}% remaining from total weight</span>
+                <MpFlex v-if="!errors.weight && remainingWeightByOwner" direction="column" gap="0" :class="weightHintWrap">
+                  <span v-for="o in remainingWeightByOwner" :key="o.id" :class="[helperText, o.remaining < 0 && warningText]">{{ o.name }}: {{ o.remaining }}% remaining</span>
+                </MpFlex>
+                <span v-else-if="!errors.weight" :class="[helperText, weightHintWrap, remainingWeight < 0 && warningText]">{{ remainingWeight }}% remaining from total weight</span>
               </MpFormControl>
             </div>
 
@@ -736,32 +806,66 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
               </MpFormControl>
             </div>
 
-            <!-- Goal contributor -->
+            <!-- Goal members (moved before Goal contributor — a contributor
+                 can only ever be picked from a goal's own members below). -->
+            <div :class="section">
+              <div :class="sectionHeader">
+                <span :class="sectionTitle">Goal members <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
+                <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
+              </div>
+              <MpFlex v-for="id in viewerIds" :key="id" :class="personRow">
+                <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="md" variant-color="gray" />
+                <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                  <span :class="personName">{{ employeeById(id)?.name }}</span>
+                  <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                </MpFlex>
+                <button type="button" :class="removeBtn" aria-label="Remove member" @click="removeViewer(id)">
+                  <MpIcon name="minus-circular" size="sm" />
+                </button>
+              </MpFlex>
+              <button type="button" :class="addLink" @click="viewerDrawerOpen = true">
+                <MpIcon name="add" size="sm" />
+                Add goal members
+              </button>
+
+              <!-- Organization goals only: restrict viewing to owner + members -->
+              <MpToggle v-if="goalType === 'organization'" id="restrict-visibility" v-model:is-checked="restrictedVisibility">
+                Limit who can view this goal
+                <template #description>When on, only the goal owner and goal members above can view this goal.</template>
+              </MpToggle>
+            </div>
+
+            <!-- Goal contributor — works the same for every goal type,
+                 including Team goal. A contributor can only ever be chosen
+                 from the goal's own members (see Goal members above). -->
             <div :class="section">
               <div :class="sectionHeader">
                 <span :class="sectionTitle">Goal contributor <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
-                <span :class="sectionDesc">People who contribute to this goal's progress.</span>
+                <span :class="sectionDesc">People who contribute to this goal's progress — chosen from the goal's members above.</span>
               </div>
 
-              <!-- Single owner: one flat contributor list -->
-              <template v-if="owners.length === 1">
-                <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
-                  <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="md" variant-color="gray" />
-                  <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                    <span :class="personName">{{ employeeById(id)?.name }}</span>
-                    <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
-                  </MpFlex>
-                  <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="removeContributor(owners[0].id, id)">
-                    <MpIcon name="minus-circular" size="sm" />
-                  </button>
+              <MpText v-if="viewerIds.length === 0" size="label" :class="helperText">Add goal members first to choose contributors from them.</MpText>
+
+              <!-- Single owner: one radio + inline checklist -->
+              <template v-else-if="owners.length === 1">
+                <MpFlex direction="column" gap="2">
+                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All members</MpRadio>
+                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected members</MpRadio>
                 </MpFlex>
-                <button type="button" :class="addLink" @click="contributorDrawerOwnerId = owners[0].id">
-                  <MpIcon name="add" size="sm" />
-                  Add goal contributor
-                </button>
+                <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
+                  <MpCheckbox
+                    v-for="id in viewerIds"
+                    :key="id"
+                    :id="`contributor-${owners[0].id}-${id}`"
+                    :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
+                    @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
+                  >
+                    {{ employeeById(id)?.name }}
+                  </MpCheckbox>
+                </div>
               </template>
 
-              <!-- Multiple owners: one card per owner, contributor picked per owner -->
+              <!-- Multiple owners: one card per owner, mode picked per owner -->
               <template v-else>
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
                   <div :class="personRow">
@@ -772,45 +876,23 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                     </MpFlex>
                   </div>
 
-                  <MpFlex v-for="id in (contributorsByOwner[owner.id] ?? [])" :key="id" :class="personRow">
-                    <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="sm" variant-color="gray" />
-                    <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                      <span :class="personName">{{ employeeById(id)?.name }}</span>
-                      <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
-                    </MpFlex>
-                    <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="removeContributor(owner.id, id)">
-                      <MpIcon name="minus-circular" size="sm" />
-                    </button>
+                  <MpFlex direction="column" gap="2">
+                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'all'" @update:is-checked="setContributorMode(owner.id, 'all')">All members</MpRadio>
+                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected members</MpRadio>
                   </MpFlex>
-
-                  <button type="button" :class="addLink" @click="contributorDrawerOwnerId = owner.id">
-                    <MpIcon name="add" size="sm" />
-                    Add goal contributor
-                  </button>
+                  <div v-if="contributorMode[owner.id] === 'selected'" :class="radioIndent">
+                    <MpCheckbox
+                      v-for="id in viewerIds"
+                      :key="id"
+                      :id="`contributor-${owner.id}-${id}`"
+                      :is-checked="(contributorsByOwner[owner.id] ?? []).includes(id)"
+                      @update:is-checked="(checked) => toggleContributor(owner.id, id, checked)"
+                    >
+                      {{ employeeById(id)?.name }}
+                    </MpCheckbox>
+                  </div>
                 </div>
               </template>
-            </div>
-
-            <!-- Goal viewers -->
-            <div :class="section">
-              <div :class="sectionHeader">
-                <span :class="sectionTitle">Goal viewers <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
-                <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
-              </div>
-              <MpFlex v-for="id in viewerIds" :key="id" :class="personRow">
-                <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="md" variant-color="gray" />
-                <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                  <span :class="personName">{{ employeeById(id)?.name }}</span>
-                  <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
-                </MpFlex>
-                <button type="button" :class="removeBtn" aria-label="Remove viewer" @click="removeViewer(id)">
-                  <MpIcon name="minus-circular" size="sm" />
-                </button>
-              </MpFlex>
-              <button type="button" :class="addLink" @click="viewerDrawerOpen = true">
-                <MpIcon name="add" size="sm" />
-                Add goal viewers
-              </button>
             </div>
 
             <!-- Key results -->
@@ -861,20 +943,9 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
   </ClientOnly>
 
   <SelectEmployeesDrawer
-    drawer-id="drawer-select-contributors"
-    :is-open="!!contributorDrawerOwnerId"
-    title="Select goal contributor"
-    description="People who contribute to this goal's progress."
-    :initial-selected="contributorDrawerOwnerId ? (contributorsByOwner[contributorDrawerOwnerId] ?? []) : []"
-    :exclude-ids="contributorDrawerOwnerId ? [contributorDrawerOwnerId] : []"
-    :is-required="false"
-    @update:is-open="(v) => { if (!v) contributorDrawerOwnerId = null }"
-    @continue="(ids) => { if (contributorDrawerOwnerId) contributorsByOwner[contributorDrawerOwnerId] = ids }"
-  />
-  <SelectEmployeesDrawer
     drawer-id="drawer-select-viewers"
     :is-open="viewerDrawerOpen"
-    title="Select goal viewers"
+    title="Select goal members"
     description="People who can view this goal and align their goals to it."
     :initial-selected="viewerIds"
     :exclude-ids="owners.map(o => o.id)"

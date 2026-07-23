@@ -30,6 +30,9 @@ import {
   MpDrawerBody,
   MpDrawerFooter,
   MpDrawerOverlay,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerDescription,
   css,
 } from '@mekari/pixel3'
 import { EMPLOYEES, employeeMeta } from '~/utils/employees'
@@ -41,6 +44,7 @@ const props = defineProps<{
   description?: string
   initialSelected?: string[]
   excludeIds?: string[]
+  excludeNote?: string
   isRequired?: boolean
 }>()
 const emit = defineEmits<{
@@ -52,6 +56,8 @@ const resolvedDrawerId = computed(() => props.drawerId ?? 'drawer-select-employe
 const drawerTitle = computed(() => props.title ?? 'Select employees')
 const drawerDescription = computed(() => props.description ?? 'Select employees to create this goal for.')
 const excluded = computed(() => new Set(props.excludeIds ?? []))
+const resolvedExcludeNote = computed(() => props.excludeNote
+  ?? `The goal owner${(props.excludeIds?.length ?? 0) > 1 ? 's' : ''} won't appear in the list below. They can't be their own contributor or viewer.`)
 
 const selectedIds = ref<string[]>([])
 const availableSearch = ref('')
@@ -110,7 +116,8 @@ function continueNext() {
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const descText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default', paddingBottom: '6' })
-const excludedNote = css({ color: 'text.secondary', paddingBottom: '4' })
+const excludedNoteWrap = css({ paddingBottom: '4', alignItems: 'flex-start', '& svg': { marginRight: '20px' } })
+const excludedNoteText = css({ fontSize: '14px', fontWeight: '400', color: 'text.default' })
 const columns = css({ display: 'flex', gap: '6', flex: '1', minHeight: '0' })
 const column = css({ display: 'flex', flexDirection: 'column', gap: '6', flex: '1', minWidth: '0' })
 const divider = css({ width: '1px', background: 'border.default', flexShrink: '0' })
@@ -164,9 +171,10 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
         </MpDrawerHeader>
         <MpDrawerBody :class="css({ display: 'flex', flexDirection: 'column', minHeight: '0' })">
           <MpText :class="descText">{{ drawerDescription }}</MpText>
-          <MpText v-if="excludeIds?.length" size="label-small" :class="excludedNote">
-            The goal owner{{ excludeIds.length > 1 ? 's' : '' }} won't appear in the list below — they can't be their own contributor or viewer.
-          </MpText>
+          <MpBanner v-if="excludeIds?.length" variant="info" is-inline :class="excludedNoteWrap">
+            <MpBannerIcon />
+            <MpBannerDescription :class="excludedNoteText">{{ resolvedExcludeNote }}</MpBannerDescription>
+          </MpBanner>
 
           <div :class="columns">
             <!-- Available -->
