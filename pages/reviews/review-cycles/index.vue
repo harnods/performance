@@ -108,6 +108,7 @@ const cycles = ref<Cycle[]>([
   { name: 'Contract Evaluation – Batch Mar 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 1, done: 1 },
   { name: 'Contract Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: 'Sep 2026', repeatCaption: 'Based on contract duration', total: 1, done: 0 },
   { name: 'Part-timer Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 0, done: 0 },
+  { name: 'Probation Evaluation – Batch Apr 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 13, done: 0 },
 ])
 
 // Filtering + search

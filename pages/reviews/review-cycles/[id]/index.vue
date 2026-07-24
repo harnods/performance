@@ -33,6 +33,7 @@ import {
   MpPopoverList,
   MpPopoverListItem,
   MpSkeleton,
+  toast,
   css,
 } from '@mekari/pixel3'
 
@@ -84,6 +85,12 @@ const CYCLE_SCENARIOS: Record<string, CycleScenario> = {
   // Part-timer · single period · EMPTY (no employees with this status yet → no timeframe)
   'Part-timer Evaluation – Batch Jun 2026': {
     employmentStatus: 'Part-timer', reviewPeriodValue: 'Single review period', reviewPeriodSubs: SINGLE_SUBS, datasetKey: 'none',
+  },
+  // Probation · multiple period · IN PROGRESS, 13 separate review timeframes (one per
+  // monthly cohort) — demonstrates the "In progress" accordion's timeframe-group
+  // pagination (TIMEFRAME_GROUP_PAGE_SIZE = 10) actually kicking in.
+  'Probation Evaluation – Batch Apr 2026': {
+    employmentStatus: 'Probation', reviewPeriodValue: 'Multiple review period', reviewPeriodSubs: MULTI_SUBS, datasetKey: 'probation-apr',
   },
 }
 const currentScenario = computed<CycleScenario>(() =>
@@ -603,6 +610,26 @@ const CONTRACT_JUN_GROUPS: TimeframeGroup[] = [
   },
 ]
 
+// Probation · 13 monthly cohorts, ALL "In progress" — a realistic case of the
+// "In progress" accordion grouping far more than 10 review timeframes at
+// once, so its group-level pagination (10 tables per load) has something
+// real to page through instead of only being reachable via a dev hack.
+const PROBATION_APR_GROUPS: TimeframeGroup[] = [
+  { timeframe: '6 Jan - 5 Jul 2026', groupStatus: 'In progress', employees: [{ name: 'Wahyu Saputra',    id: 'CP201', jobTitle: 'Barista | Bar',                 periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Mar 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 May 2026', progressLabel: 'Pending', progressDone: 1, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Feb - 5 Aug 2026', groupStatus: 'In progress', employees: [{ name: 'Nurul Hidayah',    id: 'CP202', jobTitle: 'Kasir | Front of House',        periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Apr 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Jun 2026', progressLabel: 'Pending', progressDone: 2, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Mar - 5 Sep 2026', groupStatus: 'In progress', employees: [{ name: 'Bagus Kurniawan',  id: 'CP203', jobTitle: 'Cook | Kitchen',                periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 May 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Jul 2026', progressLabel: 'Pending', progressDone: 0, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Apr - 5 Oct 2026', groupStatus: 'In progress', employees: [{ name: 'Lestari Wulandari', id: 'CP204', jobTitle: 'Service Crew | Front of House', periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Jun 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Aug 2026', progressLabel: 'Pending', progressDone: 1, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 May - 5 Nov 2026', groupStatus: 'In progress', employees: [{ name: 'Dedi Setiadi',      id: 'CP205', jobTitle: 'Kitchen Staff | Kitchen',       periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Jul 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Sep 2026', progressLabel: 'Pending', progressDone: 2, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Jun - 5 Dec 2026', groupStatus: 'In progress', employees: [{ name: 'Ratna Puspita',     id: 'CP206', jobTitle: 'Barista | Bar',                 periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Aug 2026', progressLabel: 'Submitted', progressDone: 2, progressTotal: 3, status: 'Expired' }, { label: 'Period 2', reviewPeriod: '4 - 6 Oct 2026', progressLabel: 'Pending', progressDone: 0, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Jul - 5 Jan 2027', groupStatus: 'In progress', employees: [{ name: 'Andri Gunawan',     id: 'CP207', jobTitle: 'Kasir | Front of House',        periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Sep 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Nov 2026', progressLabel: 'Pending', progressDone: 1, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Aug - 5 Feb 2027', groupStatus: 'In progress', employees: [{ name: 'Sinta Marlina',     id: 'CP208', jobTitle: 'Cook | Kitchen',                periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Oct 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Dec 2026', progressLabel: 'Pending', progressDone: 2, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Sep - 5 Mar 2027', groupStatus: 'In progress', employees: [{ name: 'Tri Wibowo',        id: 'CP209', jobTitle: 'Service Crew | Front of House', periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Nov 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Jan 2027', progressLabel: 'Pending', progressDone: 0, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Oct - 5 Apr 2027', groupStatus: 'In progress', employees: [{ name: 'Diah Anggraini',    id: 'CP210', jobTitle: 'Barista | Bar',                 periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Dec 2026', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Feb 2027', progressLabel: 'Pending', progressDone: 1, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Nov - 5 May 2027', groupStatus: 'In progress', employees: [{ name: 'Rudi Hermawan',     id: 'CP211', jobTitle: 'Kitchen Staff | Kitchen',       periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Jan 2027', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 Mar 2027', progressLabel: 'Pending', progressDone: 2, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Dec - 5 Jun 2027', groupStatus: 'In progress', employees: [{ name: 'Wulan Safitri',     id: 'CP212', jobTitle: 'Kasir | Front of House',        periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Feb 2027', progressLabel: 'Submitted', progressDone: 2, progressTotal: 3, status: 'Expired' }, { label: 'Period 2', reviewPeriod: '4 - 6 Apr 2027', progressLabel: 'Pending', progressDone: 0, progressTotal: 3, status: 'In progress' }] }] },
+  { timeframe: '6 Jan - 5 Jul 2027', groupStatus: 'In progress', employees: [{ name: 'Agus Priyanto',     id: 'CP213', jobTitle: 'Cook | Kitchen',                periods: [{ label: 'Period 1', reviewPeriod: '4 - 6 Mar 2027', progressLabel: 'Submitted', progressDone: 3, progressTotal: 3, status: 'Completed' }, { label: 'Period 2', reviewPeriod: '4 - 6 May 2027', progressLabel: 'Pending', progressDone: 1, progressTotal: 3, status: 'In progress' }] }] },
+]
+
 // Dataset selected by the cycle scenario. 'none' → empty state.
 // reactive() so "Extend review period" edits to window dates/status reflect live in the table.
 const DATASETS: Record<string, TimeframeGroup[]> = reactive({
@@ -610,6 +637,7 @@ const DATASETS: Record<string, TimeframeGroup[]> = reactive({
   'probation-sep': PROBATION_SEP_GROUPS,
   'contract-mar': CONTRACT_MAR_GROUPS,
   'contract-jun': CONTRACT_JUN_GROUPS,
+  'probation-apr': PROBATION_APR_GROUPS,
 })
 const timeframeGroups = computed<TimeframeGroup[]>(() =>
   DATASETS[currentScenario.value.datasetKey] ?? []
@@ -619,6 +647,19 @@ const timeframeGroups = computed<TimeframeGroup[]>(() =>
 // In progress, then Upcoming, then Completed — so there's always one section open
 // (e.g. a Completed-only cycle still shows its table). Users can toggle freely after.
 const groupOpen = ref<Record<string, boolean>>({})
+
+// Each timeframe group's own table (In progress / Upcoming) is independently
+// collapsible too — only the first group in a section starts open, every
+// other group starts collapsed, until the user explicitly toggles one.
+const timeframeTableOpen = ref<Record<string, boolean>>({})
+function isTimeframeTableOpen(tg: TimeframeGroup, sg: StatusSection): boolean {
+  const explicit = timeframeTableOpen.value[tg.timeframe]
+  if (explicit !== undefined) return explicit
+  return sg.groups[0]?.timeframe === tg.timeframe
+}
+function toggleTimeframeTable(tg: TimeframeGroup, sg: StatusSection) {
+  timeframeTableOpen.value[tg.timeframe] = !isTimeframeTableOpen(tg, sg)
+}
 
 const EXT_PAGE_SIZE = 10
 const groupVisibleCount = ref<Record<string, number>>({})
@@ -655,6 +696,44 @@ function hasMoreEmployees(tg: TimeframeGroup): boolean {
   const count = groupVisibleCount.value[tg.timeframe] ?? EXT_PAGE_SIZE
   return count < tg.employees.length
 }
+
+// ── Timeframe-group pagination (per status section, e.g. "In progress") ──
+// A section can group many review timeframes at once — each its own bordered
+// table above — so render only TIMEFRAME_GROUP_PAGE_SIZE of them at a time.
+// Deliberately its own constant, independent from EXT_PAGE_SIZE (the
+// employee-row pagination within one group's table, untouched above) — the
+// two are unrelated page sizes and must never be coupled.
+const TIMEFRAME_GROUP_PAGE_SIZE = 10
+interface StatusSection { status: TimeframeGroup['groupStatus'], groups: TimeframeGroup[] }
+const sectionVisibleGroups = ref<Record<string, number>>({})
+const sectionGroupsLoadingMore = ref<Record<string, boolean>>({})
+
+function visibleGroupsFor(sg: StatusSection): TimeframeGroup[] {
+  const count = sectionVisibleGroups.value[sg.status] ?? TIMEFRAME_GROUP_PAGE_SIZE
+  return sg.groups.slice(0, count)
+}
+function hasMoreGroups(sg: StatusSection): boolean {
+  const count = sectionVisibleGroups.value[sg.status] ?? TIMEFRAME_GROUP_PAGE_SIZE
+  return count < sg.groups.length
+}
+function loadMoreGroups(sg: StatusSection) {
+  if (sectionGroupsLoadingMore.value[sg.status]) return
+  sectionGroupsLoadingMore.value[sg.status] = true
+  setTimeout(() => {
+    const current = sectionVisibleGroups.value[sg.status] ?? TIMEFRAME_GROUP_PAGE_SIZE
+    const next = current + TIMEFRAME_GROUP_PAGE_SIZE
+    // Newly revealed groups get their own initial-load skeleton, same as
+    // whatever was already visible got on page mount.
+    const revealed = sg.groups.slice(current, next)
+    revealed.forEach((g) => { groupLoading.value[g.timeframe] = true })
+    sectionVisibleGroups.value[sg.status] = next
+    sectionGroupsLoadingMore.value[sg.status] = false
+    setTimeout(() => {
+      revealed.forEach((g) => { groupLoading.value[g.timeframe] = false })
+    }, 1000)
+  }, 800)
+}
+watch(() => cycleName.value, () => { sectionVisibleGroups.value = {} })
 
 // ── Completed section: single flattened list across all completed timeframes ──
 interface CompletedRow { tg: TimeframeGroup, emp: ExtEmployee }
@@ -886,6 +965,36 @@ function onPickerOpen(d: ExtendDraft) {
     else if (tries++ < 30) requestAnimationFrame(waitForPanel)
   }
   requestAnimationFrame(waitForPanel)
+}
+
+// ── Remove employee from a review timeframe ──────────────────────────────
+// "Remove employee" on any one period row removes that employee from the
+// WHOLE review timeframe (every period row they have in it), not just the
+// row clicked — the confirmation modal spells this out so it isn't mistaken
+// for removing just that one period.
+const removeEmployeeModalOpen = ref(false)
+const employeeToRemove = ref<{ tg: TimeframeGroup, emp: ExtEmployee } | null>(null)
+
+function askRemoveEmployee(tg: TimeframeGroup, emp: ExtEmployee) {
+  employeeToRemove.value = { tg, emp }
+  removeEmployeeModalOpen.value = true
+}
+function cancelRemoveEmployee() {
+  removeEmployeeModalOpen.value = false
+  employeeToRemove.value = null
+}
+function confirmRemoveEmployee() {
+  if (!employeeToRemove.value) return
+  const { tg, emp } = employeeToRemove.value
+  tg.employees = tg.employees.filter(e => e.id !== emp.id)
+  removeEmployeeModalOpen.value = false
+  employeeToRemove.value = null
+  toast.notify({
+    id: 'remove-employee-from-timeframe',
+    position: 'top-center',
+    variant: 'success',
+    title: `${emp.name} removed from ${tg.timeframe}`,
+  })
 }
 
 </script>
@@ -1269,44 +1378,55 @@ function onPickerOpen(d: ExtendDraft) {
           <!-- Timeframe groups — indented to align with section header text -->
           <MpFlex v-if="groupOpen[sg.status] && sg.status !== 'Completed'" direction="column" gap="3" :class="css({ marginLeft: '28px' })">
             <MpFlex
-              v-for="tg in sg.groups"
+              v-for="tg in visibleGroupsFor(sg)"
               :key="tg.timeframe"
               direction="column"
               :class="css({ borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.bold', borderRadius: '8px', overflow: 'hidden' })"
             >
-              <!-- Timeframe group header -->
+              <!-- Timeframe group header — click anywhere on it to collapse/expand
+                   this group's own table, independent of the other groups. -->
               <MpFlex
                 align="center"
                 justify="space-between"
-                :class="css({ paddingX: '4', paddingY: '3', bg: 'background.neutral.subtle', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
+                :class="css({
+                  paddingX: '4', paddingY: '3', bg: 'background.neutral.subtle', cursor: 'pointer',
+                  borderBottomWidth: isTimeframeTableOpen(tg, sg) ? '1px' : '0', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
+                })"
+                @click="toggleTimeframeTable(tg, sg)"
               >
-                <MpFlex align="center" gap="6" :class="css({ flexGrow: '1' })">
-                  <MpFlex direction="column" gap="0">
-                    <MpText size="label" weight="semiBold" :class="valueText">{{ tg.timeframe }}</MpText>
-                    <MpText size="label-small" :class="captionText">Review timeframe</MpText>
-                  </MpFlex>
-                  <MpFlex direction="column" gap="0">
-                    <MpText size="label" weight="semiBold" :class="valueText">{{ tg.employees.length }}</MpText>
-                    <MpText size="label-small" :class="captionText">Employees</MpText>
+                <MpFlex align="center" gap="4" :class="css({ flexGrow: '1' })">
+                  <MpIcon
+                    :name="isTimeframeTableOpen(tg, sg) ? 'caret-down' : 'caret-right'"
+                    :class="css({ color: 'text.default', flexShrink: '0' })"
+                  />
+                  <MpFlex align="center" gap="6">
+                    <MpFlex direction="column" gap="0">
+                      <MpText size="label" weight="semiBold" :class="valueText">{{ tg.timeframe }}</MpText>
+                      <MpText size="label-small" :class="captionText">Review timeframe</MpText>
+                    </MpFlex>
+                    <MpFlex direction="column" gap="0">
+                      <MpText size="label" weight="semiBold" :class="valueText">{{ tg.employees.length }}</MpText>
+                      <MpText size="label-small" :class="captionText">Employees</MpText>
+                    </MpFlex>
                   </MpFlex>
                 </MpFlex>
-                <MpPopover is-close-on-select use-portal placement="bottom-end">
+                <MpPopover is-close-on-select use-portal placement="bottom-end" @click.stop>
                   <MpPopoverTrigger>
-                    <MpButton variant="ghost" :class="css({ minWidth: 'auto', padding: '2' })">
+                    <MpButton variant="ghost" :class="css({ minWidth: 'auto', padding: '2' })" @click.stop>
                       <MpIcon name="menu-kebab" />
                     </MpButton>
                   </MpPopoverTrigger>
-                  <MpPopoverContent :class="css({ minWidth: '160px' })">
+                  <MpPopoverContent :class="css({ minWidth: '160px' })" @click.stop>
                     <MpPopoverList>
-                      <MpPopoverListItem @click="viewTimeframeDetails(tg)">View details</MpPopoverListItem>
-                      <MpPopoverListItem @click="openExtend(tg)">Extend review period</MpPopoverListItem>
+                      <MpPopoverListItem @click.stop="viewTimeframeDetails(tg)">View details</MpPopoverListItem>
+                      <MpPopoverListItem @click.stop="openExtend(tg)">Extend review period</MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
                 </MpPopover>
               </MpFlex>
 
               <!-- Employee × period table — fixed height shows 5 employees, scrolls internally -->
-              <MpFlex :class="css({ overflowX: 'auto', overflowY: 'auto', maxHeight: '878px' })">
+              <MpFlex v-if="isTimeframeTableOpen(tg, sg)" :class="css({ overflowX: 'auto', overflowY: 'auto', maxHeight: '878px' })">
                 <MpTable :class="css({ width: '100%' })" :is-hoverable="false">
                   <MpTableHead>
                     <MpTableRow>
@@ -1396,7 +1516,9 @@ function onPickerOpen(d: ExtendDraft) {
                                 <MpPopoverListItem>View reviewer</MpPopoverListItem>
                                 <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
                                 <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
-                                <MpPopoverListItem>Remove employee</MpPopoverListItem>
+                                <MpPopoverListItem @click="askRemoveEmployee(tg, emp)">
+                                  <span :class="css({ color: 'text.danger' })">Remove employee</span>
+                                </MpPopoverListItem>
                               </MpPopoverList>
                             </MpPopoverContent>
                           </MpPopover>
@@ -1429,6 +1551,7 @@ function onPickerOpen(d: ExtendDraft) {
               </MpFlex>
               <!-- Load more bar -->
               <MpFlex
+                v-if="isTimeframeTableOpen(tg, sg)"
                 align="center"
                 gap="1"
                 :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
@@ -1444,6 +1567,21 @@ function onPickerOpen(d: ExtendDraft) {
                   Load {{ Math.min(EXT_PAGE_SIZE, tg.employees.length - (groupVisibleCount[tg.timeframe] ?? EXT_PAGE_SIZE)) }} more.
                 </MpTextlink>
               </MpFlex>
+            </MpFlex>
+
+            <!-- Load more review timeframes — this section can group many at once -->
+            <MpFlex v-if="hasMoreGroups(sg) || sectionGroupsLoadingMore[sg.status]" align="center" gap="1">
+              <MpText size="label" :class="captionText">
+                Showing {{ Math.min(sectionVisibleGroups[sg.status] ?? TIMEFRAME_GROUP_PAGE_SIZE, sg.groups.length) }} of {{ sg.groups.length }} review timeframes.
+              </MpText>
+              <MpTextlink
+                v-if="hasMoreGroups(sg) && !sectionGroupsLoadingMore[sg.status]"
+                size="label"
+                @click="loadMoreGroups(sg)"
+              >
+                Load {{ Math.min(TIMEFRAME_GROUP_PAGE_SIZE, sg.groups.length - (sectionVisibleGroups[sg.status] ?? TIMEFRAME_GROUP_PAGE_SIZE)) }} more.
+              </MpTextlink>
+              <MpText v-else-if="sectionGroupsLoadingMore[sg.status]" size="label" :class="captionText">Loading…</MpText>
             </MpFlex>
           </MpFlex>
         </MpFlex>
@@ -1576,8 +1714,28 @@ function onPickerOpen(d: ExtendDraft) {
         </MpFlex>
       </MpModalBody>
       <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
-        <MpButton variant="secondary" @click="extendModalOpen = false">Cancel</MpButton>
+        <MpButton variant="ghost" @click="extendModalOpen = false">Cancel</MpButton>
         <MpButton variant="primary" :is-disabled="!canExtend" @click="confirmExtend">Extend</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+
+  <!-- Remove employee confirmation -->
+  <MpModal :is-open="removeEmployeeModalOpen" @close="cancelRemoveEmployee">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Remove employee?
+        <MpModalCloseButton @click="cancelRemoveEmployee" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          <strong>{{ employeeToRemove?.emp.name }}</strong> will be removed from the entire <strong>{{ employeeToRemove?.tg.timeframe }}</strong> review timeframe — including all of their review periods in it, not just this one.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+        <MpButton variant="ghost" @click="cancelRemoveEmployee">Cancel</MpButton>
+        <MpButton variant="danger" @click="confirmRemoveEmployee">Remove</MpButton>
       </MpModalFooter>
     </MpModalContent>
   </MpModal>

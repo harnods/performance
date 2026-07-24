@@ -23,6 +23,15 @@ import {
   MpPopoverList,
   MpPopoverListItem,
   MpTooltip,
+  MpModal,
+  MpModalOverlay,
+  MpModalContent,
+  MpModalHeader,
+  MpModalCloseButton,
+  MpModalBody,
+  MpModalFooter,
+  MpFormControl,
+  MpDatePicker,
   css,
 } from '@mekari/pixel3'
 
@@ -57,7 +66,8 @@ function p(label: string, reviewWindow: string, done: number, total: number, wei
   return { label, reviewWindow, reviewersCount: total, reviewerWeight: weight, progressDone: done, progressTotal: total, progressLabel }
 }
 
-const TIMEFRAME_MAP: Record<string, TfEmployee[]> = {
+// reactive() so "Extend review timeframe" edits to each period's window date reflect live in the table.
+const TIMEFRAME_MAP: Record<string, TfEmployee[]> = reactive({
   '6-jan-5-jul-2026': [
     { name: 'Eka Setiawan',    id: 'CP081', jobTitle: 'Barista',       organization: 'Bar',            periods: [ p('Period 1', '4 - 6 Mar 2026', 3, 3), p('Period 2', '4 - 6 May 2026', 3, 3), p('Final', '3 - 5 Jul 2026', 0, 3) ] },
     { name: 'Rina Kusumawati', id: 'CP082', jobTitle: 'Kasir',         organization: 'Front of House', periods: [ p('Period 1', '4 - 6 Mar 2026', 3, 3), p('Period 2', '4 - 6 May 2026', 3, 3), p('Final', '3 - 5 Jul 2026', 0, 3) ] },
@@ -131,12 +141,127 @@ const TIMEFRAME_MAP: Record<string, TfEmployee[]> = {
     { name: 'Irfan Hidayat',    id: 'CP063', jobTitle: 'Cook',          organization: 'Kitchen',        periods: [ p('Period 1', '1 - 3 Nov 2025', 3, 3), p('Period 2', '1 - 3 Jan 2026', 3, 3), p('Final', '26 - 28 Feb 2026', 3, 3) ] },
     { name: 'Jelita Anggraini', id: 'CP064', jobTitle: 'Service Crew',  organization: 'Front of House', periods: [ p('Period 1', '1 - 3 Nov 2025', 3, 3), p('Period 2', '1 - 3 Jan 2026', 3, 3), p('Final', '26 - 28 Feb 2026', 2, 3) ] },
   ],
-}
+})
 
 const allEmployees = computed(() => {
   const slug = String(route.params.timeframeId)
   return TIMEFRAME_MAP[slug] ?? []
 })
+
+// ── Extend review timeframe ──────────────────────────────────────────────
+// Extends a period's review WINDOW (its end date) for every employee on this
+// timeframe. The timeframe span itself is unchanged. Each period is extended
+// independently; leaving a row blank skips it. Same behavior as the "Extend
+// review period" action on the review cycle details page.
+const MONTHS: Record<string, number> = {
+  Jan: 0, Feb: 1, Mar: 2, Apr: 3, May: 4, Jun: 5,
+  Jul: 6, Aug: 7, Sep: 8, Oct: 9, Nov: 10, Dec: 11,
+}
+const MONTH_NAMES = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec']
+
+function parsePeriodEnd(window: string): Date | null {
+  const end = window.split(' - ')[1]?.trim() ?? ''
+  const [day, mon, year] = end.split(' ')
+  const m = MONTHS[mon]
+  if (m === undefined) return null
+  return new Date(Number(year), m, Number(day))
+}
+function fmtDate(d: Date): string {
+  return `${d.getDate()} ${MONTH_NAMES[d.getMonth()]} ${d.getFullYear()}`
+}
+
+interface ExtendDraft {
+  label: string
+  currentWindow: string
+  startPart: string
+  currentEnd: Date | null
+  newEnd: Date | null
+}
+const extendModalOpen = ref(false)
+const extendDrafts = ref<ExtendDraft[]>([])
+
+function openExtend() {
+  const periods = allEmployees.value[0]?.periods ?? []
+  extendDrafts.value = periods.map((p) => {
+    const currentEnd = parsePeriodEnd(p.reviewWindow)
+    return {
+      label: p.label,
+      currentWindow: p.reviewWindow,
+      startPart: p.reviewWindow.split(' - ')[0] ?? '',
+      currentEnd,
+      newEnd: null,
+    }
+  })
+  extendModalOpen.value = true
+}
+
+function draftError(d: ExtendDraft): string {
+  if (!d.newEnd || !d.currentEnd) return ''
+  if (d.newEnd.getTime() < d.currentEnd.getTime()) {
+    return 'New end date cannot be earlier than the current end date'
+  }
+  return ''
+}
+// A period is actually extended only if its new end is strictly after the current end.
+function isExtended(d: ExtendDraft): boolean {
+  return !!d.newEnd && !!d.currentEnd && d.newEnd.getTime() > d.currentEnd.getTime()
+}
+const canExtend = computed(() =>
+  extendDrafts.value.some(isExtended) && extendDrafts.value.every(d => !draftError(d)),
+)
+
+function confirmExtend() {
+  if (!canExtend.value) return
+  extendDrafts.value.forEach((d) => {
+    if (!isExtended(d) || !d.newEnd) return
+    const newWindow = `${d.startPart} - ${fmtDate(d.newEnd)}`
+    allEmployees.value.forEach((emp) => {
+      const period = emp.periods.find(p => p.label === d.label)
+      if (period) period.reviewWindow = newWindow
+    })
+  })
+  extendModalOpen.value = false
+}
+
+// MpDatePicker has no prop to set the opening month while the field is empty, so when a
+// picker opens with no value we drive its calendar panel to the period's current end month.
+function jumpCalendarToMonth(target: Date, attempts = 0) {
+  if (attempts > 48) return
+  const panel = Array.from(document.querySelectorAll<HTMLElement>('.mp-datepicker__popoverContent'))
+    .find(p => p.offsetParent !== null)
+  const label = panel?.querySelector<HTMLElement>('.mp-tableDate__headerLabel')
+  if (!panel || !label) return
+  const [monStr, yearStr] = label.textContent!.trim().split(/\s+/)
+  const dispMonth = MONTHS[monStr?.slice(0, 3)]
+  const dispYear = Number(yearStr)
+  if (dispMonth === undefined || !dispYear) return
+  const dispKey = dispYear * 12 + dispMonth
+  const targetKey = target.getFullYear() * 12 + target.getMonth()
+  if (dispKey === targetKey) return // reached the target month
+  const btns = Array.from(panel.querySelectorAll<HTMLElement>('button'))
+  const li = btns.indexOf(label)
+  const navBtn = dispKey < targetKey ? btns[li + 1] : btns[li - 1] // next / prev month
+  if (!navBtn) return
+  navBtn.click()
+  requestAnimationFrame(() => jumpCalendarToMonth(target, attempts + 1))
+}
+function onPickerOpen(d: ExtendDraft) {
+  if (d.newEnd || !d.currentEnd) return // only when empty; otherwise it opens on the value
+  const target = d.currentEnd
+  let tries = 0
+  const waitForPanel = () => {
+    const panel = Array.from(document.querySelectorAll<HTMLElement>('.mp-datepicker__popoverContent'))
+      .find(p => p.offsetParent !== null)
+    if (panel?.querySelector('.mp-tableDate__headerLabel')) {
+      // Let the picker finish its own open-init (which resets the panel to today),
+      // then drive the panel to the target month; re-assert once for safety.
+      setTimeout(() => jumpCalendarToMonth(target), 130)
+      setTimeout(() => jumpCalendarToMonth(target), 340)
+    }
+    else if (tries++ < 30) requestAnimationFrame(waitForPanel)
+  }
+  requestAnimationFrame(waitForPanel)
+}
 
 // Single-review timeframe: every employee has exactly one period → hide the Period column.
 const isSinglePeriod = computed(() =>
@@ -244,9 +369,12 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
         </MpFlex>
       </MpFlex>
 
-      <MpFlex align="center" :class="css({ paddingY: '2' })">
+      <MpFlex align="start" :class="css({ paddingY: '2' })">
         <MpText size="label" :class="[labelText, css({ width: '160px', flexShrink: '0' })]">Review timeframe</MpText>
-        <MpText size="label" :class="valueText">{{ route.query.timeframe || '6 Jan - 5 Jul 2026' }}</MpText>
+        <MpFlex direction="column" gap="1">
+          <MpText size="label" :class="valueText">{{ route.query.timeframe || '6 Jan - 5 Jul 2026' }}</MpText>
+          <MpTextlink size="small" @click="openExtend">Extend review timeframe</MpTextlink>
+        </MpFlex>
       </MpFlex>
 
       <MpFlex align="center" :class="css({ paddingY: '2' })">
@@ -428,4 +556,64 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
       </MpFlex>
     </MpFlex>
   </MpFlex>
+
+  <!-- Extend review timeframe modal -->
+  <MpModal :is-open="extendModalOpen" is-centered @close="extendModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ width: '600px', maxWidth: '90vw' })">
+      <MpModalHeader>
+        Extend review period
+        <MpModalCloseButton />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpFlex direction="column" gap="5">
+          <MpFlex direction="column" gap="1">
+            <MpText size="label" weight="semiBold" :class="valueText">Review timeframe: {{ route.query.timeframe || '6 Jan - 5 Jul 2026' }}</MpText>
+            <MpText size="label-small" :class="captionText">
+              Set a new end date for the period(s) you want to extend. Leave the rest unchanged. This applies to all {{ allEmployees.length }} employees in this timeframe.
+            </MpText>
+          </MpFlex>
+
+          <MpFlex direction="column" gap="4">
+            <MpFlex
+              v-for="d in extendDrafts"
+              :key="d.label"
+              direction="column"
+              gap="1"
+            >
+              <MpFlex align="start" gap="4">
+                <MpFlex direction="column" gap="0" :class="css({ width: '150px', flexShrink: '0', paddingTop: '2' })">
+                  <MpText size="label" weight="semiBold" :class="valueText">{{ d.label }}</MpText>
+                  <MpText size="label-small" :class="captionText">{{ d.currentWindow }}</MpText>
+                </MpFlex>
+                <MpFormControl :id="`extend-${d.label}`" :is-invalid="!!draftError(d)" :class="css({ flex: '1' })">
+                  <div @focusin="onPickerOpen(d)" @click.capture="onPickerOpen(d)">
+                    <MpDatePicker
+                      v-model="d.newEnd"
+                      value-type="date"
+                      format="D MMM YYYY"
+                      placeholder="Select new end date"
+                      use-portal
+                      is-clearable
+                      :is-show-shortcut="false"
+                      :is-invalid="!!draftError(d)"
+                      :disabled-date="(date: Date) => !!d.currentEnd && date < d.currentEnd"
+                    />
+                  </div>
+                </MpFormControl>
+              </MpFlex>
+              <MpFlex :class="css({ paddingLeft: '170px' })">
+                <MpText v-if="draftError(d)" size="label-small" :class="css({ color: 'text.critical' })">{{ draftError(d) }}</MpText>
+                <MpText v-else-if="isExtended(d) && d.newEnd" size="label-small" :class="css({ color: 'text.success' })">New window: {{ d.startPart }} - {{ fmtDate(d.newEnd) }}</MpText>
+              </MpFlex>
+            </MpFlex>
+          </MpFlex>
+        </MpFlex>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+        <MpButton variant="secondary" @click="extendModalOpen = false">Cancel</MpButton>
+        <MpButton variant="primary" :is-disabled="!canExtend" @click="confirmExtend">Extend</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
 </template>
