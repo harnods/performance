@@ -13,6 +13,7 @@ import {
   MpRadio,
   MpFormControl,
   MpFormLabel,
+  MpFormErrorMessage,
   MpBanner,
   MpBannerIcon,
   MpBannerDescription,
@@ -24,7 +25,7 @@ const props = defineProps<{
   isOpen: boolean
   method?: string
 }>()
-const emit = defineEmits<{ 'update:isOpen': [boolean] }>()
+const emit = defineEmits<{ 'update:isOpen': [boolean]; 'saved': [] }>()
 
 const methodLabel = computed(() => props.method ?? 'Manager review')
 const drawerTitle = computed(() => `${methodLabel.value} method`)
@@ -41,8 +42,8 @@ const isManager = computed(() => methodKey.value === 'manager')
 
 const generalDescription = computed(() => ({
   manager: 'Please define indicators and other configurations to design the manager review method.',
-  '360': 'Review from an employees subordinates, colleagues, and managers.',
-  team: 'Employees reviews people in their team.',
+  '360': "Review from an employee's subordinates, colleagues, and managers.",
+  team: 'Employees review people in their team.',
   self: 'Employees review themselves.',
 }[methodKey.value]))
 
@@ -61,7 +62,7 @@ const tabs = computed(() =>
 const activeTab = ref<TabKey>('general')
 
 // ─── General ────────────────────────────────────────────────────────────────────
-const template = ref('default')
+const template = ref('')
 const templateOptions = [
   { value: 'default', label: 'Default template', description: 'Evaluation method: by rating' },
   { value: 'probation', label: 'Probation template', description: 'Evaluation method: by point' },
@@ -101,16 +102,29 @@ const reprimandDefineScore = ref(false)
 const finalScoreCalc = ref<'use-weight' | 'simple-sum'>('use-weight')
 const weightImplementation = ref<'all' | 'custom'>('all')
 
-// Reset to the first tab whenever the drawer opens or the method changes.
+// ─── Validation (surfaces only after a save attempt) ────────────────────────────
+const submitted = ref(false)
+const templateInvalid = computed(() => submitted.value && !template.value)
+const goalInvalid = computed(() => submitted.value && includeGoals.value && !goalToInclude.value)
+
+// Reset to the first tab and clear validation whenever the drawer opens or the
+// method changes.
 watch(() => props.isOpen, (open) => {
-  if (open) activeTab.value = 'general'
+  if (open) { activeTab.value = 'general'; submitted.value = false }
 })
-watch(methodKey, () => { activeTab.value = 'general' })
+watch(methodKey, () => { activeTab.value = 'general'; submitted.value = false })
 
 function close() {
   emit('update:isOpen', false)
 }
 function onSave() {
+  submitted.value = true
+  if (templateInvalid.value || goalInvalid.value) {
+    // Jump to the tab that holds the first error so it's visible.
+    activeTab.value = templateInvalid.value ? 'general' : 'goals'
+    return
+  }
+  emit('saved')
   toast.notify({
     id: 'review-method-saved',
     position: 'top-center',
@@ -177,26 +191,29 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
             </div>
 
             <div :class="fields">
-              <PxSelectPopover
-                v-model="template"
-                :options="templateOptions"
-                placeholder="Select template"
-                :class="selectWidth"
-                searchable
-                search-placeholder="Search by template name..."
-              />
+              <MpFormControl id="method-template" :is-invalid="templateInvalid">
+                <PxSelectPopover
+                  v-model="template"
+                  :options="templateOptions"
+                  placeholder="Select template"
+                  :class="selectWidth"
+                  searchable
+                  search-placeholder="Search template"
+                />
+                <MpFormErrorMessage>You must select a template</MpFormErrorMessage>
+              </MpFormControl>
 
               <!-- Manager review -->
               <template v-if="methodKey === 'manager'">
                 <MpFormControl id="reviewer">
-                  <MpFormLabel>Who will review them?</MpFormLabel>
+                  <MpFormLabel>Reviewer</MpFormLabel>
                   <PxSelectPopover v-model="reviewer" :options="reviewerOptions" :class="selectWidth" />
                 </MpFormControl>
                 <MpCheckbox :is-checked="autoAssignManager" @update:is-checked="(v) => (autoAssignManager = v)">
                   Automatically assign the employee manager to each selected member
                 </MpCheckbox>
                 <MpCheckbox :is-checked="displayResult" @update:is-checked="(v) => (displayResult = v)">
-                  Display Review Result in Details
+                  Display review result in details
                 </MpCheckbox>
               </template>
 
@@ -213,7 +230,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
               <!-- Team review -->
               <template v-else-if="methodKey === 'team'">
                 <MpCheckbox :is-checked="teamDisplayForManager" @update:is-checked="(v) => (teamDisplayForManager = v)">
-                  Display Team review result for manager
+                  Display team review result for manager
                   <template #description>
                     By enabling this option, manager can see Team review result of their subordinate on review form or pending action page.
                   </template>
@@ -229,7 +246,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
                   </template>
                 </MpCheckbox>
                 <MpCheckbox :is-checked="pickCoworker" @update:is-checked="(v) => (pickCoworker = v)">
-                  Let member pick their co-worker
+                  Let members pick their own co-workers
                 </MpCheckbox>
                 <MpCheckbox :is-checked="allowReject" @update:is-checked="(v) => (allowReject = v)">
                   Allow reviewers to reject review tasks
@@ -255,9 +272,10 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
                 </template>
               </MpCheckbox>
               <template v-if="includeGoals">
-                <MpFormControl id="goal-included">
-                  <MpFormLabel>Select goal to be included</MpFormLabel>
+                <MpFormControl id="goal-included" :is-invalid="goalInvalid">
+                  <MpFormLabel>Goal to include</MpFormLabel>
                   <PxSelectPopover v-model="goalToInclude" :options="goalOptions" placeholder="Select goal" :class="selectWidth" />
+                  <MpFormErrorMessage>You must select a goal to include</MpFormErrorMessage>
                 </MpFormControl>
                 <MpBanner variant="warning" is-inline>
                   <MpBannerIcon />
@@ -298,7 +316,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
             <div :class="sectionHead">
               <MpText as="h2" :class="h2Class">Reprimand</MpText>
               <MpText size="label" color="text.secondary">
-                You can include the reprimand history data as review indicator with maximum range of one year.
+                You can include the reprimand history data as a review indicator, with a maximum range of one year.
               </MpText>
             </div>
             <div :class="fields">
@@ -310,7 +328,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
               </MpCheckbox>
               <div v-if="includeReprimand" :class="indent">
                 <MpCheckbox :is-checked="reprimandDefineScore" @update:is-checked="(v) => (reprimandDefineScore = v)">
-                  Define score/rating for the reprimand
+                  Define a score or rating for reprimand
                 </MpCheckbox>
               </div>
             </div>
@@ -321,7 +339,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
             <div :class="sectionHead">
               <MpText as="h2" :class="h3Class">Weight</MpText>
               <MpText size="label" color="text.secondary">
-                Please define the weight of each category so that system can calculate the rating into the final score.
+                Please define the weight of each category so the system can calculate the rating into the final score.
               </MpText>
             </div>
 
@@ -370,7 +388,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
 
               <MpText :class="subLabel">Aspects</MpText>
               <MpText size="label" color="text.secondary">
-                The employee performance aspects will be evaluated in this {{ methodLabel.toLowerCase() }}. Total weight per aspects must be 100%.
+                The employee performance aspects will be evaluated in this {{ methodLabel.toLowerCase() }}. Total weight per aspect must be 100%.
               </MpText>
             </template>
           </template>

@@ -133,6 +133,23 @@ function openMethodDrawer(label: string) {
   nextTick(() => { methodDrawerOpen.value = true })
 }
 
+// A method counts as "configured" once its drawer has been saved at least once.
+const labelToKey: Record<string, string> = {
+  'Manager review': 'manager', '360-degree review': '360', 'Team review': 'team', 'Self review': 'self',
+}
+const configuredMethods = reactive(new Set<string>())
+function onMethodConfigured() {
+  configuredMethods.add(labelToKey[activeMethodLabel.value])
+}
+
+// ─── Validation (surfaces only after a save attempt) ────────────────────────────
+const cycleNameInvalid = computed(() => submitted.value && !cycleName.value.trim())
+const noMethodSelected = computed(() => submitted.value && activeMethods.value.length === 0)
+const unconfiguredMethods = computed(() =>
+  submitted.value ? activeMethods.value.filter(m => !configuredMethods.has(m.key)) : [])
+const weightTotalInvalid = computed(() =>
+  submitted.value && useMethodWeight.value && useMethodWeightAvailable.value && totalMethodWeight.value !== 100)
+
 // Publish score after (Performance Cycle parity)
 const publishScoreAfter = ref('complete-review')
 const publishScoreOptions = [
@@ -171,6 +188,9 @@ const formColumn = css({
 // full width (12/12) on tablet & mobile. Passed via :class (not :width)
 // because a responsive width needs media queries, which inline style can't do.
 const selectWidth = css({ width: { base: '100%', lg: '50%' } })
+
+// Inline validation error text (matches MpFormErrorMessage sizing)
+const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16px' })
 
 // pxl-space-md (16px) between fields
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
@@ -277,7 +297,14 @@ function onCancel() {
 }
 function onSave() {
   submitted.value = true
-  if (reviewEveryInvalid.value || reviewWindowInvalid.value) return
+  const anyMethodUnconfigured = activeMethods.value.some(m => !configuredMethods.has(m.key))
+  if (
+    cycleNameInvalid.value
+    || noMethodSelected.value
+    || anyMethodUnconfigured
+    || weightTotalInvalid.value
+    || (isMultiple.value && (reviewEveryInvalid.value || reviewWindowInvalid.value))
+  ) return
   toast.notify({
     id: 'review-cycle-created',
     position: 'top-center',
@@ -317,6 +344,9 @@ function onSave() {
               <MpButton variant="primary" @click="isEditingName = false">Save changes</MpButton>
             </template>
           </MpFlex>
+          <MpText v-if="cycleNameInvalid" size="label" :class="css({ color: 'text.danger' })">
+            You must fill in Cycle name
+          </MpText>
           <MpText :class="h3Class">Cycle type: Evaluation</MpText>
         </MpFlex>
 
@@ -341,10 +371,11 @@ function onSave() {
         </MpFormControl>
 
         <MpFormControl id="template">
-          <MpFormLabel>Select template</MpFormLabel>
+          <MpFormLabel>Template</MpFormLabel>
           <PxSelectPopover
             v-model="template"
             :options="templateOptions"
+            placeholder="Select template"
             :class="selectWidth"
             searchable
             search-placeholder="Search template"
@@ -455,7 +486,7 @@ function onSave() {
               </div>
 
               <MpText size="label-small" color="text.secondary">
-                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-days review period.
+                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-day review period.
               </MpText>
             </div>
           </div>
@@ -464,7 +495,7 @@ function onSave() {
         <MpCheckbox :is-checked="reIncludeExtended" @update:is-checked="(v) => (reIncludeExtended = v)">
           <MpFlex align="center" gap="2">
             Re-include employees with extended employment period
-            <MpBadge type="critical" size="sm">NEW</MpBadge>
+            <MpBadge type="critical" size="sm">New</MpBadge>
           </MpFlex>
           <template #description>
             Employees whose employment period is extended via an approved transfer will be added to a new review timeframe in the same cycle.
@@ -498,13 +529,21 @@ function onSave() {
         </div>
       </div>
 
+      <!-- Review methods validation -->
+      <MpText v-if="noMethodSelected" :class="[errorText, css({ paddingTop: '2' })]">
+        You must select at least one review method
+      </MpText>
+      <MpText v-else-if="unconfiguredMethods.length" :class="[errorText, css({ paddingTop: '2' })]">
+        You must set up {{ unconfiguredMethods.map(m => m.name).join(', ') }}. Please open Manage to configure
+      </MpText>
+
       <!-- Use weight — appears once 2+ methods are enabled -->
       <template v-if="useMethodWeightAvailable">
         <MpFlex :class="css({ paddingTop: '4' })">
           <MpCheckbox :is-checked="useMethodWeight" @update:is-checked="(v) => (useMethodWeight = v)">
             Use weight
             <template #description>
-              The score of your review will calculate by the weight you're set up.
+              Your review score is calculated from the weights you set.
             </template>
           </MpCheckbox>
         </MpFlex>
@@ -517,8 +556,9 @@ function onSave() {
             </MpInputGroup>
           </div>
           <MpFlex justify="flex-end" :class="css({ paddingTop: '2' })">
-            <MpText size="label" color="text.secondary">{{ totalMethodWeight }}% of 100%</MpText>
+            <MpText size="label" :class="weightTotalInvalid ? errorText : css({ color: 'text.secondary' })">{{ totalMethodWeight }}% of 100%</MpText>
           </MpFlex>
+          <MpText v-if="weightTotalInvalid" :class="errorText">Total weight must be 100%</MpText>
         </div>
       </template>
 
@@ -595,6 +635,6 @@ function onSave() {
 
     </div>
 
-    <ReviewMethodDrawer v-model:is-open="methodDrawerOpen" :method="activeMethodLabel" />
+    <ReviewMethodDrawer v-model:is-open="methodDrawerOpen" :method="activeMethodLabel" @saved="onMethodConfigured" />
   </div>
 </template>
