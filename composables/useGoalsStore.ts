@@ -107,11 +107,12 @@ export interface GoalWithCategoryWeight extends Goal {
 export const EMPLOYEE_MANAGER: Record<string, string> = {
   evelyn: 'rizal', rio: 'rizal', ali: 'rizal', bayu: 'rizal', andi: 'rizal', cinta: 'rizal',
   dewi: 'rizal', // new hire, Head of Operations — owns no goals yet (see useGoalsStore's seed comment)
-  agung: 'evelyn', christin: 'evelyn', linda: 'evelyn',
-  alfian: 'rio',
-  daud: 'ali', jessie: 'ali',
-  indah: 'andi',
-  eka: 'cinta', fajar: 'cinta', galih: 'cinta', joko: 'cinta',
+  agung: 'evelyn', christin: 'evelyn', linda: 'evelyn', dian: 'evelyn',
+  alfian: 'rio', santi: 'rio',
+  daud: 'ali', jessie: 'ali', reza: 'ali',
+  indah: 'andi', wisnu: 'andi',
+  eka: 'cinta', fajar: 'cinta', galih: 'cinta', joko: 'cinta', putri: 'cinta',
+  yoga: 'bayu',
 }
 
 // Rizal (CEO) is the only Super Admin in this demo — approval review is

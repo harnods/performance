@@ -14,6 +14,19 @@ interface NavItem {
 
 const group1: NavItem[] = [
   { icon: 'home', label: 'Home', path: '/' },
+  {
+    icon: 'inbox', label: 'Inbox',
+    children: [
+      { label: 'Notifications', path: '/inbox/notifications' },
+      {
+        label: 'Awaiting approval',
+        children: [
+          { label: 'Reviews', path: '/inbox/awaiting-approval/reviews' },
+          { label: 'Goals', path: '/inbox/awaiting-approval/goals' },
+        ],
+      },
+    ],
+  },
   { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { icon: 'reports', label: 'Reports', path: '/reports' },
 ]

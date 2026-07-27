@@ -35,7 +35,10 @@ const fieldClass = css({
   '& .mp-select__root button': { opacity: '0', pointerEvents: 'none', transition: 'opacity 0.15s' },
   '&:hover .mp-select__root button': { opacity: '1', pointerEvents: 'auto' },
 })
-const wrapperStyle = computed(() => ({ width: props.width ?? '100%' }))
+// Apply an explicit width inline only when the `width` prop is given. When it is
+// omitted, leave the wrapper at its natural block width (100% of parent) so a
+// responsive width class can be passed in from the parent via fallthrough.
+const wrapperStyle = computed(() => (props.width ? { width: props.width } : undefined))
 
 const searchTerm = ref('')
 const filteredOptions = computed(() =>

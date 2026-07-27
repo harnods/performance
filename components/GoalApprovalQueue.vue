@@ -15,7 +15,7 @@
 import {
   MpFlex,
   MpText,
-  MpTextlink,
+  MpButton,
   MpSelect,
   MpInputGroup,
   MpInputLeftAddon,
@@ -82,8 +82,15 @@ function openSubmission(id: string) {
 // table classes exactly, so this reads as the same index-page pattern.
 const wrap = css({ display: 'flex', flexDirection: 'column', gap: '6' })
 const typeFieldClass = css({ width: '200px', cursor: 'pointer', '& select': { pointerEvents: 'none' } })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
+// Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
+// — a flatter '2' reads as the narrow/dense table variant and made
+// single-line rows look too short.
+const tightCell = css({ paddingTop: '4', paddingBottom: '4' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
+// A button already carries its own vertical padding (md size ≈ 36px tall
+// including it) — stacking the full 16px text-cell padding on top of that
+// made the row noticeably taller than its plain-text siblings. 8px here
+// instead brings the button cell's total height back in line with theirs.
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
@@ -152,7 +159,7 @@ const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
               <MpText size="label" :class="valueText">{{ formatDate(submission.submittedAt) }}</MpText>
             </MpTableCell>
             <MpTableCell as="td" :class="actionCell">
-              <MpTextlink @click="openSubmission(submission.id)">View details</MpTextlink>
+              <MpButton variant="secondary" @click="openSubmission(submission.id)">View details</MpButton>
             </MpTableCell>
           </MpTableRow>
         </MpTableBody>

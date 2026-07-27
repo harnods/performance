@@ -205,6 +205,10 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
     </MpFlex>
 
     <MpFlex align="center" gap="4">
+      <NuxtLink to="/inbox/notifications" :class="launcherButton" aria-label="Inbox">
+        <PxIcon name="inbox" :size="20" />
+      </NuxtLink>
+
       <button type="button" :class="launcherButton" aria-label="App launcher">
         <PxIcon name="shortcuts" :size="20" />
       </button>

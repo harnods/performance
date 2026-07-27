@@ -21,14 +21,17 @@ function loadFromStorage() {
   else persist()
 }
 
-// Fixed set of 3 representative org-chart positions for the header's "View
+// Fixed set of representative org-chart positions for the header's "View
 // as" switcher — not a full employee picker, per the actual request: one
-// CEO/Super Admin, one manager (has direct reports), one individual
-// contributor (has none).
+// CEO/Super Admin, one manager (has direct reports), and a couple of
+// individual contributors (have none) — Santi included specifically
+// because she's Rio's own direct report, letting Rio's manager view be
+// exercised end-to-end against someone actually in his team.
 export const VIEW_AS_PERSONAS = [
   { id: 'rizal', label: 'Rizal Candra', role: 'CEO · Super Admin' },
   { id: 'rio', label: 'Rio Priyono', role: 'Manager' },
   { id: 'daud', label: 'Daud Dimas Prasetyo', role: 'Employee' },
+  { id: 'santi', label: 'Santi Marlina', role: 'Employee' },
 ] as const
 
 export function useCurrentUser() {

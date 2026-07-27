@@ -27,6 +27,7 @@ export const EMPLOYEES: Employee[] = [
   { id: 'cinta', name: 'Cinta Ayu', code: 'CP070', title: 'Restaurant Manager', department: 'Front of House', photo: '/avatars/cinta.jpg' },
   { id: 'daud', name: 'Daud Dimas Prasetyo', code: 'CP031', title: 'Sales Representative', department: 'Sales', photo: '/avatars/daud.jpg' },
   { id: 'dewi', name: 'Dewi Kusuma', code: 'CP090', title: 'Head of Operations', department: 'Operations' },
+  { id: 'dian', name: 'Dian Anggraini', code: 'CP023', title: 'Payroll Specialist', department: 'Accounting' },
   { id: 'eka', name: 'Eka Setiawan', code: 'CP065', title: 'Barista', department: 'Front of House', photo: '/avatars/eka.jpg' },
   { id: 'evelyn', name: 'Evelyn Bellinda', code: 'CP020', title: 'Head of Accounting', department: 'Accounting', photo: '/avatars/evelyn.jpg' },
   { id: 'fajar', name: 'Fajar Nugraha', code: 'CP071', title: 'Waitstaff', department: 'Front of House', photo: '/avatars/fajar.jpg' },
@@ -35,8 +36,13 @@ export const EMPLOYEES: Employee[] = [
   { id: 'jessie', name: 'Jessie Tan', code: 'CP038', title: 'Sales Representative', department: 'Sales', photo: '/avatars/jessie.jpg' },
   { id: 'joko', name: 'Joko', code: 'CP078', title: 'Cashier', department: 'Front of House', photo: '/avatars/joko.jpg' },
   { id: 'linda', name: 'Linda Hidayat', code: 'CP108', title: 'Finance Admin', department: 'Accounting' },
+  { id: 'putri', name: 'Putri Wulandari', code: 'CP075', title: 'Waitstaff', department: 'Front of House' },
+  { id: 'reza', name: 'Reza Mahendra', code: 'CP032', title: 'Sales Representative', department: 'Sales' },
   { id: 'rio', name: 'Rio Priyono', code: 'CP040', title: 'Head of People', department: 'HR', photo: '/avatars/rio.jpg' },
   { id: 'rizal', name: 'Rizal Candra', code: 'CP010', title: 'CEO', department: 'Management', photo: '/avatars/rizal.jpg' },
+  { id: 'santi', name: 'Santi Marlina', code: 'CP043', title: 'Recruiter', department: 'HR' },
+  { id: 'wisnu', name: 'Wisnu Aditya', code: 'CP068', title: 'Line Cook', department: 'Kitchen' },
+  { id: 'yoga', name: 'Yoga Pratama', code: 'CP051', title: 'Marketing Specialist', department: 'Marketing' },
 ]
 
 // Display string used under each employee name: "CODE | Title | Department".

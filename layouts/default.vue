@@ -26,6 +26,11 @@ const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefin
 // instead of the default single white stage panel. Opt in via definePageMeta({ boxed: true }).
 const boxed = computed(() => !!route.meta.boxed)
 
+// Some pages (e.g. Inbox) have no page title at all — the stage should run
+// flush to the top of the main column instead of leaving the 72px title bar
+// empty. Opt in via definePageMeta({ noPageHeader: true }).
+const noPageHeader = computed(() => !!route.meta.noPageHeader)
+
 // Intermediate breadcrumb for nested pages (e.g. timeframe detail inside a
 // review cycle, or a goal submission's review page inside a goal cycle).
 // Carry ?cycleName= so this deep page can supply the intermediate label
@@ -63,59 +68,62 @@ const cycleBreadcrumb = computed(() => {
         overflowY="auto"
         :style="boxed ? { background: 'var(--mp-colors-background)' } : undefined"
       >
-        <MpFlex
-          align="center"
-          justify="space-between"
-          gap="4"
-          height="72px"
-          paddingInline="6"
-          flexShrink="0"
-        >
-          <MpFlex direction="column" gap="0" justify="center">
-            <MpFlex v-if="breadcrumb" align="center" gap="1">
-              <MpTextlink
-                as="button"
-                size="small"
-                @click="breadcrumb.to && router.push(breadcrumb.to)"
-              >
-                {{ breadcrumb.label }}
-              </MpTextlink>
-              <template v-if="cycleBreadcrumb">
-                <MpText size="label-small" :class="css({ color: 'text.secondary' })">/</MpText>
+        <template v-if="!noPageHeader">
+          <MpFlex
+            align="center"
+            justify="space-between"
+            gap="4"
+            height="72px"
+            paddingInline="6"
+            flexShrink="0"
+          >
+            <MpFlex direction="column" gap="0" justify="center">
+              <MpFlex v-if="breadcrumb" align="center" gap="1">
                 <MpTextlink
                   as="button"
                   size="small"
-                  @click="cycleBreadcrumb.to && router.push(cycleBreadcrumb.to)"
+                  @click="breadcrumb.to && router.push(breadcrumb.to)"
                 >
-                  {{ cycleBreadcrumb.label }}
+                  {{ breadcrumb.label }}
                 </MpTextlink>
-              </template>
+                <template v-if="cycleBreadcrumb">
+                  <MpText size="label-small" :class="css({ color: 'text.secondary' })">/</MpText>
+                  <MpTextlink
+                    as="button"
+                    size="small"
+                    @click="cycleBreadcrumb.to && router.push(cycleBreadcrumb.to)"
+                  >
+                    {{ cycleBreadcrumb.label }}
+                  </MpTextlink>
+                </template>
+              </MpFlex>
+              <MpText as="h1" size="h1" weight="semiBold" color="text.default">
+                {{ pageTitle }}
+              </MpText>
             </MpFlex>
-            <MpText as="h1" size="h1" weight="semiBold" color="text.default">
-              {{ pageTitle }}
-            </MpText>
+            <div
+              id="page-header-actions"
+              :class="css({ display: 'flex', alignItems: 'center', gap: '3' })"
+            />
           </MpFlex>
-          <div
-            id="page-header-actions"
-            :class="css({ display: 'flex', alignItems: 'center', gap: '3' })"
-          />
-        </MpFlex>
 
-        <!-- Tabs zone: outside the stage, below page title. Use <Teleport to="#page-tabs"> from pages. -->
-        <div
-          id="page-tabs"
-          :class="css({
-            display: 'flex',
-            alignItems: 'flex-end',
-            paddingInline: '6',
-            flexShrink: '0',
-            background: 'background.surface',
-          })"
-        />
+          <!-- Tabs zone: outside the stage, below page title. Use <Teleport to="#page-tabs"> from pages. -->
+          <div
+            id="page-tabs"
+            :class="css({
+              display: 'flex',
+              alignItems: 'flex-end',
+              paddingInline: '6',
+              flexShrink: '0',
+              background: 'background.surface',
+            })"
+          />
+        </template>
 
         <MpFlex
           direction="column"
           flex="1"
+          :minHeight="boxed ? '0' : undefined"
           :background="boxed ? undefined : 'background.neutral'"
           :paddingInline="boxed ? '0' : '6'"
           :paddingBlock="boxed ? '0' : '6'"

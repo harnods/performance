@@ -131,17 +131,19 @@ const gridArea = css({
   gap: '6',
 })
 
-// Desktop: 6/12 cols. Tablet (< lg / < 1024px): full 12/12 cols.
+// Desktop: 6/12 cols, capped at 656px on very wide screens.
+// Tablet/mobile (< lg / < 1024px): full 12/12 cols, uncapped.
 const formColumn = css({
   gridColumn: { base: 'span 12 / span 12', lg: 'span 6 / span 6' },
+  maxWidth: { lg: '656px' },
   display: 'flex',
   flexDirection: 'column',
 })
 
-// Select = 50% of formColumn.
-// Desktop: 50% of 6/12 = 3 content cols (≈264px, Figma).
-// Tablet:  50% of 12/12 = 6 content cols.
-const selectWidth = '50%'
+// Select width: 50% of formColumn on desktop (3/12 grid),
+// full width (12/12) on tablet & mobile. Passed via :class (not :width)
+// because a responsive width needs media queries, which inline style can't do.
+const selectWidth = css({ width: { base: '100%', lg: '50%' } })
 
 // pxl-space-md (16px) between fields
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
@@ -300,13 +302,13 @@ function onSave() {
             v-model="employmentStatus"
             :options="employmentStatusOptions"
             placeholder="Select status"
-            :width="selectWidth"
+            :class="selectWidth"
           />
         </MpFormControl>
 
         <MpFormControl id="employee-filter">
           <MpFormLabel>Employee filter</MpFormLabel>
-          <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :width="selectWidth" />
+          <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :class="selectWidth" />
         </MpFormControl>
 
         <MpFormControl id="template">
@@ -314,7 +316,7 @@ function onSave() {
           <PxSelectPopover
             v-model="template"
             :options="templateOptions"
-            :width="selectWidth"
+            :class="selectWidth"
             searchable
             search-placeholder="Search template"
           />
@@ -345,7 +347,7 @@ function onSave() {
           <MpFormControl id="review-start">
             <MpFormLabel>Review start</MpFormLabel>
             <MpFlex align="center" gap="4">
-              <PxSelectPopover v-model="reviewStart" :options="reviewStartOptions" :width="selectWidth" />
+              <PxSelectPopover v-model="reviewStart" :options="reviewStartOptions" :class="selectWidth" />
               <MpText size="label" color="text.default">before the employee's end date</MpText>
             </MpFlex>
           </MpFormControl>
@@ -430,7 +432,7 @@ function onSave() {
 
         <MpFormControl id="reviewer">
           <MpFormLabel>Reviewer</MpFormLabel>
-          <PxSelectPopover v-model="reviewer" :options="reviewerOptions" :width="selectWidth" />
+          <PxSelectPopover v-model="reviewer" :options="reviewerOptions" :class="selectWidth" />
         </MpFormControl>
 
         <MpCheckbox :is-checked="reIncludeExtended" @update:is-checked="(v) => (reIncludeExtended = v)">

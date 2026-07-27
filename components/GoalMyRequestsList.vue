@@ -14,6 +14,8 @@ import {
   MpFlex,
   MpText,
   MpTextlink,
+  MpButton,
+  MpBadge,
   MpSelect,
   MpPopover,
   MpPopoverTrigger,
@@ -63,26 +65,32 @@ function openSubmission(id: string) {
 // ─── Styles — mirrors GoalApprovalQueue.vue's own filter-bar + table classes.
 const wrap = css({ display: 'flex', flexDirection: 'column', gap: '6' })
 const typeFieldClass = css({ width: '200px', cursor: 'pointer', '& select': { pointerEvents: 'none' } })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
+// Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
+// — a flatter '2' reads as the narrow/dense table variant and made
+// single-line rows look too short.
+const tightCell = css({ paddingTop: '4', paddingBottom: '4' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
+// A button already carries its own vertical padding (md size ≈ 36px tall
+// including it) — stacking the full 16px text-cell padding on top of that
+// made the row noticeably taller than its plain-text siblings. 8px here
+// instead brings the button cell's total height back in line with theirs.
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
-const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRadius: 'full', paddingInline: '1.5', fontSize: '12px', lineHeight: '20px', width: 'fit-content' } as const
-const statusPending = css({ ...statusPillBase, background: 'gray.100', color: 'text.secondary' })
-const statusApproved = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
-const statusRejected = css({ ...statusPillBase, background: 'red.50', color: 'red.700' })
 
 function statusLabel(status: Submission['status']) {
   if (status === 'approved') return 'Approved'
   if (status === 'rejected') return 'Rejected'
   return 'Awaiting approval'
 }
-function statusClass(status: Submission['status']) {
-  if (status === 'approved') return statusApproved
-  if (status === 'rejected') return statusRejected
-  return statusPending
+// "Awaiting approval" always reads as the warning/yellow tone — it's a
+// pending decision, not a settled/good or settled/bad one — so it's kept
+// separate from the approved/rejected outcomes it's neither of.
+function statusType(status: Submission['status']) {
+  if (status === 'approved') return 'completed'
+  if (status === 'rejected') return 'critical'
+  return 'warning'
 }
 </script>
 
@@ -127,16 +135,16 @@ function statusClass(status: Submission['status']) {
           </MpTableRow>
           <MpTableRow v-for="request in filteredRequests" :key="request.id">
             <MpTableCell as="td" :class="tightCell">
-              <MpText size="label" :class="valueText">{{ typeLabelFor(request) }}</MpText>
+              <MpTextlink as="button" @click="openSubmission(request.id)">{{ typeLabelFor(request) }}</MpTextlink>
             </MpTableCell>
             <MpTableCell as="td" :class="tightCell">
               <MpText size="label" :class="valueText">{{ formatDate(request.submittedAt) }}</MpText>
             </MpTableCell>
             <MpTableCell as="td" :class="tightCell">
-              <span :class="statusClass(request.status)">{{ statusLabel(request.status) }}</span>
+              <MpBadge for="tableStatus" :type="statusType(request.status)">{{ statusLabel(request.status) }}</MpBadge>
             </MpTableCell>
             <MpTableCell as="td" :class="actionCell">
-              <MpTextlink @click="openSubmission(request.id)">View details</MpTextlink>
+              <MpButton variant="secondary" @click="openSubmission(request.id)">View details</MpButton>
             </MpTableCell>
           </MpTableRow>
         </MpTableBody>
