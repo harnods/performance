@@ -24,8 +24,11 @@ import {
 const props = defineProps<{
   isOpen: boolean
   method?: string
+  // Whether "Use weight" is enabled on the cycle (2+ weightable methods). Gates
+  // the Weight tab per requirements (US2).
+  useWeight?: boolean
 }>()
-const emit = defineEmits<{ 'update:isOpen': [boolean]; 'saved': [] }>()
+const emit = defineEmits<{ 'update:isOpen': [boolean]; 'saved': [{ selfCommentOnly: boolean }] }>()
 
 const methodLabel = computed(() => props.method ?? 'Manager review')
 const drawerTitle = computed(() => `${methodLabel.value} method`)
@@ -56,19 +59,32 @@ const allTabs: { key: TabKey; label: string }[] = [
   { key: 'reprimand', label: 'Reprimand' },
   { key: 'weight', label: 'Weight' },
 ]
-// Manager review: all five tabs. 360 / Team / Self: General / Goals / Weight only.
-const tabs = computed(() =>
-  isManager.value ? allTabs : allTabs.filter(t => ['general', 'goals', 'weight'].includes(t.key)))
+// Manager review has Goals/Attendance/Reprimand; others only Goals. The Weight
+// tab appears only when "Use weight" is enabled on the cycle (US2).
+const tabs = computed(() => {
+  const base: TabKey[] = isManager.value
+    ? ['general', 'goals', 'attendance', 'reprimand']
+    : ['general', 'goals']
+  const keys = props.useWeight ? [...base, 'weight'] : base
+  return allTabs.filter(t => keys.includes(t.key))
+})
 const activeTab = ref<TabKey>('general')
 
 // ─── General ────────────────────────────────────────────────────────────────────
 const template = ref('')
 const templateOptions = [
-  { value: 'default', label: 'Default template', description: 'Evaluation method: by rating' },
-  { value: 'probation', label: 'Probation template', description: 'Evaluation method: by point' },
-  { value: 'contract', label: 'Contract template', description: 'Evaluation method: by percentage' },
-  { value: 'leadership', label: 'Leadership review', description: 'Evaluation method: by rating' },
+  { value: 'default', label: 'Default template', description: 'Question type: rating', type: 'rating' },
+  { value: 'probation', label: 'Probation template', description: 'Question type: point', type: 'point' },
+  { value: 'contract', label: 'Contract template', description: 'Question type: percentage', type: 'percentage' },
+  { value: 'leadership', label: 'Leadership review', description: 'Question type: rating', type: 'rating' },
+  { value: 'qualitative', label: 'Qualitative feedback', description: 'Question type: open-ended', type: 'text' },
 ]
+// Goals/attendance/reprimand scoring requires a rating/percentage/point template (D4).
+const scoringTypes = ['rating', 'percentage', 'point']
+const templateIsScoring = computed(() => {
+  const t = templateOptions.find(o => o.value === template.value)
+  return t ? scoringTypes.includes(t.type) : true // nothing selected yet → don't warn
+})
 // Manager review — reviewer resolution (Evaluation Cycle's "Who will review them?")
 const reviewer = ref('approval-line')
 const reviewerOptions = [
@@ -124,7 +140,7 @@ function onSave() {
     activeTab.value = templateInvalid.value ? 'general' : 'goals'
     return
   }
-  emit('saved')
+  emit('saved', { selfCommentOnly: selfCommentOnly.value })
   toast.notify({
     id: 'review-method-saved',
     position: 'top-center',
@@ -277,7 +293,7 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
                   <PxSelectPopover v-model="goalToInclude" :options="goalOptions" placeholder="Select goal" :class="selectWidth" />
                   <MpFormErrorMessage>You must select a goal to include</MpFormErrorMessage>
                 </MpFormControl>
-                <MpBanner variant="warning" is-inline>
+                <MpBanner v-if="!templateIsScoring" variant="warning" is-inline>
                   <MpBannerIcon />
                   <MpBannerDescription>
                     This option can be used if the question type from the template is rating, percentage, or point.

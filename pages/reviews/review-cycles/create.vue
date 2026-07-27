@@ -61,20 +61,6 @@ const employeeFilterOptions = [
   { value: 'job-level', label: 'Job level' },
 ]
 
-const template = ref('default')
-const templateOptions = [
-  { value: 'default', label: 'Default template', description: 'Evaluation method: by rating' },
-  { value: 'probation', label: 'Probation template', description: 'Evaluation method: by point' },
-  { value: 'contract', label: 'Contract template', description: 'Evaluation method: by percentage' },
-  { value: 'leadership', label: 'Leadership review', description: 'Evaluation method: by rating' },
-  { value: 'sales', label: 'Sales performance', description: 'Evaluation method: by percentage' },
-  { value: 'engineering', label: 'Engineering competency', description: 'Evaluation method: by point' },
-  { value: 'customer-success', label: 'Customer success', description: 'Evaluation method: by rating' },
-  { value: 'design', label: 'Design team review', description: 'Evaluation method: by point' },
-  { value: 'operations', label: 'Operations evaluation', description: 'Evaluation method: by percentage' },
-  { value: 'intern', label: 'Internship evaluation', description: 'Evaluation method: by rating' },
-]
-
 // Review period
 const reviewPeriodType = ref<'single' | 'multiple'>('single')
 
@@ -114,13 +100,20 @@ const activeMethods = computed(() => ([
   methodSelf.value && { key: 'self', name: 'Self review' },
 ].filter(Boolean) as { key: string; name: string }[]))
 
-// "Use weight" combines 2+ methods' scores into one final score. Only available
-// once 2 or more methods are enabled (mirrors Performance Cycle).
-const useMethodWeightAvailable = computed(() => activeMethods.value.length >= 2)
+// A comment-only Self review contributes no score, so it doesn't count toward
+// weighting — matching Performance Cycle (needs 2+ *scoring* methods, i.e. 3 when
+// Self is comment-only). Set once the Self drawer is saved.
+const selfIsCommentOnly = ref(false)
+const weightableMethods = computed(() =>
+  activeMethods.value.filter(m => !(m.key === 'self' && selfIsCommentOnly.value)))
+
+// "Use weight" combines 2+ scoring methods into one final score (mirrors
+// Performance Cycle). Only available once 2 or more weightable methods exist.
+const useMethodWeightAvailable = computed(() => weightableMethods.value.length >= 2)
 const useMethodWeight = ref(false)
 const methodWeights = reactive<Record<string, number | ''>>({ manager: '', '360': '', team: '', self: '' })
 const totalMethodWeight = computed(() =>
-  activeMethods.value.reduce((sum, m) => sum + (methodWeights[m.key] === '' ? 0 : Number(methodWeights[m.key])), 0))
+  weightableMethods.value.reduce((sum, m) => sum + (methodWeights[m.key] === '' ? 0 : Number(methodWeights[m.key])), 0))
 
 // Settings drawer opened from each method's "Manage" button
 const methodDrawerOpen = ref(false)
@@ -138,8 +131,10 @@ const labelToKey: Record<string, string> = {
   'Manager review': 'manager', '360-degree review': '360', 'Team review': 'team', 'Self review': 'self',
 }
 const configuredMethods = reactive(new Set<string>())
-function onMethodConfigured() {
-  configuredMethods.add(labelToKey[activeMethodLabel.value])
+function onMethodConfigured(payload?: { selfCommentOnly?: boolean }) {
+  const key = labelToKey[activeMethodLabel.value]
+  configuredMethods.add(key)
+  if (key === 'self') selfIsCommentOnly.value = !!payload?.selfCommentOnly
 }
 
 // ─── Validation (surfaces only after a save attempt) ────────────────────────────
@@ -158,8 +153,8 @@ const publishScoreOptions = [
   { value: 'both', label: 'Both' },
 ]
 
-// Require approval after each review submission
-const requireApproval = ref(false)
+// Lock edit for review (Performance Cycle parity — was "Require approval")
+const lockEditReview = ref(false)
 
 // Score adjustment
 const deductionScore = ref(false)
@@ -370,17 +365,6 @@ function onSave() {
           <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :class="selectWidth" />
         </MpFormControl>
 
-        <MpFormControl id="template">
-          <MpFormLabel>Template</MpFormLabel>
-          <PxSelectPopover
-            v-model="template"
-            :options="templateOptions"
-            placeholder="Select template"
-            :class="selectWidth"
-            searchable
-            search-placeholder="Search template"
-          />
-        </MpFormControl>
       </div>
 
       <!-- ── Review period ───────────────────────────────────────────── -->
@@ -548,7 +532,7 @@ function onSave() {
           </MpCheckbox>
         </MpFlex>
         <div v-if="useMethodWeight" :class="css({ marginTop: '3', marginLeft: '8' })">
-          <div v-for="m in activeMethods" :key="m.key" :class="weightRow">
+          <div v-for="m in weightableMethods" :key="m.key" :class="weightRow">
             <MpText size="label" color="text.default">{{ m.name }}</MpText>
             <MpInputGroup :class="css({ width: '104px' })">
               <MpInput v-model="methodWeights[m.key]" type="number" />
@@ -562,12 +546,12 @@ function onSave() {
         </div>
       </template>
 
-      <!-- Require approval after each review submission -->
+      <!-- Enable lock edit for review -->
       <MpFlex :class="css({ paddingTop: '4' })">
-        <MpCheckbox :is-checked="requireApproval" @update:is-checked="(v) => (requireApproval = v)">
-          Require approval after each review submission
+        <MpCheckbox :is-checked="lockEditReview" @update:is-checked="(v) => (lockEditReview = v)">
+          Enable lock edit for review
           <template #description>
-            After a reviewer submits a review, HR admin must approve it before the result is finalized.
+            You will not be able to edit or reset the review result unless it is requested.
           </template>
         </MpCheckbox>
       </MpFlex>
@@ -635,6 +619,11 @@ function onSave() {
 
     </div>
 
-    <ReviewMethodDrawer v-model:is-open="methodDrawerOpen" :method="activeMethodLabel" @saved="onMethodConfigured" />
+    <ReviewMethodDrawer
+      v-model:is-open="methodDrawerOpen"
+      :method="activeMethodLabel"
+      :use-weight="useMethodWeight && useMethodWeightAvailable"
+      @saved="onMethodConfigured"
+    />
   </div>
 </template>
