@@ -13,7 +13,6 @@ import {
   MpBadge,
   MpFormControl,
   MpFormLabel,
-  MpFormErrorMessage,
   MpTooltip,
   MpBanner,
   MpBannerIcon,
@@ -61,6 +60,20 @@ const employeeFilterOptions = [
   { value: 'job-level', label: 'Job level' },
 ]
 
+const template = ref('default')
+const templateOptions = [
+  { value: 'default', label: 'Default template', description: 'Evaluation method: by rating' },
+  { value: 'probation', label: 'Probation template', description: 'Evaluation method: by point' },
+  { value: 'contract', label: 'Contract template', description: 'Evaluation method: by percentage' },
+  { value: 'leadership', label: 'Leadership review', description: 'Evaluation method: by rating' },
+  { value: 'sales', label: 'Sales performance', description: 'Evaluation method: by percentage' },
+  { value: 'engineering', label: 'Engineering competency', description: 'Evaluation method: by point' },
+  { value: 'customer-success', label: 'Customer success', description: 'Evaluation method: by rating' },
+  { value: 'design', label: 'Design team review', description: 'Evaluation method: by point' },
+  { value: 'operations', label: 'Operations evaluation', description: 'Evaluation method: by percentage' },
+  { value: 'intern', label: 'Internship evaluation', description: 'Evaluation method: by rating' },
+]
+
 // Review period
 const reviewPeriodType = ref<'single' | 'multiple'>('single')
 
@@ -75,89 +88,37 @@ const reviewStartOptions = [
 const reviewEvery = ref<number | ''>('')
 const reviewWindow = ref<number | ''>('')
 
-// Validation surfaces only after a save attempt (mirrors competencies/create.vue).
-// Review every / Review window are required (and must be a positive number) when
-// the multiple-review-period option is selected.
-const submitted = ref(false)
-const isMultiple = computed(() => reviewPeriodType.value === 'multiple')
-const reviewEveryInvalid = computed(() => submitted.value && isMultiple.value && +reviewEvery.value < 1)
-const reviewWindowInvalid = computed(() => submitted.value && isMultiple.value && +reviewWindow.value < 1)
+const reviewer = ref('approval-line')
+const reviewerOptions = [
+  { value: 'approval-line', label: 'By approval line' },
+  { value: 'job-position', label: 'By job position' },
+]
 
 const reIncludeExtended = ref(false)
 
-// ─── Review methods (Performance Cycle parity per PM requirement) ────────────────
-// Manager review is on by default (mirrors existing single-method cycles); HR must
-// keep at least one method enabled. None are locked.
-const methodManager = ref(true)
-const method360 = ref(false)
-const methodTeam = ref(false)
-const methodSelf = ref(false)
-
-const activeMethods = computed(() => ([
-  methodManager.value && { key: 'manager', name: 'Manager review' },
-  method360.value && { key: '360', name: '360-degree review' },
-  methodTeam.value && { key: 'team', name: 'Team review' },
-  methodSelf.value && { key: 'self', name: 'Self review' },
-].filter(Boolean) as { key: string; name: string }[]))
-
-// A comment-only Self review contributes no score, so it doesn't count toward
-// weighting — matching Performance Cycle (needs 2+ *scoring* methods, i.e. 3 when
-// Self is comment-only). Set once the Self drawer is saved.
-const selfIsCommentOnly = ref(false)
-const weightableMethods = computed(() =>
-  activeMethods.value.filter(m => !(m.key === 'self' && selfIsCommentOnly.value)))
-
-// "Use weight" combines 2+ scoring methods into one final score (mirrors
-// Performance Cycle). Only available once 2 or more weightable methods exist.
-const useMethodWeightAvailable = computed(() => weightableMethods.value.length >= 2)
-const useMethodWeight = ref(false)
-const methodWeights = reactive<Record<string, number | ''>>({ manager: '', '360': '', team: '', self: '' })
-const totalMethodWeight = computed(() =>
-  weightableMethods.value.reduce((sum, m) => sum + (methodWeights[m.key] === '' ? 0 : Number(methodWeights[m.key])), 0))
-
-// Settings drawer opened from each method's "Manage" button
-const methodDrawerOpen = ref(false)
-const activeMethodLabel = ref('Manager review')
-function openMethodDrawer(label: string) {
-  activeMethodLabel.value = label
-  // Defer opening to the next tick so the current click event finishes
-  // bubbling before the drawer mounts its outside-click listener — otherwise
-  // the same click is treated as an outside click and closes it immediately.
-  nextTick(() => { methodDrawerOpen.value = true })
-}
-
-// A method counts as "configured" once its drawer has been saved at least once.
-const labelToKey: Record<string, string> = {
-  'Manager review': 'manager', '360-degree review': '360', 'Team review': 'team', 'Self review': 'self',
-}
-const configuredMethods = reactive(new Set<string>())
-function onMethodConfigured(payload?: { selfCommentOnly?: boolean }) {
-  const key = labelToKey[activeMethodLabel.value]
-  configuredMethods.add(key)
-  if (key === 'self') selfIsCommentOnly.value = !!payload?.selfCommentOnly
-}
-
-// ─── Validation (surfaces only after a save attempt) ────────────────────────────
-const cycleNameInvalid = computed(() => submitted.value && !cycleName.value.trim())
-const noMethodSelected = computed(() => submitted.value && activeMethods.value.length === 0)
-const unconfiguredMethods = computed(() =>
-  submitted.value ? activeMethods.value.filter(m => !configuredMethods.has(m.key)) : [])
-const weightTotalInvalid = computed(() =>
-  submitted.value && useMethodWeight.value && useMethodWeightAvailable.value && totalMethodWeight.value !== 100)
-
-// Publish score after (Performance Cycle parity)
-const publishScoreAfter = ref('complete-review')
-const publishScoreOptions = [
-  { value: 'complete-review', label: 'Complete review' },
-  { value: 'cycle-end', label: 'Review period end' },
-  { value: 'both', label: 'Both' },
-]
-
-// Lock edit for review (Performance Cycle parity — was "Require approval")
-const lockEditReview = ref(false)
+// Additional review aspects
+const includeGoal = ref(false)
+const includeAttendance = ref(false)
+const includeReprimand = ref(false)
+const requireApproval = ref(false)
 
 // Score adjustment
 const deductionScore = ref(false)
+
+// Aspects weight
+const showAspectWeight = computed(() => includeGoal.value || includeAttendance.value || includeReprimand.value)
+const weightEachAspect = ref(false)
+const weightReview = ref<number | ''>('')
+const weightGoal = ref<number | ''>('')
+const weightAttendance = ref<number | ''>('')
+const weightReprimand = ref<number | ''>('')
+const totalWeight = computed(() => {
+  const sum = (n: number | '') => (n === '' ? 0 : Number(n))
+  return sum(weightReview.value)
+    + (includeGoal.value ? sum(weightGoal.value) : 0)
+    + (includeAttendance.value ? sum(weightAttendance.value) : 0)
+    + (includeReprimand.value ? sum(weightReprimand.value) : 0)
+})
 
 // Review outcome
 const reviewerCanDecide = ref(false)
@@ -183,9 +144,6 @@ const formColumn = css({
 // full width (12/12) on tablet & mobile. Passed via :class (not :width)
 // because a responsive width needs media queries, which inline style can't do.
 const selectWidth = css({ width: { base: '100%', lg: '50%' } })
-
-// Inline validation error text (matches MpFormErrorMessage sizing)
-const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16px' })
 
 // pxl-space-md (16px) between fields
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
@@ -291,15 +249,6 @@ function onCancel() {
   router.push('/reviews/review-cycles')
 }
 function onSave() {
-  submitted.value = true
-  const anyMethodUnconfigured = activeMethods.value.some(m => !configuredMethods.has(m.key))
-  if (
-    cycleNameInvalid.value
-    || noMethodSelected.value
-    || anyMethodUnconfigured
-    || weightTotalInvalid.value
-    || (isMultiple.value && (reviewEveryInvalid.value || reviewWindowInvalid.value))
-  ) return
   toast.notify({
     id: 'review-cycle-created',
     position: 'top-center',
@@ -339,9 +288,6 @@ function onSave() {
               <MpButton variant="primary" @click="isEditingName = false">Save changes</MpButton>
             </template>
           </MpFlex>
-          <MpText v-if="cycleNameInvalid" size="label" :class="css({ color: 'text.danger' })">
-            You must fill in Cycle name
-          </MpText>
           <MpText :class="h3Class">Cycle type: Evaluation</MpText>
         </MpFlex>
 
@@ -365,6 +311,16 @@ function onSave() {
           <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :class="selectWidth" />
         </MpFormControl>
 
+        <MpFormControl id="template">
+          <MpFormLabel>Select template</MpFormLabel>
+          <PxSelectPopover
+            v-model="template"
+            :options="templateOptions"
+            :class="selectWidth"
+            searchable
+            search-placeholder="Search template"
+          />
+        </MpFormControl>
       </div>
 
       <!-- ── Review period ───────────────────────────────────────────── -->
@@ -413,21 +369,19 @@ function onSave() {
           <div :class="css({ paddingLeft: '8', display: 'flex', flexDirection: 'column', gap: '4' })">
             <!-- Two fields side by side -->
             <MpFlex gap="4">
-              <MpFormControl id="review-every" :is-invalid="reviewEveryInvalid" :class="css({ flex: '1' })">
+              <MpFormControl id="review-every" :class="css({ flex: '1' })">
                 <MpFormLabel>Review every</MpFormLabel>
                 <MpInputGroup>
                   <MpInput v-model="reviewEvery" type="number" min="1" />
                   <MpInputRightAddon>Months</MpInputRightAddon>
                 </MpInputGroup>
-                <MpFormErrorMessage>You must fill in Review every</MpFormErrorMessage>
               </MpFormControl>
-              <MpFormControl id="review-windows" :is-invalid="reviewWindowInvalid" :class="css({ flex: '1' })">
+              <MpFormControl id="review-windows" :class="css({ flex: '1' })">
                 <MpFormLabel>Review window</MpFormLabel>
                 <MpInputGroup>
                   <MpInput v-model="reviewWindow" type="number" min="1" />
                   <MpInputRightAddon>Days</MpInputRightAddon>
                 </MpInputGroup>
-                <MpFormErrorMessage>You must fill in Review window</MpFormErrorMessage>
               </MpFormControl>
             </MpFlex>
 
@@ -470,16 +424,21 @@ function onSave() {
               </div>
 
               <MpText size="label-small" color="text.secondary">
-                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-day review period.
+                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-days review period.
               </MpText>
             </div>
           </div>
         </template>
 
+        <MpFormControl id="reviewer">
+          <MpFormLabel>Reviewer</MpFormLabel>
+          <PxSelectPopover v-model="reviewer" :options="reviewerOptions" :class="selectWidth" />
+        </MpFormControl>
+
         <MpCheckbox :is-checked="reIncludeExtended" @update:is-checked="(v) => (reIncludeExtended = v)">
           <MpFlex align="center" gap="2">
             Re-include employees with extended employment period
-            <MpBadge type="critical" size="sm">New</MpBadge>
+            <MpBadge type="critical" size="sm">NEW</MpBadge>
           </MpFlex>
           <template #description>
             Employees whose employment period is extended via an approved transfer will be added to a new review timeframe in the same cycle.
@@ -487,93 +446,90 @@ function onSave() {
         </MpCheckbox>
       </div>
 
-      <!-- ── Review methods ──────────────────────────────────────────── -->
+      <!-- ── Additional review aspects ──────────────────────────────── -->
       <div :class="sectionHeader">
-        <MpText as="h2" :class="h2Class">Review methods</MpText>
+        <MpText as="h2" :class="h2Class">Additional review aspects</MpText>
         <MpText size="label" color="text.secondary">
-          Select the review method that you want to provide to your employees.
+          Include other aspects in this evaluation cycle.
         </MpText>
       </div>
       <div :class="css({ display: 'flex', flexDirection: 'column', gap: '0' })">
         <div :class="toggleRow">
-          <MpToggle :is-checked="methodManager" @update:is-checked="(v) => (methodManager = v)">Manager review</MpToggle>
-          <MpButton variant="secondary" :is-disabled="!methodManager" @click="openMethodDrawer('Manager review')">Manage</MpButton>
+          <MpToggle :is-checked="includeGoal" @update:is-checked="(v) => (includeGoal = v)">Goal</MpToggle>
+          <MpButton variant="secondary" :is-disabled="!includeGoal">Manage</MpButton>
         </div>
         <div :class="toggleRow">
-          <MpToggle :is-checked="method360" @update:is-checked="(v) => (method360 = v)">360-degree review</MpToggle>
-          <MpButton variant="secondary" :is-disabled="!method360" @click="openMethodDrawer('360-degree review')">Manage</MpButton>
+          <MpToggle :is-checked="includeAttendance" @update:is-checked="(v) => (includeAttendance = v)">Attendance</MpToggle>
+          <MpButton variant="secondary" :is-disabled="!includeAttendance">Manage</MpButton>
         </div>
         <div :class="toggleRow">
-          <MpToggle :is-checked="methodTeam" @update:is-checked="(v) => (methodTeam = v)">Team review</MpToggle>
-          <MpButton variant="secondary" :is-disabled="!methodTeam" @click="openMethodDrawer('Team review')">Manage</MpButton>
+          <MpToggle :is-checked="includeReprimand" @update:is-checked="(v) => (includeReprimand = v)">Reprimand</MpToggle>
+          <MpButton variant="secondary" :is-disabled="!includeReprimand">Manage</MpButton>
         </div>
-        <div :class="toggleRow">
-          <MpToggle :is-checked="methodSelf" @update:is-checked="(v) => (methodSelf = v)">Self review</MpToggle>
-          <MpButton variant="secondary" :is-disabled="!methodSelf" @click="openMethodDrawer('Self review')">Manage</MpButton>
-        </div>
-      </div>
 
-      <!-- Review methods validation -->
-      <MpText v-if="noMethodSelected" :class="[errorText, css({ paddingTop: '2' })]">
-        You must select at least one review method
-      </MpText>
-      <MpText v-else-if="unconfiguredMethods.length" :class="[errorText, css({ paddingTop: '2' })]">
-        You must set up {{ unconfiguredMethods.map(m => m.name).join(', ') }}. Please open Manage to configure
-      </MpText>
-
-      <!-- Use weight — appears once 2+ methods are enabled -->
-      <template v-if="useMethodWeightAvailable">
-        <MpFlex :class="css({ paddingTop: '4' })">
-          <MpCheckbox :is-checked="useMethodWeight" @update:is-checked="(v) => (useMethodWeight = v)">
-            Use weight
+        <!-- Aspects weight — visible when any toggle is on -->
+        <template v-if="showAspectWeight">
+          <MpFlex direction="column" gap="1" :class="css({ paddingTop: '5', paddingBottom: '2' })">
+            <MpText :class="h3Class">Aspects weight</MpText>
+            <MpText size="label" color="text.secondary">
+              Assign a weight to each review aspect to calculate the final score proportionally.
+            </MpText>
+          </MpFlex>
+          <MpCheckbox
+            :is-checked="weightEachAspect"
+            @update:is-checked="(v) => (weightEachAspect = v)"
+          >
+            Weight each review aspect
             <template #description>
-              Your review score is calculated from the weights you set.
+              Each aspect will contribute to the final score based on its assigned weight.
+            </template>
+          </MpCheckbox>
+
+          <template v-if="weightEachAspect">
+            <div :class="css({ marginTop: '3', marginLeft: '8' })">
+              <div :class="weightRow">
+                <MpText size="label" color="text.default">Review</MpText>
+                <MpInputGroup :class="css({ width: '80px' })">
+                  <MpInput v-model="weightReview" type="number" />
+                  <MpInputRightAddon>%</MpInputRightAddon>
+                </MpInputGroup>
+              </div>
+              <div v-if="includeGoal" :class="weightRow">
+                <MpText size="label" color="text.default">Goal</MpText>
+                <MpInputGroup :class="css({ width: '80px' })">
+                  <MpInput v-model="weightGoal" type="number" />
+                  <MpInputRightAddon>%</MpInputRightAddon>
+                </MpInputGroup>
+              </div>
+              <div v-if="includeAttendance" :class="weightRow">
+                <MpText size="label" color="text.default">Attendance</MpText>
+                <MpInputGroup :class="css({ width: '80px' })">
+                  <MpInput v-model="weightAttendance" type="number" />
+                  <MpInputRightAddon>%</MpInputRightAddon>
+                </MpInputGroup>
+              </div>
+              <div v-if="includeReprimand" :class="weightRow">
+                <MpText size="label" color="text.default">Reprimand</MpText>
+                <MpInputGroup :class="css({ width: '80px' })">
+                  <MpInput v-model="weightReprimand" type="number" />
+                  <MpInputRightAddon>%</MpInputRightAddon>
+                </MpInputGroup>
+              </div>
+            </div>
+            <MpFlex justify="flex-end" :class="css({ paddingTop: '2', marginLeft: '8' })">
+              <MpText size="label" color="text.secondary">{{ totalWeight }}% of 100%</MpText>
+            </MpFlex>
+          </template>
+        </template>
+
+        <MpFlex :class="css({ paddingTop: '4' })">
+          <MpCheckbox :is-checked="requireApproval" @update:is-checked="(v) => (requireApproval = v)">
+            Require approval after each review submission
+            <template #description>
+              After a reviewer submits a review, HR admin must approve it before the result is finalized.
             </template>
           </MpCheckbox>
         </MpFlex>
-        <div v-if="useMethodWeight" :class="css({ marginTop: '3', marginLeft: '8' })">
-          <div v-for="m in weightableMethods" :key="m.key" :class="weightRow">
-            <MpText size="label" color="text.default">{{ m.name }}</MpText>
-            <MpInputGroup :class="css({ width: '104px' })">
-              <MpInput v-model="methodWeights[m.key]" type="number" />
-              <MpInputRightAddon>%</MpInputRightAddon>
-            </MpInputGroup>
-          </div>
-          <MpFlex justify="flex-end" :class="css({ paddingTop: '2' })">
-            <MpText size="label" :class="weightTotalInvalid ? errorText : css({ color: 'text.secondary' })">{{ totalMethodWeight }}% of 100%</MpText>
-          </MpFlex>
-          <MpText v-if="weightTotalInvalid" :class="errorText">Total weight must be 100%</MpText>
-        </div>
-      </template>
-
-      <!-- Enable lock edit for review -->
-      <MpFlex :class="css({ paddingTop: '4' })">
-        <MpCheckbox :is-checked="lockEditReview" @update:is-checked="(v) => (lockEditReview = v)">
-          Enable lock edit for review
-          <template #description>
-            You will not be able to edit or reset the review result unless it is requested.
-          </template>
-        </MpCheckbox>
-      </MpFlex>
-
-      <!-- ── Publish score after ─────────────────────────────────────── -->
-      <div :class="sectionHeader">
-        <MpText as="h2" :class="h2Class">Publish score after</MpText>
-        <MpText size="label" color="text.secondary">
-          Choose when the final review score becomes visible.
-        </MpText>
-      </div>
-      <div :class="fields">
-        <MpRadio
-          v-for="opt in publishScoreOptions"
-          :key="opt.value"
-          name="publish-score-after"
-          :value="opt.value"
-          :is-checked="publishScoreAfter === opt.value"
-          @update:is-checked="publishScoreAfter = opt.value"
-        >
-          {{ opt.label }}
-        </MpRadio>
       </div>
 
       <!-- ── Score adjustment ────────────────────────────────────────── -->
@@ -618,12 +574,5 @@ function onSave() {
       </div>
 
     </div>
-
-    <ReviewMethodDrawer
-      v-model:is-open="methodDrawerOpen"
-      :method="activeMethodLabel"
-      :use-weight="useMethodWeight && useMethodWeightAvailable"
-      @saved="onMethodConfigured"
-    />
   </div>
 </template>

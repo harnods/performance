@@ -101,21 +101,10 @@ const employmentStatus = computed(() => currentScenario.value.employmentStatus)
 // Single-review cycles have exactly one period per employee → hide the Period column.
 const isSinglePeriod = computed(() => currentScenario.value.reviewPeriodValue === 'Single review period')
 
-// Mock: active review aspects (non-evaluation cycles still summarise by aspect)
+// Mock: active review aspects
 const activeAspects = ['Goal', 'Attendance'] // can be [], ['Goal'], ['Goal','Attendance','Reprimand'], etc.
-
-// Mock: Review methods configured on this Evaluation cycle (new Review methods form).
-// Manager review resolves reviewers via "Who will review them?"; when 2+ methods
-// are enabled and "Use weight" is on, each method contributes a weighted share.
-const reviewMethods = ['Manager review', 'Self review']
-const managerReviewer = 'By approval line'
-const useMethodWeight = true
-const methodWeights: Record<string, number> = { 'Manager review': 60, 'Self review': 40 }
-const publishScoreAfter = 'Complete review' // Complete review | Review period end | Both
-
-const reviewMethodsText = computed(() =>
-  reviewMethods.length === 0 ? 'None' : reviewMethods.join(', '),
-)
+const scoreCalc = 'weight' // 'weight' | 'sum'
+const weights = { review: 60, goal: 30, attendance: 10, reprimand: 0 }
 
 // Mock: drives which table variant to render
 const reincludeExtended = true
@@ -147,26 +136,22 @@ const infoRows = computed<InfoRow[]>(() => {
   const rows: InfoRow[] = [
     { label: 'Cycle name', value: cycleName.value, editable: true },
     { label: 'Purpose', value: purposeLabel[purpose] || 'Evaluation review' },
+    { label: 'Publish score', value: 'After all reviewers submit' },
     { label: 'Employment status', value: isEval ? employmentStatus.value : (purpose === 'performance' ? 'Permanent' : 'All status') },
     { label: 'Review period', value: currentScenario.value.reviewPeriodValue, subValues: currentScenario.value.reviewPeriodSubs },
+    { label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' },
+    { label: 'Review aspects', value: reviewAspectsText.value },
   ]
-  if (isEval) {
-    // New Review methods form: methods + per-method reviewer/weight, publish timing.
-    rows.push({ label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' })
-    rows.push({ label: 'Review methods', value: reviewMethodsText.value })
-    rows.push({ label: 'Reviewer', value: managerReviewer })
-    if (useMethodWeight && reviewMethods.length >= 2) {
-      rows.push({ label: 'Score calculation', value: 'Weighted' })
-      reviewMethods.forEach(m => rows.push({ label: m, value: `${methodWeights[m] ?? 0}%`, indent: true }))
+  if (isEval && activeAspects.length > 0) {
+    rows.push({ label: 'Score calculation', value: scoreCalc === 'weight' ? 'Weighted' : 'Simple sum' })
+    if (scoreCalc === 'weight') {
+      rows.push({ label: 'Review', value: `${weights.review}%`, indent: true })
+      if (activeAspects.includes('Goal')) rows.push({ label: 'Goal', value: `${weights.goal}%`, indent: true })
+      if (activeAspects.includes('Attendance')) rows.push({ label: 'Attendance', value: `${weights.attendance}%`, indent: true })
+      if (activeAspects.includes('Reprimand')) rows.push({ label: 'Reprimand', value: `${weights.reprimand}%`, indent: true })
     }
-    rows.push({ label: 'Publish score after', value: publishScoreAfter })
-    rows.push({ label: 'Score deduction', value: 'Yes' })
-  } else {
-    rows.push({ label: 'Publish score', value: 'After all reviewers submit' })
-    rows.push({ label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' })
-    rows.push({ label: 'Review aspects', value: reviewAspectsText.value })
-    rows.push({ label: 'Score deduction', value: 'Yes' })
   }
+  rows.push({ label: 'Score deduction', value: 'Yes' })
   return rows
 })
 
