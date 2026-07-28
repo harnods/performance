@@ -17,6 +17,11 @@ import {
   MpBanner,
   MpBannerIcon,
   MpBannerDescription,
+  MpFlex,
+  MpInputGroup,
+  MpInput,
+  MpInputRightAddon,
+  MpDatePicker,
   toast,
   css,
 } from '@mekari/pixel3'
@@ -24,9 +29,9 @@ import {
 const props = defineProps<{
   isOpen: boolean
   method?: string
-  // Whether "Use weight" is enabled on the cycle (2+ weightable methods). Gates
-  // the Weight tab per requirements (US2).
-  useWeight?: boolean
+  // Whether the Manager review method is active on the cycle. Gates the
+  // "manage co-worker" period field in the 360 method (mirrors Performance Cycle).
+  managerActive?: boolean
 }>()
 const emit = defineEmits<{ 'update:isOpen': [boolean]; 'saved': [{ selfCommentOnly: boolean }] }>()
 
@@ -60,12 +65,14 @@ const allTabs: { key: TabKey; label: string }[] = [
   { key: 'weight', label: 'Weight' },
 ]
 // Manager review has Goals/Attendance/Reprimand; others only Goals. The Weight
-// tab appears only when "Use weight" is enabled on the cycle (US2).
+// tab appears once at least one scoring aspect is included on this method — i.e.
+// there are 2+ things to weight (Review + aspect), mirroring Performance Cycle's
+// "Set aspects weight".
 const tabs = computed(() => {
   const base: TabKey[] = isManager.value
     ? ['general', 'goals', 'attendance', 'reprimand']
     : ['general', 'goals']
-  const keys = props.useWeight ? [...base, 'weight'] : base
+  const keys = anyAspectIncluded.value ? [...base, 'weight'] : base
   return allTabs.filter(t => keys.includes(t.key))
 })
 const activeTab = ref<TabKey>('general')
@@ -101,6 +108,10 @@ const teamDisplayForManager = ref(false)
 const display360ForManager = ref(false)
 const pickCoworker = ref(false)
 const allowReject = ref(false)
+// When members pick their own co-workers, HR sets the window(s) for that
+// (mirrors Performance Cycle's "Period of employee/manager to pick co-worker").
+const pickCoworkerPeriod = ref<Date[]>([])
+const manageCoworkerPeriod = ref<Date[]>([])
 
 // ─── Goals / Attendance / Reprimand ─────────────────────────────────────────────
 const includeGoals = ref(false)
@@ -114,14 +125,32 @@ const includeAttendance = ref(false)
 const includeReprimand = ref(false)
 const reprimandDefineScore = ref(false)
 
-// ─── Weight ───────────────────────────────────────────────────────────────────
+// A scoring aspect is included → there's something to weight against the review
+// score, so the Weight tab appears (mirrors Performance Cycle's hasInputWeight).
+const anyAspectIncluded = computed(() =>
+  includeGoals.value || (isManager.value && (includeAttendance.value || includeReprimand.value)))
+
+// ─── Weight (per-aspect, mirrors "Set aspects weight") ──────────────────────────
 const finalScoreCalc = ref<'use-weight' | 'simple-sum'>('use-weight')
-const weightImplementation = ref<'all' | 'custom'>('all')
+// "Review" is the template/questions score (always weightable); each included
+// aspect adds its own row. Total must be 100%.
+const aspectWeights = reactive<Record<string, number | ''>>({ review: '', goal: '', attendance: '', reprimand: '' })
+const weightAspects = computed(() => {
+  const list: { key: string; label: string }[] = [{ key: 'review', label: 'Review weight' }]
+  if (includeGoals.value) list.push({ key: 'goal', label: 'Goal weight' })
+  if (isManager.value && includeAttendance.value) list.push({ key: 'attendance', label: 'Attendance weight' })
+  if (isManager.value && includeReprimand.value) list.push({ key: 'reprimand', label: 'Reprimand weight' })
+  return list
+})
+const totalAspectWeight = computed(() =>
+  weightAspects.value.reduce((sum, a) => sum + (aspectWeights[a.key] === '' ? 0 : Number(aspectWeights[a.key])), 0))
 
 // ─── Validation (surfaces only after a save attempt) ────────────────────────────
 const submitted = ref(false)
 const templateInvalid = computed(() => submitted.value && !template.value)
 const goalInvalid = computed(() => submitted.value && includeGoals.value && !goalToInclude.value)
+const weightTotalInvalid = computed(() =>
+  submitted.value && anyAspectIncluded.value && finalScoreCalc.value === 'use-weight' && totalAspectWeight.value !== 100)
 
 // Reset to the first tab and clear validation whenever the drawer opens or the
 // method changes.
@@ -129,15 +158,20 @@ watch(() => props.isOpen, (open) => {
   if (open) { activeTab.value = 'general'; submitted.value = false }
 })
 watch(methodKey, () => { activeTab.value = 'general'; submitted.value = false })
+// If the active tab disappears (e.g. Weight tab after all aspects unchecked),
+// fall back to General so the body doesn't render empty.
+watch(tabs, (list) => {
+  if (!list.some(t => t.key === activeTab.value)) activeTab.value = 'general'
+})
 
 function close() {
   emit('update:isOpen', false)
 }
 function onSave() {
   submitted.value = true
-  if (templateInvalid.value || goalInvalid.value) {
+  if (templateInvalid.value || goalInvalid.value || weightTotalInvalid.value) {
     // Jump to the tab that holds the first error so it's visible.
-    activeTab.value = templateInvalid.value ? 'general' : 'goals'
+    activeTab.value = templateInvalid.value ? 'general' : goalInvalid.value ? 'goals' : 'weight'
     return
   }
   emit('saved', { selfCommentOnly: selfCommentOnly.value })
@@ -174,6 +208,12 @@ const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const subLabel = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default', marginTop: '5', marginBottom: '2' })
 const selectWidth = css({ width: { base: '100%', lg: '50%' } })
 const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', gap: '4' })
+// Weight input row: label left, input+% right, border-bottom separator
+const weightRow = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between',
+  paddingBlock: '3', borderBottom: '1px solid', borderBottomColor: 'border.default',
+})
+const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16px' })
 </script>
 
 <template>
@@ -264,6 +304,34 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
                 <MpCheckbox :is-checked="pickCoworker" @update:is-checked="(v) => (pickCoworker = v)">
                   Let members pick their own co-workers
                 </MpCheckbox>
+                <div v-if="pickCoworker" :class="indent">
+                  <MpFormControl id="pick-coworker-period">
+                    <MpFormLabel>Period of employee to pick co-worker</MpFormLabel>
+                    <MpDatePicker
+                      v-model="pickCoworkerPeriod"
+                      value-type="date"
+                      format="D MMM YYYY"
+                      placeholder="Start date - end date"
+                      is-range
+                      use-portal
+                      :is-show-shortcut="false"
+                      :class="selectWidth"
+                    />
+                  </MpFormControl>
+                  <MpFormControl v-if="managerActive" id="manage-coworker-period">
+                    <MpFormLabel>Period of manager to manage co-worker</MpFormLabel>
+                    <MpDatePicker
+                      v-model="manageCoworkerPeriod"
+                      value-type="date"
+                      format="D MMM YYYY"
+                      placeholder="Start date - end date"
+                      is-range
+                      use-portal
+                      :is-show-shortcut="false"
+                      :class="selectWidth"
+                    />
+                  </MpFormControl>
+                </div>
                 <MpCheckbox :is-checked="allowReject" @update:is-checked="(v) => (allowReject = v)">
                   Allow reviewers to reject review tasks
                   <template #description>Reviewer can reject during review period.</template>
@@ -353,9 +421,9 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
           <!-- ── Weight ──────────────────────────────────────────────── -->
           <template v-else-if="activeTab === 'weight'">
             <div :class="sectionHead">
-              <MpText as="h2" :class="h3Class">Weight</MpText>
+              <MpText as="h2" :class="h2Class">Set aspects weight</MpText>
               <MpText size="label" color="text.secondary">
-                Please define the weight of each category so the system can calculate the rating into the final score.
+                The score of the aspects review will be calculated once the review is finished.
               </MpText>
             </div>
 
@@ -382,30 +450,22 @@ const indent = css({ marginLeft: '8', display: 'flex', flexDirection: 'column', 
             </div>
 
             <template v-if="finalScoreCalc === 'use-weight'">
-              <MpText :class="subLabel">Weight implementation</MpText>
-              <div :class="fields">
-                <MpRadio
-                  name="weight-implementation"
-                  value="all"
-                  :is-checked="weightImplementation === 'all'"
-                  @update:is-checked="weightImplementation = 'all'"
-                >
-                  All employees
-                </MpRadio>
-                <MpRadio
-                  name="weight-implementation"
-                  value="custom"
-                  :is-checked="weightImplementation === 'custom'"
-                  @update:is-checked="weightImplementation = 'custom'"
-                >
-                  Custom
-                </MpRadio>
-              </div>
-
               <MpText :class="subLabel">Aspects</MpText>
-              <MpText size="label" color="text.secondary">
-                The employee performance aspects will be evaluated in this {{ methodLabel.toLowerCase() }}. Total weight per aspect must be 100%.
-              </MpText>
+              <div>
+                <div v-for="a in weightAspects" :key="a.key" :class="weightRow">
+                  <MpText size="label" color="text.default">{{ a.label }}</MpText>
+                  <MpInputGroup :class="css({ width: '104px' })">
+                    <MpInput v-model="aspectWeights[a.key]" type="number" />
+                    <MpInputRightAddon>%</MpInputRightAddon>
+                  </MpInputGroup>
+                </div>
+                <MpFlex justify="flex-end" :class="css({ paddingTop: '2' })">
+                  <MpText size="label" :class="weightTotalInvalid ? errorText : css({ color: 'text.secondary' })">
+                    {{ totalAspectWeight }}% of 100%
+                  </MpText>
+                </MpFlex>
+                <MpText v-if="weightTotalInvalid" :class="errorText">Total weight must be 100%</MpText>
+              </div>
             </template>
           </template>
         </MpDrawerBody>

@@ -622,7 +622,7 @@ function onSave() {
     <ReviewMethodDrawer
       v-model:is-open="methodDrawerOpen"
       :method="activeMethodLabel"
-      :use-weight="useMethodWeight && useMethodWeightAvailable"
+      :manager-active="methodManager"
       @saved="onMethodConfigured"
     />
   </div>
