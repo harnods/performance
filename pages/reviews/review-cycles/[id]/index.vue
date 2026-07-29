@@ -1789,12 +1789,13 @@ function confirmRemoveEmployee() {
        each reviewer with profile + own weight. -->
   <MpModal :is-open="reviewerModalOpen" is-centered size="lg" @close="reviewerModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' })">
+    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column' })">
       <MpModalHeader>
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '0 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
+      <MpModalBody :class="css({ padding: '0', overflow: 'hidden' })">
+        <div :class="css({ maxHeight: '65vh', overflowY: 'auto', paddingInline: '6' })" @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
@@ -1834,6 +1835,7 @@ function confirmRemoveEmployee() {
             </MpFlex>
           </div>
         </MpFlex>
+        </div>
       </MpModalBody>
     </MpModalContent>
   </MpModal>
@@ -1842,12 +1844,13 @@ function confirmRemoveEmployee() {
        editable and saved together. -->
   <MpModal :is-open="weightModalOpen" is-centered size="lg" @close="weightModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' })">
+    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column' })">
       <MpModalHeader :class="css({ flexShrink: '0' })">
         Set reviewer weight
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '1 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
+      <MpModalBody :class="css({ padding: '0', overflow: 'hidden' })">
+        <div :class="css({ maxHeight: '60vh', overflowY: 'auto', paddingInline: '6' })" @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="weightModalMember"
           align="center"
@@ -1896,6 +1899,7 @@ function confirmRemoveEmployee() {
             </MpFlex>
           </div>
         </MpFlex>
+        </div>
       </MpModalBody>
       <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end', flexShrink: '0' })">
         <MpButton variant="ghost" @click="weightModalOpen = false">Cancel</MpButton>
