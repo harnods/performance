@@ -33,7 +33,9 @@ const group1: NavItem[] = [
 
 // Toggled from Goals settings ("Use the new Goals interface"). Swaps the
 // Goals level-2 sitemap between the current menu and the new-experience menu.
-const goalsNewInterface = useCookie('goals-new-interface', { default: () => false })
+// Defaults to the new (cycle-based) interface — that's the one actually built
+// here; the "current" menu points at unbuilt top-level stub pages.
+const goalsNewInterface = useCookie('goals-new-interface', { default: () => true })
 
 const goalsChildrenCurrent: PanelItem[] = [
   { label: 'Individual goals', path: '/goals/individual-goals' },
