@@ -6,6 +6,7 @@ import {
   MpInput,
   MpInputGroup,
   MpInputLeftAddon,
+  MpInputRightAddon,
   MpText,
   MpBadge,
   MpAvatar,
@@ -193,6 +194,30 @@ function pDone(done: number, total: number, memberTotal: number) {
   return total > 0 ? Math.round((done / total) * memberTotal) : 0
 }
 const reviewerGroups = computed(() => (reviewerModalMember.value ? reviewersForMember(reviewerModalMember.value) : []))
+
+// ─── Set reviewer weight modal (editable copy of the same grouped list) ─────────
+type EditableGroup = { name: string, weight: number, reviewers: (ReviewerRow & { weight: number | '' })[] }
+const weightModalOpen = ref(false)
+const weightModalMember = ref<ReviewMember | null>(null)
+const editableGroups = ref<EditableGroup[]>([])
+function openReviewerWeight(member: ReviewMember) {
+  weightModalMember.value = member
+  // Deep-clone so edits don't mutate the cached generated data.
+  editableGroups.value = reviewersForMember(member).map(g => ({ ...g, reviewers: g.reviewers.map(r => ({ ...r })) }))
+  weightModalOpen.value = true
+}
+function methodWeightTotal(g: EditableGroup) {
+  return g.reviewers.reduce((s, r) => s + (r.weight === '' ? 0 : Number(r.weight)), 0)
+}
+function saveReviewerWeights() {
+  const invalid = editableGroups.value.find(g => methodWeightTotal(g) !== 100)
+  if (invalid) {
+    toast.notify({ id: 'reviewer-weight-invalid', position: 'top-center', variant: 'error', title: `Total weight for ${invalid.name} must be 100%` })
+    return
+  }
+  toast.notify({ id: 'reviewer-weight-saved', position: 'top-center', variant: 'success', title: 'Reviewer weights saved' })
+  weightModalOpen.value = false
+}
 function openReviewerList(member: { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }) {
   reviewerModalMember.value = member
   reviewerModalOpen.value = true
@@ -1655,7 +1680,7 @@ function confirmRemoveEmployee() {
                             <MpPopoverContent :class="css({ minWidth: '160px' })">
                               <MpPopoverList>
                                 <MpPopoverListItem @click="openReviewerList(emp)">View reviewer</MpPopoverListItem>
-                                <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
+                                <MpPopoverListItem @click="openReviewerWeight(emp)">Set reviewer weight</MpPopoverListItem>
                                 <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
                                 <MpPopoverListItem @click="askRemoveEmployee(tg, emp)">
                                   <span :class="css({ color: 'text.danger' })">Remove employee</span>
@@ -1809,6 +1834,72 @@ function confirmRemoveEmployee() {
           </div>
         </MpFlex>
       </MpModalBody>
+    </MpModalContent>
+  </MpModal>
+
+  <!-- Set reviewer weight: same grouped layout, but each reviewer's weight is
+       editable and saved together. -->
+  <MpModal :is-open="weightModalOpen" is-centered size="lg" @close="weightModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' })">
+      <MpModalHeader>
+        Set reviewer weight
+        <MpModalCloseButton />
+      </MpModalHeader>
+      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '0 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
+        <MpFlex
+          v-if="weightModalMember"
+          align="center"
+          gap="3"
+          :class="css({ paddingTop: '5', paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
+        >
+          <MpAvatar :name="weightModalMember.name" size="lg" variant-color="gray" />
+          <MpFlex direction="column" gap="0">
+            <MpText size="label" weight="semiBold" :class="valueText">{{ weightModalMember.name }}</MpText>
+            <MpText size="label-small" :class="captionText">{{ memberSub(weightModalMember) }}</MpText>
+          </MpFlex>
+        </MpFlex>
+
+        <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
+          <div v-for="g in editableGroups" :key="g.name">
+            <div data-method-header :class="methodHeaderClass">
+              {{ g.name }} ({{ formatWeight(g.weight) }}%)
+            </div>
+            <MpFlex direction="column" gap="3">
+              <MpFlex
+                v-for="(r, i) in g.reviewers"
+                :key="`${g.name}-${i}`"
+                align="center"
+                justify="space-between"
+                gap="4"
+              >
+                <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
+                  <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                  <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
+                    <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
+                    <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
+                  </MpFlex>
+                </MpFlex>
+                <MpInputGroup :class="css({ width: '104px', flexShrink: '0' })">
+                  <MpInput v-model="r.weight" type="number" />
+                  <MpInputRightAddon>%</MpInputRightAddon>
+                </MpInputGroup>
+              </MpFlex>
+              <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers assigned.</MpText>
+              <MpFlex v-else justify="space-between" align="center" :class="css({ paddingTop: '2' })">
+                <MpText size="label" :class="captionText">Total weight</MpText>
+                <MpText size="label" weight="semiBold" :class="css({ color: methodWeightTotal(g) === 100 ? 'text.success' : 'text.danger' })">
+                  {{ methodWeightTotal(g) }}%
+                </MpText>
+              </MpFlex>
+            </MpFlex>
+          </div>
+        </MpFlex>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+        <MpButton variant="ghost" @click="weightModalOpen = false">Cancel</MpButton>
+        <MpButton variant="primary" @click="saveReviewerWeights">Save changes</MpButton>
+      </MpModalFooter>
     </MpModalContent>
   </MpModal>
 
