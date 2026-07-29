@@ -240,6 +240,10 @@ function toggleAcceptAll() {
 // of the batch's total they've actually reviewed so far (e.g. "45% / 100%"),
 // separate from whether the batch's own authored weight is valid.
 const acceptedWeight = computed(() => submission.value?.items.reduce((sum, i) => (acceptedItemIds[i.id] ? sum + (i.after?.weight ?? i.before?.weight ?? 0) : sum), 0) ?? 0)
+// Review progress as a plain count — clearer than a weight fraction for
+// "how many goals have I accepted". Drives the counter next to Approve.
+const acceptedCount = computed(() => submission.value?.items.filter(i => acceptedItemIds[i.id]).length ?? 0)
+const totalCount = computed(() => submission.value?.items.length ?? 0)
 
 // Reject reason is typed inline before it's confirmed — rejectSubmission
 // only gets called once the manager confirms, so a half-typed reason
@@ -289,7 +293,9 @@ function confirmRequestRevision() {
     timeLabel: 'Just now',
     summary: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}.`,
     senderName: 'Mekari Talenta',
-    senderTimestamp: '10 Jun 2026, 09:00',
+    // Keep the detail timestamp consistent with the list's "Just now" instead
+    // of a hardcoded unrelated date.
+    senderTimestamp: formatDate(new Date().toISOString()),
     body: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}. Please revise and resubmit.`,
     details: [
       { label: 'Goals needing revision', value: flaggedGoals },
@@ -494,6 +500,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                 <MpTableRow v-for="row in tableRows" :key="row.id">
                   <MpTableCell v-if="row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[cellPad, colDivider, colCategory]">
                     <MpFlex direction="column" gap="0" :class="cellContent">
+                      <MpText v-if="row.beforeCategory" size="label-small" :class="beforeValueText">{{ row.beforeCategory }}</MpText>
                       <MpText size="label" :class="[nameText, cellContent]">{{ row.category }}</MpText>
                       <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
                     </MpFlex>
@@ -620,10 +627,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                     <MpText size="label" weight="semiBold" :class="nameText">Total weight</MpText>
                   </MpTableCell>
                   <MpTableCell as="td" :class="[totalRowCell, colDivider]">
-                    <MpText size="label" weight="semiBold" :class="totalWeight === 100 ? nameText : dangerText">
-                      <template v-if="submission.status === 'pending'">{{ acceptedWeight }}% / {{ totalWeight }}%</template>
-                      <template v-else>{{ totalWeight }}%</template>
-                    </MpText>
+                    <MpText size="label" weight="semiBold" :class="totalWeight === 100 ? nameText : dangerText">{{ totalWeight }}%</MpText>
                   </MpTableCell>
                   <MpTableCell as="td" />
                 </MpTableRow>
@@ -637,7 +641,10 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
              individually accepted. -->
         <div :class="decisionBlock">
           <template v-if="isReviewer && submission.status === 'pending'">
-            <MpFlex v-if="!showRejectInput" align="center" justify="flex-end" gap="2">
+            <MpFlex v-if="!showRejectInput" align="center" justify="flex-end" gap="4">
+              <MpText size="label" :class="allAccepted ? css({ color: 'text.success' }) : captionText">
+                {{ acceptedCount }} of {{ totalCount }} goals accepted
+              </MpText>
               <MpButton variant="ghost" @click="startRequestRevision">Request revision</MpButton>
               <MpButton variant="primary" @click="markApprove">Approve</MpButton>
             </MpFlex>
