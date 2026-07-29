@@ -361,7 +361,7 @@ const methodHeaderClass = css({
 })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
 const extThCell = css({ bg: 'background.neutral.hovered' })
 const noHoverRow = css({ _hover: { bg: 'transparent' } })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
