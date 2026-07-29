@@ -208,6 +208,8 @@ const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
+// Whole row navigates to the cycle detail (matches the Actions → View details).
+const clickableRow = css({ cursor: 'pointer', _hover: { background: 'background.neutral.subtle' } })
 
 // Drawer form styles (DT 2.4)
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '5', width: '100%' })
@@ -275,7 +277,12 @@ const selectWidth = '100%'
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="cycle in pagedCycles" :key="cycle.id">
+            <MpTableRow
+              v-for="cycle in pagedCycles"
+              :key="cycle.id"
+              :class="clickableRow"
+              @click="router.push({ path: `/goals/goal-cycles/${cycle.id}`, query: { name: cycle.name } })"
+            >
               <MpTableCell as="td" :class="tightCell">
                 <MpText size="label" :class="valueText">{{ cycle.name }}</MpText>
               </MpTableCell>
@@ -285,7 +292,7 @@ const selectWidth = '100%'
               <MpTableCell as="td" :class="tightCell">
                 <MpBadge for="tableStatus" :type="statusBadgeType[cycle.status]">{{ cycle.status }}</MpBadge>
               </MpTableCell>
-              <MpTableCell as="td" :class="actionCell">
+              <MpTableCell as="td" :class="actionCell" @click.stop>
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
                     <MpButton variant="secondary" right-icon="caret-down">Actions</MpButton>

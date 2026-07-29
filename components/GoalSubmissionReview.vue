@@ -295,7 +295,7 @@ function confirmRequestRevision() {
       { label: 'Goals needing revision', value: flaggedGoals },
       { label: 'Reason', value: reason },
     ],
-    actions: [{ label: 'View submission', variant: 'primary' }],
+    actions: [{ label: 'View submission', variant: 'primary', to: `/goals/goal-cycles/${submission.value.cycleId}/awaiting-approval/${submission.value.id}` }],
   })
 }
 function resubmit() {
@@ -317,13 +317,12 @@ function formatDate(iso: string) {
 // detailHeader (self-padded, full-width border-bottom) — the body below is
 // a plain data table, so unlike notifications' prose detailBody it carries
 // no maxWidth constraint, sized by its own columns instead.
-// Sticky so it stays put while bodyWrap scrolls beneath it — matches the
-// Inbox list panel's own fixed-header + scrolling-body split (its
-// listHeader never moves either), rather than scrolling away as part of
-// the same block as the table. Content-list layout — label left, value
-// right on each row — for the submission's own identity (owner, when,
-// which cycle, current status), replacing the old avatar/name header card.
-const headerCardBase = { display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '4', position: 'sticky', top: '0', zIndex: '1', background: 'background.neutral', flexShrink: '0' } as const
+// Scrolls away with the table as part of the same block (not sticky) — the
+// submission's own identity (owner, when, which cycle, current status) is
+// context you read once, not a header you keep referring to while scrolling.
+// Content-list layout — label left, value right on each row — replacing the
+// old avatar/name header card.
+const headerCardBase = { display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '4', background: 'background.neutral', flexShrink: '0' } as const
 // Padded: this component supplies its own edge padding (Inbox split view,
 // whose `boxed: true` layout gives it none). Flat: the caller's own layout
 // already padded the stage 24px, so adding another layer here would double
@@ -357,8 +356,11 @@ const colSubCategory = css({ width: '160px' })
 const colGoal = css({ width: '320px' })
 const colGoalType = css({ width: '160px' })
 const colWeight = css({ width: '108px' })
-const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
+const actionHead = css({ width: '108px', paddingLeft: '0', paddingRight: '2', whiteSpace: 'nowrap', textAlign: 'right' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '0', paddingRight: '2', width: '108px', whiteSpace: 'nowrap', verticalAlign: 'top' })
+// Label + checkmark on one right-aligned line; the "Accepted" label shows once a row is accepted.
+const actionCellInner = css({ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1', width: '100%' })
+const acceptedLabel = css({ color: 'green.700', whiteSpace: 'nowrap' })
 // Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
 // per the Pixel3 spec — a flatter '2' reads as the narrow/dense table
 // variant, which made single-line rows (e.g. Goal type) look too short.
@@ -595,16 +597,19 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                     </MpFlex>
                   </MpTableCell>
                   <MpTableCell as="td" :class="actionCell">
-                    <MpTooltip v-if="submission.status === 'pending'" :label="acceptedItemIds[row.itemId] ? 'Accepted' : 'Accept'" use-portal>
-                      <button
-                        type="button"
-                        :class="[acceptBtn, acceptedItemIds[row.itemId] ? acceptBtnActive : acceptBtnIdle]"
-                        :aria-label="acceptedItemIds[row.itemId] ? 'Accepted — click to un-accept' : 'Accept'"
-                        @click="toggleAccept(row.itemId)"
-                      >
-                        <MpIcon name="check" size="sm" />
-                      </button>
-                    </MpTooltip>
+                    <div v-if="submission.status === 'pending'" :class="actionCellInner">
+                      <MpText v-if="acceptedItemIds[row.itemId]" size="label" :class="acceptedLabel">Accepted</MpText>
+                      <MpTooltip :label="acceptedItemIds[row.itemId] ? 'Un-accept' : 'Accept'" use-portal>
+                        <button
+                          type="button"
+                          :class="[acceptBtn, acceptedItemIds[row.itemId] ? acceptBtnActive : acceptBtnIdle]"
+                          :aria-label="acceptedItemIds[row.itemId] ? 'Accepted — click to un-accept' : 'Accept'"
+                          @click="toggleAccept(row.itemId)"
+                        >
+                          <MpIcon name="check" size="sm" />
+                        </button>
+                      </MpTooltip>
+                    </div>
                   </MpTableCell>
                 </MpTableRow>
 
