@@ -342,13 +342,23 @@ const openAddMethod = ref<string | null>(null)
 const addSearch = ref('')
 const addBranch = ref('')
 const addOrg = ref('')
-const ADD_PAGE = 8
+const ADD_PAGE = 10 // same page size as the timeframe tables (EXT_PAGE_SIZE)
 const addVisible = ref(ADD_PAGE)
+const addLoadingMore = ref(false)
+// Progressive load — mirrors loadMoreCompleted/loadMoreEmployees (skeletons +
+// short delay) so it behaves like the other tables.
+function loadMoreAdd() {
+  if (addLoadingMore.value) return
+  addLoadingMore.value = true
+  setTimeout(() => { addVisible.value += ADD_PAGE; addLoadingMore.value = false }, 800)
+}
+// Changing the filter/search restarts pagination from the first page.
+watch([addSearch, addBranch, addOrg], () => { addVisible.value = ADD_PAGE })
 const branchOptions = [{ value: '', label: 'All branches' }, ...BRANCHES.map(b => ({ value: b, label: b }))]
 const orgOptions = [{ value: '', label: 'All organizations' }, ...ORGANIZATIONS.map(o => ({ value: o, label: o }))]
 function toggleAdd(g: ManageGroup) {
   openAddMethod.value = openAddMethod.value === g.name ? null : g.name
-  addSearch.value = ''; addBranch.value = ''; addOrg.value = ''; addVisible.value = ADD_PAGE
+  addSearch.value = ''; addBranch.value = ''; addOrg.value = ''; addVisible.value = ADD_PAGE; addLoadingMore.value = false
 }
 function openManageReviewer(member: ReviewMember) {
   manageModalMember.value = member
@@ -2147,11 +2157,11 @@ function confirmRemoveEmployee() {
                 <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="toggleAdd(g)">Add reviewer</MpButton>
               </MpFlex>
               <div v-if="!g.isSelf && openAddMethod === g.name" :class="addPanel">
-                <!-- Filter bar: search + branch + organization -->
-                <MpFlex gap="2" wrap="wrap" :class="css({ marginBottom: '3' })">
-                  <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '180px' })" />
-                  <PxSelectPopover v-model="addBranch" :options="branchOptions" placeholder="All branches" :class="css({ width: '180px' })" />
-                  <PxSelectPopover v-model="addOrg" :options="orgOptions" placeholder="All organizations" :class="css({ width: '200px' })" />
+                <!-- Filter bar: search + branch + organization, single row -->
+                <MpFlex gap="2" align="center" :class="css({ marginBottom: '3' })">
+                  <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '0' })" />
+                  <PxSelectPopover v-model="addBranch" :options="branchOptions" placeholder="All branches" :class="css({ width: '176px', flexShrink: '0' })" />
+                  <PxSelectPopover v-model="addOrg" :options="orgOptions" placeholder="All organizations" :class="css({ width: '196px', flexShrink: '0' })" />
                 </MpFlex>
                 <!-- Scrollable list with a sticky "load more" bar at the bottom -->
                 <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
@@ -2176,15 +2186,30 @@ function confirmRemoveEmployee() {
                       </button>
                     </MpTooltip>
                   </MpFlex>
+                  <!-- Skeletons while loading more (same as the timeframe tables) -->
+                  <template v-if="addLoadingMore">
+                    <MpFlex v-for="s in 3" :key="`add-skel-${s}`" align="center" gap="3" :class="pickerRow">
+                      <MpSkeleton :class="css({ width: '36px', height: '36px', borderRadius: 'full', flexShrink: '0' })" />
+                      <MpFlex direction="column" gap="1">
+                        <MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" />
+                        <MpSkeleton :class="css({ width: '160px', height: '12px', borderRadius: '4px' })" />
+                      </MpFlex>
+                    </MpFlex>
+                  </template>
                   <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No employees match.</MpText>
+                  <!-- Load-more bar, sticky at the bottom of the list -->
                   <MpFlex
-                    v-if="availableReviewers(g).length > addVisible"
+                    v-else
                     align="center"
-                    justify="space-between"
+                    gap="1"
                     :class="css({ position: 'sticky', bottom: '0', background: 'background.neutral', paddingInline: '3', paddingBlock: '2', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
                   >
-                    <MpText size="label-small" :class="captionText">Showing {{ Math.min(addVisible, availableReviewers(g).length) }} of {{ availableReviewers(g).length }}</MpText>
-                    <MpTextlink as="button" size="small" @click="addVisible += ADD_PAGE">Load more</MpTextlink>
+                    <MpText size="label-small" :class="captionText">
+                      Showing {{ Math.min(addVisible, availableReviewers(g).length) }} of {{ availableReviewers(g).length }} employees.
+                    </MpText>
+                    <MpTextlink v-if="availableReviewers(g).length > addVisible && !addLoadingMore" as="button" size="label-small" @click="loadMoreAdd">
+                      Load {{ Math.min(ADD_PAGE, availableReviewers(g).length - addVisible) }} more.
+                    </MpTextlink>
                   </MpFlex>
                 </div>
               </div>
