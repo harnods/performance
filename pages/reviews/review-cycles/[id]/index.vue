@@ -317,7 +317,7 @@ const captionText = css({ color: 'text.secondary' })
 // pinned (data-stuck toggled on scroll). Opaque bg so rows scroll under it.
 const methodHeaderClass = css({
   position: 'sticky', top: '0', zIndex: '1',
-  display: 'block', background: 'background.neutral',
+  display: 'block', backgroundColor: 'background.neutral',
   fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default',
   paddingTop: '2', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
@@ -1726,9 +1726,9 @@ function confirmRemoveEmployee() {
   <!-- Employee list modal -->
   <!-- Reviewers modal: reviewers grouped per review method (method + weight),
        each reviewer with profile + own weight. -->
-  <MpModal :is-open="reviewerModalOpen" is-centered scroll-behavior="inside" @close="reviewerModalOpen = false">
+  <MpModal :is-open="reviewerModalOpen" is-centered size="lg" scroll-behavior="inside" @close="reviewerModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent :class="css({ width: '560px', maxWidth: '90vw' })">
+    <MpModalContent>
       <MpModalHeader>
         Reviewers
         <MpModalCloseButton />
@@ -1749,9 +1749,9 @@ function confirmRemoveEmployee() {
 
         <MpFlex direction="column" gap="6">
           <div v-for="g in reviewerGroups" :key="g.name">
-            <MpText size="label" data-method-header :class="methodHeaderClass">
+            <div data-method-header :class="methodHeaderClass">
               {{ g.name }} ({{ formatWeight(g.weight) }}%)
-            </MpText>
+            </div>
             <MpFlex direction="column" gap="3">
               <MpFlex
                 v-for="(r, i) in g.reviewers"
