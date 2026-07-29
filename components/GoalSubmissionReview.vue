@@ -245,6 +245,13 @@ const acceptedWeight = computed(() => submission.value?.items.reduce((sum, i) =>
 const acceptedCount = computed(() => submission.value?.items.filter(i => acceptedItemIds[i.id]).length ?? 0)
 const totalCount = computed(() => submission.value?.items.length ?? 0)
 
+// A "Goal creation" bundle (many goals authored at once) uses the per-goal
+// accept checklist + Request revision flow. A "Goal update"/"Goal progress"
+// submission is a single simple change — a straight Approve/Reject decision,
+// no per-row accept and no revision loop.
+const isCreateSubmission = computed(() => !!submission.value && submission.value.items.some(i => i.type === 'create'))
+const requestTitle = computed(() => (isCreateSubmission.value ? 'Goal creation' : 'Goal update'))
+
 // Reject reason is typed inline before it's confirmed — rejectSubmission
 // only gets called once the manager confirms, so a half-typed reason
 // never silently counts as a decision.
@@ -253,7 +260,7 @@ const rejectDraftReason = ref('')
 
 function markApprove() {
   if (!submission.value) return
-  if (!allAccepted.value) {
+  if (isCreateSubmission.value && !allAccepted.value) {
     toast.notify({
       id: 'submission-approve-blocked',
       position: 'top-center',
@@ -286,19 +293,25 @@ function confirmRequestRevision() {
   rejectSubmission(submission.value.id, reason)
   showRejectInput.value = false
   const flaggedGoals = notAccepted.length ? notAccepted.join(', ') : submission.value.items.map(i => (i.after ?? i.before)!.title).join(', ')
+  const reviewerName = employeeById(currentUserId.value)?.name ?? 'Your reviewer'
+  const cycleName = cycle.value?.name ?? 'this cycle'
   addNotification({
     recipientId: submission.value.ownerId,
     group: 'Today',
-    title: 'Goal revision requested',
+    title: isCreateSubmission.value ? 'Goal revision requested' : 'Goal update rejected',
     timeLabel: 'Just now',
-    summary: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}.`,
+    summary: isCreateSubmission.value
+      ? `${reviewerName} has requested changes to your goal submission for ${cycleName}.`
+      : `${reviewerName} rejected your goal update for ${cycleName}.`,
     senderName: 'Mekari Talenta',
     // Keep the detail timestamp consistent with the list's "Just now" instead
     // of a hardcoded unrelated date.
     senderTimestamp: formatDate(new Date().toISOString()),
-    body: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}. Please revise and resubmit.`,
+    body: isCreateSubmission.value
+      ? `${reviewerName} has requested changes to your goal submission for ${cycleName}. Please revise and resubmit.`
+      : `${reviewerName} rejected your goal update for ${cycleName}. See the reason below.`,
     details: [
-      { label: 'Goals needing revision', value: flaggedGoals },
+      { label: isCreateSubmission.value ? 'Goals needing revision' : 'Goal', value: flaggedGoals },
       { label: 'Reason', value: reason },
     ],
     actions: [{ label: 'View submission', variant: 'primary', to: `/goals/goal-cycles/${submission.value.cycleId}/awaiting-approval/${submission.value.id}` }],
@@ -339,6 +352,7 @@ const headerCardFlat = css({ ...headerCardBase, paddingInline: '0', paddingTop: 
 // info panel: a fixed 200px label column (never pushed to the far right)
 // + value in the remaining space, both `size="label"`, differentiated only
 // by color (text.secondary vs text.default) — not by size.
+const detailTitle = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default', marginBottom: '2' })
 const summaryRow = css({ display: 'flex', alignItems: 'flex-start', gap: '4' })
 const summaryLabelCol = css({ width: '200px', flexShrink: '0' })
 const summaryLabel = css({ color: 'text.secondary' })
@@ -445,6 +459,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
     </template>
     <template v-else>
       <div :class="padded ? headerCardPadded : headerCardFlat">
+        <MpText as="h2" :class="detailTitle">{{ requestTitle }}</MpText>
         <div :class="summaryRow">
           <MpText size="label" :class="[summaryLabel, summaryLabelCol]">Goal owner</MpText>
           <MpText size="label" :class="summaryValue">{{ owner?.name ?? submission.ownerId }}</MpText>
@@ -473,7 +488,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                 <col :class="colGoal">
                 <col :class="colGoalType">
                 <col :class="colWeight">
-                <col :class="actionHead">
+                <col v-if="isCreateSubmission" :class="actionHead">
               </colgroup>
               <MpTableHead>
                 <MpTableRow>
@@ -482,7 +497,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                   <MpTableCell as="th" :class="[colDivider, colGoal]"><span :class="headerLabel">Goal</span></MpTableCell>
                   <MpTableCell as="th" :class="[colDivider, colGoalType]"><span :class="headerLabel">Goal type</span></MpTableCell>
                   <MpTableCell as="th" :class="[colDivider, colWeight]"><span :class="headerLabel">Goal weight</span></MpTableCell>
-                  <MpTableCell as="th" :class="actionHead">
+                  <MpTableCell v-if="isCreateSubmission" as="th" :class="actionHead">
                     <MpTooltip v-if="submission.status === 'pending'" :label="allAccepted ? 'Un-accept all' : 'Accept all'" use-portal>
                       <button
                         type="button"
@@ -603,7 +618,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                       <MpText size="label" :class="nameText">{{ row.weight }}%</MpText>
                     </MpFlex>
                   </MpTableCell>
-                  <MpTableCell as="td" :class="actionCell">
+                  <MpTableCell v-if="isCreateSubmission" as="td" :class="actionCell">
                     <div v-if="submission.status === 'pending'" :class="actionCellInner">
                       <MpText v-if="acceptedItemIds[row.itemId]" size="label" :class="acceptedLabel">Accepted</MpText>
                       <MpTooltip :label="acceptedItemIds[row.itemId] ? 'Un-accept' : 'Accept'" use-portal>
@@ -629,7 +644,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                   <MpTableCell as="td" :class="[totalRowCell, colDivider]">
                     <MpText size="label" weight="semiBold" :class="totalWeight === 100 ? nameText : dangerText">{{ totalWeight }}%</MpText>
                   </MpTableCell>
-                  <MpTableCell as="td" />
+                  <MpTableCell v-if="isCreateSubmission" as="td" />
                 </MpTableRow>
               </MpTableBody>
             </MpTable>
@@ -642,10 +657,10 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
         <div :class="decisionBlock">
           <template v-if="isReviewer && submission.status === 'pending'">
             <MpFlex v-if="!showRejectInput" align="center" justify="flex-end" gap="4">
-              <MpText size="label" :class="allAccepted ? css({ color: 'text.success' }) : captionText">
+              <MpText v-if="isCreateSubmission" size="label" :class="allAccepted ? css({ color: 'text.success' }) : captionText">
                 {{ acceptedCount }} of {{ totalCount }} goals accepted
               </MpText>
-              <MpButton variant="ghost" @click="startRequestRevision">Request revision</MpButton>
+              <MpButton variant="ghost" @click="startRequestRevision">{{ isCreateSubmission ? 'Request revision' : 'Reject' }}</MpButton>
               <MpButton variant="primary" @click="markApprove">Approve</MpButton>
             </MpFlex>
             <MpFlex v-else direction="column" gap="2">
@@ -655,7 +670,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
               </MpFormControl>
               <MpFlex align="center" justify="flex-end" gap="2">
                 <MpButton variant="ghost" @click="cancelRequestRevision">Cancel</MpButton>
-                <MpButton variant="danger" :is-disabled="!rejectDraftReason.trim()" @click="confirmRequestRevision">Send revision request</MpButton>
+                <MpButton variant="danger" :is-disabled="!rejectDraftReason.trim()" @click="confirmRequestRevision">{{ isCreateSubmission ? 'Send revision request' : 'Reject' }}</MpButton>
               </MpFlex>
             </MpFlex>
           </template>
