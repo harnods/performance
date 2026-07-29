@@ -1761,14 +1761,14 @@ function confirmRemoveEmployee() {
   <!-- Employee list modal -->
   <!-- Reviewers modal: reviewers grouped per review method (method + weight),
        each reviewer with profile + own weight. -->
-  <MpModal :is-open="reviewerModalOpen" is-centered size="lg" scroll-behavior="inside" @close="reviewerModalOpen = false">
+  <MpModal :is-open="reviewerModalOpen" is-centered size="lg" @close="reviewerModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent>
+    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' })">
       <MpModalHeader>
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0' })" @scroll.capture="onReviewerScroll">
+      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '0 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
