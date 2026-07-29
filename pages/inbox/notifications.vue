@@ -54,6 +54,11 @@ function selectNotification(n: Notification) {
   markRead([n.id])
 }
 
+const router = useRouter()
+function runAction(action: { to?: string }) {
+  if (action.to) router.push(action.to)
+}
+
 const filteredNotifications = computed(() => {
   const q = searchQuery.value.trim().toLowerCase()
   if (!q) return notifications.value
@@ -384,6 +389,7 @@ const detailRowSub = css({ fontSize: '12px', lineHeight: '16px', color: 'text.se
               v-for="action in selected.actions"
               :key="action.label"
               :variant="action.variant"
+              @click="runAction(action)"
             >
               {{ action.label }}
             </MpButton>

@@ -59,12 +59,14 @@ function typeLabelFor(submission: Submission): string {
   return submission.items.some(i => i.type === 'create') ? 'Goal creation' : 'Goal update'
 }
 
-// Only once a submission is approved (and committed) does it drop off this
-// list — a rejected-but-not-yet-resubmitted batch stays visible so the
-// reviewer can still reopen it. Scope to what this persona may act on: the
-// Super Admin reviews everyone; a manager reviews only their direct reports.
+// "Awaiting approval" shows only what's genuinely pending the reviewer's
+// decision — both approved and rejected batches drop off (a rejected one is
+// now back with the employee to revise, no longer awaiting this reviewer), so
+// the queue stays consistent rather than lingering rejected rows with no
+// status. Scope to what this persona may act on: the Super Admin reviews
+// everyone; a manager reviews only their direct reports.
 const reviewableSubmissions = computed(() => submissions.value.filter((s) => {
-  if (s.status === 'approved') return false
+  if (s.status !== 'pending') return false
   return isSuperAdmin(currentUserId.value) || EMPLOYEE_MANAGER[s.ownerId] === currentUserId.value
 }))
 

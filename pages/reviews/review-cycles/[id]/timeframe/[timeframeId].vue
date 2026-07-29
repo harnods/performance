@@ -306,8 +306,8 @@ watch([searchQuery, pageSize], () => { currentPage.value = 1 })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
 const labelText = css({ color: 'text.secondary' })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const thCell = css({ bg: 'background.neutral.hovered' })
 const empCell = css({
   borderRightWidth: '1px',
@@ -316,7 +316,58 @@ const empCell = css({
   verticalAlign: 'top',
 })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
-const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.700' } })
+const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
+
+// Review methods configured on this cycle → one tab each (accurate to the
+// cycle's Review methods). The active tab scopes the reviewer actions below.
+const reviewMethods = ['Manager review', '360-degree review', 'Self review']
+const activeMethod = ref(reviewMethods[0])
+const tabBar = css({ display: 'flex', gap: '5', paddingInline: '1' })
+const tabItemBase = {
+  display: 'inline-flex', alignItems: 'center', paddingBlock: '3', paddingInline: '1',
+  fontSize: '14px', lineHeight: '20px', background: 'transparent', border: 'none', cursor: 'pointer',
+  borderBottomWidth: '2px', borderBottomStyle: 'solid', marginBottom: '-1px', whiteSpace: 'nowrap',
+} as const
+const tabItem = css({ ...tabItemBase, color: 'text.secondary', borderBottomColor: 'transparent', _hover: { color: 'text.default' } })
+const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', borderBottomColor: 'border.brand' })
+
+// Shared reviewer data layer — same store/generation as the cycle detail page,
+// keyed by the cycle id in the path so weights/rosters are consistent. The
+// table below is driven by the ACTIVE method tab.
+const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
+const { resolvedGroupsFor, groupFor, reviewerCountFor } = useReviewers({
+  methods: reviewMethods,
+  methodWeights,
+  cycleKey: () => String(route.params.id),
+})
+const reviewerModalsRef = ref()
+function memberOf(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return { id: emp.id, name: emp.name, jobTitle: emp.jobTitle, organization: emp.organization }
+}
+// Reviewers for this employee under the active method tab (same across the
+// timeframe's periods — reviewers are per timeframe, not per period).
+function methodGroup(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return groupFor(memberOf(emp), activeMethod.value)
+}
+function methodReviewerCount(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return reviewerCountFor(memberOf(emp), activeMethod.value)
+}
+// Singular for a single reviewer (e.g. Self review) — "1 Reviewer" not "1 Reviewers".
+function reviewerCountLabel(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  const n = methodReviewerCount(emp)
+  return `${n} ${n === 1 ? 'Reviewer' : 'Reviewers'}`
+}
+function weightLabel(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return methodGroup(emp)?.useCustom ? 'Custom weight' : 'Equal weight'
+}
+// Progress bar keeps the period's raw ratio; the count reflects this method's reviewers.
+function methodDone(emp: { id: string, name: string, jobTitle?: string, organization?: string }, done: number, total: number) {
+  const t = methodReviewerCount(emp)
+  return total > 0 ? Math.round((done / total) * t) : 0
+}
+function openView(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openView(memberOf(emp)) }
+function openWeight(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openWeight(memberOf(emp)) }
+function openManage(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openManage(memberOf(emp)) }
 </script>
 
 <template>
@@ -339,19 +390,19 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
     <MpButton variant="primary">Add employee</MpButton>
   </Teleport>
 
-  <!-- Tabs live outside the stage, teleported to #page-tabs in the layout -->
+  <!-- Tabs live outside the stage, teleported to #page-tabs in the layout.
+       One tab per review method configured on this cycle. -->
   <Teleport to="#page-tabs" defer>
-    <MpFlex
-      :class="css({
-        paddingY: '3',
-        paddingX: '1',
-        borderBottomWidth: '2px',
-        borderBottomStyle: 'solid',
-        borderBottomColor: 'border.brand',
-        marginBottom: '-1px',
-      })"
-    >
-      <MpText size="label" :class="css({ color: 'text.brand' })">Manager review</MpText>
+    <MpFlex :class="tabBar">
+      <button
+        v-for="m in reviewMethods"
+        :key="m"
+        type="button"
+        :class="activeMethod === m ? tabActive : tabItem"
+        @click="activeMethod = m"
+      >
+        {{ m }}
+      </button>
     </MpFlex>
   </Teleport>
 
@@ -477,11 +528,11 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
-                <MpTextlink size="small">{{ period.reviewersCount }} Reviewers</MpTextlink>
+                <MpTextlink size="small" as="button" @click="openView(emp)">{{ reviewerCountLabel(emp) }}</MpTextlink>
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
-                <MpText size="label" :class="[valueText, css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '120px' })]">{{ period.reviewerWeight }}</MpText>
+                <MpText size="label" :class="valueText">{{ weightLabel(emp) }}</MpText>
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
@@ -489,7 +540,7 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
                   <MpFlex justify="space-between" align="center" gap="2">
                     <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
                     <MpText size="label-small" :class="[captionText, css({ flexShrink: '0' })]">
-                      {{ period.progressDone }} of {{ period.progressTotal }}
+                      {{ methodDone(emp, period.progressDone, period.progressTotal) }} of {{ methodReviewerCount(emp) }}
                     </MpText>
                   </MpFlex>
                   <MpProgress
@@ -510,9 +561,9 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
                   </MpPopoverTrigger>
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
-                      <MpPopoverListItem>View reviewer</MpPopoverListItem>
-                      <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
-                      <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
+                      <MpPopoverListItem @click="openView(emp)">View reviewer</MpPopoverListItem>
+                      <MpPopoverListItem @click="openWeight(emp)">Set reviewer weight</MpPopoverListItem>
+                      <MpPopoverListItem @click="openManage(emp)">Manage reviewer</MpPopoverListItem>
                       <MpPopoverListItem>Remove employee</MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
@@ -616,4 +667,11 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.7
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
+
+  <ReviewerModals
+    ref="reviewerModalsRef"
+    :method-weights="methodWeights"
+    :methods="[activeMethod]"
+    :cycle-key="String(route.params.id)"
+  />
 </template>

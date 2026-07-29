@@ -240,6 +240,17 @@ function toggleAcceptAll() {
 // of the batch's total they've actually reviewed so far (e.g. "45% / 100%"),
 // separate from whether the batch's own authored weight is valid.
 const acceptedWeight = computed(() => submission.value?.items.reduce((sum, i) => (acceptedItemIds[i.id] ? sum + (i.after?.weight ?? i.before?.weight ?? 0) : sum), 0) ?? 0)
+// Review progress as a plain count — clearer than a weight fraction for
+// "how many goals have I accepted". Drives the counter next to Approve.
+const acceptedCount = computed(() => submission.value?.items.filter(i => acceptedItemIds[i.id]).length ?? 0)
+const totalCount = computed(() => submission.value?.items.length ?? 0)
+
+// A "Goal creation" bundle (many goals authored at once) uses the per-goal
+// accept checklist + Request revision flow. A "Goal update"/"Goal progress"
+// submission is a single simple change — a straight Approve/Reject decision,
+// no per-row accept and no revision loop.
+const isCreateSubmission = computed(() => !!submission.value && submission.value.items.some(i => i.type === 'create'))
+const requestTitle = computed(() => (isCreateSubmission.value ? 'Goal creation' : 'Goal update'))
 
 // Reject reason is typed inline before it's confirmed — rejectSubmission
 // only gets called once the manager confirms, so a half-typed reason
@@ -249,7 +260,7 @@ const rejectDraftReason = ref('')
 
 function markApprove() {
   if (!submission.value) return
-  if (!allAccepted.value) {
+  if (isCreateSubmission.value && !allAccepted.value) {
     toast.notify({
       id: 'submission-approve-blocked',
       position: 'top-center',
@@ -282,20 +293,28 @@ function confirmRequestRevision() {
   rejectSubmission(submission.value.id, reason)
   showRejectInput.value = false
   const flaggedGoals = notAccepted.length ? notAccepted.join(', ') : submission.value.items.map(i => (i.after ?? i.before)!.title).join(', ')
+  const reviewerName = employeeById(currentUserId.value)?.name ?? 'Your reviewer'
+  const cycleName = cycle.value?.name ?? 'this cycle'
   addNotification({
     recipientId: submission.value.ownerId,
     group: 'Today',
-    title: 'Goal revision requested',
+    title: isCreateSubmission.value ? 'Goal revision requested' : 'Goal update rejected',
     timeLabel: 'Just now',
-    summary: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}.`,
+    summary: isCreateSubmission.value
+      ? `${reviewerName} has requested changes to your goal submission for ${cycleName}.`
+      : `${reviewerName} rejected your goal update for ${cycleName}.`,
     senderName: 'Mekari Talenta',
-    senderTimestamp: '10 Jun 2026, 09:00',
-    body: `${employeeById(currentUserId.value)?.name ?? 'Your reviewer'} has requested changes to your goal submission for ${cycle.value?.name ?? 'this cycle'}. Please revise and resubmit.`,
+    // Keep the detail timestamp consistent with the list's "Just now" instead
+    // of a hardcoded unrelated date.
+    senderTimestamp: formatDate(new Date().toISOString()),
+    body: isCreateSubmission.value
+      ? `${reviewerName} has requested changes to your goal submission for ${cycleName}. Please revise and resubmit.`
+      : `${reviewerName} rejected your goal update for ${cycleName}. See the reason below.`,
     details: [
-      { label: 'Goals needing revision', value: flaggedGoals },
+      { label: isCreateSubmission.value ? 'Goals needing revision' : 'Goal', value: flaggedGoals },
       { label: 'Reason', value: reason },
     ],
-    actions: [{ label: 'View submission', variant: 'primary' }],
+    actions: [{ label: 'View submission', variant: 'primary', to: `/goals/goal-cycles/${submission.value.cycleId}/awaiting-approval/${submission.value.id}` }],
   })
 }
 function resubmit() {
@@ -317,13 +336,12 @@ function formatDate(iso: string) {
 // detailHeader (self-padded, full-width border-bottom) — the body below is
 // a plain data table, so unlike notifications' prose detailBody it carries
 // no maxWidth constraint, sized by its own columns instead.
-// Sticky so it stays put while bodyWrap scrolls beneath it — matches the
-// Inbox list panel's own fixed-header + scrolling-body split (its
-// listHeader never moves either), rather than scrolling away as part of
-// the same block as the table. Content-list layout — label left, value
-// right on each row — for the submission's own identity (owner, when,
-// which cycle, current status), replacing the old avatar/name header card.
-const headerCardBase = { display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '4', position: 'sticky', top: '0', zIndex: '1', background: 'background.neutral', flexShrink: '0' } as const
+// Scrolls away with the table as part of the same block (not sticky) — the
+// submission's own identity (owner, when, which cycle, current status) is
+// context you read once, not a header you keep referring to while scrolling.
+// Content-list layout — label left, value right on each row — replacing the
+// old avatar/name header card.
+const headerCardBase = { display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '4', background: 'background.neutral', flexShrink: '0' } as const
 // Padded: this component supplies its own edge padding (Inbox split view,
 // whose `boxed: true` layout gives it none). Flat: the caller's own layout
 // already padded the stage 24px, so adding another layer here would double
@@ -334,6 +352,7 @@ const headerCardFlat = css({ ...headerCardBase, paddingInline: '0', paddingTop: 
 // info panel: a fixed 200px label column (never pushed to the far right)
 // + value in the remaining space, both `size="label"`, differentiated only
 // by color (text.secondary vs text.default) — not by size.
+const detailTitle = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default', marginBottom: '2' })
 const summaryRow = css({ display: 'flex', alignItems: 'flex-start', gap: '4' })
 const summaryLabelCol = css({ width: '200px', flexShrink: '0' })
 const summaryLabel = css({ color: 'text.secondary' })
@@ -357,8 +376,11 @@ const colSubCategory = css({ width: '160px' })
 const colGoal = css({ width: '320px' })
 const colGoalType = css({ width: '160px' })
 const colWeight = css({ width: '108px' })
-const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
+const actionHead = css({ width: '108px', paddingLeft: '0', paddingRight: '2', whiteSpace: 'nowrap', textAlign: 'right' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '0', paddingRight: '2', width: '108px', whiteSpace: 'nowrap', verticalAlign: 'top' })
+// Label + checkmark on one right-aligned line; the "Accepted" label shows once a row is accepted.
+const actionCellInner = css({ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1', width: '100%' })
+const acceptedLabel = css({ color: 'green.700', whiteSpace: 'nowrap' })
 // Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
 // per the Pixel3 spec — a flatter '2' reads as the narrow/dense table
 // variant, which made single-line rows (e.g. Goal type) look too short.
@@ -437,6 +459,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
     </template>
     <template v-else>
       <div :class="padded ? headerCardPadded : headerCardFlat">
+        <MpText as="h2" :class="detailTitle">{{ requestTitle }}</MpText>
         <div :class="summaryRow">
           <MpText size="label" :class="[summaryLabel, summaryLabelCol]">Goal owner</MpText>
           <MpText size="label" :class="summaryValue">{{ owner?.name ?? submission.ownerId }}</MpText>
@@ -465,7 +488,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                 <col :class="colGoal">
                 <col :class="colGoalType">
                 <col :class="colWeight">
-                <col :class="actionHead">
+                <col v-if="isCreateSubmission" :class="actionHead">
               </colgroup>
               <MpTableHead>
                 <MpTableRow>
@@ -474,7 +497,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                   <MpTableCell as="th" :class="[colDivider, colGoal]"><span :class="headerLabel">Goal</span></MpTableCell>
                   <MpTableCell as="th" :class="[colDivider, colGoalType]"><span :class="headerLabel">Goal type</span></MpTableCell>
                   <MpTableCell as="th" :class="[colDivider, colWeight]"><span :class="headerLabel">Goal weight</span></MpTableCell>
-                  <MpTableCell as="th" :class="actionHead">
+                  <MpTableCell v-if="isCreateSubmission" as="th" :class="actionHead">
                     <MpTooltip v-if="submission.status === 'pending'" :label="allAccepted ? 'Un-accept all' : 'Accept all'" use-portal>
                       <button
                         type="button"
@@ -492,6 +515,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                 <MpTableRow v-for="row in tableRows" :key="row.id">
                   <MpTableCell v-if="row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[cellPad, colDivider, colCategory]">
                     <MpFlex direction="column" gap="0" :class="cellContent">
+                      <MpText v-if="row.beforeCategory" size="label-small" :class="beforeValueText">{{ row.beforeCategory }}</MpText>
                       <MpText size="label" :class="[nameText, cellContent]">{{ row.category }}</MpText>
                       <MpText size="label-small" :class="captionText">Weight: {{ row.categoryWeight }}%</MpText>
                     </MpFlex>
@@ -594,17 +618,20 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                       <MpText size="label" :class="nameText">{{ row.weight }}%</MpText>
                     </MpFlex>
                   </MpTableCell>
-                  <MpTableCell as="td" :class="actionCell">
-                    <MpTooltip v-if="submission.status === 'pending'" :label="acceptedItemIds[row.itemId] ? 'Accepted' : 'Accept'" use-portal>
-                      <button
-                        type="button"
-                        :class="[acceptBtn, acceptedItemIds[row.itemId] ? acceptBtnActive : acceptBtnIdle]"
-                        :aria-label="acceptedItemIds[row.itemId] ? 'Accepted — click to un-accept' : 'Accept'"
-                        @click="toggleAccept(row.itemId)"
-                      >
-                        <MpIcon name="check" size="sm" />
-                      </button>
-                    </MpTooltip>
+                  <MpTableCell v-if="isCreateSubmission" as="td" :class="actionCell">
+                    <div v-if="submission.status === 'pending'" :class="actionCellInner">
+                      <MpText v-if="acceptedItemIds[row.itemId]" size="label" :class="acceptedLabel">Accepted</MpText>
+                      <MpTooltip :label="acceptedItemIds[row.itemId] ? 'Un-accept' : 'Accept'" use-portal>
+                        <button
+                          type="button"
+                          :class="[acceptBtn, acceptedItemIds[row.itemId] ? acceptBtnActive : acceptBtnIdle]"
+                          :aria-label="acceptedItemIds[row.itemId] ? 'Accepted — click to un-accept' : 'Accept'"
+                          @click="toggleAccept(row.itemId)"
+                        >
+                          <MpIcon name="check" size="sm" />
+                        </button>
+                      </MpTooltip>
+                    </div>
                   </MpTableCell>
                 </MpTableRow>
 
@@ -615,12 +642,9 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                     <MpText size="label" weight="semiBold" :class="nameText">Total weight</MpText>
                   </MpTableCell>
                   <MpTableCell as="td" :class="[totalRowCell, colDivider]">
-                    <MpText size="label" weight="semiBold" :class="totalWeight === 100 ? nameText : dangerText">
-                      <template v-if="submission.status === 'pending'">{{ acceptedWeight }}% / {{ totalWeight }}%</template>
-                      <template v-else>{{ totalWeight }}%</template>
-                    </MpText>
+                    <MpText size="label" weight="semiBold" :class="totalWeight === 100 ? nameText : dangerText">{{ totalWeight }}%</MpText>
                   </MpTableCell>
-                  <MpTableCell as="td" />
+                  <MpTableCell v-if="isCreateSubmission" as="td" />
                 </MpTableRow>
               </MpTableBody>
             </MpTable>
@@ -632,8 +656,11 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
              individually accepted. -->
         <div :class="decisionBlock">
           <template v-if="isReviewer && submission.status === 'pending'">
-            <MpFlex v-if="!showRejectInput" align="center" justify="flex-end" gap="2">
-              <MpButton variant="ghost" @click="startRequestRevision">Request revision</MpButton>
+            <MpFlex v-if="!showRejectInput" align="center" justify="flex-end" gap="4">
+              <MpText v-if="isCreateSubmission" size="label" :class="allAccepted ? css({ color: 'text.success' }) : captionText">
+                {{ acceptedCount }} of {{ totalCount }} goals accepted
+              </MpText>
+              <MpButton variant="ghost" @click="startRequestRevision">{{ isCreateSubmission ? 'Request revision' : 'Reject' }}</MpButton>
               <MpButton variant="primary" @click="markApprove">Approve</MpButton>
             </MpFlex>
             <MpFlex v-else direction="column" gap="2">
@@ -643,7 +670,7 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
               </MpFormControl>
               <MpFlex align="center" justify="flex-end" gap="2">
                 <MpButton variant="ghost" @click="cancelRequestRevision">Cancel</MpButton>
-                <MpButton variant="danger" :is-disabled="!rejectDraftReason.trim()" @click="confirmRequestRevision">Send revision request</MpButton>
+                <MpButton variant="danger" :is-disabled="!rejectDraftReason.trim()" @click="confirmRequestRevision">{{ isCreateSubmission ? 'Send revision request' : 'Reject' }}</MpButton>
               </MpFlex>
             </MpFlex>
           </template>

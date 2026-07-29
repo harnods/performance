@@ -22,6 +22,9 @@ export interface DetailRow {
 export interface NotificationAction {
   label: string
   variant: 'primary' | 'ghost'
+  // Route the action navigates to when clicked. Optional so an action can be
+  // purely informational, but every seeded/generated action below sets one.
+  to?: string
 }
 export interface Notification {
   id: string
@@ -77,7 +80,7 @@ function seed(): Notification[] {
         { label: 'Goal', value: 'Reduce operational cost by 10% through process automation' },
         { label: 'Progress', value: '60% → 75%' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: false,
     },
     {
@@ -94,7 +97,7 @@ function seed(): Notification[] {
         { label: 'Employee to review', value: 'Alfian Ramadhan', sub: 'CP042 | HR Admin | HR' },
         { label: 'Review period', value: '1 Apr – 15 Apr 2026' },
       ],
-      actions: [{ label: 'Start review', variant: 'primary' }],
+      actions: [{ label: 'Start review', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -111,7 +114,7 @@ function seed(): Notification[] {
         { label: 'Review period', value: '1 Apr – 15 Apr 2026' },
         { label: 'Total reviewees', value: '12 employees' },
       ],
-      actions: [{ label: 'Start review', variant: 'primary' }],
+      actions: [{ label: 'Start review', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -127,7 +130,7 @@ function seed(): Notification[] {
         { label: 'Review cycle', value: '2026 Q1 Performance Appraisal', sub: '1 Jan – 31 Mar 2026' },
         { label: 'Review period', value: '1 Apr – 15 Apr 2026' },
       ],
-      actions: [{ label: 'Start review', variant: 'primary' }],
+      actions: [{ label: 'Start review', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -144,7 +147,7 @@ function seed(): Notification[] {
         { label: 'Progress', value: 'Unchanged at 60%' },
         { label: 'Reason', value: 'Scope not included in this cycle' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -161,7 +164,7 @@ function seed(): Notification[] {
         { label: 'Review period', value: '1 Apr – 15 Apr 2026' },
         { label: 'Due date', value: '31 Mar 2026' },
       ],
-      actions: [{ label: 'Pick coworkers', variant: 'primary' }],
+      actions: [{ label: 'Pick coworkers', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -178,7 +181,7 @@ function seed(): Notification[] {
         { label: 'Due date', value: '31 Mar 2026' },
         { label: 'Employees pending assignment', value: 'Alfian Ramadhan, Jessie Tan, Ali Imran' },
       ],
-      actions: [{ label: 'Assign reviewers', variant: 'primary' }],
+      actions: [{ label: 'Assign reviewers', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -194,7 +197,7 @@ function seed(): Notification[] {
         { label: 'Approved by', value: 'Andi Suryanto' },
         { label: 'Goal cycle', value: '2026 H1' },
       ],
-      actions: [{ label: 'Update goals', variant: 'primary' }],
+      actions: [{ label: 'Update goals', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -210,7 +213,7 @@ function seed(): Notification[] {
         { label: 'Approved by', value: 'Andi Suryanto' },
         { label: 'Goal', value: 'Achieve IDR 500.000.000 in monthly revenue' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -226,7 +229,7 @@ function seed(): Notification[] {
         { label: 'Approved by', value: 'Andi Suryanto' },
         { label: 'Goal cycle', value: '2026 H1' },
       ],
-      actions: [{ label: 'View all goals', variant: 'primary' }],
+      actions: [{ label: 'View all goals', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -308,7 +311,7 @@ function seed(): Notification[] {
         { label: 'Goal', value: 'Complete Brevet A & B tax certification by Q3' },
         { label: 'Progress', value: '60% → 75%' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -325,7 +328,7 @@ function seed(): Notification[] {
         { label: 'Goal', value: 'Reduce operational cost by 10% through process automation' },
         { label: 'Progress', value: '45% → 60%' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -342,7 +345,7 @@ function seed(): Notification[] {
         { label: 'Current target', value: 'Increase MRR by 10%' },
         { label: 'Requested target', value: 'Expand upsell offers to existing customers' },
       ],
-      actions: [{ label: 'Review changes', variant: 'primary' }],
+      actions: [{ label: 'Review changes', variant: 'primary', to: '/reviews/pending-actions' }],
       isRead: true,
     },
     {
@@ -359,7 +362,7 @@ function seed(): Notification[] {
         { label: 'Current target', value: 'Increase MRR by 10%' },
         { label: 'Requested target', value: 'Expand upsell offers to existing customers' },
       ],
-      actions: [{ label: 'View goal', variant: 'primary' }],
+      actions: [{ label: 'View goal', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -422,7 +425,7 @@ function seed(): Notification[] {
       details: [
         { label: 'Goal', value: 'Increase Sales Conversion' },
       ],
-      actions: [{ label: 'Update goal progress', variant: 'primary' }],
+      actions: [{ label: 'Update goal progress', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
     {
@@ -437,7 +440,7 @@ function seed(): Notification[] {
       details: [
         { label: 'Team goal', value: 'Increase Sales Conversion' },
       ],
-      actions: [{ label: 'Update goal progress', variant: 'primary' }],
+      actions: [{ label: 'Update goal progress', variant: 'primary', to: '/goals/goal-cycles' }],
       isRead: true,
     },
   ]

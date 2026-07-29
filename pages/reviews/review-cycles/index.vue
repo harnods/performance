@@ -311,6 +311,7 @@ const clickableRow = css({ cursor: 'pointer' })
                   <MpProgress
                     variant="linear"
                     size="sm"
+                    :color="cycle.purpose === 'evaluation' && cycle.repeat !== 'Repeats automatically' ? 'stone' : 'violet'"
                     :value="cycle.total > 0 ? Math.round((cycle.done / cycle.total) * 100) : 0"
                   />
                 </MpFlex>

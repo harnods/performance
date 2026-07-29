@@ -2,5 +2,4 @@
   <NuxtLayout>
     <NuxtPage />
   </NuxtLayout>
-  <ProtoReviewOverlay />
 </template>

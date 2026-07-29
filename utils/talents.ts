@@ -53,6 +53,13 @@ const EXTRA: Record<string, Extra> = {
   fajar:    { branch: 'Bandung',    jobLevel: 'Staff',     jobGrade: 'G1', jobClass: 'Class C', employmentType: 'Probation', joinDate: '2024-11-04', status: 'active' },
   galih:    { branch: 'Bandung',    jobLevel: 'Staff',     jobGrade: 'G1', jobClass: 'Class C', employmentType: 'Contract',  joinDate: '2022-09-19', status: 'resigned' },
   joko:     { branch: 'Surabaya',   jobLevel: 'Staff',     jobGrade: 'G1', jobClass: 'Class C', employmentType: 'Intern',    joinDate: '2023-07-24', status: 'resigned' },
+  dewi:     { branch: 'Jakarta HQ', jobLevel: 'Head',      jobGrade: 'G7', jobClass: 'Class A', employmentType: 'Permanent', joinDate: '2018-06-11', status: 'active' },
+  dian:     { branch: 'Jakarta HQ', jobLevel: 'Staff',     jobGrade: 'G4', jobClass: 'Class C', employmentType: 'Permanent', joinDate: '2021-02-15', status: 'active' },
+  reza:     { branch: 'Surabaya',   jobLevel: 'Staff',     jobGrade: 'G3', jobClass: 'Class C', employmentType: 'Permanent', joinDate: '2022-03-28', status: 'active' },
+  santi:    { branch: 'Jakarta HQ', jobLevel: 'Staff',     jobGrade: 'G3', jobClass: 'Class C', employmentType: 'Permanent', joinDate: '2022-05-09', status: 'active' },
+  yoga:     { branch: 'Jakarta HQ', jobLevel: 'Staff',     jobGrade: 'G3', jobClass: 'Class C', employmentType: 'Permanent', joinDate: '2022-08-22', status: 'active' },
+  wisnu:    { branch: 'Bandung',    jobLevel: 'Staff',     jobGrade: 'G2', jobClass: 'Class C', employmentType: 'Contract',  joinDate: '2023-04-17', status: 'active' },
+  putri:    { branch: 'Bandung',    jobLevel: 'Staff',     jobGrade: 'G1', jobClass: 'Class C', employmentType: 'Contract',  joinDate: '2023-10-02', status: 'active' },
 }
 
 export const TALENTS: TalentEmployee[] = EMPLOYEES.map((e: Employee) => {

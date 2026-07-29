@@ -34,14 +34,35 @@ import {
   MpTextlink,
   css,
 } from '@mekari/pixel3'
+import { EMPLOYEES } from '~/utils/employees'
 // Icons: use the repo's PxIcon wrapper (mp-icon-box) — raw MpIcon only supports
 // named sizes (sm/md/…); PxIcon renders exact pixel sizes (16/18/20/24/28/32).
 
 definePageMeta({
-  title: 'Welcome back, Rizal Candra',
+  // Neutral fallback for SSR; the greeting is personalised on the client from
+  // the active "View as" persona (see below) so it never hardcodes a name.
+  title: 'Welcome back',
   layout: 'default',
   boxed: true, // flat grey canvas + standalone stage boxes (no wrapping white panel)
 })
+
+// Personalise the page-title greeting to the current "View as" persona instead
+// of a hardcoded name. The layout's pageTitle reads route.meta.title, so keep
+// it in sync as the persona changes.
+const route = useRoute()
+const router = useRouter()
+const { currentUserId } = useCurrentUser()
+const currentUserName = computed(() => EMPLOYEES.find(e => e.id === currentUserId.value)?.name ?? '')
+watchEffect(() => {
+  route.meta.title = currentUserName.value ? `Welcome back, ${currentUserName.value}` : 'Welcome back'
+})
+
+function goToTasks() {
+  router.push('/reviews/pending-actions')
+}
+function goToGoals() {
+  router.push('/goals/goal-cycles')
+}
 
 // ─── Mock data ───────────────────────────────────────────────────────────────────
 const aiSummaries = [
@@ -238,7 +259,7 @@ const dotClass = (color: string) => css({ width: '8px', height: '8px', borderRad
           </div>
         </div>
         <div :class="viewAllRow">
-          <MpTextlink as="button">
+          <MpTextlink as="button" @click="goToTasks">
             <MpFlex align="center" gap="1">View all tasks <PxIcon name="arrows-right" :size="16" color="icon.brand" /></MpFlex>
           </MpTextlink>
         </div>
@@ -376,7 +397,7 @@ const dotClass = (color: string) => css({ width: '8px', height: '8px', borderRad
           </div>
         </div>
         <div :class="viewAllRow">
-          <MpTextlink as="button">
+          <MpTextlink as="button" @click="goToGoals">
             <MpFlex align="center" gap="1">View all goals <PxIcon name="arrows-right" :size="16" color="icon.brand" /></MpFlex>
           </MpTextlink>
         </div>

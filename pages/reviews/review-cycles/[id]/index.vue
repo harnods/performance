@@ -6,11 +6,13 @@ import {
   MpInput,
   MpInputGroup,
   MpInputLeftAddon,
+  MpInputRightAddon,
   MpText,
   MpBadge,
   MpAvatar,
   MpTextlink,
   MpToggle,
+  MpTooltip,
   MpProgress,
   MpTable,
   MpTableContainer,
@@ -36,6 +38,7 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import type { ReviewMember } from '~/composables/useReviewers'
 
 definePageMeta({
   layout: 'default',
@@ -101,10 +104,40 @@ const employmentStatus = computed(() => currentScenario.value.employmentStatus)
 // Single-review cycles have exactly one period per employee → hide the Period column.
 const isSinglePeriod = computed(() => currentScenario.value.reviewPeriodValue === 'Single review period')
 
-// Mock: active review aspects
+// Mock: active review aspects (non-evaluation cycles still summarise by aspect)
 const activeAspects = ['Goal', 'Attendance'] // can be [], ['Goal'], ['Goal','Attendance','Reprimand'], etc.
-const scoreCalc = 'weight' // 'weight' | 'sum'
-const weights = { review: 60, goal: 30, attendance: 10, reprimand: 0 }
+
+// Mock: Review methods configured on this Evaluation cycle (new Review methods form).
+// Manager review resolves reviewers via "Who will review them?"; when 2+ methods
+// are enabled and "Use weight" is on, each method contributes a weighted share.
+const reviewMethods = ['Manager review', '360-degree review', 'Self review']
+const managerReviewer = 'By approval line'
+const useMethodWeight = true
+const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
+
+// Reviewer data + the 3 reviewer modals are provided by the shared useReviewers
+// composable and <ReviewerModals> (also used by the timeframe page), so rosters,
+// weights and counts are identical and persist to the same mini-DB. cycleKey =
+// the cycle id in the path, matching the timeframe page so saved weights share.
+const reviewerModalsRef = ref()
+const { reviewerCountFor } = useReviewers({
+  methods: reviewMethods,
+  methodWeights,
+  cycleKey: () => String(route.params.id),
+})
+// Progress "done of total" counts reviewers: total = the member's reviewer count,
+// done scaled from each period's own ratio. The progress bar keeps the raw ratio.
+function pDone(done: number, total: number, memberTotal: number) {
+  return total > 0 ? Math.round((done / total) * memberTotal) : 0
+}
+function openReviewerList(member: ReviewMember) { reviewerModalsRef.value?.openView(member) }
+function openReviewerWeight(member: ReviewMember) { reviewerModalsRef.value?.openWeight(member) }
+function openManageReviewer(member: ReviewMember) { reviewerModalsRef.value?.openManage(member) }
+const publishScoreAfter = 'Complete review' // Complete review | Review period end | Both
+
+const reviewMethodsText = computed(() =>
+  reviewMethods.length === 0 ? 'None' : reviewMethods.join(', '),
+)
 
 // Mock: drives which table variant to render
 const reincludeExtended = true
@@ -128,6 +161,9 @@ interface InfoRow {
   editable?: boolean
   boldValue?: boolean
   subValues?: string[]
+  // When set, the value renders as gray status badges (one per entry) instead
+  // of plain text — used for the configured Review methods.
+  badges?: string[]
 }
 
 const infoRows = computed<InfoRow[]>(() => {
@@ -136,22 +172,26 @@ const infoRows = computed<InfoRow[]>(() => {
   const rows: InfoRow[] = [
     { label: 'Cycle name', value: cycleName.value, editable: true },
     { label: 'Purpose', value: purposeLabel[purpose] || 'Evaluation review' },
-    { label: 'Publish score', value: 'After all reviewers submit' },
     { label: 'Employment status', value: isEval ? employmentStatus.value : (purpose === 'performance' ? 'Permanent' : 'All status') },
     { label: 'Review period', value: currentScenario.value.reviewPeriodValue, subValues: currentScenario.value.reviewPeriodSubs },
-    { label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' },
-    { label: 'Review aspects', value: reviewAspectsText.value },
   ]
-  if (isEval && activeAspects.length > 0) {
-    rows.push({ label: 'Score calculation', value: scoreCalc === 'weight' ? 'Weighted' : 'Simple sum' })
-    if (scoreCalc === 'weight') {
-      rows.push({ label: 'Review', value: `${weights.review}%`, indent: true })
-      if (activeAspects.includes('Goal')) rows.push({ label: 'Goal', value: `${weights.goal}%`, indent: true })
-      if (activeAspects.includes('Attendance')) rows.push({ label: 'Attendance', value: `${weights.attendance}%`, indent: true })
-      if (activeAspects.includes('Reprimand')) rows.push({ label: 'Reprimand', value: `${weights.reprimand}%`, indent: true })
+  if (isEval) {
+    // New Review methods form: methods + per-method reviewer/weight, publish timing.
+    rows.push({ label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' })
+    rows.push({ label: 'Review methods', value: reviewMethodsText.value, badges: reviewMethods.length ? reviewMethods : undefined })
+    rows.push({ label: 'Reviewer', value: managerReviewer })
+    if (useMethodWeight && reviewMethods.length >= 2) {
+      rows.push({ label: 'Score calculation', value: 'Weighted' })
+      reviewMethods.forEach(m => rows.push({ label: m, value: `${methodWeights[m] ?? 0}%`, indent: true }))
     }
+    rows.push({ label: 'Publish score after', value: publishScoreAfter })
+    rows.push({ label: 'Score deduction', value: 'Yes' })
+  } else {
+    rows.push({ label: 'Publish score', value: 'After all reviewers submit' })
+    rows.push({ label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' })
+    rows.push({ label: 'Review aspects', value: reviewAspectsText.value })
+    rows.push({ label: 'Score deduction', value: 'Yes' })
   }
-  rows.push({ label: 'Score deduction', value: 'Yes' })
   return rows
 })
 
@@ -221,13 +261,43 @@ const filteredRows = computed(() => {
 const labelText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
+// Reviewers modal — sticky per-method header; border-bottom appears only when
+// pinned (data-stuck toggled on scroll). Opaque bg so rows scroll under it.
+const methodHeaderClass = css({
+  position: 'sticky', top: '0', zIndex: '1',
+  display: 'block', backgroundColor: 'background.neutral',
+  fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default',
+  paddingTop: '2', paddingBottom: '3',
+  borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
+  transition: 'border-color 0.1s ease',
+  '&[data-stuck="true"]': { borderBottomColor: 'border.default' },
+})
+const lockBtn = css({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+  border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'pointer', color: 'text.secondary',
+  _hover: { background: 'background.neutral.hovered', color: 'text.default' },
+})
+const lockBtnDisabled = css({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+  border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'not-allowed', color: 'gray.100',
+})
+// Add-reviewer picker row (Manage reviewer modal) — info left, add button right.
+const pickerRow = css({
+  paddingInline: '3', paddingBlock: '2',
+  _hover: { background: 'background.neutral.subtle' },
+})
+// Inline add-reviewer panel (revealed under the method header).
+const addPanel = css({
+  border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
+  padding: '3', marginBottom: '4',
+})
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
 const extThCell = css({ bg: 'background.neutral.hovered' })
 const noHoverRow = css({ _hover: { bg: 'transparent' } })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
-const greenProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.700' } })
+const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
 // Employee cell: right border groups multi-period rowspans. Single-period tables drop it.
 const empCellBorder = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', verticalAlign: 'top' })
 const empCellPlain = css({ verticalAlign: 'top' })
@@ -1033,7 +1103,10 @@ function confirmRemoveEmployee() {
             </MpFlex>
           </template>
           <template v-else>
-            <MpFlex v-if="row.subValues?.length" direction="column" :class="css({ gap: '0' })">
+            <MpFlex v-if="row.badges?.length" gap="1" wrap="wrap">
+              <MpBadge v-for="b in row.badges" :key="b" for="tableStatus" type="announcement">{{ b }}</MpBadge>
+            </MpFlex>
+            <MpFlex v-else-if="row.subValues?.length" direction="column" :class="css({ gap: '0' })">
               <MpText size="label" :weight="row.boldValue ? 'semiBold' : undefined" :class="[valueText, css({ lineHeight: '20px' })]">{{ row.value }}</MpText>
               <MpText v-for="(sub, i) in row.subValues" :key="sub" size="label-small" :class="[captionText, css({ lineHeight: '24px', marginTop: i === 0 ? '1' : '0' })]">{{ sub }}</MpText>
             </MpFlex>
@@ -1105,7 +1178,7 @@ function confirmRemoveEmployee() {
                   <MpProgress
                     variant="linear"
                     size="sm"
-                    :class="greenProgress"
+                    :class="tealProgress"
                     :value="Math.round((row.reviewDone / row.reviewTotal) * 100)"
                   />
                 </MpFlex>
@@ -1174,7 +1247,7 @@ function confirmRemoveEmployee() {
               <MpTableBody>
                 <template v-for="row in searchResults" :key="`search-${row.tg.timeframe}-${row.emp.id}`">
                   <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`search-${row.emp.id}-${period.label}`" :class="noHoverRow">
-                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpFlex align="start" gap="3">
                         <MpAvatar :name="row.emp.name" size="lg" />
                         <MpFlex direction="column" gap="1">
@@ -1184,7 +1257,7 @@ function confirmRemoveEmployee() {
                         </MpFlex>
                       </MpFlex>
                     </MpTableCell>
-                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpTextlink as="button" size="small" @click="viewTimeframeDetails(row.tg)">{{ row.tg.timeframe }}</MpTextlink>
                     </MpTableCell>
                     <MpTableCell as="td" :class="tightCell">
@@ -1197,12 +1270,12 @@ function confirmRemoveEmployee() {
                       <MpFlex direction="column" gap="1" :class="css({ width: '180px' })">
                         <MpFlex justify="space-between" align="center">
                           <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
-                          <MpText size="label-small" :class="captionText">{{ period.progressDone }} of {{ period.progressTotal }}</MpText>
+                          <MpText size="label-small" :class="captionText">{{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(row.emp)) }} of {{ reviewerCountFor(row.emp) }}</MpText>
                         </MpFlex>
                         <MpProgress
                           variant="linear"
                           size="sm"
-                          :class="greenProgress"
+                          :class="tealProgress"
                           :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                         />
                       </MpFlex>
@@ -1217,7 +1290,7 @@ function confirmRemoveEmployee() {
                         </MpPopoverTrigger>
                         <MpPopoverContent :class="css({ minWidth: '160px' })">
                           <MpPopoverList>
-                            <MpPopoverListItem>View reviewer</MpPopoverListItem>
+                            <MpPopoverListItem @click="openReviewerList(row.emp)">View reviewer</MpPopoverListItem>
                             <MpPopoverListItem @click="viewTimeframeDetails(row.tg)">View timeframe details</MpPopoverListItem>
                           </MpPopoverList>
                         </MpPopoverContent>
@@ -1277,7 +1350,7 @@ function confirmRemoveEmployee() {
                   <template v-for="row in visibleCompletedRows" :key="`${row.tg.timeframe}-${row.emp.id}`">
                     <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`${row.emp.id}-${period.label}`" :class="noHoverRow">
                       <!-- Employee (merged across periods) -->
-                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpFlex align="start" gap="3">
                           <MpAvatar :name="row.emp.name" size="lg" />
                           <MpFlex direction="column" gap="1">
@@ -1288,7 +1361,7 @@ function confirmRemoveEmployee() {
                         </MpFlex>
                       </MpTableCell>
                       <!-- Review timeframe (merged across periods) -->
-                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpTextlink as="button" size="small" @click="viewTimeframeDetails(row.tg)">{{ row.tg.timeframe }}</MpTextlink>
                       </MpTableCell>
                       <!-- Review period: window date + period caption (multiple only) -->
@@ -1303,12 +1376,12 @@ function confirmRemoveEmployee() {
                         <MpFlex direction="column" gap="1" :class="css({ width: '180px' })">
                           <MpFlex justify="space-between" align="center">
                             <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
-                            <MpText size="label-small" :class="captionText">{{ period.progressDone }} of {{ period.progressTotal }}</MpText>
+                            <MpText size="label-small" :class="captionText">{{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(row.emp)) }} of {{ reviewerCountFor(row.emp) }}</MpText>
                           </MpFlex>
                           <MpProgress
                             variant="linear"
                             size="sm"
-                            :class="greenProgress"
+                            :class="tealProgress"
                             :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                           />
                         </MpFlex>
@@ -1325,7 +1398,7 @@ function confirmRemoveEmployee() {
                           </MpPopoverTrigger>
                           <MpPopoverContent :class="css({ minWidth: '160px' })">
                             <MpPopoverList>
-                              <MpPopoverListItem>View reviewer</MpPopoverListItem>
+                              <MpPopoverListItem @click="openReviewerList(row.emp)">View reviewer</MpPopoverListItem>
                               <MpPopoverListItem @click="viewTimeframeDetails(row.tg)">View timeframe details</MpPopoverListItem>
                             </MpPopoverList>
                           </MpPopoverContent>
@@ -1337,7 +1410,7 @@ function confirmRemoveEmployee() {
                   <!-- Skeleton rows while loading more -->
                   <template v-if="completedLoadingMore">
                     <MpTableRow v-for="i in 3" :key="`completed-skel-${i}`" :class="noHoverRow">
-                      <MpTableCell as="td" :class="[tightCell, empCellBorder]">
+                      <MpTableCell as="td" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpFlex align="center" gap="3">
                           <MpSkeleton :class="css({ width: '40px', height: '40px', borderRadius: 'full', flexShrink: '0' })" />
                           <MpFlex direction="column" gap="1">
@@ -1346,7 +1419,7 @@ function confirmRemoveEmployee() {
                           </MpFlex>
                         </MpFlex>
                       </MpTableCell>
-                      <MpTableCell as="td" :class="[tightCell, empCellBorder]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
+                      <MpTableCell as="td" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '180px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '72px', height: '22px', borderRadius: '4px' })" /></MpTableCell>
@@ -1360,7 +1433,7 @@ function confirmRemoveEmployee() {
             <MpFlex
               align="center"
               gap="1"
-              :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
+              :class="css({ paddingX: '4', paddingY: '3' })"
             >
               <MpText size="label" :class="captionText">
                 Showing {{ Math.min(completedVisible, completedRows.length) }} of {{ completedRows.length }} employees.
@@ -1490,13 +1563,13 @@ function confirmRemoveEmployee() {
                             <MpFlex justify="space-between" align="center">
                               <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
                               <MpText size="label-small" :class="captionText">
-                                {{ period.progressDone }} of {{ period.progressTotal }}
+                                {{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(emp)) }} of {{ reviewerCountFor(emp) }}
                               </MpText>
                             </MpFlex>
                             <MpProgress
                               variant="linear"
                               size="sm"
-                              :class="greenProgress"
+                              :class="tealProgress"
                               :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                             />
                           </MpFlex>
@@ -1513,9 +1586,9 @@ function confirmRemoveEmployee() {
                             </MpPopoverTrigger>
                             <MpPopoverContent :class="css({ minWidth: '160px' })">
                               <MpPopoverList>
-                                <MpPopoverListItem>View reviewer</MpPopoverListItem>
-                                <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
-                                <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
+                                <MpPopoverListItem @click="openReviewerList(emp)">View reviewer</MpPopoverListItem>
+                                <MpPopoverListItem @click="openReviewerWeight(emp)">Set reviewer weight</MpPopoverListItem>
+                                <MpPopoverListItem @click="openManageReviewer(emp)">Manage reviewer</MpPopoverListItem>
                                 <MpPopoverListItem @click="askRemoveEmployee(tg, emp)">
                                   <span :class="css({ color: 'text.danger' })">Remove employee</span>
                                 </MpPopoverListItem>
@@ -1554,7 +1627,7 @@ function confirmRemoveEmployee() {
                 v-if="isTimeframeTableOpen(tg, sg)"
                 align="center"
                 gap="1"
-                :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
+                :class="css({ paddingX: '4', paddingY: '3' })"
               >
                 <MpText size="label" :class="captionText">
                   Showing {{ Math.min(groupVisibleCount[tg.timeframe] ?? EXT_PAGE_SIZE, tg.employees.length) }} of {{ tg.employees.length }} employees.
@@ -1618,6 +1691,14 @@ function confirmRemoveEmployee() {
   </MpFlex>
 
   <!-- Employee list modal -->
+  <!-- Reviewer modals (View / Set weight / Manage) — shared with timeframe page.
+       No `methods` prop → all cycle methods shown, grouped. -->
+  <ReviewerModals
+    ref="reviewerModalsRef"
+    :method-weights="methodWeights"
+    :cycle-key="String(route.params.id)"
+  />
+
   <MpModal :is-open="employeeModalOpen" is-centered @close="employeeModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ width: '640px', maxWidth: '90vw' })">
