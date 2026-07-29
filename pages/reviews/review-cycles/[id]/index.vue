@@ -119,7 +119,12 @@ const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degre
 // real people from the shared EMPLOYEES directory (photo/name/id/job/org).
 const reviewersByMethod: Record<string, { empId: string, weight: number }[]> = {
   'Manager review': [{ empId: 'rio', weight: 70 }, { empId: 'rizal', weight: 30 }],
-  '360-degree review': [{ empId: 'ali', weight: 40 }, { empId: 'bayu', weight: 30 }, { empId: 'cinta', weight: 30 }],
+  '360-degree review': [
+    { empId: 'ali', weight: 10 }, { empId: 'bayu', weight: 10 }, { empId: 'cinta', weight: 10 },
+    { empId: 'andi', weight: 10 }, { empId: 'eka', weight: 10 }, { empId: 'daud', weight: 10 },
+    { empId: 'jessie', weight: 10 }, { empId: 'christin', weight: 10 }, { empId: 'indah', weight: 5 },
+    { empId: 'fajar', weight: 5 }, { empId: 'agung', weight: 5 }, { empId: 'linda', weight: 5 },
+  ],
   'Team review': [{ empId: 'andi', weight: 50 }, { empId: 'eka', weight: 50 }],
 }
 // Integers render bare ("50"), fractions to 2dp — mirrors production formatWeight.
@@ -1697,14 +1702,14 @@ function confirmRemoveEmployee() {
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody>
+      <MpModalBody :class="css({ maxHeight: '70vh', overflowY: 'auto' })">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
           gap="3"
           :class="css({ paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
         >
-          <MpAvatar :name="reviewerModalMember.name" size="md" variant-color="gray" />
+          <MpAvatar :name="reviewerModalMember.name" size="lg" variant-color="gray" />
           <MpFlex direction="column" gap="0">
             <MpText size="label" weight="semiBold" :class="valueText">{{ reviewerModalMember.name }}</MpText>
             <MpText size="label-small" :class="captionText">{{ memberSub(reviewerModalMember) }}</MpText>
@@ -1725,7 +1730,7 @@ function confirmRemoveEmployee() {
                 gap="4"
               >
                 <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                  <MpAvatar :name="r.name" :src="r.photo" size="md" variant-color="gray" />
+                  <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                   <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                     <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                     <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
