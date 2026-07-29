@@ -547,10 +547,8 @@ const lockBtnDisabled = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
   border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'not-allowed', color: 'gray.100',
 })
-// Add-reviewer picker row (Manage reviewer modal)
+// Add-reviewer picker row (Manage reviewer modal) — info left, add button right.
 const pickerRow = css({
-  display: 'flex', alignItems: 'center', gap: '3', width: '100%', textAlign: 'left',
-  border: 'none', background: 'transparent', cursor: 'pointer',
   paddingInline: '3', paddingBlock: '2',
   _hover: { background: 'background.neutral.subtle' },
 })
@@ -2122,31 +2120,34 @@ function confirmRemoveEmployee() {
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
                 <MpText size="label" weight="semiBold" :class="valueText">{{ g.name }}</MpText>
-                <MpPopover v-if="!g.isSelf" is-close-on-select use-portal placement="bottom-end">
+                <MpPopover v-if="!g.isSelf" use-portal placement="bottom-end">
                   <MpPopoverTrigger>
                     <MpButton variant="secondary" size="sm" left-icon="add">Add reviewer</MpButton>
                   </MpPopoverTrigger>
-                  <MpPopoverContent :class="css({ width: '320px' })">
+                  <MpPopoverContent :class="css({ width: '340px' })">
                     <div :class="css({ padding: '2' })">
-                      <MpInputGroup>
-                        <MpInputLeftAddon><MpIcon name="search" /></MpInputLeftAddon>
-                        <MpInput v-model="addSearch[g.name]" placeholder="Search employee" />
-                      </MpInputGroup>
+                      <MpInput v-model="addSearch[g.name]" placeholder="Search employee" />
                     </div>
-                    <div :class="css({ maxHeight: '240px', overflowY: 'auto', paddingBottom: '1' })">
-                      <button
+                    <div :class="css({ maxHeight: '260px', overflowY: 'auto', paddingBottom: '1' })">
+                      <MpFlex
                         v-for="emp in availableReviewers(g)"
                         :key="emp.code"
-                        type="button"
+                        align="center"
+                        justify="space-between"
+                        gap="3"
                         :class="pickerRow"
-                        @click="addManageReviewer(g, emp)"
                       >
-                        <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
-                        <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
-                          <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
-                          <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
+                        <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
+                          <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
+                          <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
+                            <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
+                            <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
+                          </MpFlex>
                         </MpFlex>
-                      </button>
+                        <button type="button" :class="lockBtn" aria-label="Add reviewer" @click="addManageReviewer(g, emp)">
+                          <MpIcon name="add" size="sm" />
+                        </button>
+                      </MpFlex>
                       <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No more employees to add.</MpText>
                     </div>
                   </MpPopoverContent>
