@@ -385,7 +385,7 @@ const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', background: 'border.default', overflow: 'hidden' })
 const progressFill = css({ height: '100%', borderRadius: 'full' })
 const fillGreen = css({ background: 'teal.400' })
-const fillOrange = css({ background: 'orange.400' })
+const fillOrange = css({ background: 'rose.400' })
 
 const pillBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'sm', paddingInline: '1', paddingBlock: '0.5', fontSize: '10px', lineHeight: '12px', fontWeight: '600' } as const
 const pillGreen = css({ ...pillBase, background: 'green.50', color: 'green.700' })
