@@ -38,6 +38,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import { EMPLOYEES } from '~/utils/employees'
+import type { MethodWeightConfig } from '~/composables/useReviewerWeightsStore'
 
 definePageMeta({
   layout: 'default',
@@ -190,7 +191,9 @@ function reviewersForMember(member: ReviewMember): { name: string, weight: numbe
   return groups
 }
 function reviewerCountFor(member: ReviewMember) {
-  return reviewersForMember(member).reduce((n, g) => n + g.reviewers.length, 0)
+  // Use the resolved groups so roster changes (Manage reviewer) are reflected
+  // in the progress "X of N" count too.
+  return resolvedGroupsFor(member).reduce((n, g) => n + g.reviewers.length, 0)
 }
 // Progress "done of total" counts reviewers: total = the member's reviewer count,
 // done scaled from each period's own ratio. The progress bar keeps the raw ratio.
@@ -206,18 +209,34 @@ function memberKeyFor(member: ReviewMember) {
 // Base generated groups + any saved custom-weight config applied. Used by both
 // the View modal (read-only) and as the starting point for the editor, so a
 // saved change is reflected everywhere.
+function reviewerRowByCode(code: string): ReviewerRow {
+  const e = EMPLOYEES.find(x => x.code === code)
+  return {
+    name: e?.name ?? code,
+    code,
+    sub: e ? [e.code, e.title, e.department].filter(Boolean).join(' · ') : '',
+    photo: e?.photo,
+    weight: 0,
+  }
+}
 function resolvedGroupsFor(member: ReviewMember): EditableGroup[] {
   const key = memberKeyFor(member)
   return reviewersForMember(member).map((g) => {
     const cfg = configFor(key, g.name)
     const useCustom = !!cfg?.useCustom
+    // Roster override (from Manage reviewer) replaces the generated list; Self
+    // review always stays the member.
+    const base = (g.name !== 'Self review' && cfg?.roster)
+      ? cfg.roster.map(code => reviewerRowByCode(code))
+      : g.reviewers.map(r => ({ ...r }))
+    const eq = splitWeights(base.length)
     return {
       name: g.name,
       weight: g.weight,
       useCustom,
       // Lock the first reviewer by default when custom is on (production
       // parity) — locks aren't persisted, they're an editing aid.
-      reviewers: g.reviewers.map((r, idx) => ({ ...r, weight: useCustom ? (cfg!.weights[r.code] ?? r.weight) : r.weight, locked: useCustom && idx === 0 })),
+      reviewers: base.map((r, idx) => ({ ...r, weight: useCustom ? (cfg!.weights[r.code] ?? eq[idx]) : eq[idx], locked: useCustom && idx === 0 })),
     }
   })
 }
@@ -308,6 +327,50 @@ function saveReviewerWeights() {
   }
   toast.notify({ id: 'reviewer-weight-saved', position: 'top-center', variant: 'success', title: 'Reviewer weights saved' })
   weightModalOpen.value = false
+}
+
+// ─── Manage reviewer modal (add/remove reviewers per method) ────────────────────
+type ManageReviewer = { name: string, code: string, sub: string, photo?: string }
+type ManageGroup = { name: string, isSelf: boolean, reviewers: ManageReviewer[] }
+const manageModalOpen = ref(false)
+const manageModalMember = ref<ReviewMember | null>(null)
+const manageGroups = ref<ManageGroup[]>([])
+const addSearch = reactive<Record<string, string>>({})
+function openManageReviewer(member: ReviewMember) {
+  manageModalMember.value = member
+  manageGroups.value = resolvedGroupsFor(member).map(g => ({
+    name: g.name,
+    isSelf: g.name === 'Self review',
+    reviewers: g.reviewers.map(r => ({ name: r.name, code: r.code, sub: r.sub, photo: r.photo })),
+  }))
+  manageModalOpen.value = true
+}
+// Employees not already assigned to this method (and not the member), filtered
+// by the per-method search box.
+function availableReviewers(g: ManageGroup) {
+  const used = new Set(g.reviewers.map(r => r.code))
+  const q = (addSearch[g.name] ?? '').trim().toLowerCase()
+  return EMPLOYEES.filter(e => e.code !== manageModalMember.value?.id && !used.has(e.code)
+    && (!q || e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q)))
+}
+function addManageReviewer(g: ManageGroup, emp: typeof EMPLOYEES[number]) {
+  g.reviewers.push({ name: emp.name, code: emp.code, sub: [emp.code, emp.title, emp.department].filter(Boolean).join(' · '), photo: emp.photo })
+  addSearch[g.name] = ''
+}
+function removeManageReviewer(g: ManageGroup, i: number) {
+  g.reviewers.splice(i, 1)
+}
+function saveManageReviewers() {
+  if (!manageModalMember.value) return
+  const configs: Record<string, MethodWeightConfig> = {}
+  // Changing the roster resets each method back to an equal distribution.
+  manageGroups.value.forEach((g) => {
+    if (g.isSelf) return
+    configs[g.name] = { useCustom: false, weights: {}, roster: g.reviewers.map(r => r.code) }
+  })
+  saveConfigs(memberKeyFor(manageModalMember.value), configs)
+  toast.notify({ id: 'reviewer-roster-saved', position: 'top-center', variant: 'success', title: 'Reviewers updated' })
+  manageModalOpen.value = false
 }
 function openReviewerList(member: { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }) {
   reviewerModalMember.value = member
@@ -483,6 +546,13 @@ const lockBtn = css({
 const lockBtnDisabled = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
   border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'not-allowed', color: 'gray.100',
+})
+// Add-reviewer picker row (Manage reviewer modal)
+const pickerRow = css({
+  display: 'flex', alignItems: 'center', gap: '3', width: '100%', textAlign: 'left',
+  border: 'none', background: 'transparent', cursor: 'pointer',
+  paddingInline: '3', paddingBlock: '2',
+  _hover: { background: 'background.neutral.subtle' },
 })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
@@ -1781,7 +1851,7 @@ function confirmRemoveEmployee() {
                               <MpPopoverList>
                                 <MpPopoverListItem @click="openReviewerList(emp)">View reviewer</MpPopoverListItem>
                                 <MpPopoverListItem @click="openReviewerWeight(emp)">Set reviewer weight</MpPopoverListItem>
-                                <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
+                                <MpPopoverListItem @click="openManageReviewer(emp)">Manage reviewer</MpPopoverListItem>
                                 <MpPopoverListItem @click="askRemoveEmployee(tg, emp)">
                                   <span :class="css({ color: 'text.danger' })">Remove employee</span>
                                 </MpPopoverListItem>
@@ -2021,6 +2091,89 @@ function confirmRemoveEmployee() {
       <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end', flexShrink: '0' })">
         <MpButton variant="ghost" @click="weightModalOpen = false">Cancel</MpButton>
         <MpButton variant="primary" @click="saveReviewerWeights">Save changes</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+
+  <!-- Manage reviewer: add/remove reviewers per method. -->
+  <MpModal :is-open="manageModalOpen" is-centered size="lg" @close="manageModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ display: 'flex', flexDirection: 'column' })">
+      <MpModalHeader :class="css({ flexShrink: '0' })">
+        Manage reviewer
+        <MpModalCloseButton />
+      </MpModalHeader>
+      <MpModalBody :class="css({ padding: '0', overflow: 'hidden' })">
+        <div :class="css({ maxHeight: '60vh', overflowY: 'auto', paddingInline: '6' })">
+          <MpFlex
+            v-if="manageModalMember"
+            align="center"
+            gap="3"
+            :class="css({ paddingTop: '5', paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
+          >
+            <MpAvatar :name="manageModalMember.name" size="lg" variant-color="gray" />
+            <MpFlex direction="column" gap="0">
+              <MpText size="label" weight="semiBold" :class="valueText">{{ manageModalMember.name }}</MpText>
+              <MpText size="label-small" :class="captionText">{{ memberSub(manageModalMember) }}</MpText>
+            </MpFlex>
+          </MpFlex>
+
+          <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
+            <div v-for="g in manageGroups" :key="g.name">
+              <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
+                <MpText size="label" weight="semiBold" :class="valueText">{{ g.name }}</MpText>
+                <MpPopover v-if="!g.isSelf" is-close-on-select use-portal placement="bottom-end">
+                  <MpPopoverTrigger>
+                    <MpButton variant="secondary" size="sm" left-icon="add">Add reviewer</MpButton>
+                  </MpPopoverTrigger>
+                  <MpPopoverContent :class="css({ width: '320px' })">
+                    <div :class="css({ padding: '2' })">
+                      <MpInputGroup>
+                        <MpInputLeftAddon><MpIcon name="search" /></MpInputLeftAddon>
+                        <MpInput v-model="addSearch[g.name]" placeholder="Search employee" />
+                      </MpInputGroup>
+                    </div>
+                    <div :class="css({ maxHeight: '240px', overflowY: 'auto', paddingBottom: '1' })">
+                      <button
+                        v-for="emp in availableReviewers(g)"
+                        :key="emp.code"
+                        type="button"
+                        :class="pickerRow"
+                        @click="addManageReviewer(g, emp)"
+                      >
+                        <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
+                        <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
+                          <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
+                          <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
+                        </MpFlex>
+                      </button>
+                      <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No more employees to add.</MpText>
+                    </div>
+                  </MpPopoverContent>
+                </MpPopover>
+              </MpFlex>
+              <MpFlex direction="column" gap="3">
+                <MpFlex v-for="(r, i) in g.reviewers" :key="r.code" align="center" justify="space-between" gap="4">
+                  <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
+                    <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                    <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
+                      <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
+                      <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
+                    </MpFlex>
+                  </MpFlex>
+                  <button v-if="!g.isSelf" type="button" :class="lockBtn" aria-label="Remove reviewer" @click="removeManageReviewer(g, i)">
+                    <MpIcon name="close" size="sm" />
+                  </button>
+                </MpFlex>
+                <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers yet — add at least one.</MpText>
+              </MpFlex>
+            </div>
+          </MpFlex>
+        </div>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end', flexShrink: '0' })">
+        <MpButton variant="ghost" @click="manageModalOpen = false">Cancel</MpButton>
+        <MpButton variant="primary" @click="saveManageReviewers">Save changes</MpButton>
       </MpModalFooter>
     </MpModalContent>
   </MpModal>

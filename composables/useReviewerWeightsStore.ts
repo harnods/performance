@@ -12,6 +12,9 @@
 export interface MethodWeightConfig {
   useCustom: boolean
   weights: Record<string, number>
+  // Optional roster override (reviewer codes) set via "Manage reviewer" — when
+  // present it replaces the generated reviewer list for that method.
+  roster?: string[]
 }
 // memberKey → methodName → config
 type ReviewerWeightsDb = Record<string, Record<string, MethodWeightConfig>>
