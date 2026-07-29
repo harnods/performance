@@ -12,6 +12,7 @@ import {
   MpAvatar,
   MpTextlink,
   MpToggle,
+  MpTooltip,
   MpProgress,
   MpTable,
   MpTableContainer,
@@ -38,6 +39,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import { EMPLOYEES } from '~/utils/employees'
+import { BRANCHES, ORGANIZATIONS, TALENTS } from '~/utils/talents'
 import type { MethodWeightConfig } from '~/composables/useReviewerWeightsStore'
 
 definePageMeta({
@@ -335,10 +337,22 @@ type ManageGroup = { name: string, isSelf: boolean, reviewers: ManageReviewer[] 
 const manageModalOpen = ref(false)
 const manageModalMember = ref<ReviewMember | null>(null)
 const manageGroups = ref<ManageGroup[]>([])
-const addSearch = reactive<Record<string, string>>({})
-const addOpen = reactive<Record<string, boolean>>({})
+// Only one method's add panel is open at a time; opening another closes it.
+const openAddMethod = ref<string | null>(null)
+const addSearch = ref('')
+const addBranch = ref('')
+const addOrg = ref('')
+const ADD_PAGE = 8
+const addVisible = ref(ADD_PAGE)
+const branchOptions = [{ value: '', label: 'All branches' }, ...BRANCHES.map(b => ({ value: b, label: b }))]
+const orgOptions = [{ value: '', label: 'All organizations' }, ...ORGANIZATIONS.map(o => ({ value: o, label: o }))]
+function toggleAdd(g: ManageGroup) {
+  openAddMethod.value = openAddMethod.value === g.name ? null : g.name
+  addSearch.value = ''; addBranch.value = ''; addOrg.value = ''; addVisible.value = ADD_PAGE
+}
 function openManageReviewer(member: ReviewMember) {
   manageModalMember.value = member
+  openAddMethod.value = null
   manageGroups.value = resolvedGroupsFor(member).map(g => ({
     name: g.name,
     isSelf: g.name === 'Self review',
@@ -346,17 +360,21 @@ function openManageReviewer(member: ReviewMember) {
   }))
   manageModalOpen.value = true
 }
-// Employees not already assigned to this method (and not the member), filtered
-// by the per-method search box.
+// Active employees not already assigned to this method, filtered by search +
+// branch + organization.
 function availableReviewers(g: ManageGroup) {
   const used = new Set(g.reviewers.map(r => r.code))
-  const q = (addSearch[g.name] ?? '').trim().toLowerCase()
-  return EMPLOYEES.filter(e => e.code !== manageModalMember.value?.id && !used.has(e.code)
-    && (!q || e.name.toLowerCase().includes(q) || e.code.toLowerCase().includes(q)))
+  const q = addSearch.value.trim().toLowerCase()
+  return TALENTS.filter(t => t.status === 'active' && !used.has(t.code)
+    && (!q || t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q))
+    && (!addBranch.value || t.branch === addBranch.value)
+    && (!addOrg.value || t.organization === addOrg.value))
 }
-function addManageReviewer(g: ManageGroup, emp: typeof EMPLOYEES[number]) {
-  g.reviewers.push({ name: emp.name, code: emp.code, sub: [emp.code, emp.title, emp.department].filter(Boolean).join(' · '), photo: emp.photo })
-  addSearch[g.name] = ''
+function shownReviewers(g: ManageGroup) {
+  return availableReviewers(g).slice(0, addVisible.value)
+}
+function addManageReviewer(g: ManageGroup, t: typeof TALENTS[number]) {
+  g.reviewers.push({ name: t.name, code: t.code, sub: [t.code, t.jobPosition, t.organization].filter(Boolean).join(' · '), photo: t.photo })
 }
 function removeManageReviewer(g: ManageGroup, i: number) {
   g.reviewers.splice(i, 1)
@@ -533,7 +551,7 @@ const captionText = css({ color: 'text.secondary' })
 const methodHeaderClass = css({
   position: 'sticky', top: '0', zIndex: '1',
   display: 'block', backgroundColor: 'background.neutral',
-  fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default',
+  fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default',
   paddingTop: '2', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
   transition: 'border-color 0.1s ease',
@@ -2125,14 +2143,20 @@ function confirmRemoveEmployee() {
           <MpFlex direction="column" gap="10" :class="css({ paddingBottom: '6' })">
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
-                <MpText :class="css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })">{{ g.name }}</MpText>
-                <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="addOpen[g.name] = !addOpen[g.name]">Add reviewer</MpButton>
+                <MpText :class="css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })">{{ g.name }}</MpText>
+                <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="toggleAdd(g)">Add reviewer</MpButton>
               </MpFlex>
-              <div v-if="!g.isSelf && addOpen[g.name]" :class="addPanel">
-                <MpInput v-model="addSearch[g.name]" placeholder="Search employee" :class="css({ marginBottom: '2' })" />
-                <div :class="css({ maxHeight: '240px', overflowY: 'auto' })">
+              <div v-if="!g.isSelf && openAddMethod === g.name" :class="addPanel">
+                <!-- Filter bar: search + branch + organization -->
+                <MpFlex gap="2" wrap="wrap" :class="css({ marginBottom: '3' })">
+                  <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '180px' })" />
+                  <PxSelectPopover v-model="addBranch" :options="branchOptions" placeholder="All branches" :class="css({ width: '180px' })" />
+                  <PxSelectPopover v-model="addOrg" :options="orgOptions" placeholder="All organizations" :class="css({ width: '200px' })" />
+                </MpFlex>
+                <!-- Scrollable list with a sticky "load more" bar at the bottom -->
+                <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
                   <MpFlex
-                    v-for="emp in availableReviewers(g)"
+                    v-for="emp in shownReviewers(g)"
                     :key="emp.code"
                     align="center"
                     justify="space-between"
@@ -2143,14 +2167,25 @@ function confirmRemoveEmployee() {
                       <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
                       <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
                         <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
-                        <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
+                        <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.jobPosition }} · {{ emp.organization }}</MpText>
                       </MpFlex>
                     </MpFlex>
-                    <button type="button" :class="lockBtn" aria-label="Add reviewer" @click="addManageReviewer(g, emp)">
-                      <MpIcon name="add" size="sm" />
-                    </button>
+                    <MpTooltip label="Add reviewer" use-portal>
+                      <button type="button" :class="lockBtn" aria-label="Add reviewer" @click="addManageReviewer(g, emp)">
+                        <MpIcon name="add" size="sm" />
+                      </button>
+                    </MpTooltip>
                   </MpFlex>
-                  <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No more employees to add.</MpText>
+                  <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No employees match.</MpText>
+                  <MpFlex
+                    v-if="availableReviewers(g).length > addVisible"
+                    align="center"
+                    justify="space-between"
+                    :class="css({ position: 'sticky', bottom: '0', background: 'background.neutral', paddingInline: '3', paddingBlock: '2', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
+                  >
+                    <MpText size="label-small" :class="captionText">Showing {{ Math.min(addVisible, availableReviewers(g).length) }} of {{ availableReviewers(g).length }}</MpText>
+                    <MpTextlink as="button" size="small" @click="addVisible += ADD_PAGE">Load more</MpTextlink>
+                  </MpFlex>
                 </div>
               </div>
               <MpFlex direction="column" gap="3">
@@ -2162,9 +2197,11 @@ function confirmRemoveEmployee() {
                       <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
                     </MpFlex>
                   </MpFlex>
-                  <button v-if="!g.isSelf" type="button" :class="lockBtn" aria-label="Remove reviewer" @click="removeManageReviewer(g, i)">
-                    <MpIcon name="close" size="sm" />
-                  </button>
+                  <MpTooltip v-if="!g.isSelf" label="Remove reviewer" use-portal>
+                    <button type="button" :class="lockBtn" aria-label="Remove reviewer" @click="removeManageReviewer(g, i)">
+                      <MpIcon name="close" size="sm" />
+                    </button>
+                  </MpTooltip>
                 </MpFlex>
                 <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers yet — add at least one.</MpText>
               </MpFlex>
