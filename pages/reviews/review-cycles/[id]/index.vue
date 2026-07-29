@@ -165,6 +165,23 @@ function openReviewerList(member: { name: string, id: string, jobTitle?: string,
   reviewerModalMember.value = member
   reviewerModalOpen.value = true
 }
+// Method headers are sticky while the modal body scrolls; they only show a
+// bottom border once actually stuck (pinned at the top). CSS can't detect the
+// stuck state, so toggle a data attribute on scroll.
+function onReviewerScroll(e: Event) {
+  const c = e.currentTarget as HTMLElement
+  const top = c.getBoundingClientRect().top
+  c.querySelectorAll<HTMLElement>('[data-method-header]').forEach((h) => {
+    h.dataset.stuck = c.scrollTop > 0 && h.getBoundingClientRect().top - top <= 0.5 ? 'true' : 'false'
+  })
+}
+// Reset stuck state + scroll position each time the modal opens.
+watch(reviewerModalOpen, (open) => {
+  if (!open) return
+  nextTick(() => {
+    document.querySelectorAll<HTMLElement>('[data-method-header]').forEach(h => (h.dataset.stuck = 'false'))
+  })
+})
 const publishScoreAfter = 'Complete review' // Complete review | Review period end | Both
 
 const reviewMethodsText = computed(() =>
@@ -293,6 +310,17 @@ const filteredRows = computed(() => {
 const labelText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
+// Reviewers modal — sticky per-method header; border-bottom appears only when
+// pinned (data-stuck toggled on scroll). Opaque bg so rows scroll under it.
+const methodHeaderClass = css({
+  position: 'sticky', top: '0', zIndex: '1',
+  display: 'block', background: 'background.surface',
+  fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default',
+  paddingTop: '2', paddingBottom: '3',
+  borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
+  transition: 'border-color 0.1s ease',
+  '&[data-stuck="true"]': { borderBottomColor: 'border.default' },
+})
 const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
@@ -1702,14 +1730,14 @@ function confirmRemoveEmployee() {
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody :class="css({ maxHeight: '70vh', overflowY: 'auto' })">
+      <MpModalBody :class="css({ maxHeight: '70vh', overflowY: 'auto' })" @scroll="onReviewerScroll">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
           gap="3"
           :class="css({ paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
         >
-          <MpAvatar :name="reviewerModalMember.name" size="lg" variant-color="gray" />
+          <MpAvatar :name="reviewerModalMember.name" size="md" variant-color="gray" />
           <MpFlex direction="column" gap="0">
             <MpText size="label" weight="semiBold" :class="valueText">{{ reviewerModalMember.name }}</MpText>
             <MpText size="label-small" :class="captionText">{{ memberSub(reviewerModalMember) }}</MpText>
@@ -1718,7 +1746,7 @@ function confirmRemoveEmployee() {
 
         <MpFlex direction="column" gap="6">
           <div v-for="g in reviewerGroups" :key="g.name">
-            <MpText size="label" weight="semiBold" :class="[valueText, css({ display: 'block', marginBottom: '3' })]">
+            <MpText size="label" data-method-header :class="methodHeaderClass">
               {{ g.name }} ({{ formatWeight(g.weight) }}%)
             </MpText>
             <MpFlex direction="column" gap="3">
@@ -1730,7 +1758,7 @@ function confirmRemoveEmployee() {
                 gap="4"
               >
                 <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                  <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                  <MpAvatar :name="r.name" :src="r.photo" size="md" variant-color="gray" />
                   <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                     <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                     <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
