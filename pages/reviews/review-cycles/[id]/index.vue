@@ -173,9 +173,12 @@ function onReviewerScroll(e: Event) {
   // so this is bound with .capture and reads e.target (the actual scroller).
   const c = e.target as HTMLElement
   if (!c?.getBoundingClientRect) return
-  const top = c.getBoundingClientRect().top
+  // The pin line = scroller top + its top padding/border, so the stuck test is
+  // correct even when the scroll container has top padding.
+  const cs = getComputedStyle(c)
+  const pinY = c.getBoundingClientRect().top + parseFloat(cs.paddingTop || '0') + parseFloat(cs.borderTopWidth || '0')
   document.querySelectorAll<HTMLElement>('[data-method-header]').forEach((h) => {
-    h.dataset.stuck = c.scrollTop > 0 && h.getBoundingClientRect().top - top <= 0.5 ? 'true' : 'false'
+    h.dataset.stuck = c.scrollTop > 0 && h.getBoundingClientRect().top - pinY <= 0.5 ? 'true' : 'false'
   })
 }
 // Reset stuck state + scroll position each time the modal opens.
@@ -1733,12 +1736,12 @@ function confirmRemoveEmployee() {
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody @scroll.capture="onReviewerScroll">
+      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0' })" @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
           gap="3"
-          :class="css({ paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
+          :class="css({ paddingTop: '5', paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
         >
           <MpAvatar :name="reviewerModalMember.name" size="md" variant-color="gray" />
           <MpFlex direction="column" gap="0">
@@ -1747,7 +1750,7 @@ function confirmRemoveEmployee() {
           </MpFlex>
         </MpFlex>
 
-        <MpFlex direction="column" gap="6">
+        <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
           <div v-for="g in reviewerGroups" :key="g.name">
             <div data-method-header :class="methodHeaderClass">
               {{ g.name }} ({{ formatWeight(g.weight) }}%)
