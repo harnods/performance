@@ -2157,11 +2157,11 @@ function confirmRemoveEmployee() {
                 <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="toggleAdd(g)">Add reviewer</MpButton>
               </MpFlex>
               <div v-if="!g.isSelf && openAddMethod === g.name" :class="addPanel">
-                <!-- Filter bar: search + branch + organization, single row -->
+                <!-- Filter bar: branch + organization, then search on the right -->
                 <MpFlex gap="2" align="center" :class="css({ marginBottom: '3' })">
-                  <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '0' })" />
                   <PxSelectPopover v-model="addBranch" :options="branchOptions" placeholder="All branches" :class="css({ width: '176px', flexShrink: '0' })" />
                   <PxSelectPopover v-model="addOrg" :options="orgOptions" placeholder="All organizations" :class="css({ width: '196px', flexShrink: '0' })" />
+                  <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '0' })" />
                 </MpFlex>
                 <!-- Scrollable list with a sticky "load more" bar at the bottom -->
                 <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
