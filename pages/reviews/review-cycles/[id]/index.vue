@@ -169,9 +169,12 @@ function openReviewerList(member: { name: string, id: string, jobTitle?: string,
 // bottom border once actually stuck (pinned at the top). CSS can't detect the
 // stuck state, so toggle a data attribute on scroll.
 function onReviewerScroll(e: Event) {
-  const c = e.currentTarget as HTMLElement
+  // scroll-behavior="inside" may scroll an inner element; scroll doesn't bubble,
+  // so this is bound with .capture and reads e.target (the actual scroller).
+  const c = e.target as HTMLElement
+  if (!c?.getBoundingClientRect) return
   const top = c.getBoundingClientRect().top
-  c.querySelectorAll<HTMLElement>('[data-method-header]').forEach((h) => {
+  document.querySelectorAll<HTMLElement>('[data-method-header]').forEach((h) => {
     h.dataset.stuck = c.scrollTop > 0 && h.getBoundingClientRect().top - top <= 0.5 ? 'true' : 'false'
   })
 }
@@ -1730,7 +1733,7 @@ function confirmRemoveEmployee() {
         Reviewers
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody @scroll="onReviewerScroll">
+      <MpModalBody @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="reviewerModalMember"
           align="center"
