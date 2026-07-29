@@ -336,6 +336,7 @@ const manageModalOpen = ref(false)
 const manageModalMember = ref<ReviewMember | null>(null)
 const manageGroups = ref<ManageGroup[]>([])
 const addSearch = reactive<Record<string, string>>({})
+const addOpen = reactive<Record<string, boolean>>({})
 function openManageReviewer(member: ReviewMember) {
   manageModalMember.value = member
   manageGroups.value = resolvedGroupsFor(member).map(g => ({
@@ -551,6 +552,11 @@ const lockBtnDisabled = css({
 const pickerRow = css({
   paddingInline: '3', paddingBlock: '2',
   _hover: { background: 'background.neutral.subtle' },
+})
+// Inline add-reviewer panel (revealed under the method header).
+const addPanel = css({
+  border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
+  padding: '3', marginBottom: '4',
 })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
@@ -1976,7 +1982,7 @@ function confirmRemoveEmployee() {
           </MpFlex>
         </MpFlex>
 
-        <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
+        <MpFlex direction="column" gap="10" :class="css({ paddingBottom: '6' })">
           <div v-for="g in reviewerGroups" :key="g.name">
             <div data-method-header :class="methodHeaderClass">
               {{ g.name }} ({{ formatWeight(g.weight) }}%)
@@ -2031,7 +2037,7 @@ function confirmRemoveEmployee() {
           </MpFlex>
         </MpFlex>
 
-        <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
+        <MpFlex direction="column" gap="10" :class="css({ paddingBottom: '6' })">
           <div v-for="g in editableGroups" :key="g.name">
             <div data-method-header :class="methodHeaderClass">
               <MpFlex align="center" justify="space-between" gap="4">
@@ -2116,43 +2122,37 @@ function confirmRemoveEmployee() {
             </MpFlex>
           </MpFlex>
 
-          <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
+          <MpFlex direction="column" gap="10" :class="css({ paddingBottom: '6' })">
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
                 <MpText size="label" weight="semiBold" :class="valueText">{{ g.name }}</MpText>
-                <MpPopover v-if="!g.isSelf" use-portal placement="bottom-end">
-                  <MpPopoverTrigger>
-                    <MpButton variant="secondary" size="sm" left-icon="add">Add reviewer</MpButton>
-                  </MpPopoverTrigger>
-                  <MpPopoverContent :class="css({ width: '340px' })">
-                    <div :class="css({ padding: '2' })">
-                      <MpInput v-model="addSearch[g.name]" placeholder="Search employee" />
-                    </div>
-                    <div :class="css({ maxHeight: '260px', overflowY: 'auto', paddingBottom: '1' })">
-                      <MpFlex
-                        v-for="emp in availableReviewers(g)"
-                        :key="emp.code"
-                        align="center"
-                        justify="space-between"
-                        gap="3"
-                        :class="pickerRow"
-                      >
-                        <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                          <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
-                          <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
-                            <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
-                            <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
-                          </MpFlex>
-                        </MpFlex>
-                        <button type="button" :class="lockBtn" aria-label="Add reviewer" @click="addManageReviewer(g, emp)">
-                          <MpIcon name="add" size="sm" />
-                        </button>
-                      </MpFlex>
-                      <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No more employees to add.</MpText>
-                    </div>
-                  </MpPopoverContent>
-                </MpPopover>
+                <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="addOpen[g.name] = !addOpen[g.name]">Add reviewer</MpButton>
               </MpFlex>
+              <div v-if="!g.isSelf && addOpen[g.name]" :class="addPanel">
+                <MpInput v-model="addSearch[g.name]" placeholder="Search employee" :class="css({ marginBottom: '2' })" />
+                <div :class="css({ maxHeight: '240px', overflowY: 'auto' })">
+                  <MpFlex
+                    v-for="emp in availableReviewers(g)"
+                    :key="emp.code"
+                    align="center"
+                    justify="space-between"
+                    gap="3"
+                    :class="pickerRow"
+                  >
+                    <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
+                      <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
+                      <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
+                        <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
+                        <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.title }} · {{ emp.department }}</MpText>
+                      </MpFlex>
+                    </MpFlex>
+                    <button type="button" :class="lockBtn" aria-label="Add reviewer" @click="addManageReviewer(g, emp)">
+                      <MpIcon name="add" size="sm" />
+                    </button>
+                  </MpFlex>
+                  <MpText v-if="!availableReviewers(g).length" size="label-small" :class="[captionText, css({ display: 'block', padding: '3' })]">No more employees to add.</MpText>
+                </div>
+              </div>
               <MpFlex direction="column" gap="3">
                 <MpFlex v-for="(r, i) in g.reviewers" :key="r.code" align="center" justify="space-between" gap="4">
                   <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
