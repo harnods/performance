@@ -533,7 +533,7 @@ const captionText = css({ color: 'text.secondary' })
 const methodHeaderClass = css({
   position: 'sticky', top: '0', zIndex: '1',
   display: 'block', backgroundColor: 'background.neutral',
-  fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default',
+  fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default',
   paddingTop: '2', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
   transition: 'border-color 0.1s ease',
@@ -2125,7 +2125,7 @@ function confirmRemoveEmployee() {
           <MpFlex direction="column" gap="10" :class="css({ paddingBottom: '6' })">
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
-                <MpText size="label" weight="semiBold" :class="valueText">{{ g.name }}</MpText>
+                <MpText :class="css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })">{{ g.name }}</MpText>
                 <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="addOpen[g.name] = !addOpen[g.name]">Add reviewer</MpButton>
               </MpFlex>
               <div v-if="!g.isSelf && addOpen[g.name]" :class="addPanel">
