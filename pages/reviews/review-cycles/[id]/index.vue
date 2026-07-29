@@ -356,9 +356,14 @@ function loadMoreAdd() {
 watch([addSearch, addBranch, addOrg], () => { addVisible.value = ADD_PAGE })
 const branchOptions = [{ value: '', label: 'All branches' }, ...BRANCHES.map(b => ({ value: b, label: b }))]
 const orgOptions = [{ value: '', label: 'All organizations' }, ...ORGANIZATIONS.map(o => ({ value: o, label: o }))]
-function toggleAdd(g: ManageGroup) {
-  openAddMethod.value = openAddMethod.value === g.name ? null : g.name
+// "Add reviewer" opens the panel for that method (switching methods closes the
+// previous). Closing is done via the panel's own X button, not this button.
+function openAdd(g: ManageGroup) {
+  openAddMethod.value = g.name
   addSearch.value = ''; addBranch.value = ''; addOrg.value = ''; addVisible.value = ADD_PAGE; addLoadingMore.value = false
+}
+function closeAdd() {
+  openAddMethod.value = null
 }
 function openManageReviewer(member: ReviewMember) {
   manageModalMember.value = member
@@ -2154,7 +2159,7 @@ function confirmRemoveEmployee() {
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
                 <MpText :class="css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })">{{ g.name }}</MpText>
-                <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="toggleAdd(g)">Add reviewer</MpButton>
+                <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="openAdd(g)">Add reviewer</MpButton>
               </MpFlex>
               <div v-if="!g.isSelf && openAddMethod === g.name" :class="addPanel">
                 <!-- Filter bar: branch + organization, then search on the right -->
@@ -2162,6 +2167,11 @@ function confirmRemoveEmployee() {
                   <PxSelectPopover v-model="addBranch" :options="branchOptions" placeholder="All branches" :class="css({ width: '176px', flexShrink: '0' })" />
                   <PxSelectPopover v-model="addOrg" :options="orgOptions" placeholder="All organizations" :class="css({ width: '196px', flexShrink: '0' })" />
                   <MpInput v-model="addSearch" placeholder="Search employee" :class="css({ flex: '1', minWidth: '0' })" />
+                  <MpTooltip label="Close" use-portal>
+                    <button type="button" :class="lockBtn" aria-label="Close reviewer picker" @click="closeAdd">
+                      <MpIcon name="close" size="sm" />
+                    </button>
+                  </MpTooltip>
                 </MpFlex>
                 <!-- Scrollable list with a sticky "load more" bar at the bottom -->
                 <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
@@ -2224,7 +2234,7 @@ function confirmRemoveEmployee() {
                   </MpFlex>
                   <MpTooltip v-if="!g.isSelf" label="Remove reviewer" use-portal>
                     <button type="button" :class="lockBtn" aria-label="Remove reviewer" @click="removeManageReviewer(g, i)">
-                      <MpIcon name="close" size="sm" />
+                      <MpIcon name="minus-circular" size="sm" />
                     </button>
                   </MpTooltip>
                 </MpFlex>
