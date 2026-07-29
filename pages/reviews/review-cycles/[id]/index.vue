@@ -327,7 +327,7 @@ const methodHeaderClass = css({
   transition: 'border-color 0.1s ease',
   '&[data-stuck="true"]': { borderBottomColor: 'border.default' },
 })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
 const extThCell = css({ bg: 'background.neutral.hovered' })
