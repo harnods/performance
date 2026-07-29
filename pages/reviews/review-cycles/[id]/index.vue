@@ -314,7 +314,7 @@ const captionText = css({ color: 'text.secondary' })
 // pinned (data-stuck toggled on scroll). Opaque bg so rows scroll under it.
 const methodHeaderClass = css({
   position: 'sticky', top: '0', zIndex: '1',
-  display: 'block', background: 'background.surface',
+  display: 'block', background: 'background.neutral',
   fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default',
   paddingTop: '2', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
