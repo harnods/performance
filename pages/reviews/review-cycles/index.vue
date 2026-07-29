@@ -196,9 +196,17 @@ const clickableRow = css({ cursor: 'pointer' })
         </MpPopoverTrigger>
         <MpPopoverContent>
           <MpPopoverList>
-            <MpPopoverListItem>Help center</MpPopoverListItem>
-            <MpPopoverListItem>Watch tutorial</MpPopoverListItem>
-            <MpPopoverListItem>Contact support</MpPopoverListItem>
+            <MpPopoverListItem
+              as="a"
+              href="https://help-center.talenta.co/hc/id/articles/11428359433241-Bagaimana-Cara-Membuat-Cycle-Performance-Review-Baru"
+              target="_blank"
+              rel="noopener noreferrer"
+            >
+              <MpFlex direction="column" gap="0">
+                <MpText size="label">Guidebook</MpText>
+                <MpText size="label-small" :class="css({ color: 'text.secondary' })">Complete information about the feature</MpText>
+              </MpFlex>
+            </MpPopoverListItem>
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>

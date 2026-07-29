@@ -32,8 +32,11 @@ import {
   MpModalFooter,
   MpFormControl,
   MpDatePicker,
+  toast,
   css,
 } from '@mekari/pixel3'
+import { EMPLOYEES } from '~/utils/employees'
+import { methodHasReviewerWeights } from '~/composables/useReviewers'
 
 definePageMeta({
   layout: 'default',
@@ -335,12 +338,17 @@ const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', 
 // keyed by the cycle id in the path so weights/rosters are consistent. The
 // table below is driven by the ACTIVE method tab.
 const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
-const { resolvedGroupsFor, groupFor, reviewerCountFor } = useReviewers({
+const { resolvedGroupsFor, groupFor, reviewerCountFor, memberKey, saveConfigs } = useReviewers({
   methods: reviewMethods,
   methodWeights,
   cycleKey: () => String(route.params.id),
 })
 const reviewerModalsRef = ref()
+// Per-reviewer weight (hence the weight column + Set-weight action) only applies
+// to Manager review; other tabs hide both.
+const showWeightColumn = computed(() => methodHasReviewerWeights(activeMethod.value))
+// Manage reviewer is N/A for Self review (the reviewer is the employee).
+const canManageMethod = computed(() => activeMethod.value !== 'Self review')
 function memberOf(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
   return { id: emp.id, name: emp.name, jobTitle: emp.jobTitle, organization: emp.organization }
 }
@@ -367,7 +375,58 @@ function methodDone(emp: { id: string, name: string, jobTitle?: string, organiza
 }
 function openView(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openView(memberOf(emp)) }
 function openWeight(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openWeight(memberOf(emp)) }
-function openManage(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openManage(memberOf(emp)) }
+
+// ── Manage reviewer via the two-column SelectEmployeesDrawer (per active method,
+//    persisted). Roster is stored as employee codes; the drawer works in employee
+//    ids, so map both ways through EMPLOYEES.
+const manageDrawerOpen = ref(false)
+const manageDrawerMember = ref<ReturnType<typeof memberOf> | null>(null)
+const manageInitialIds = ref<string[]>([])
+const manageDrawerTitle = computed(() =>
+  manageDrawerMember.value ? `Manage ${activeMethod.value.toLowerCase()} reviewers — ${manageDrawerMember.value.name}` : 'Manage reviewers')
+const manageDrawerDesc = computed(() =>
+  `Add or remove reviewers for ${activeMethod.value}. Changes reset this method's weights to an equal distribution.`)
+function codeToId(code: string) { return EMPLOYEES.find(e => e.code === code)?.id }
+function idToCode(id: string) { return EMPLOYEES.find(e => e.id === id)?.code }
+function openManage(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  const member = memberOf(emp)
+  manageDrawerMember.value = member
+  const roster = groupFor(member, activeMethod.value)?.reviewers ?? []
+  manageInitialIds.value = roster.map(r => codeToId(r.code)).filter((v): v is string => Boolean(v))
+  manageDrawerOpen.value = true
+}
+function onManageContinue(ids: string[]) {
+  const member = manageDrawerMember.value
+  if (!member) return
+  const codes = ids.map(idToCode).filter((v): v is string => Boolean(v))
+  // Save only the active method; the store merges so other methods stay intact.
+  saveConfigs(memberKey(member), { [activeMethod.value]: { useCustom: false, weights: {}, roster: codes } })
+  toast.notify({ id: 'reviewer-roster-saved', position: 'top-center', variant: 'success', title: 'Reviewers updated' })
+}
+
+// ── Remove employee from this timeframe (mirrors the cycle-details page). Mutates
+//    the reactive TIMEFRAME_MAP entry so the table + counts update live.
+const removeEmployeeModalOpen = ref(false)
+const employeeToRemove = ref<TfEmployee | null>(null)
+const timeframeLabel = computed(() => String(route.query.timeframe || '6 Jan - 5 Jul 2026'))
+function askRemoveEmployee(emp: TfEmployee) {
+  employeeToRemove.value = emp
+  removeEmployeeModalOpen.value = true
+}
+function cancelRemoveEmployee() {
+  removeEmployeeModalOpen.value = false
+  employeeToRemove.value = null
+}
+function confirmRemoveEmployee() {
+  const emp = employeeToRemove.value
+  const slug = String(route.params.timeframeId)
+  if (emp && TIMEFRAME_MAP[slug]) {
+    TIMEFRAME_MAP[slug] = TIMEFRAME_MAP[slug].filter(e => e.id !== emp.id)
+  }
+  removeEmployeeModalOpen.value = false
+  employeeToRemove.value = null
+  toast.notify({ id: 'remove-employee-from-timeframe', position: 'top-center', variant: 'success', title: `${emp?.name} removed from this timeframe` })
+}
 </script>
 
 <template>
@@ -466,7 +525,7 @@ function openManage(emp: { id: string, name: string, jobTitle?: string, organiza
             <MpTableCell v-if="!isSinglePeriod" as="th" :class="[thCell, css({ width: '7%' })]">Period</MpTableCell>
             <MpTableCell as="th" :class="[thCell, css({ width: '13%' })]">Review window</MpTableCell>
             <MpTableCell as="th" :class="[thCell, css({ width: '9%' })]">Reviewers</MpTableCell>
-            <MpTableCell as="th" :class="[thCell, css({ width: '14%' })]">
+            <MpTableCell v-if="showWeightColumn" as="th" :class="[thCell, css({ width: '14%' })]">
               <MpFlex align="center" gap="1">
                 <span>Reviewer weight</span>
                 <MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', flexShrink: '0' })" />
@@ -531,7 +590,7 @@ function openManage(emp: { id: string, name: string, jobTitle?: string, organiza
                 <MpTextlink size="small" as="button" @click="openView(emp)">{{ reviewerCountLabel(emp) }}</MpTextlink>
               </MpTableCell>
 
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell v-if="showWeightColumn" as="td" :class="tightCell">
                 <MpText size="label" :class="valueText">{{ weightLabel(emp) }}</MpText>
               </MpTableCell>
 
@@ -562,9 +621,11 @@ function openManage(emp: { id: string, name: string, jobTitle?: string, organiza
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
                       <MpPopoverListItem @click="openView(emp)">View reviewer</MpPopoverListItem>
-                      <MpPopoverListItem @click="openWeight(emp)">Set reviewer weight</MpPopoverListItem>
-                      <MpPopoverListItem @click="openManage(emp)">Manage reviewer</MpPopoverListItem>
-                      <MpPopoverListItem>Remove employee</MpPopoverListItem>
+                      <MpPopoverListItem v-if="showWeightColumn" @click="openWeight(emp)">Set reviewer weight</MpPopoverListItem>
+                      <MpPopoverListItem v-if="canManageMethod" @click="openManage(emp)">Manage reviewer</MpPopoverListItem>
+                      <MpPopoverListItem @click="askRemoveEmployee(emp)">
+                        <span :class="css({ color: 'text.danger' })">Remove employee</span>
+                      </MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
                 </MpPopover>
@@ -674,4 +735,35 @@ function openManage(emp: { id: string, name: string, jobTitle?: string, organiza
     :methods="[activeMethod]"
     :cycle-key="String(route.params.id)"
   />
+
+  <!-- Manage reviewer (per active method) — two-column select-employee drawer. -->
+  <SelectEmployeesDrawer
+    v-model:is-open="manageDrawerOpen"
+    drawer-id="drawer-manage-reviewer"
+    :title="manageDrawerTitle"
+    :description="manageDrawerDesc"
+    :initial-selected="manageInitialIds"
+    :is-required="true"
+    @continue="onManageContinue"
+  />
+
+  <!-- Remove employee confirmation (mirrors cycle-details page). -->
+  <MpModal :is-open="removeEmployeeModalOpen" @close="cancelRemoveEmployee">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalHeader>
+        Remove employee?
+        <MpModalCloseButton @click="cancelRemoveEmployee" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          <strong>{{ employeeToRemove?.name }}</strong> will be removed from the entire <strong>{{ timeframeLabel }}</strong> review timeframe — including all of their review periods in it, not just this one.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+        <MpButton variant="ghost" @click="cancelRemoveEmployee">Cancel</MpButton>
+        <MpButton variant="danger" @click="confirmRemoveEmployee">Remove</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
 </template>

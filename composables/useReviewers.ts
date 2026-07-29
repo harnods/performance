@@ -10,12 +10,18 @@
 import { EMPLOYEES } from '~/utils/employees'
 
 export interface ReviewerRow { name: string, code: string, sub: string, photo?: string, weight: number }
-export interface ResolvedReviewer extends ReviewerRow { locked: boolean }
+export interface ResolvedReviewer extends ReviewerRow { locked: boolean, submitted: boolean }
 export interface ResolvedGroup { name: string, weight: number, useCustom: boolean, reviewers: ResolvedReviewer[] }
 export type ReviewMember = { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }
 
 export function memberSub(m: ReviewMember | null) {
   return m ? [m.id, m.jobTitle ?? m.jobPosition, m.organization].filter(Boolean).join(' · ') : ''
+}
+// Only Manager review carries a per-reviewer weight (production parity). Other
+// methods (360, Team, Self) have no individual reviewer weights — so no weight
+// column, no weight display, and no weight editing for them.
+export function methodHasReviewerWeights(method: string) {
+  return method === 'Manager review'
 }
 // Equal distribution, whole numbers; the last reviewer absorbs the remainder.
 export function splitWeights(n: number) {
@@ -31,6 +37,12 @@ function hashId(s: string) {
   let h = 2166136261
   for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
   return h >>> 0
+}
+// Deterministic per (member, reviewer) submission state — ~65% have submitted a
+// result. Stable across renders/pages so the View-result button (enabled only
+// when submitted) is consistent.
+export function reviewerSubmitted(memberId: string, code: string) {
+  return hashId(`${memberId}::${code}::submitted`) % 100 < 65
 }
 function makeRng(seed: number) {
   let s = (seed || 1) >>> 0
@@ -105,7 +117,7 @@ export function useReviewers(opts: UseReviewersOptions) {
         name: g.name,
         weight: g.weight,
         useCustom,
-        reviewers: base.map((r, idx) => ({ ...r, weight: useCustom ? (cfg!.weights[r.code] ?? eq[idx]) : eq[idx], locked: useCustom && idx === 0 })),
+        reviewers: base.map((r, idx) => ({ ...r, weight: useCustom ? (cfg!.weights[r.code] ?? eq[idx]) : eq[idx], locked: useCustom && idx === 0, submitted: reviewerSubmitted(member.id, r.code) })),
       }
     })
   }

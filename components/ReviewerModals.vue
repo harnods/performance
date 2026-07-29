@@ -6,7 +6,7 @@ import {
   toast, css,
 } from '@mekari/pixel3'
 import { BRANCHES, ORGANIZATIONS, TALENTS } from '~/utils/talents'
-import { memberSub, splitWeights, useReviewers } from '~/composables/useReviewers'
+import { memberSub, methodHasReviewerWeights, splitWeights, useReviewers } from '~/composables/useReviewers'
 import type { ResolvedGroup, ReviewMember } from '~/composables/useReviewers'
 
 const props = defineProps<{
@@ -35,6 +35,11 @@ const viewOpen = ref(false)
 const viewMember = ref<ReviewMember | null>(null)
 const viewGroups = computed(() => (viewMember.value ? visibleGroups(viewMember.value) : []))
 function openView(member: ReviewMember) { viewMember.value = member; viewOpen.value = true }
+// View result — opens the reviewer's submitted review. No result page exists yet,
+// so surface a notice; wire to the route once the result view is built.
+function onViewResult(r: { name: string }) {
+  toast.notify({ id: 'reviewer-view-result', position: 'top-center', variant: 'info', title: `Opening ${r.name}'s review result` })
+}
 
 // ── Set reviewer weight (editable, persisted, lock + auto-adjust) ─────────────
 type EditableReviewer = { name: string, code: string, sub: string, photo?: string, weight: number | '', locked: boolean }
@@ -44,8 +49,16 @@ const weightMember = ref<ReviewMember | null>(null)
 const editableGroups = ref<EditableGroup[]>([])
 function openWeight(member: ReviewMember) {
   weightMember.value = member
-  editableGroups.value = visibleGroups(member).map(g => ({ ...g, reviewers: g.reviewers.map(r => ({ ...r })) }))
+  // Only weight-bearing methods (Manager review) are editable here.
+  editableGroups.value = visibleGroups(member)
+    .filter(g => methodHasReviewerWeights(g.name))
+    .map(g => ({ ...g, reviewers: g.reviewers.map(r => ({ ...r })) }))
   weightOpen.value = true
+}
+// Whether a member has any weight-bearing method in the shown scope — used by
+// callers to decide if "Set reviewer weight" applies at all.
+function hasWeightedMethod(member: ReviewMember) {
+  return visibleGroups(member).some(g => methodHasReviewerWeights(g.name))
 }
 function onToggleCustom(g: EditableGroup, value: boolean) {
   g.useCustom = value
@@ -177,7 +190,7 @@ function onReviewerScroll(e: Event) {
   })
 }
 
-defineExpose({ openView, openWeight, openManage, reviewerCountFor, resolvedGroupsFor })
+defineExpose({ openView, openWeight, openManage, reviewerCountFor, resolvedGroupsFor, hasWeightedMethod })
 
 // ── Styles ────────────────────────────────────────────────────────────────────
 const valueText = css({ color: 'text.default' })
@@ -188,7 +201,7 @@ const scrollWrap = css({ maxHeight: '65vh', overflowY: 'auto', paddingInline: '6
 const contentCol = css({ display: 'flex', flexDirection: 'column' })
 const methodHeaderClass = css({
   position: 'sticky', top: '0', zIndex: '1', display: 'block', backgroundColor: 'background.neutral',
-  fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default',
+  fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default',
   paddingTop: '2', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent', transition: 'border-color 0.1s ease',
   '&[data-stuck="true"]': { borderBottomColor: 'border.default' },
@@ -228,7 +241,13 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
                       <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
                     </MpFlex>
                   </MpFlex>
-                  <MpText size="label" :class="[valueText, css({ flexShrink: '0', fontVariantNumeric: 'tabular-nums' })]">{{ formatWeight(Number(r.weight)) }}%</MpText>
+                  <MpFlex align="center" gap="4" :class="css({ flexShrink: '0' })">
+                    <MpText v-if="methodHasReviewerWeights(g.name)" size="label" :class="[valueText, css({ fontVariantNumeric: 'tabular-nums' })]">{{ formatWeight(Number(r.weight)) }}%</MpText>
+                    <MpTooltip v-if="!r.submitted" label="No result yet — reviewer hasn't submitted" use-portal>
+                      <span><MpButton variant="secondary" :is-disabled="true">View result</MpButton></span>
+                    </MpTooltip>
+                    <MpButton v-else variant="secondary" @click="onViewResult(r)">View result</MpButton>
+                  </MpFlex>
                 </MpFlex>
                 <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers assigned.</MpText>
               </MpFlex>
@@ -318,7 +337,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
           <MpFlex direction="column" :class="groupsCol">
             <div v-for="g in manageGroups" :key="g.name">
               <MpFlex align="center" justify="space-between" gap="4" :class="css({ marginBottom: '3' })">
-                <MpText :class="css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })">{{ g.name }}</MpText>
+                <MpText :class="css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })">{{ g.name }}</MpText>
                 <MpButton v-if="!g.isSelf" variant="secondary" left-icon="add" @click="openAdd(g)">Add reviewer</MpButton>
               </MpFlex>
               <div v-if="!g.isSelf && openAddMethod === g.name" :class="addPanel">
