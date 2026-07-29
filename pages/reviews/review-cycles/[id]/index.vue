@@ -139,6 +139,9 @@ interface InfoRow {
   editable?: boolean
   boldValue?: boolean
   subValues?: string[]
+  // When set, the value renders as gray status badges (one per entry) instead
+  // of plain text — used for the configured Review methods.
+  badges?: string[]
 }
 
 const infoRows = computed<InfoRow[]>(() => {
@@ -153,7 +156,7 @@ const infoRows = computed<InfoRow[]>(() => {
   if (isEval) {
     // New Review methods form: methods + per-method reviewer/weight, publish timing.
     rows.push({ label: 'Re-include extended employees', value: reincludeExtended ? 'Yes' : 'No' })
-    rows.push({ label: 'Review methods', value: reviewMethodsText.value })
+    rows.push({ label: 'Review methods', value: reviewMethodsText.value, badges: reviewMethods.length ? reviewMethods : undefined })
     rows.push({ label: 'Reviewer', value: managerReviewer })
     if (useMethodWeight && reviewMethods.length >= 2) {
       rows.push({ label: 'Score calculation', value: 'Weighted' })
@@ -1048,7 +1051,10 @@ function confirmRemoveEmployee() {
             </MpFlex>
           </template>
           <template v-else>
-            <MpFlex v-if="row.subValues?.length" direction="column" :class="css({ gap: '0' })">
+            <MpFlex v-if="row.badges?.length" gap="1" wrap="wrap">
+              <MpBadge v-for="b in row.badges" :key="b" for="tableStatus" type="announcement">{{ b }}</MpBadge>
+            </MpFlex>
+            <MpFlex v-else-if="row.subValues?.length" direction="column" :class="css({ gap: '0' })">
               <MpText size="label" :weight="row.boldValue ? 'semiBold' : undefined" :class="[valueText, css({ lineHeight: '20px' })]">{{ row.value }}</MpText>
               <MpText v-for="(sub, i) in row.subValues" :key="sub" size="label-small" :class="[captionText, css({ lineHeight: '24px', marginTop: i === 0 ? '1' : '0' })]">{{ sub }}</MpText>
             </MpFlex>
