@@ -1189,7 +1189,7 @@ function confirmRemoveEmployee() {
               <MpTableBody>
                 <template v-for="row in searchResults" :key="`search-${row.tg.timeframe}-${row.emp.id}`">
                   <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`search-${row.emp.id}-${period.label}`" :class="noHoverRow">
-                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpFlex align="start" gap="3">
                         <MpAvatar :name="row.emp.name" size="lg" />
                         <MpFlex direction="column" gap="1">
@@ -1199,7 +1199,7 @@ function confirmRemoveEmployee() {
                         </MpFlex>
                       </MpFlex>
                     </MpTableCell>
-                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                    <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpTextlink as="button" size="small" @click="viewTimeframeDetails(row.tg)">{{ row.tg.timeframe }}</MpTextlink>
                     </MpTableCell>
                     <MpTableCell as="td" :class="tightCell">
@@ -1292,7 +1292,7 @@ function confirmRemoveEmployee() {
                   <template v-for="row in visibleCompletedRows" :key="`${row.tg.timeframe}-${row.emp.id}`">
                     <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`${row.emp.id}-${period.label}`" :class="noHoverRow">
                       <!-- Employee (merged across periods) -->
-                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpFlex align="start" gap="3">
                           <MpAvatar :name="row.emp.name" size="lg" />
                           <MpFlex direction="column" gap="1">
@@ -1303,7 +1303,7 @@ function confirmRemoveEmployee() {
                         </MpFlex>
                       </MpTableCell>
                       <!-- Review timeframe (merged across periods) -->
-                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, empCellBorder]">
+                      <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpTextlink as="button" size="small" @click="viewTimeframeDetails(row.tg)">{{ row.tg.timeframe }}</MpTextlink>
                       </MpTableCell>
                       <!-- Review period: window date + period caption (multiple only) -->
@@ -1352,7 +1352,7 @@ function confirmRemoveEmployee() {
                   <!-- Skeleton rows while loading more -->
                   <template v-if="completedLoadingMore">
                     <MpTableRow v-for="i in 3" :key="`completed-skel-${i}`" :class="noHoverRow">
-                      <MpTableCell as="td" :class="[tightCell, empCellBorder]">
+                      <MpTableCell as="td" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpFlex align="center" gap="3">
                           <MpSkeleton :class="css({ width: '40px', height: '40px', borderRadius: 'full', flexShrink: '0' })" />
                           <MpFlex direction="column" gap="1">
@@ -1361,7 +1361,7 @@ function confirmRemoveEmployee() {
                           </MpFlex>
                         </MpFlex>
                       </MpTableCell>
-                      <MpTableCell as="td" :class="[tightCell, empCellBorder]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
+                      <MpTableCell as="td" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '180px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
                       <MpTableCell as="td" :class="tightCell"><MpSkeleton :class="css({ width: '72px', height: '22px', borderRadius: '4px' })" /></MpTableCell>
@@ -1375,7 +1375,7 @@ function confirmRemoveEmployee() {
             <MpFlex
               align="center"
               gap="1"
-              :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
+              :class="css({ paddingX: '4', paddingY: '3' })"
             >
               <MpText size="label" :class="captionText">
                 Showing {{ Math.min(completedVisible, completedRows.length) }} of {{ completedRows.length }} employees.
@@ -1569,7 +1569,7 @@ function confirmRemoveEmployee() {
                 v-if="isTimeframeTableOpen(tg, sg)"
                 align="center"
                 gap="1"
-                :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
+                :class="css({ paddingX: '4', paddingY: '3' })"
               >
                 <MpText size="label" :class="captionText">
                   Showing {{ Math.min(groupVisibleCount[tg.timeframe] ?? EXT_PAGE_SIZE, tg.employees.length) }} of {{ tg.employees.length }} employees.
