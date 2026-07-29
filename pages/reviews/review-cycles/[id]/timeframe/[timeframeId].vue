@@ -306,8 +306,8 @@ watch([searchQuery, pageSize], () => { currentPage.value = 1 })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
 const labelText = css({ color: 'text.secondary' })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const thCell = css({ bg: 'background.neutral.hovered' })
 const empCell = css({
   borderRightWidth: '1px',
@@ -317,6 +317,19 @@ const empCell = css({
 })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
 const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
+
+// Review methods configured on this cycle → one tab each (accurate to the
+// cycle's Review methods). The active tab scopes the reviewer actions below.
+const reviewMethods = ['Manager review', '360-degree review', 'Self review']
+const activeMethod = ref(reviewMethods[0])
+const tabBar = css({ display: 'flex', gap: '5', paddingInline: '1' })
+const tabItemBase = {
+  display: 'inline-flex', alignItems: 'center', paddingBlock: '3', paddingInline: '1',
+  fontSize: '14px', lineHeight: '20px', background: 'transparent', border: 'none', cursor: 'pointer',
+  borderBottomWidth: '2px', borderBottomStyle: 'solid', marginBottom: '-1px', whiteSpace: 'nowrap',
+} as const
+const tabItem = css({ ...tabItemBase, color: 'text.secondary', borderBottomColor: 'transparent', _hover: { color: 'text.default' } })
+const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', borderBottomColor: 'border.brand' })
 </script>
 
 <template>
@@ -339,19 +352,19 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.40
     <MpButton variant="primary">Add employee</MpButton>
   </Teleport>
 
-  <!-- Tabs live outside the stage, teleported to #page-tabs in the layout -->
+  <!-- Tabs live outside the stage, teleported to #page-tabs in the layout.
+       One tab per review method configured on this cycle. -->
   <Teleport to="#page-tabs" defer>
-    <MpFlex
-      :class="css({
-        paddingY: '3',
-        paddingX: '1',
-        borderBottomWidth: '2px',
-        borderBottomStyle: 'solid',
-        borderBottomColor: 'border.brand',
-        marginBottom: '-1px',
-      })"
-    >
-      <MpText size="label" :class="css({ color: 'text.brand' })">Manager review</MpText>
+    <MpFlex :class="tabBar">
+      <button
+        v-for="m in reviewMethods"
+        :key="m"
+        type="button"
+        :class="activeMethod === m ? tabActive : tabItem"
+        @click="activeMethod = m"
+      >
+        {{ m }}
+      </button>
     </MpFlex>
   </Teleport>
 
