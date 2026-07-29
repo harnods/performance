@@ -113,54 +113,86 @@ const managerReviewer = 'By approval line'
 const useMethodWeight = true
 const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
 
-// Mock reviewers per method (each method can have several reviewers, each with
-// its own weight summing to 100% within the method). Self review's reviewer is
-// the reviewed member themselves, so it's resolved at open time. Others map to
-// real people from the shared EMPLOYEES directory (photo/name/id/job/org).
-const reviewersByMethod: Record<string, { empId: string, weight: number }[]> = {
-  'Manager review': [{ empId: 'rio', weight: 70 }, { empId: 'rizal', weight: 30 }],
-  '360-degree review': [
-    { empId: 'ali', weight: 10 }, { empId: 'bayu', weight: 10 }, { empId: 'cinta', weight: 10 },
-    { empId: 'andi', weight: 10 }, { empId: 'eka', weight: 10 }, { empId: 'daud', weight: 10 },
-    { empId: 'jessie', weight: 10 }, { empId: 'christin', weight: 10 }, { empId: 'indah', weight: 5 },
-    { empId: 'fajar', weight: 5 }, { empId: 'agung', weight: 5 }, { empId: 'linda', weight: 5 },
-  ],
-  'Team review': [{ empId: 'andi', weight: 50 }, { empId: 'eka', weight: 50 }],
-}
 // Integers render bare ("50"), fractions to 2dp — mirrors production formatWeight.
 function formatWeight(v: number) {
   return v % 1 === 0 ? String(v) : v.toFixed(2)
 }
 interface ReviewerRow { name: string, code: string, sub: string, photo?: string, weight: number }
+type ReviewMember = { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }
 const reviewerModalOpen = ref(false)
-const reviewerModalMember = ref<{ name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string } | null>(null)
-function memberSub(m: { id: string, jobTitle?: string, jobPosition?: string, organization?: string } | null) {
+const reviewerModalMember = ref<ReviewMember | null>(null)
+function memberSub(m: ReviewMember | null) {
   return m ? [m.id, m.jobTitle ?? m.jobPosition, m.organization].filter(Boolean).join(' · ') : ''
 }
-const reviewerGroups = computed<{ name: string, weight: number, reviewers: ReviewerRow[] }[]>(() => {
-  const member = reviewerModalMember.value
-  return reviewMethods.map((method) => {
-    let reviewers: ReviewerRow[]
+
+// Reviewers are generated per member, deterministically from their id, so each
+// employee gets a different (but stable) mix — matching the cycle's active
+// review methods. Manager review: 1–2 leads; 360: 2–8 peers; Team: 2–4; Self:
+// the member. Weights within a method are split to total 100%.
+const MANAGER_POOL = ['rio', 'rizal', 'evelyn', 'ali', 'bayu', 'dewi', 'andi', 'cinta', 'indah']
+function hashId(s: string) {
+  let h = 2166136261
+  for (let i = 0; i < s.length; i++) { h ^= s.charCodeAt(i); h = Math.imul(h, 16777619) }
+  return h >>> 0
+}
+function makeRng(seed: number) {
+  let s = (seed || 1) >>> 0
+  return () => { s = (Math.imul(s, 1103515245) + 12345) >>> 0; return s / 4294967296 }
+}
+function pickN(pool: string[], n: number, rand: () => number) {
+  const arr = [...pool]; const out: string[] = []
+  n = Math.min(n, arr.length)
+  for (let i = 0; i < n; i++) out.push(arr.splice(Math.floor(rand() * arr.length), 1)[0])
+  return out
+}
+function splitWeights(n: number) {
+  if (n <= 0) return [] as number[]
+  const base = Math.floor(100 / n); const w = Array(n).fill(base)
+  for (let r = 100 - base * n, i = 0; r > 0; r--, i++) w[i % n]++
+  return w
+}
+function reviewerRow(id: string, weight: number): ReviewerRow {
+  const e = EMPLOYEES.find(x => x.id === id)
+  return {
+    name: e?.name ?? id,
+    code: e?.code ?? '',
+    sub: e ? [e.code, e.title, e.department].filter(Boolean).join(' · ') : '',
+    photo: e?.photo,
+    weight,
+  }
+}
+const _reviewerCache = new Map<string, { name: string, weight: number, reviewers: ReviewerRow[] }[]>()
+function reviewersForMember(member: ReviewMember): { name: string, weight: number, reviewers: ReviewerRow[] }[] {
+  const key = member?.id ?? member?.name ?? ''
+  const cached = _reviewerCache.get(key)
+  if (cached) return cached
+  const rand = makeRng(hashId(String(key)))
+  const allIds = EMPLOYEES.map(e => e.id).filter(id => id !== member.id)
+  const groups = reviewMethods.map((method) => {
     if (method === 'Self review') {
-      reviewers = member
-        ? [{ name: member.name, code: member.id, sub: memberSub(member), weight: 100 }]
-        : []
+      return { name: method, weight: methodWeights[method] ?? 0, reviewers: [{ name: member.name, code: member.id, sub: memberSub(member), weight: 100 }] }
     }
-    else {
-      reviewers = (reviewersByMethod[method] ?? []).map((r) => {
-        const e = EMPLOYEES.find(x => x.id === r.empId)
-        return {
-          name: e?.name ?? r.empId,
-          code: e?.code ?? '',
-          sub: e ? [e.code, e.title, e.department].filter(Boolean).join(' · ') : '',
-          photo: e?.photo,
-          weight: r.weight,
-        }
-      })
-    }
-    return { name: method, weight: methodWeights[method] ?? 0, reviewers }
+    let pool: string[]; let count: number
+    if (method === 'Manager review') { pool = MANAGER_POOL.filter(id => id !== member.id); count = 1 + Math.floor(rand() * 2) }
+    else if (method === '360-degree review') { pool = allIds; count = 2 + Math.floor(rand() * 7) }
+    else if (method === 'Team review') { pool = allIds; count = 2 + Math.floor(rand() * 3) }
+    else { pool = allIds; count = 1 + Math.floor(rand() * 3) }
+    const ids = pickN(pool, count, rand)
+    const weights = splitWeights(ids.length)
+    return { name: method, weight: methodWeights[method] ?? 0, reviewers: ids.map((id, i) => reviewerRow(id, weights[i])) }
   })
-})
+  _reviewerCache.set(key, groups)
+  return groups
+}
+function reviewerCountFor(member: ReviewMember) {
+  return reviewersForMember(member).reduce((n, g) => n + g.reviewers.length, 0)
+}
+// Progress "done of total" counts reviewers: total = the member's reviewer count,
+// done scaled from each period's own ratio. The progress bar keeps the raw ratio.
+function pDone(done: number, total: number, memberTotal: number) {
+  return total > 0 ? Math.round((done / total) * memberTotal) : 0
+}
+const reviewerGroups = computed(() => (reviewerModalMember.value ? reviewersForMember(reviewerModalMember.value) : []))
 function openReviewerList(member: { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }) {
   reviewerModalMember.value = member
   reviewerModalOpen.value = true
@@ -1306,7 +1338,7 @@ function confirmRemoveEmployee() {
                       <MpFlex direction="column" gap="1" :class="css({ width: '180px' })">
                         <MpFlex justify="space-between" align="center">
                           <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
-                          <MpText size="label-small" :class="captionText">{{ period.progressDone }} of {{ period.progressTotal }}</MpText>
+                          <MpText size="label-small" :class="captionText">{{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(row.emp)) }} of {{ reviewerCountFor(row.emp) }}</MpText>
                         </MpFlex>
                         <MpProgress
                           variant="linear"
@@ -1412,7 +1444,7 @@ function confirmRemoveEmployee() {
                         <MpFlex direction="column" gap="1" :class="css({ width: '180px' })">
                           <MpFlex justify="space-between" align="center">
                             <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
-                            <MpText size="label-small" :class="captionText">{{ period.progressDone }} of {{ period.progressTotal }}</MpText>
+                            <MpText size="label-small" :class="captionText">{{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(row.emp)) }} of {{ reviewerCountFor(row.emp) }}</MpText>
                           </MpFlex>
                           <MpProgress
                             variant="linear"
@@ -1599,7 +1631,7 @@ function confirmRemoveEmployee() {
                             <MpFlex justify="space-between" align="center">
                               <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
                               <MpText size="label-small" :class="captionText">
-                                {{ period.progressDone }} of {{ period.progressTotal }}
+                                {{ pDone(period.progressDone, period.progressTotal, reviewerCountFor(emp)) }} of {{ reviewerCountFor(emp) }}
                               </MpText>
                             </MpFlex>
                             <MpProgress
@@ -1743,7 +1775,7 @@ function confirmRemoveEmployee() {
           gap="3"
           :class="css({ paddingTop: '5', paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
         >
-          <MpAvatar :name="reviewerModalMember.name" size="md" variant-color="gray" />
+          <MpAvatar :name="reviewerModalMember.name" size="lg" variant-color="gray" />
           <MpFlex direction="column" gap="0">
             <MpText size="label" weight="semiBold" :class="valueText">{{ reviewerModalMember.name }}</MpText>
             <MpText size="label-small" :class="captionText">{{ memberSub(reviewerModalMember) }}</MpText>
@@ -1764,7 +1796,7 @@ function confirmRemoveEmployee() {
                 gap="4"
               >
                 <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                  <MpAvatar :name="r.name" :src="r.photo" size="md" variant-color="gray" />
+                  <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                   <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                     <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                     <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
