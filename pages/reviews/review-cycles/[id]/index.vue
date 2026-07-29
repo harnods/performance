@@ -36,6 +36,7 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import { EMPLOYEES } from '~/utils/employees'
 
 definePageMeta({
   layout: 'default',
@@ -107,10 +108,58 @@ const activeAspects = ['Goal', 'Attendance'] // can be [], ['Goal'], ['Goal','At
 // Mock: Review methods configured on this Evaluation cycle (new Review methods form).
 // Manager review resolves reviewers via "Who will review them?"; when 2+ methods
 // are enabled and "Use weight" is on, each method contributes a weighted share.
-const reviewMethods = ['Manager review', 'Self review']
+const reviewMethods = ['Manager review', '360-degree review', 'Self review']
 const managerReviewer = 'By approval line'
 const useMethodWeight = true
-const methodWeights: Record<string, number> = { 'Manager review': 60, 'Self review': 40 }
+const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
+
+// Mock reviewers per method (each method can have several reviewers, each with
+// its own weight summing to 100% within the method). Self review's reviewer is
+// the reviewed member themselves, so it's resolved at open time. Others map to
+// real people from the shared EMPLOYEES directory (photo/name/id/job/org).
+const reviewersByMethod: Record<string, { empId: string, weight: number }[]> = {
+  'Manager review': [{ empId: 'rio', weight: 70 }, { empId: 'rizal', weight: 30 }],
+  '360-degree review': [{ empId: 'ali', weight: 40 }, { empId: 'bayu', weight: 30 }, { empId: 'cinta', weight: 30 }],
+  'Team review': [{ empId: 'andi', weight: 50 }, { empId: 'eka', weight: 50 }],
+}
+// Integers render bare ("50"), fractions to 2dp — mirrors production formatWeight.
+function formatWeight(v: number) {
+  return v % 1 === 0 ? String(v) : v.toFixed(2)
+}
+interface ReviewerRow { name: string, code: string, sub: string, photo?: string, weight: number }
+const reviewerModalOpen = ref(false)
+const reviewerModalMember = ref<{ name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string } | null>(null)
+function memberSub(m: { id: string, jobTitle?: string, jobPosition?: string, organization?: string } | null) {
+  return m ? [m.id, m.jobTitle ?? m.jobPosition, m.organization].filter(Boolean).join(' · ') : ''
+}
+const reviewerGroups = computed<{ name: string, weight: number, reviewers: ReviewerRow[] }[]>(() => {
+  const member = reviewerModalMember.value
+  return reviewMethods.map((method) => {
+    let reviewers: ReviewerRow[]
+    if (method === 'Self review') {
+      reviewers = member
+        ? [{ name: member.name, code: member.id, sub: memberSub(member), weight: 100 }]
+        : []
+    }
+    else {
+      reviewers = (reviewersByMethod[method] ?? []).map((r) => {
+        const e = EMPLOYEES.find(x => x.id === r.empId)
+        return {
+          name: e?.name ?? r.empId,
+          code: e?.code ?? '',
+          sub: e ? [e.code, e.title, e.department].filter(Boolean).join(' · ') : '',
+          photo: e?.photo,
+          weight: r.weight,
+        }
+      })
+    }
+    return { name: method, weight: methodWeights[method] ?? 0, reviewers }
+  })
+})
+function openReviewerList(member: { name: string, id: string, jobTitle?: string, jobPosition?: string, organization?: string }) {
+  reviewerModalMember.value = member
+  reviewerModalOpen.value = true
+}
 const publishScoreAfter = 'Complete review' // Complete review | Review period end | Both
 
 const reviewMethodsText = computed(() =>
@@ -1238,7 +1287,7 @@ function confirmRemoveEmployee() {
                         </MpPopoverTrigger>
                         <MpPopoverContent :class="css({ minWidth: '160px' })">
                           <MpPopoverList>
-                            <MpPopoverListItem>View reviewer</MpPopoverListItem>
+                            <MpPopoverListItem @click="openReviewerList(row.emp)">View reviewer</MpPopoverListItem>
                             <MpPopoverListItem @click="viewTimeframeDetails(row.tg)">View timeframe details</MpPopoverListItem>
                           </MpPopoverList>
                         </MpPopoverContent>
@@ -1346,7 +1395,7 @@ function confirmRemoveEmployee() {
                           </MpPopoverTrigger>
                           <MpPopoverContent :class="css({ minWidth: '160px' })">
                             <MpPopoverList>
-                              <MpPopoverListItem>View reviewer</MpPopoverListItem>
+                              <MpPopoverListItem @click="openReviewerList(row.emp)">View reviewer</MpPopoverListItem>
                               <MpPopoverListItem @click="viewTimeframeDetails(row.tg)">View timeframe details</MpPopoverListItem>
                             </MpPopoverList>
                           </MpPopoverContent>
@@ -1534,7 +1583,7 @@ function confirmRemoveEmployee() {
                             </MpPopoverTrigger>
                             <MpPopoverContent :class="css({ minWidth: '160px' })">
                               <MpPopoverList>
-                                <MpPopoverListItem>View reviewer</MpPopoverListItem>
+                                <MpPopoverListItem @click="openReviewerList(emp)">View reviewer</MpPopoverListItem>
                                 <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
                                 <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
                                 <MpPopoverListItem @click="askRemoveEmployee(tg, emp)">
@@ -1639,6 +1688,59 @@ function confirmRemoveEmployee() {
   </MpFlex>
 
   <!-- Employee list modal -->
+  <!-- Reviewers modal: reviewers grouped per review method (method + weight),
+       each reviewer with profile + own weight. -->
+  <MpModal :is-open="reviewerModalOpen" is-centered @close="reviewerModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ width: '560px', maxWidth: '90vw' })">
+      <MpModalHeader>
+        Reviewers
+        <MpModalCloseButton />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpFlex
+          v-if="reviewerModalMember"
+          align="center"
+          gap="3"
+          :class="css({ paddingBottom: '4', marginBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })"
+        >
+          <MpAvatar :name="reviewerModalMember.name" size="md" variant-color="gray" />
+          <MpFlex direction="column" gap="0">
+            <MpText size="label" weight="semiBold" :class="valueText">{{ reviewerModalMember.name }}</MpText>
+            <MpText size="label-small" :class="captionText">{{ memberSub(reviewerModalMember) }}</MpText>
+          </MpFlex>
+        </MpFlex>
+
+        <MpFlex direction="column" gap="6">
+          <div v-for="g in reviewerGroups" :key="g.name">
+            <MpText size="label" weight="semiBold" :class="[valueText, css({ display: 'block', marginBottom: '3' })]">
+              {{ g.name }} ({{ formatWeight(g.weight) }}%)
+            </MpText>
+            <MpFlex direction="column" gap="3">
+              <MpFlex
+                v-for="(r, i) in g.reviewers"
+                :key="`${g.name}-${i}`"
+                align="center"
+                justify="space-between"
+                gap="4"
+              >
+                <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
+                  <MpAvatar :name="r.name" :src="r.photo" size="md" variant-color="gray" />
+                  <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
+                    <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
+                    <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
+                  </MpFlex>
+                </MpFlex>
+                <MpText size="label" :class="[valueText, css({ flexShrink: '0', fontVariantNumeric: 'tabular-nums' })]">{{ formatWeight(r.weight) }}%</MpText>
+              </MpFlex>
+              <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers assigned.</MpText>
+            </MpFlex>
+          </div>
+        </MpFlex>
+      </MpModalBody>
+    </MpModalContent>
+  </MpModal>
+
   <MpModal :is-open="employeeModalOpen" is-centered @close="employeeModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ width: '640px', maxWidth: '90vw' })">
