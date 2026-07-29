@@ -146,11 +146,12 @@ function pickN(pool: string[], n: number, rand: () => number) {
   for (let i = 0; i < n; i++) out.push(arr.splice(Math.floor(rand() * arr.length), 1)[0])
   return out
 }
+// Default weights are an equal distribution — every reviewer in a method gets
+// 100/n (e.g. 2→50/50, 3→33.33 each). Rendered via formatWeight (2dp when not
+// whole); the per-method total rounds back to 100.
 function splitWeights(n: number) {
   if (n <= 0) return [] as number[]
-  const base = Math.floor(100 / n); const w = Array(n).fill(base)
-  for (let r = 100 - base * n, i = 0; r > 0; r--, i++) w[i % n]++
-  return w
+  return Array(n).fill(Math.round(10000 / n) / 100)
 }
 function reviewerRow(id: string, weight: number): ReviewerRow {
   const e = EMPLOYEES.find(x => x.id === id)
@@ -207,7 +208,7 @@ function openReviewerWeight(member: ReviewMember) {
   weightModalOpen.value = true
 }
 function methodWeightTotal(g: EditableGroup) {
-  return g.reviewers.reduce((s, r) => s + (r.weight === '' ? 0 : Number(r.weight)), 0)
+  return Math.round(g.reviewers.reduce((s, r) => s + (r.weight === '' ? 0 : Number(r.weight)), 0))
 }
 function saveReviewerWeights() {
   const invalid = editableGroups.value.find(g => methodWeightTotal(g) !== 100)
@@ -1842,11 +1843,11 @@ function confirmRemoveEmployee() {
   <MpModal :is-open="weightModalOpen" is-centered size="lg" @close="weightModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ display: 'flex', flexDirection: 'column', maxHeight: '85vh', overflow: 'hidden' })">
-      <MpModalHeader>
+      <MpModalHeader :class="css({ flexShrink: '0' })">
         Set reviewer weight
         <MpModalCloseButton />
       </MpModalHeader>
-      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '0 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
+      <MpModalBody :class="css({ paddingInline: '6', paddingBlock: '0', flex: '1 1 auto', minHeight: '0', overflowY: 'auto' })" @scroll.capture="onReviewerScroll">
         <MpFlex
           v-if="weightModalMember"
           align="center"
@@ -1896,7 +1897,7 @@ function confirmRemoveEmployee() {
           </div>
         </MpFlex>
       </MpModalBody>
-      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end', flexShrink: '0' })">
         <MpButton variant="ghost" @click="weightModalOpen = false">Cancel</MpButton>
         <MpButton variant="primary" @click="saveReviewerWeights">Save changes</MpButton>
       </MpModalFooter>
