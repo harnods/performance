@@ -151,7 +151,10 @@ function pickN(pool: string[], n: number, rand: () => number) {
 // whole); the per-method total rounds back to 100.
 function splitWeights(n: number) {
   if (n <= 0) return [] as number[]
-  return Array(n).fill(Math.round(10000 / n) / 100)
+  const base = Math.floor((100 / n) * 100) / 100 // 2dp floor
+  const w = Array(n).fill(base)
+  w[n - 1] = Math.round((100 - base * (n - 1)) * 100) / 100 // last absorbs remainder → total 100
+  return w
 }
 function reviewerRow(id: string, weight: number): ReviewerRow {
   const e = EMPLOYEES.find(x => x.id === id)
@@ -194,27 +197,112 @@ function reviewerCountFor(member: ReviewMember) {
 function pDone(done: number, total: number, memberTotal: number) {
   return total > 0 ? Math.round((done / total) * memberTotal) : 0
 }
-const reviewerGroups = computed(() => (reviewerModalMember.value ? reviewersForMember(reviewerModalMember.value) : []))
+// Reviewer-weight persistence (real mini-DB). Config is stored per member per
+// method; a member with no saved config uses the equal-distribution default.
+const { configFor, saveConfigs } = useReviewerWeightsStore()
+function memberKeyFor(member: ReviewMember) {
+  return `${cycleName.value}::${member.id}`
+}
+// Base generated groups + any saved custom-weight config applied. Used by both
+// the View modal (read-only) and as the starting point for the editor, so a
+// saved change is reflected everywhere.
+function resolvedGroupsFor(member: ReviewMember): EditableGroup[] {
+  const key = memberKeyFor(member)
+  return reviewersForMember(member).map((g) => {
+    const cfg = configFor(key, g.name)
+    const useCustom = !!cfg?.useCustom
+    return {
+      name: g.name,
+      weight: g.weight,
+      useCustom,
+      // Lock the first reviewer by default when custom is on (production
+      // parity) — locks aren't persisted, they're an editing aid.
+      reviewers: g.reviewers.map((r, idx) => ({ ...r, weight: useCustom ? (cfg!.weights[r.code] ?? r.weight) : r.weight, locked: useCustom && idx === 0 })),
+    }
+  })
+}
+const reviewerGroups = computed(() => (reviewerModalMember.value ? resolvedGroupsFor(reviewerModalMember.value) : []))
 
-// ─── Set reviewer weight modal (editable copy of the same grouped list) ─────────
-type EditableGroup = { name: string, weight: number, reviewers: (ReviewerRow & { weight: number | '' })[] }
+// ─── Set reviewer weight modal (editable, persisted) ────────────────────────────
+type EditableReviewer = ReviewerRow & { weight: number | '', locked: boolean }
+type EditableGroup = { name: string, weight: number, useCustom: boolean, reviewers: EditableReviewer[] }
 const weightModalOpen = ref(false)
 const weightModalMember = ref<ReviewMember | null>(null)
 const editableGroups = ref<EditableGroup[]>([])
 function openReviewerWeight(member: ReviewMember) {
   weightModalMember.value = member
-  // Deep-clone so edits don't mutate the cached generated data.
-  editableGroups.value = reviewersForMember(member).map(g => ({ ...g, reviewers: g.reviewers.map(r => ({ ...r })) }))
+  editableGroups.value = resolvedGroupsFor(member)
   weightModalOpen.value = true
+}
+// Toggle "Use custom weight": on → equal start + lock the first reviewer;
+// off → back to equal distribution, unlock all. (Mirrors production.)
+function onToggleCustom(g: EditableGroup, value: boolean) {
+  g.useCustom = value
+  const eq = splitWeights(g.reviewers.length)
+  g.reviewers.forEach((r, i) => { r.weight = eq[i]; r.locked = value && i === 0 })
+}
+function lockedCount(g: EditableGroup) {
+  return g.reviewers.filter(r => r.locked).length
+}
+// At least one reviewer must stay locked so edits can rebalance to 100%.
+function canToggleLock(g: EditableGroup, i: number) {
+  if (!g.useCustom) return false
+  const r = g.reviewers[i]
+  if (r.locked && lockedCount(g) === 1) return false
+  return true
+}
+function toggleLock(g: EditableGroup, i: number) {
+  if (!canToggleLock(g, i)) {
+    toast.notify({ id: 'reviewer-lock-min', position: 'top-center', variant: 'error', title: 'At least one reviewer must stay locked' })
+    return
+  }
+  g.reviewers[i].locked = !g.reviewers[i].locked
+}
+// Editing an unlocked reviewer redistributes the remaining budget equally
+// across the OTHER unlocked reviewers so the method total stays 100%. Debounced
+// so it settles after typing rather than on every keystroke.
+let redistTimer: ReturnType<typeof setTimeout> | null = null
+function onWeightInput(g: EditableGroup, i: number) {
+  const num = g.reviewers[i].weight === '' ? 0 : Number(g.reviewers[i].weight)
+  if (num > 100) g.reviewers[i].weight = 100
+  else if (num < 0) g.reviewers[i].weight = 0
+  if (redistTimer) clearTimeout(redistTimer)
+  redistTimer = setTimeout(() => redistribute(g, i), 250)
+}
+function redistribute(g: EditableGroup, editedIndex: number) {
+  const edited = Number(g.reviewers[editedIndex].weight) || 0
+  let fixedTotal = edited
+  g.reviewers.forEach((r, idx) => { if (idx !== editedIndex && r.locked) fixedTotal += Number(r.weight) || 0 })
+  const targets = g.reviewers.filter((r, idx) => idx !== editedIndex && !r.locked)
+  if (!targets.length) return
+  const remaining = 100 - fixedTotal
+  if (remaining < 0) { targets.forEach(r => (r.weight = 0)); return }
+  const base = Math.floor((remaining / targets.length) * 100) / 100
+  let dist = 0
+  targets.forEach((r, idx) => {
+    if (idx < targets.length - 1) { r.weight = base; dist += base }
+    else r.weight = Math.round((remaining - dist) * 100) / 100
+  })
 }
 function methodWeightTotal(g: EditableGroup) {
   return Math.round(g.reviewers.reduce((s, r) => s + (r.weight === '' ? 0 : Number(r.weight)), 0))
 }
 function saveReviewerWeights() {
-  const invalid = editableGroups.value.find(g => methodWeightTotal(g) !== 100)
+  // Only custom methods must total 100%; equal ones are always balanced.
+  const invalid = editableGroups.value.find(g => g.useCustom && methodWeightTotal(g) !== 100)
   if (invalid) {
     toast.notify({ id: 'reviewer-weight-invalid', position: 'top-center', variant: 'error', title: `Total weight for ${invalid.name} must be 100%` })
     return
+  }
+  if (weightModalMember.value) {
+    const configs: Record<string, { useCustom: boolean, weights: Record<string, number> }> = {}
+    editableGroups.value.forEach((g) => {
+      configs[g.name] = {
+        useCustom: g.useCustom,
+        weights: Object.fromEntries(g.reviewers.map(r => [r.code, r.weight === '' ? 0 : Number(r.weight)])),
+      }
+    })
+    saveConfigs(memberKeyFor(weightModalMember.value), configs)
   }
   toast.notify({ id: 'reviewer-weight-saved', position: 'top-center', variant: 'success', title: 'Reviewer weights saved' })
   weightModalOpen.value = false
@@ -384,6 +472,15 @@ const methodHeaderClass = css({
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
   transition: 'border-color 0.1s ease',
   '&[data-stuck="true"]': { borderBottomColor: 'border.default' },
+})
+const lockBtn = css({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+  border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'pointer', color: 'text.secondary',
+  _hover: { background: 'background.neutral.hovered', color: 'text.default' },
+})
+const lockBtnDisabled = css({
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '36px', height: '36px',
+  border: 'none', background: 'transparent', borderRadius: 'md', cursor: 'not-allowed', color: 'gray.100',
 })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
@@ -1867,7 +1964,14 @@ function confirmRemoveEmployee() {
         <MpFlex direction="column" gap="6" :class="css({ paddingBottom: '6' })">
           <div v-for="g in editableGroups" :key="g.name">
             <div data-method-header :class="methodHeaderClass">
-              {{ g.name }} ({{ formatWeight(g.weight) }}%)
+              <MpFlex align="center" justify="space-between" gap="4">
+                <span>{{ g.name }} ({{ formatWeight(g.weight) }}%)</span>
+                <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
+                  <MpText size="label" weight="semiBold" :class="valueText">Weight</MpText>
+                  <MpToggle :is-checked="g.useCustom" @update:is-checked="(v) => onToggleCustom(g, v)" />
+                  <MpText size="label" :class="[captionText, css({ fontWeight: '400' })]">Use custom weight</MpText>
+                </MpFlex>
+              </MpFlex>
             </div>
             <MpFlex direction="column" gap="3">
               <MpFlex
@@ -1884,10 +1988,21 @@ function confirmRemoveEmployee() {
                     <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
                   </MpFlex>
                 </MpFlex>
-                <MpInputGroup :class="css({ width: '104px', flexShrink: '0' })">
-                  <MpInput v-model="r.weight" type="number" />
-                  <MpInputRightAddon>%</MpInputRightAddon>
-                </MpInputGroup>
+                <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
+                  <MpInputGroup :class="css({ width: '104px' })">
+                    <MpInput v-model="r.weight" type="number" :is-disabled="!g.useCustom || r.locked" @update:model-value="() => onWeightInput(g, i)" />
+                    <MpInputRightAddon>%</MpInputRightAddon>
+                  </MpInputGroup>
+                  <button
+                    v-if="g.useCustom"
+                    type="button"
+                    :class="canToggleLock(g, i) ? lockBtn : lockBtnDisabled"
+                    :aria-label="r.locked ? 'Unlock weight' : 'Lock weight'"
+                    @click="toggleLock(g, i)"
+                  >
+                    <MpIcon :name="r.locked ? 'security' : 'unlock'" size="sm" />
+                  </button>
+                </MpFlex>
               </MpFlex>
               <MpText v-if="!g.reviewers.length" size="label-small" :class="captionText">No reviewers assigned.</MpText>
               <MpFlex v-else justify="space-between" align="center" :class="css({ paddingTop: '2' })">
