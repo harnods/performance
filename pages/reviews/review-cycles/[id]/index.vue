@@ -242,7 +242,7 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', white
 const extThCell = css({ bg: 'background.neutral.hovered' })
 const noHoverRow = css({ _hover: { bg: 'transparent' } })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
-const greenProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.700' } })
+const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
 // Employee cell: right border groups multi-period rowspans. Single-period tables drop it.
 const empCellBorder = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', verticalAlign: 'top' })
 const empCellPlain = css({ verticalAlign: 'top' })
@@ -1120,7 +1120,7 @@ function confirmRemoveEmployee() {
                   <MpProgress
                     variant="linear"
                     size="sm"
-                    :class="greenProgress"
+                    :class="tealProgress"
                     :value="Math.round((row.reviewDone / row.reviewTotal) * 100)"
                   />
                 </MpFlex>
@@ -1217,7 +1217,7 @@ function confirmRemoveEmployee() {
                         <MpProgress
                           variant="linear"
                           size="sm"
-                          :class="greenProgress"
+                          :class="tealProgress"
                           :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                         />
                       </MpFlex>
@@ -1323,7 +1323,7 @@ function confirmRemoveEmployee() {
                           <MpProgress
                             variant="linear"
                             size="sm"
-                            :class="greenProgress"
+                            :class="tealProgress"
                             :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                           />
                         </MpFlex>
@@ -1511,7 +1511,7 @@ function confirmRemoveEmployee() {
                             <MpProgress
                               variant="linear"
                               size="sm"
-                              :class="greenProgress"
+                              :class="tealProgress"
                               :value="period.progressTotal > 0 ? Math.round((period.progressDone / period.progressTotal) * 100) : 0"
                             />
                           </MpFlex>

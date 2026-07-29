@@ -316,7 +316,7 @@ const empCell = css({
   verticalAlign: 'top',
 })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
-const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'green.700' } })
+const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
 </script>
 
 <template>
