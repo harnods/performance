@@ -330,6 +330,44 @@ const tabItemBase = {
 } as const
 const tabItem = css({ ...tabItemBase, color: 'text.secondary', borderBottomColor: 'transparent', _hover: { color: 'text.default' } })
 const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', borderBottomColor: 'border.brand' })
+
+// Shared reviewer data layer — same store/generation as the cycle detail page,
+// keyed by the cycle id in the path so weights/rosters are consistent. The
+// table below is driven by the ACTIVE method tab.
+const methodWeights: Record<string, number> = { 'Manager review': 50, '360-degree review': 30, 'Self review': 20 }
+const { resolvedGroupsFor, groupFor, reviewerCountFor } = useReviewers({
+  methods: reviewMethods,
+  methodWeights,
+  cycleKey: () => String(route.params.id),
+})
+const reviewerModalsRef = ref()
+function memberOf(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return { id: emp.id, name: emp.name, jobTitle: emp.jobTitle, organization: emp.organization }
+}
+// Reviewers for this employee under the active method tab (same across the
+// timeframe's periods — reviewers are per timeframe, not per period).
+function methodGroup(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return groupFor(memberOf(emp), activeMethod.value)
+}
+function methodReviewerCount(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return reviewerCountFor(memberOf(emp), activeMethod.value)
+}
+// Singular for a single reviewer (e.g. Self review) — "1 Reviewer" not "1 Reviewers".
+function reviewerCountLabel(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  const n = methodReviewerCount(emp)
+  return `${n} ${n === 1 ? 'Reviewer' : 'Reviewers'}`
+}
+function weightLabel(emp: { id: string, name: string, jobTitle?: string, organization?: string }) {
+  return methodGroup(emp)?.useCustom ? 'Custom weight' : 'Equal weight'
+}
+// Progress bar keeps the period's raw ratio; the count reflects this method's reviewers.
+function methodDone(emp: { id: string, name: string, jobTitle?: string, organization?: string }, done: number, total: number) {
+  const t = methodReviewerCount(emp)
+  return total > 0 ? Math.round((done / total) * t) : 0
+}
+function openView(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openView(memberOf(emp)) }
+function openWeight(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openWeight(memberOf(emp)) }
+function openManage(emp: { id: string, name: string, jobTitle?: string, organization?: string }) { reviewerModalsRef.value?.openManage(memberOf(emp)) }
 </script>
 
 <template>
@@ -490,11 +528,11 @@ const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', 
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
-                <MpTextlink size="small">{{ period.reviewersCount }} Reviewers</MpTextlink>
+                <MpTextlink size="small" as="button" @click="openView(emp)">{{ reviewerCountLabel(emp) }}</MpTextlink>
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
-                <MpText size="label" :class="[valueText, css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', display: 'block', maxWidth: '120px' })]">{{ period.reviewerWeight }}</MpText>
+                <MpText size="label" :class="valueText">{{ weightLabel(emp) }}</MpText>
               </MpTableCell>
 
               <MpTableCell as="td" :class="tightCell">
@@ -502,7 +540,7 @@ const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', 
                   <MpFlex justify="space-between" align="center" gap="2">
                     <MpText size="label-small" :class="valueText">{{ period.progressLabel }}</MpText>
                     <MpText size="label-small" :class="[captionText, css({ flexShrink: '0' })]">
-                      {{ period.progressDone }} of {{ period.progressTotal }}
+                      {{ methodDone(emp, period.progressDone, period.progressTotal) }} of {{ methodReviewerCount(emp) }}
                     </MpText>
                   </MpFlex>
                   <MpProgress
@@ -523,9 +561,9 @@ const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', 
                   </MpPopoverTrigger>
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
-                      <MpPopoverListItem>View reviewer</MpPopoverListItem>
-                      <MpPopoverListItem>Set reviewer weight</MpPopoverListItem>
-                      <MpPopoverListItem>Manage reviewer</MpPopoverListItem>
+                      <MpPopoverListItem @click="openView(emp)">View reviewer</MpPopoverListItem>
+                      <MpPopoverListItem @click="openWeight(emp)">Set reviewer weight</MpPopoverListItem>
+                      <MpPopoverListItem @click="openManage(emp)">Manage reviewer</MpPopoverListItem>
                       <MpPopoverListItem>Remove employee</MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
@@ -629,4 +667,11 @@ const tabActive = css({ ...tabItemBase, color: 'text.brand', fontWeight: '600', 
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
+
+  <ReviewerModals
+    ref="reviewerModalsRef"
+    :method-weights="methodWeights"
+    :methods="[activeMethod]"
+    :cycle-key="String(route.params.id)"
+  />
 </template>

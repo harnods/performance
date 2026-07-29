@@ -47,9 +47,10 @@ export function useReviewerWeightsStore() {
   function configFor(memberKey: string, method: string): MethodWeightConfig | undefined {
     return data.value[memberKey]?.[method]
   }
-  // Persist the full per-method config set for one member (replaces prior).
+  // Merge per-method config for one member (writing a subset of methods keeps
+  // the others intact — needed when editing one method at a time).
   function saveConfigs(memberKey: string, configs: Record<string, MethodWeightConfig>) {
-    data.value = { ...data.value, [memberKey]: configs }
+    data.value = { ...data.value, [memberKey]: { ...(data.value[memberKey] || {}), ...configs } }
     persist()
   }
   function resetToSeed() {
