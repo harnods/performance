@@ -151,9 +151,9 @@ function pickN(pool: string[], n: number, rand: () => number) {
 // whole); the per-method total rounds back to 100.
 function splitWeights(n: number) {
   if (n <= 0) return [] as number[]
-  const base = Math.floor((100 / n) * 100) / 100 // 2dp floor
+  const base = Math.floor(100 / n) // whole-number weight (no decimals)
   const w = Array(n).fill(base)
-  w[n - 1] = Math.round((100 - base * (n - 1)) * 100) / 100 // last absorbs remainder → total 100
+  w[n - 1] = 100 - base * (n - 1) // last reviewer absorbs the remainder → total 100
   return w
 }
 function reviewerRow(id: string, weight: number): ReviewerRow {
@@ -270,18 +270,20 @@ function onWeightInput(g: EditableGroup, i: number) {
   redistTimer = setTimeout(() => redistribute(g, i), 250)
 }
 function redistribute(g: EditableGroup, editedIndex: number) {
-  const edited = Number(g.reviewers[editedIndex].weight) || 0
+  // Whole-number weights only; the last unlocked reviewer takes the remainder.
+  const edited = Math.round(Number(g.reviewers[editedIndex].weight) || 0)
+  g.reviewers[editedIndex].weight = edited
   let fixedTotal = edited
   g.reviewers.forEach((r, idx) => { if (idx !== editedIndex && r.locked) fixedTotal += Number(r.weight) || 0 })
   const targets = g.reviewers.filter((r, idx) => idx !== editedIndex && !r.locked)
   if (!targets.length) return
   const remaining = 100 - fixedTotal
   if (remaining < 0) { targets.forEach(r => (r.weight = 0)); return }
-  const base = Math.floor((remaining / targets.length) * 100) / 100
+  const base = Math.floor(remaining / targets.length)
   let dist = 0
   targets.forEach((r, idx) => {
     if (idx < targets.length - 1) { r.weight = base; dist += base }
-    else r.weight = Math.round((remaining - dist) * 100) / 100
+    else r.weight = remaining - dist
   })
 }
 function methodWeightTotal(g: EditableGroup) {
