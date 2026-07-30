@@ -153,9 +153,6 @@ const publishScoreOptions = [
   { value: 'both', label: 'Both' },
 ]
 
-// Lock edit for review (Performance Cycle parity — was "Require approval")
-const lockEditReview = ref(false)
-
 // Score adjustment
 const deductionScore = ref(false)
 
@@ -545,16 +542,6 @@ function onSave() {
           <MpText v-if="weightTotalInvalid" :class="errorText">Total weight must be 100%</MpText>
         </div>
       </template>
-
-      <!-- Enable lock edit for review -->
-      <MpFlex :class="css({ paddingTop: '4' })">
-        <MpCheckbox :is-checked="lockEditReview" @update:is-checked="(v) => (lockEditReview = v)">
-          Enable lock edit for review
-          <template #description>
-            You will not be able to edit or reset the review result unless it is requested.
-          </template>
-        </MpCheckbox>
-      </MpFlex>
 
       <!-- ── Publish score after ─────────────────────────────────────── -->
       <div :class="sectionHeader">
