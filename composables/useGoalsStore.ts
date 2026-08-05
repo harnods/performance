@@ -796,8 +796,34 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 7
-const goals = ref<Goal[]>(seed())
+const SEED_VERSION = 9
+
+// 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
+// categories, weights, targets — but re-cast into an early/mid-cycle in-progress
+// state (deterministic per goal), since the cycle only just started. This keeps
+// each employee's H2 goals accurate and consistent with their H1 set while
+// giving the dashboard real "current cycle" progress to read.
+function seed26H2(): Goal[] {
+  return seed().map((g, i) => {
+    const r = (i * 37) % 100
+    const alignedToId = g.alignedToId ? `h2-${g.alignedToId}` : undefined
+    const commonoverride = { ...g, id: `h2-${g.id}`, cycleId: 'seed-26-h2', alignedToId }
+    if (!g.unit) {
+      // Non-measurable goals: status only, no progress bar.
+      return { ...commonoverride, status: (r < 30 ? 'gray' : 'green') as GoalStatus, value: undefined, pill: undefined }
+    }
+    const max = g.max ?? 100
+    let status: GoalStatus
+    let pill: number
+    if (r < 8) { status = 'gray'; pill = 0 } // not updated — no progress logged yet
+    else if (r < 25) { status = 'gray'; pill = 30 + (r % 25) } // not updated, but has progress (dark-gray bar)
+    else if (r < 45) { status = 'orange'; pill = 20 + (r % 20) } // off track
+    else { status = 'green'; pill = 45 + (r % 35) } // on track, mid-cycle
+    return { ...commonoverride, status, pill, value: Math.round((max * pill) / 100), min: g.min ?? 0, max }
+  })
+}
+
+const goals = ref<Goal[]>([...seed(), ...seed26H2()])
 let loadedFromStorage = false
 
 function persist() {

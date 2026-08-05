@@ -1,5 +1,14 @@
 # Talenta Performance — Project Rules for Codex
 
+> ## 🔴 READ FIRST — before ANY UI work
+> **`docs/README.md` is the design-system source of truth.** Before building,
+> replicating, or changing any page/feature/component, open the matching pattern doc in
+> `docs/patterns/` — **tables especially** (`docs/patterns/table.md`). Then cross-check
+> the live system: `ai.mekari.design/mcp` (Pixel MCP) and the `pixel` /
+> `implement-to-pixel` / `mekari-taste` skills. Mirror existing patterns exactly — do not
+> invent new components/behaviours/CSS. The sections below are foundational; the pattern
+> docs go deeper per surface.
+
 ## Stack
 - **Nuxt 3** + **Vue 3** SFC with `<script setup lang="ts">`
 - **Mekari Pixel 3** (`@mekari/pixel3`) design system

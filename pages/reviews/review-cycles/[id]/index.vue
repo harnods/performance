@@ -292,9 +292,15 @@ const addPanel = css({
   padding: '3', marginBottom: '4',
 })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
-const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
-const extThCell = css({ bg: 'background.neutral.hovered' })
+// MIDDLE-aligned variants for the two tables whose tallest cell is ≤2 lines:
+// the non-extended flat period table and the employee-list modal table.
+const tightCellMid = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const actionCellMid = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
+const headCellMid = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const extThCell = css({ bg: 'background.neutral.hovered', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const noHoverRow = css({ _hover: { bg: 'transparent' } })
 // Progress fill forced to green.700 (overrides the default brand-blue fill)
 const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
@@ -749,7 +755,7 @@ onMounted(() => {
 
 function getVisibleEmployees(tg: TimeframeGroup): ExtEmployee[] {
   const count = groupVisibleCount.value[tg.timeframe] ?? EXT_PAGE_SIZE
-  return tg.employees.slice(0, count)
+  return sortExtEmployees(tg.employees).slice(0, count)
 }
 
 function loadMoreEmployees(tg: TimeframeGroup) {
@@ -816,7 +822,7 @@ const completedRows = computed<CompletedRow[]>(() => {
 })
 const completedVisible = ref(EXT_PAGE_SIZE)
 const completedLoadingMore = ref(false)
-const visibleCompletedRows = computed(() => completedRows.value.slice(0, completedVisible.value))
+const visibleCompletedRows = computed(() => sortExtRows(completedRows.value).slice(0, completedVisible.value))
 const completedHasMore = computed(() => completedVisible.value < completedRows.value.length)
 function loadMoreCompleted() {
   if (completedLoadingMore.value) return
@@ -858,6 +864,81 @@ function parseEndDate(timeframe: string): number {
   return new Date(Number(year), m, Number(day)).getTime()
 }
 
+// ─── Column sort (PxColumnSortMenu) ───────────────────────────────────────────
+// One shared sort state, namespaced keys so the flat table and the extended
+// grouped tables never collide. For rowspan-merged tables only the merged
+// employee unit (and, where it's a column, the review timeframe) is sortable —
+// per-period rows are never reordered, so merged cells stay intact.
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  // extended grouped tables
+  emp: 'text',
+  tf: 'date',
+  // flat (non-extended) period table
+  timeFrame: 'date',
+  reviewPeriod: 'date',
+  employees: 'number',
+  review: 'number',
+  // employee-list modal table
+  modalEmp: 'text',
+  modalStatus: 'text',
+}
+// Sort a group's employees in place-safe copy (name only → merged cells intact).
+function sortExtEmployees(list: ExtEmployee[]): ExtEmployee[] {
+  if (sortKey.value !== 'emp') return list
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...list].sort((a, b) => a.name.localeCompare(b.name, undefined, { numeric: true, sensitivity: 'base' }) * dir)
+}
+// Flattened {tg, emp} rows (Completed + search) sort by employee name or timeframe date.
+function extRowValue(r: CompletedRow): string {
+  if (sortKey.value === 'tf') return String(parseEndDate(r.tg.timeframe))
+  return r.emp.name
+}
+function sortExtRows(rows: CompletedRow[]): CompletedRow[] {
+  if (sortKey.value !== 'emp' && sortKey.value !== 'tf') return rows
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) =>
+    extRowValue(a).localeCompare(extRowValue(b), undefined, { numeric: true, sensitivity: 'base' }) * dir,
+  )
+}
+// Flat (non-extended) period table sort. Date columns sort by the parsed end date
+// of the display range (handles both "–" and "-" separators, and "Sept").
+function parseFlatEnd(range: string): number {
+  const end = range.split(/[–-]/).pop()?.trim() ?? ''
+  const [day, mon, year] = end.split(/\s+/)
+  const m = MONTHS[mon?.slice(0, 3)]
+  if (m === undefined) return 0
+  return new Date(Number(year), m, Number(day)).getTime()
+}
+function flatSortValue(r: CyclePeriodRow, key: string): string | number {
+  if (key === 'timeFrame') return parseFlatEnd(r.timeFrame)
+  if (key === 'reviewPeriod') return parseFlatEnd(r.reviewPeriod)
+  if (key === 'employees') return r.employees
+  if (key === 'review') return r.reviewTotal > 0 ? r.reviewDone / r.reviewTotal : 0
+  return ''
+}
+const sortedFilteredRows = computed<CyclePeriodRow[]>(() => {
+  const FLAT_KEYS = ['timeFrame', 'reviewPeriod', 'employees', 'review']
+  if (!FLAT_KEYS.includes(sortKey.value)) return filteredRows.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredRows.value].sort((a, b) =>
+    String(flatSortValue(a, sortKey.value)).localeCompare(
+      String(flatSortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+// Employee-list modal table sort.
+const sortedModalEmployees = computed<Employee[]>(() => {
+  if (sortKey.value !== 'modalEmp' && sortKey.value !== 'modalStatus') return modalEmployees.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  const val = (e: Employee) => (sortKey.value === 'modalStatus' ? e.status : e.name)
+  return [...modalEmployees.value].sort((a, b) =>
+    val(a).localeCompare(val(b), undefined, { numeric: true, sensitivity: 'base' }) * dir,
+  )
+})
+
 const statusSections = computed(() => {
   const ORDER = ['In progress', 'Completed', 'Upcoming'] as const
   return ORDER.map(s => ({
@@ -891,6 +972,7 @@ const searchResults = computed<CompletedRow[]>(() => {
     .forEach(s => s.groups.forEach(tg => tg.employees.forEach(emp => rows.push({ tg, emp }))))
   return rows
 })
+const sortedSearchResults = computed<CompletedRow[]>(() => sortExtRows(searchResults.value))
 
 // Empty state: a cycle exists but no review timeframe has been formed yet.
 // The Part-timer cycle has no employees with that status yet (dataset: 'none').
@@ -1070,7 +1152,7 @@ function confirmRemoveEmployee() {
 </script>
 
 <template>
-  <Teleport to="#page-header-actions" defer>
+  <Teleport v-if="cyclePurpose === 'evaluation'" to="#page-header-actions" defer>
     <MpButton variant="secondary" right-icon="newtab">Approval settings</MpButton>
     <MpButton variant="secondary">Edit cycle</MpButton>
   </Teleport>
@@ -1141,33 +1223,41 @@ function confirmRemoveEmployee() {
         <MpTable>
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th">Time frame</MpTableCell>
-              <MpTableCell as="th">Review period</MpTableCell>
-              <MpTableCell as="th">Employee(s)</MpTableCell>
-              <MpTableCell as="th">Review</MpTableCell>
-              <MpTableCell as="th">Approval</MpTableCell>
-              <MpTableCell as="th" />
-              <MpTableCell as="th" />
+              <MpTableCell as="th" class="sort-th" :class="headCellMid">
+                <span :class="thInner"><span>Time frame</span><PxColumnSortMenu col-key="timeFrame" :sort-type="columnSortTypes.timeFrame" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCellMid">
+                <span :class="thInner"><span>Review period</span><PxColumnSortMenu col-key="reviewPeriod" :sort-type="columnSortTypes.reviewPeriod" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCellMid">
+                <span :class="thInner"><span>Employee(s)</span><PxColumnSortMenu col-key="employees" :sort-type="columnSortTypes.employees" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCellMid">
+                <span :class="thInner"><span>Review</span><PxColumnSortMenu col-key="review" :sort-type="columnSortTypes.review" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" :class="headCellMid">Approval</MpTableCell>
+              <MpTableCell as="th" :class="headCellMid" />
+              <MpTableCell as="th" :class="headCellMid" />
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="(row, i) in filteredRows" :key="i">
-              <MpTableCell as="td" :class="tightCell">
+            <MpTableRow v-for="(row, i) in sortedFilteredRows" :key="i">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpText size="label" :class="valueText">{{ row.timeFrame }}</MpText>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpFlex direction="column" gap="0">
                   <MpText size="label" :class="valueText">{{ row.reviewPeriod }}</MpText>
                   <MpText size="label-small" :class="captionText">Due date: {{ row.reviewDeadline }}</MpText>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpTextlink as="button" size="small" @click="openEmployeeModal(i)">
                   {{ row.employees }}
                 </MpTextlink>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpFlex direction="column" gap="1" :class="css({ width: '220px' })">
                   <MpFlex justify="space-between" align="center">
                     <MpText size="label-small" :class="valueText">{{ row.reviewLabel }}</MpText>
@@ -1183,7 +1273,7 @@ function confirmRemoveEmployee() {
                   />
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpFlex align="center" gap="2">
                   <MpToggle v-model="row.approval" size="sm" />
                   <MpText size="label-small" :class="captionText">
@@ -1191,18 +1281,18 @@ function confirmRemoveEmployee() {
                   </MpText>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpFlex v-if="row.aiSummary" align="center" gap="1">
                   <MpIcon name="airene-brand" :class="css({ color: 'icon.brand', flexShrink: '0' })" />
                   <MpText size="label-small" :class="css({ color: 'text.brand' })">Summarized by AI</MpText>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="tightCell">
+              <MpTableCell as="td" :class="tightCellMid">
                 <MpBadge variant="tableStatus" :variantColor="statusBadgeColor[row.status]" size="md">
                   {{ row.status }}
                 </MpBadge>
               </MpTableCell>
-              <MpTableCell as="td" :class="actionCell">
+              <MpTableCell as="td" :class="actionCellMid">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
                     <MpButton variant="secondary" right-icon="caret-down">Actions</MpButton>
@@ -1236,8 +1326,12 @@ function confirmRemoveEmployee() {
             <MpTable :class="css({ width: '100%' })" :is-hoverable="false">
               <MpTableHead>
                 <MpTableRow>
-                  <MpTableCell as="th" :class="[extThCell, css({ width: '260px' })]">Employee</MpTableCell>
-                  <MpTableCell as="th" :class="[extThCell, css({ width: '170px' })]">Review timeframe</MpTableCell>
+                  <MpTableCell as="th" class="sort-th" :class="[extThCell, css({ width: '260px' })]">
+                    <span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="emp" :sort-type="columnSortTypes.emp" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                  </MpTableCell>
+                  <MpTableCell as="th" class="sort-th" :class="[extThCell, css({ width: '170px' })]">
+                    <span :class="thInner"><span>Review timeframe</span><PxColumnSortMenu col-key="tf" :sort-type="columnSortTypes.tf" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                  </MpTableCell>
                   <MpTableCell as="th" :class="[extThCell, css({ width: '170px' })]">Review period</MpTableCell>
                   <MpTableCell as="th" :class="[extThCell, css({ width: '220px' })]">Progress</MpTableCell>
                   <MpTableCell as="th" :class="[extThCell, css({ width: '120px' })]">Status</MpTableCell>
@@ -1245,7 +1339,7 @@ function confirmRemoveEmployee() {
                 </MpTableRow>
               </MpTableHead>
               <MpTableBody>
-                <template v-for="row in searchResults" :key="`search-${row.tg.timeframe}-${row.emp.id}`">
+                <template v-for="row in sortedSearchResults" :key="`search-${row.tg.timeframe}-${row.emp.id}`">
                   <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`search-${row.emp.id}-${period.label}`" :class="noHoverRow">
                     <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpFlex align="start" gap="3">
@@ -1503,7 +1597,9 @@ function confirmRemoveEmployee() {
                 <MpTable :class="css({ width: '100%' })" :is-hoverable="false">
                   <MpTableHead>
                     <MpTableRow>
-                      <MpTableCell as="th" :class="[extThCell, css({ width: '280px' })]">Employee</MpTableCell>
+                      <MpTableCell as="th" class="sort-th" :class="[extThCell, css({ width: '280px' })]">
+                        <span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="emp" :sort-type="columnSortTypes.emp" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                      </MpTableCell>
                       <MpTableCell v-if="!isSinglePeriod" as="th" :class="[extThCell, css({ width: '80px' })]">Period</MpTableCell>
                       <MpTableCell as="th" :class="[extThCell, css({ width: '140px' })]">Review period</MpTableCell>
                       <MpTableCell as="th" :class="[extThCell, css({ width: '220px' })]">Progress</MpTableCell>
@@ -1690,6 +1786,13 @@ function confirmRemoveEmployee() {
     </template>
   </MpFlex>
 
+  <!-- Performance / Competency master detail (production Detail.vue parity) -->
+  <CycleDetailGeneral
+    v-else
+    :cycle-name="cycleName"
+    :purpose="cyclePurpose"
+  />
+
   <!-- Employee list modal -->
   <!-- Reviewer modals (View / Set weight / Manage) — shared with timeframe page.
        No `methods` prop → all cycle methods shown, grouped. -->
@@ -1711,13 +1814,17 @@ function confirmRemoveEmployee() {
           <MpTable>
             <MpTableHead>
               <MpTableRow>
-                <MpTableCell as="th">Employee</MpTableCell>
-                <MpTableCell as="th" :class="actionHead">Status</MpTableCell>
+                <MpTableCell as="th" class="sort-th" :class="headCellMid">
+                  <span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="modalEmp" :sort-type="columnSortTypes.modalEmp" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                </MpTableCell>
+                <MpTableCell as="th" class="sort-th" :class="actionHead">
+                  <span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="modalStatus" :sort-type="columnSortTypes.modalStatus" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                </MpTableCell>
               </MpTableRow>
             </MpTableHead>
             <MpTableBody>
-              <MpTableRow v-for="emp in modalEmployees" :key="emp.id">
-                <MpTableCell as="td" :class="tightCell">
+              <MpTableRow v-for="emp in sortedModalEmployees" :key="emp.id">
+                <MpTableCell as="td" :class="tightCellMid">
                   <MpFlex align="center" gap="3">
                     <MpAvatar :name="emp.name" size="sm" />
                     <MpFlex direction="column" gap="0">
@@ -1728,7 +1835,7 @@ function confirmRemoveEmployee() {
                     </MpFlex>
                   </MpFlex>
                 </MpTableCell>
-                <MpTableCell as="td" :class="actionCell">
+                <MpTableCell as="td" :class="actionCellMid">
                   <MpBadge variant="tableStatus" :variantColor="employeeStatusColor[emp.status]" size="md">
                     {{ emp.status }}
                   </MpBadge>
@@ -1821,3 +1928,9 @@ function confirmRemoveEmployee() {
     </MpModalContent>
   </MpModal>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
+.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

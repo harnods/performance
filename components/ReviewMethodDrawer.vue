@@ -14,6 +14,7 @@ import {
   MpFormControl,
   MpFormLabel,
   MpFormErrorMessage,
+  MpInputTag,
   MpBanner,
   MpBannerIcon,
   MpBannerDescription,
@@ -102,6 +103,9 @@ const autoAssignManager = ref(false)
 const displayResult = ref(false)
 // Self
 const selfCommentOnly = ref(false)
+// When a manager review runs alongside self review, HR can surface the self
+// result on the manager's form (mirrors Team/360's display-for-manager option).
+const selfDisplayForManager = ref(false)
 // Team
 const teamDisplayForManager = ref(false)
 // 360
@@ -115,12 +119,22 @@ const manageCoworkerPeriod = ref<Date[]>([])
 
 // ─── Goals / Attendance / Reprimand ─────────────────────────────────────────────
 const includeGoals = ref(false)
-const goalToInclude = ref('')
+// Multi-select via MpInputTag — a method can include more than one goal type.
+const goalToInclude = ref<string[]>([])
 const goalOptions = [
   { value: 'company', label: 'Company goal' },
   { value: 'team', label: 'Team goal' },
   { value: 'individual', label: 'Individual goal' },
 ]
+// MpInputTag renders a tag's `text`; string suggestions keep that a plain label
+// (object suggestions render as "[object Object]"). Map labels ↔ values.
+const goalSuggestions = goalOptions.map(o => o.label)
+const labelToValue: Record<string, string> = Object.fromEntries(goalOptions.map(o => [o.label, o.value]))
+const valueToLabel: Record<string, string> = Object.fromEntries(goalOptions.map(o => [o.value, o.label]))
+const goalTags = computed(() => goalToInclude.value.map(v => ({ id: v, text: valueToLabel[v] ?? v, value: v })))
+function onGoalChange(data: { text?: string, value?: string }[]) {
+  goalToInclude.value = data.map(d => labelToValue[d.text ?? ''] ?? d.value ?? d.text ?? '').filter(Boolean)
+}
 const includeAttendance = ref(false)
 const includeReprimand = ref(false)
 const reprimandDefineScore = ref(false)
@@ -148,16 +162,60 @@ const totalAspectWeight = computed(() =>
 // ─── Validation (surfaces only after a save attempt) ────────────────────────────
 const submitted = ref(false)
 const templateInvalid = computed(() => submitted.value && !template.value)
-const goalInvalid = computed(() => submitted.value && includeGoals.value && !goalToInclude.value)
+const goalInvalid = computed(() => submitted.value && includeGoals.value && goalToInclude.value.length === 0)
 const weightTotalInvalid = computed(() =>
   submitted.value && anyAspectIncluded.value && finalScoreCalc.value === 'use-weight' && totalAspectWeight.value !== 100)
 
+// ─── Per-method config persistence ──────────────────────────────────────────
+// Each method (Manager / 360 / Team / Self) owns its OWN settings. The drawer
+// is a single reused instance, so we snapshot the outgoing method's values and
+// restore the incoming method's saved values (or defaults) on every switch —
+// otherwise enabling e.g. Goals on Manager would appear enabled on the others.
+function defaultConfig() {
+  return {
+    template: '', reviewer: 'approval-line', autoAssignManager: false, displayResult: false,
+    selfCommentOnly: false, selfDisplayForManager: false, teamDisplayForManager: false,
+    display360ForManager: false, pickCoworker: false, allowReject: false,
+    pickCoworkerPeriod: [] as Date[], manageCoworkerPeriod: [] as Date[],
+    includeGoals: false, goalToInclude: [] as string[], includeAttendance: false, includeReprimand: false,
+    reprimandDefineScore: false, finalScoreCalc: 'use-weight' as 'use-weight' | 'simple-sum',
+    aspectWeights: { review: '', goal: '', attendance: '', reprimand: '' } as Record<string, number | ''>,
+  }
+}
+type MethodConfig = ReturnType<typeof defaultConfig>
+function snapshotConfig(): MethodConfig {
+  return {
+    template: template.value, reviewer: reviewer.value, autoAssignManager: autoAssignManager.value, displayResult: displayResult.value,
+    selfCommentOnly: selfCommentOnly.value, selfDisplayForManager: selfDisplayForManager.value, teamDisplayForManager: teamDisplayForManager.value,
+    display360ForManager: display360ForManager.value, pickCoworker: pickCoworker.value, allowReject: allowReject.value,
+    pickCoworkerPeriod: [...pickCoworkerPeriod.value], manageCoworkerPeriod: [...manageCoworkerPeriod.value],
+    includeGoals: includeGoals.value, goalToInclude: [...goalToInclude.value], includeAttendance: includeAttendance.value, includeReprimand: includeReprimand.value,
+    reprimandDefineScore: reprimandDefineScore.value, finalScoreCalc: finalScoreCalc.value,
+    aspectWeights: { ...aspectWeights },
+  }
+}
+function applyConfig(c: MethodConfig) {
+  template.value = c.template; reviewer.value = c.reviewer; autoAssignManager.value = c.autoAssignManager; displayResult.value = c.displayResult
+  selfCommentOnly.value = c.selfCommentOnly; selfDisplayForManager.value = c.selfDisplayForManager; teamDisplayForManager.value = c.teamDisplayForManager
+  display360ForManager.value = c.display360ForManager; pickCoworker.value = c.pickCoworker; allowReject.value = c.allowReject
+  pickCoworkerPeriod.value = [...c.pickCoworkerPeriod]; manageCoworkerPeriod.value = [...c.manageCoworkerPeriod]
+  includeGoals.value = c.includeGoals; goalToInclude.value = [...c.goalToInclude]; includeAttendance.value = c.includeAttendance; includeReprimand.value = c.includeReprimand
+  reprimandDefineScore.value = c.reprimandDefineScore; finalScoreCalc.value = c.finalScoreCalc
+  Object.assign(aspectWeights, c.aspectWeights)
+}
+const savedConfigs = reactive<Record<string, MethodConfig>>({})
+
 // Reset to the first tab and clear validation whenever the drawer opens or the
-// method changes.
+// method changes; on a method change, persist the old method and load the new.
 watch(() => props.isOpen, (open) => {
   if (open) { activeTab.value = 'general'; submitted.value = false }
 })
-watch(methodKey, () => { activeTab.value = 'general'; submitted.value = false })
+watch(methodKey, (newKey, oldKey) => {
+  if (oldKey) savedConfigs[oldKey] = snapshotConfig()
+  applyConfig(savedConfigs[newKey] ?? defaultConfig())
+  activeTab.value = 'general'
+  submitted.value = false
+})
 // If the active tab disappears (e.g. Weight tab after all aspects unchecked),
 // fall back to General so the body doesn't render empty.
 watch(tabs, (list) => {
@@ -174,6 +232,7 @@ function onSave() {
     activeTab.value = templateInvalid.value ? 'general' : goalInvalid.value ? 'goals' : 'weight'
     return
   }
+  savedConfigs[methodKey.value] = snapshotConfig()
   emit('saved', { selfCommentOnly: selfCommentOnly.value })
   toast.notify({
     id: 'review-method-saved',
@@ -281,6 +340,12 @@ const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16p
                     Employees do not need to input scores, the review form is to be filled with comments only.
                   </template>
                 </MpCheckbox>
+                <MpCheckbox v-if="managerActive" :is-checked="selfDisplayForManager" @update:is-checked="(v) => (selfDisplayForManager = v)">
+                  Display self review result for manager
+                  <template #description>
+                    By enabling this option, manager can see Self review result of their subordinate on review form or pending action page.
+                  </template>
+                </MpCheckbox>
               </template>
 
               <!-- Team review -->
@@ -358,8 +423,21 @@ const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16p
               <template v-if="includeGoals">
                 <MpFormControl id="goal-included" :is-invalid="goalInvalid">
                   <MpFormLabel>Goal to include</MpFormLabel>
-                  <PxSelectPopover v-model="goalToInclude" :options="goalOptions" placeholder="Select goal" :class="selectWidth" />
-                  <MpFormErrorMessage>You must select a goal to include</MpFormErrorMessage>
+                  <div :class="selectWidth">
+                    <MpInputTag
+                      :id="`goal-included-tags-${methodKey}`"
+                      :key="`goal-tags-${methodKey}`"
+                      :data="goalTags"
+                      :suggestions="goalSuggestions"
+                      :is-enable-create-new-tag="false"
+                      :is-show-suggestions="true"
+                      :is-show-icon-chevron-down="true"
+                      :is-invalid="goalInvalid"
+                      placeholder="Select goals"
+                      @change="onGoalChange"
+                    />
+                  </div>
+                  <MpFormErrorMessage>You must select at least one goal to include</MpFormErrorMessage>
                 </MpFormControl>
                 <MpBanner v-if="!templateIsScoring" variant="warning" is-inline>
                   <MpBannerIcon />

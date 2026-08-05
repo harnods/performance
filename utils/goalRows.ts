@@ -44,6 +44,67 @@ export function sortByCategory<T extends { category: string, subCategory: string
   })
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// Column-sort while PRESERVING the rowspan/accordion grouping. A Goals table
+// merges cells by category → sub-category (optionally nested under owner), and
+// withRowSpans only merges *consecutive* rows sharing those keys, so any
+// re-order fed into it must keep same-group rows contiguous.
+//
+// `groupLevels` lists the merge/grouping columns outer→inner (e.g.
+// ['owner','category','subCategory']). Every grouping level stays in its
+// canonical order EXCEPT the one being sorted — so the runs withRowSpans merges
+// over always remain contiguous. A sortKey that is NOT a grouping level
+// (Goal / Progress / Status, or Owner on a table that doesn't group by owner)
+// becomes the final tiebreaker, reordering only rows *inside* the innermost
+// group. sortKey '' returns the array unchanged (caller passes canonical order,
+// i.e. sortByCategory's output), so default behaviour is identical to before.
+// Relies on Array.sort being stable so equal-key rows keep their canonical order.
+export function sortGoalRows<T extends { category: string, subCategory: string, ownerId?: string }>(
+  rows: T[],
+  opts: {
+    sortKey: string
+    sortDir: 'asc' | 'desc'
+    sortType?: 'text' | 'number'
+    sortValue: (row: T) => string | number
+    groupLevels?: Array<'owner' | 'category' | 'subCategory'>
+    ownerValue?: (row: T) => string
+  },
+): T[] {
+  const { sortKey, sortDir, sortType = 'text', sortValue } = opts
+  if (!sortKey) return rows
+  const groupLevels = opts.groupLevels ?? []
+  const ownerValue = opts.ownerValue ?? ((r: T) => r.ownerId ?? '')
+  const dir = sortDir === 'desc' ? -1 : 1
+  const cmp = (a: string | number, b: string | number, type: 'text' | 'number') =>
+    type === 'number'
+      ? Number(a) - Number(b)
+      : String(a).localeCompare(String(b), undefined, { numeric: true, sensitivity: 'base' })
+  const canonical = (level: 'owner' | 'category' | 'subCategory', r: T): string | number =>
+    level === 'category'
+      ? CATEGORY_ORDER.indexOf(r.category as GoalCategory)
+      : level === 'subCategory' ? r.subCategory : ownerValue(r)
+  const targetIsGroup = (groupLevels as string[]).includes(sortKey)
+  return [...rows].sort((a, b) => {
+    for (const level of groupLevels) {
+      if (level === sortKey) {
+        const r = cmp(sortValue(a), sortValue(b), sortType) * dir
+        if (r) return r
+      }
+      else {
+        const va = canonical(level, a)
+        const vb = canonical(level, b)
+        const r = typeof va === 'number' ? va - (vb as number) : cmp(va, vb, 'text')
+        if (r) return r
+      }
+    }
+    if (!targetIsGroup) {
+      const r = cmp(sortValue(a), sortValue(b), sortType) * dir
+      if (r) return r
+    }
+    return 0
+  })
+}
+
 export interface RowSpanFields {
   showCategory: boolean
   categoryRowspan: number

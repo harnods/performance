@@ -103,6 +103,62 @@ const reprimands = computed(() =>
   (profile.value?.reprimands ?? []).filter(r => !reprimandPeriod.value || r.date.includes(reprimandPeriod.value)),
 )
 
+// ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
+// Each table on this page keeps its own sort state; a shared generic sorter
+// mirrors the reference sort exactly. Date columns sort by parsed timestamp,
+// numbers numerically, text alphabetically (numeric:true handles numeric prefixes).
+function sortRows<T>(rows: T[], key: string, dir: 'asc' | 'desc', get: (r: T, k: string) => string): T[] {
+  if (!key) return rows
+  const d = dir === 'asc' ? 1 : -1
+  return [...rows].sort((a, b) =>
+    String(get(a, key)).localeCompare(String(get(b, key)), undefined, { numeric: true, sensitivity: 'base' }) * d,
+  )
+}
+const toTime = (s: string) => String(new Date(s).getTime() || 0)
+
+// Competency accordion items (shared state → sorts within each group the same way)
+const compSortKey = ref('')
+const compSortDir = ref<'asc' | 'desc'>('asc')
+function onCompSort(key: string, dir: 'asc' | 'desc') { compSortKey.value = key; compSortDir.value = dir }
+function compValue(it: { name: string; score: number; rating: string }, key: string): string {
+  if (key === 'item') return it.name
+  if (key === 'score') return String(it.score)
+  if (key === 'rating') return it.rating
+  return ''
+}
+const sortedItems = (items: { name: string; score: number; rating: string }[]) =>
+  sortRows(items, compSortKey.value, compSortDir.value, compValue)
+
+// Transfer history
+const trSortKey = ref('')
+const trSortDir = ref<'asc' | 'desc'>('asc')
+function onTrSort(key: string, dir: 'asc' | 'desc') { trSortKey.value = key; trSortDir.value = dir }
+const sortedTransfers = computed(() =>
+  sortRows(transfers.value, trSortKey.value, trSortDir.value, (r, k) =>
+    k === 'date' ? toTime(r.date) : k === 'type' ? r.type : k === 'notes' ? r.notes : '',
+  ),
+)
+
+// Reprimand history
+const rpSortKey = ref('')
+const rpSortDir = ref<'asc' | 'desc'>('asc')
+function onRpSort(key: string, dir: 'asc' | 'desc') { rpSortKey.value = key; rpSortDir.value = dir }
+const sortedReprimands = computed(() =>
+  sortRows(reprimands.value, rpSortKey.value, rpSortDir.value, (r, k) =>
+    k === 'date' ? toTime(r.date) : k === 'type' ? r.type : k === 'reason' ? r.reason : k === 'status' ? r.status : '',
+  ),
+)
+
+// Learning & development
+const lnSortKey = ref('')
+const lnSortDir = ref<'asc' | 'desc'>('asc')
+function onLnSort(key: string, dir: 'asc' | 'desc') { lnSortKey.value = key; lnSortDir.value = dir }
+const sortedLearning = computed(() =>
+  sortRows(profile.value?.learning ?? [], lnSortKey.value, lnSortDir.value, (r, k) =>
+    k === 'course' ? r.course : k === 'org' ? r.org : k === 'completed' ? toTime(r.completed) : k === 'certificate' ? (r.certificate ? 'Yes' : 'No') : '',
+  ),
+)
+
 // ─── Performance history chart (custom, to match the design exactly) ───────────
 // Grouped thin rounded bars, no numeric y-axis, faint horizontal gridlines,
 // two-line x labels (period + date range), circle legend at the bottom.
@@ -214,8 +270,11 @@ const chevronBtn = css({ transition: 'transform 150ms', color: 'icon.default' })
 const chevronOpen = css({ transform: 'rotate(180deg)' })
 
 // tables
-const headCell = css({ whiteSpace: 'nowrap' })
-const cell = css({ verticalAlign: 'top', paddingTop: '3', paddingBottom: '3' })
+const headCell = css({ whiteSpace: 'nowrap', paddingTop: '2', paddingBottom: '2' })
+// Header label + sort menu inline (mirrors goal-cycles reference).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const cellMid = css({ verticalAlign: 'middle', paddingTop: '2', paddingBottom: '2' })
+const cellTop = css({ verticalAlign: 'top', paddingTop: '2', paddingBottom: '2' })
 // transfer item: stacked changed components (field label on top, before → after below)
 const transferItems = css({ display: 'flex', flexDirection: 'column', gap: '2' })
 const transferItem = css({ display: 'flex', flexDirection: 'column', gap: '0' })
@@ -441,16 +500,22 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
           <MpTable :is-hoverable="false">
             <MpTableHead>
               <MpTableRow>
-                <MpTableCell as="th" :class="headCell">Competency item</MpTableCell>
-                <MpTableCell as="th" :class="headCell">Actual score</MpTableCell>
-                <MpTableCell as="th" :class="headCell">Rating</MpTableCell>
+                <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                  <span :class="thInner"><span>Competency item</span><PxColumnSortMenu col-key="item" sort-type="text" :sort-key="compSortKey" :sort-dir="compSortDir" @sort-change="onCompSort" /></span>
+                </MpTableCell>
+                <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                  <span :class="thInner"><span>Actual score</span><PxColumnSortMenu col-key="score" sort-type="number" :sort-key="compSortKey" :sort-dir="compSortDir" @sort-change="onCompSort" /></span>
+                </MpTableCell>
+                <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                  <span :class="thInner"><span>Rating</span><PxColumnSortMenu col-key="rating" sort-type="text" :sort-key="compSortKey" :sort-dir="compSortDir" @sort-change="onCompSort" /></span>
+                </MpTableCell>
               </MpTableRow>
             </MpTableHead>
             <MpTableBody>
-              <MpTableRow v-for="it in g.items" :key="it.name">
-                <MpTableCell as="td" :class="cell">{{ it.name }}</MpTableCell>
-                <MpTableCell as="td" :class="[cell, css({ fontVariantNumeric: 'tabular-nums' })]">{{ it.score.toFixed(1) }}</MpTableCell>
-                <MpTableCell as="td" :class="cell">{{ it.rating }}</MpTableCell>
+              <MpTableRow v-for="it in sortedItems(g.items)" :key="it.name">
+                <MpTableCell as="td" :class="cellMid">{{ it.name }}</MpTableCell>
+                <MpTableCell as="td" :class="[cellMid, css({ fontVariantNumeric: 'tabular-nums' })]">{{ it.score.toFixed(1) }}</MpTableCell>
+                <MpTableCell as="td" :class="cellMid">{{ it.rating }}</MpTableCell>
               </MpTableRow>
             </MpTableBody>
           </MpTable>
@@ -469,17 +534,23 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
         <MpTable :is-hoverable="false">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" :class="headCell">Date</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Transfer type</MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Date</span><PxColumnSortMenu col-key="date" sort-type="date" :sort-key="trSortKey" :sort-dir="trSortDir" @sort-change="onTrSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Transfer type</span><PxColumnSortMenu col-key="type" sort-type="text" :sort-key="trSortKey" :sort-dir="trSortDir" @sort-change="onTrSort" /></span>
+              </MpTableCell>
               <MpTableCell as="th" :class="headCell">Transfer item</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Notes</MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Notes</span><PxColumnSortMenu col-key="notes" sort-type="text" :sort-key="trSortKey" :sort-dir="trSortDir" @sort-change="onTrSort" /></span>
+              </MpTableCell>
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="(r, i) in transfers" :key="i">
-              <MpTableCell as="td" :class="cell">{{ r.date }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.type }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">
+            <MpTableRow v-for="(r, i) in sortedTransfers" :key="i">
+              <MpTableCell as="td" :class="cellTop">{{ r.date }}</MpTableCell>
+              <MpTableCell as="td" :class="cellTop">{{ r.type }}</MpTableCell>
+              <MpTableCell as="td" :class="cellTop">
                 <div :class="transferItems">
                   <div v-for="(it, j) in r.items" :key="j" :class="transferItem">
                     <span :class="transferField">{{ it.field }}</span>
@@ -487,7 +558,7 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
                   </div>
                 </div>
               </MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.notes }}</MpTableCell>
+              <MpTableCell as="td" :class="cellTop">{{ r.notes }}</MpTableCell>
             </MpTableRow>
             <MpTableRow v-if="transfers.length === 0">
               <MpTableCell as="td" :colspan="4" :class="emptyText">No transfer records.</MpTableCell>
@@ -506,18 +577,26 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
         <MpTable :is-hoverable="false">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" :class="headCell">Date</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Reprimand type</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Reason</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Status</MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Date</span><PxColumnSortMenu col-key="date" sort-type="date" :sort-key="rpSortKey" :sort-dir="rpSortDir" @sort-change="onRpSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Reprimand type</span><PxColumnSortMenu col-key="type" sort-type="text" :sort-key="rpSortKey" :sort-dir="rpSortDir" @sort-change="onRpSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Reason</span><PxColumnSortMenu col-key="reason" sort-type="text" :sort-key="rpSortKey" :sort-dir="rpSortDir" @sort-change="onRpSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" sort-type="text" :sort-key="rpSortKey" :sort-dir="rpSortDir" @sort-change="onRpSort" /></span>
+              </MpTableCell>
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="(r, i) in reprimands" :key="i">
-              <MpTableCell as="td" :class="cell">{{ r.date }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.type }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.reason }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">
+            <MpTableRow v-for="(r, i) in sortedReprimands" :key="i">
+              <MpTableCell as="td" :class="cellMid">{{ r.date }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">{{ r.type }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">{{ r.reason }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">
                 <div :class="css({ display: 'flex', flexDirection: 'column', gap: '0.5' })">
                   <span :class="valueText">{{ r.status }}</span>
                   <span :class="caption">{{ r.statusNote }}</span>
@@ -538,18 +617,26 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
         <MpTable :is-hoverable="false">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" :class="headCell">Course</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Issuing organization</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Completed date</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Certificate</MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Course</span><PxColumnSortMenu col-key="course" sort-type="text" :sort-key="lnSortKey" :sort-dir="lnSortDir" @sort-change="onLnSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Issuing organization</span><PxColumnSortMenu col-key="org" sort-type="text" :sort-key="lnSortKey" :sort-dir="lnSortDir" @sort-change="onLnSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Completed date</span><PxColumnSortMenu col-key="completed" sort-type="date" :sort-key="lnSortKey" :sort-dir="lnSortDir" @sort-change="onLnSort" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="tp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Certificate</span><PxColumnSortMenu col-key="certificate" sort-type="text" :sort-key="lnSortKey" :sort-dir="lnSortDir" @sort-change="onLnSort" /></span>
+              </MpTableCell>
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="(r, i) in profile.learning" :key="i">
-              <MpTableCell as="td" :class="cell">{{ r.course }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.org }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.completed }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ r.certificate ? 'Yes' : 'No' }}</MpTableCell>
+            <MpTableRow v-for="(r, i) in sortedLearning" :key="i">
+              <MpTableCell as="td" :class="cellMid">{{ r.course }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">{{ r.org }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">{{ r.completed }}</MpTableCell>
+              <MpTableCell as="td" :class="cellMid">{{ r.certificate ? 'Yes' : 'No' }}</MpTableCell>
             </MpTableRow>
           </MpTableBody>
         </MpTable>
@@ -563,3 +650,9 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
     Employee not found.
   </div>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered `visibility: hidden` on specificity. */
+.tp-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

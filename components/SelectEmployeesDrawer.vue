@@ -46,6 +46,7 @@ const props = defineProps<{
   excludeIds?: string[]
   excludeNote?: string
   isRequired?: boolean
+  confirmLabel?: string
 }>()
 const emit = defineEmits<{
   'update:isOpen': [boolean]
@@ -116,7 +117,7 @@ function continueNext() {
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const descText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default', paddingBottom: '6' })
-const excludedNoteWrap = css({ paddingBottom: '4', alignItems: 'flex-start', '& svg': { marginRight: '20px' } })
+const excludedNoteWrap = css({ marginBottom: '6', alignItems: 'flex-start', '& svg': { marginRight: '20px' } })
 const excludedNoteText = css({ fontSize: '14px', fontWeight: '400', color: 'text.default' })
 const columns = css({ display: 'flex', gap: '6', flex: '1', minHeight: '0' })
 const column = css({ display: 'flex', flexDirection: 'column', gap: '6', flex: '1', minWidth: '0' })
@@ -248,7 +249,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
             <span v-else />
             <MpButtonGroup>
               <MpButton variant="ghost" @click="close">Cancel</MpButton>
-              <MpButton variant="primary" @click="continueNext">Continue</MpButton>
+              <MpButton variant="primary" @click="continueNext">{{ confirmLabel ?? 'Continue' }}</MpButton>
             </MpButtonGroup>
           </MpFlex>
         </MpDrawerFooter>

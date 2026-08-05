@@ -99,6 +99,21 @@ function toggleOpen() {
   isOpen.value = !isOpen.value
 }
 
+// The popover is `is-manual`, so it won't close itself on an outside click.
+// Close it whenever a pointerdown lands outside the trigger AND outside the
+// (portaled) popover content — this also dismisses it when another control
+// like the review-cycle/method popover is opened.
+const rootEl = ref<HTMLElement | null>(null)
+const contentEl = ref<HTMLElement | null>(null)
+function onDocPointerDown(e: PointerEvent) {
+  if (!isOpen.value) return
+  const t = e.target as Node
+  if (rootEl.value?.contains(t) || contentEl.value?.contains(t)) return
+  isOpen.value = false
+}
+onMounted(() => document.addEventListener('pointerdown', onDocPointerDown, true))
+onBeforeUnmount(() => document.removeEventListener('pointerdown', onDocPointerDown, true))
+
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const triggerClass = css({
   display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3',
@@ -136,7 +151,7 @@ const listRowRangeActive = css({ fontSize: '14px', color: 'white' })
 </script>
 
 <template>
-  <div :style="wrapperStyle">
+  <div ref="rootEl" :style="wrapperStyle">
     <MpPopover id="popover-advanced-date-picker" is-manual :is-open="isOpen" use-portal placement="bottom-start" @close="isOpen = false">
       <MpPopoverTrigger>
         <button type="button" :class="triggerClass" @click="toggleOpen">
@@ -146,7 +161,7 @@ const listRowRangeActive = css({ fontSize: '14px', color: 'white' })
       </MpPopoverTrigger>
 
       <MpPopoverContent :class="css({ padding: '0', overflow: 'hidden' })">
-        <div :class="pickerRoot" @click.stop>
+        <div ref="contentEl" :class="pickerRoot" @click.stop>
           <!-- Left: mode tabs -->
           <div :class="tabList">
             <button

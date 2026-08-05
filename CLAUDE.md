@@ -1,5 +1,15 @@
 # Talenta Performance — Project Rules for Claude
 
+> ## 🔴 READ FIRST — before ANY UI work
+> **[`docs/README.md`](docs/README.md) is the design-system source of truth.** Before
+> building, replicating, or changing any page/feature/component, open the matching
+> pattern doc in [`docs/patterns/`](docs/patterns/) — **tables especially**
+> ([`docs/patterns/table.md`](docs/patterns/table.md)). Then cross-check the live system:
+> `ai.mekari.design/mcp` (Pixel MCP) and the `pixel` / `implement-to-pixel` /
+> `mekari-taste` skills. Mirror existing patterns exactly — do not invent new
+> components/behaviours/CSS. The sections below are the foundational rules; the pattern
+> docs go deeper per surface.
+
 ## Stack
 - **Nuxt 3** + **Vue 3** SFC with `<script setup lang="ts">`
 - **Mekari Pixel 3** (`@mekari/pixel3`) design system
@@ -51,6 +61,13 @@ const myClass = css({
 - `MpToggle`, `MpCheckbox`, `MpRadio` — use built-in `default` and `#description` slots for labels/captions (do not wrap in external `MpFlex`)
 - Input with unit suffix: use `MpInputGroup` + `MpInputRightAddon`
 
+### Empty states
+- When a list/collection has no records, **replace** the filter bar + table with
+  a centered empty state: illustration (`public/illustrations/`) + title + caption
+  + action button. Never show an empty table shell.
+- The empty-state action button is **`variant="secondary"`** (the page's primary
+  CTA stays in the header bar). See `docs/empty-state.md` for the authoritative rule.
+
 ### Grid
 - Content area uses 12-column grid
 - Form column: `span 6 / span 6` on desktop (`lg`), `span 12 / span 12` on tablet/mobile (`base`)
@@ -59,6 +76,20 @@ const myClass = css({
 - Margin between sections: `marginTop: '10'` (top), `marginBottom: '3'` (before first field)
 
 ### Tables
+- **GOLDEN RULE — cell padding**: every table cell (`th` AND `td`) has **8px** top and bottom
+  padding (`paddingTop: '2', paddingBottom: '2'`). No exceptions — apply to every table.
+- **GOLDEN RULE — vertical alignment**: table cell content is **`verticalAlign: 'middle'` by
+  default**. It becomes **`verticalAlign: 'top'` for the WHOLE table** only when at least one
+  column stacks **3 or more lines** in a single cell. 1 or 2 lines → still middle.
+  - Example (align top, because this one cell is 3 lines):
+    ```
+    Name
+    Job title
+    Organization
+    ```
+  - A cell with just a name (1 line), or name + code (2 lines) → the table stays middle.
+  - The decision is per-table: if any column hits ≥3 lines, ALL cells in that table go top.
+  - See `docs/table-design.md` for the authoritative rule + rationale.
 - Row hover state ONLY when the row is interactive (clickable → opens detail / navigates).
   For read-only / display tables, disable it with `<MpTable :is-hoverable="false">` — a hover
   highlight implies clickability that isn't there.

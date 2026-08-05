@@ -40,10 +40,27 @@ const cycle = computed(() => cycles.value.find(c => c.id === props.cycleId))
 const { submissions } = useGoalApprovalsStore(props.cycleId)
 const { currentUserId } = useCurrentUser()
 
-const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal update'] as const
+const TYPE_OPTIONS = ['Create goal', 'Edit goal', 'Update goal progress', 'Delete goal'] as const
+const TYPE_LABEL = { create: 'Create goal', edit: 'Edit goal', progress: 'Update goal progress', delete: 'Delete goal' } as const
 
+// A progress-only edit touches just the goal's value/progress, not its
+// definition — so it reads as "Update goal progress" rather than "Edit goal".
+function isProgressOnly(item: Submission['items'][number]): boolean {
+  const b = item.before as Record<string, unknown> | undefined
+  const a = item.after as Record<string, unknown> | undefined
+  if (item.type !== 'edit' || !b || !a) return false
+  const defKeys = ['title', 'weight', 'category', 'subCategory', 'code', 'level', 'unit', 'min', 'max']
+  const defSame = defKeys.every(k => b[k] === a[k])
+  const progressChanged = b.value !== a.value || b.pill !== a.pill
+  return defSame && progressChanged
+}
 function typeLabelFor(submission: Submission): string {
-  return submission.items.some(i => i.type === 'create') ? 'Goal creation' : 'Goal update'
+  const types = submission.items.map(i => i.type)
+  if (types.includes('create')) return TYPE_LABEL.create
+  const edits = submission.items.filter(i => i.type === 'edit')
+  if (edits.length && edits.every(isProgressOnly)) return TYPE_LABEL.progress
+  if (types.includes('edit')) return TYPE_LABEL.edit
+  return TYPE_LABEL.delete
 }
 
 const myRequests = computed(() => submissions.value.filter(s => s.ownerId === currentUserId.value))
@@ -62,22 +79,45 @@ function openSubmission(id: string) {
   router.push({ path: `/goals/goal-cycles/${props.cycleId}/awaiting-approval/${id}`, query: { cycleName: cycle.value?.name } })
 }
 
+// ─── Column sort (PxColumnSortMenu). sortKey '' = default (submittedAt desc). ─
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = { type: 'text', date: 'date', status: 'text' }
+function sortValue(s: Submission, key: string): string {
+  if (key === 'type') return typeLabelFor(s)
+  if (key === 'date') return s.submittedAt
+  if (key === 'status') return statusLabel(s.status)
+  return ''
+}
+const sortedRequests = computed(() => {
+  if (!sortKey.value) return filteredRequests.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredRequests.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+
 // ─── Styles — mirrors GoalApprovalQueue.vue's own filter-bar + table classes.
 const wrap = css({ display: 'flex', flexDirection: 'column', gap: '6' })
 const typeFieldClass = css({ width: '200px', cursor: 'pointer', '& select': { pointerEvents: 'none' } })
-// Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
-// — a flatter '2' reads as the narrow/dense table variant and made
-// single-line rows look too short.
-const tightCell = css({ paddingTop: '4', paddingBottom: '4' })
+// Golden rule: 8px top/bottom on every cell. Every column here is a single line
+// (Type / Date / Status badge / action button) → whole table verticalAlign middle.
+const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-// A button already carries its own vertical padding (md size ≈ 36px tall
-// including it) — stacking the full 16px text-cell padding on top of that
-// made the row noticeably taller than its plain-text siblings. 8px here
-// instead brings the button cell's total height back in line with theirs.
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
+// Full empty state (no requests at all) — follows docs/empty-state.md.
+const emptyStateFull = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 
 function statusLabel(status: Submission['status']) {
   if (status === 'approved') return 'Approved'
@@ -96,6 +136,16 @@ function statusType(status: Submission['status']) {
 
 <template>
   <div :class="wrap">
+    <!-- Empty state: the viewer has no requests in this cycle at all -->
+    <MpFlex v-if="myRequests.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateFull">
+      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+        <MpText :class="emptyTitle">No requests yet</MpText>
+        <MpText size="label" :class="captionText">Requests you submit — creating, editing, or updating goals — will appear here.</MpText>
+      </MpFlex>
+    </MpFlex>
+
+    <template v-else>
     <!-- Filter bar -->
     <MpFlex align="center" gap="4">
       <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start">
@@ -121,19 +171,25 @@ function statusType(status: Submission['status']) {
       <MpTable :is-hoverable="false">
         <MpTableHead>
           <MpTableRow>
-            <MpTableCell as="th">Type</MpTableCell>
-            <MpTableCell as="th">Date</MpTableCell>
-            <MpTableCell as="th">Status</MpTableCell>
-            <MpTableCell as="th" :class="actionHead" />
+            <MpTableCell as="th" class="gmr-sort-th" :class="headCell">
+              <span :class="thInner"><span>Type</span><PxColumnSortMenu col-key="type" :sort-type="columnSortTypes.type" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" class="gmr-sort-th" :class="headCell">
+              <span :class="thInner"><span>Date</span><PxColumnSortMenu col-key="date" :sort-type="columnSortTypes.date" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" class="gmr-sort-th" :class="headCell">
+              <span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" :class="[headCell, actionHead]" />
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>
           <MpTableRow v-if="filteredRequests.length === 0">
             <MpTableCell as="td" colspan="4" :class="[tightCell, emptyStateWrap]">
-              <MpText size="label" :class="captionText">You haven't submitted any requests for this cycle yet.</MpText>
+              <MpText size="label" :class="captionText">No requests match this filter.</MpText>
             </MpTableCell>
           </MpTableRow>
-          <MpTableRow v-for="request in filteredRequests" :key="request.id">
+          <MpTableRow v-for="request in sortedRequests" :key="request.id">
             <MpTableCell as="td" :class="tightCell">
               <MpTextlink as="button" @click="openSubmission(request.id)">{{ typeLabelFor(request) }}</MpTextlink>
             </MpTableCell>
@@ -150,5 +206,11 @@ function statusType(status: Submission['status']) {
         </MpTableBody>
       </MpTable>
     </MpTableContainer>
+    </template>
   </div>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover — UNLAYERED (see goal-cycles/index.vue). */
+.gmr-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

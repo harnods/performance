@@ -283,16 +283,42 @@ const filteredEmployees = computed(() => {
   )
 })
 
+// ─── Column sort (PxColumnSortMenu) — employee-level columns only, so the
+//     rowspan-merged employee cells stay intact (period rows are never reordered). ─
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  employee: 'text',
+  reviewers: 'number',
+  weight: 'text',
+}
+function empSortValue(emp: TfEmployee, key: string): string | number {
+  if (key === 'employee') return emp.name
+  if (key === 'reviewers') return methodReviewerCount(emp)
+  if (key === 'weight') return weightLabel(emp)
+  return ''
+}
+const sortedEmployees = computed<TfEmployee[]>(() => {
+  if (!sortKey.value) return filteredEmployees.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredEmployees.value].sort((a, b) =>
+    String(empSortValue(a, sortKey.value)).localeCompare(
+      String(empSortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 const pageSize = ref('10')
 const currentPage = ref(1)
 
 const pageSizeNum = computed(() => Number(pageSize.value))
-const totalEmployees = computed(() => filteredEmployees.value.length)
+const totalEmployees = computed(() => sortedEmployees.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalEmployees.value / pageSizeNum.value)))
 
 const paginatedEmployees = computed(() => {
   const start = (currentPage.value - 1) * pageSizeNum.value
-  return filteredEmployees.value.slice(start, start + pageSizeNum.value)
+  return sortedEmployees.value.slice(start, start + pageSizeNum.value)
 })
 
 const startItem = computed(() =>
@@ -311,7 +337,8 @@ const captionText = css({ color: 'text.secondary' })
 const labelText = css({ color: 'text.secondary' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
-const thCell = css({ bg: 'background.neutral.hovered' })
+const thCell = css({ bg: 'background.neutral.hovered', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const empCell = css({
   borderRightWidth: '1px',
   borderRightStyle: 'solid',
@@ -521,15 +548,20 @@ function confirmRemoveEmployee() {
       <MpTable :is-hoverable="false" :class="css({ tableLayout: 'fixed', width: '100%' })">
         <MpTableHead>
           <MpTableRow>
-            <MpTableCell as="th" :class="[thCell, css({ width: '22%' })]">Employee</MpTableCell>
+            <MpTableCell as="th" class="sort-th" :class="[thCell, css({ width: '22%' })]">
+              <span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="employee" :sort-type="columnSortTypes.employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
             <MpTableCell v-if="!isSinglePeriod" as="th" :class="[thCell, css({ width: '7%' })]">Period</MpTableCell>
             <MpTableCell as="th" :class="[thCell, css({ width: '13%' })]">Review window</MpTableCell>
-            <MpTableCell as="th" :class="[thCell, css({ width: '9%' })]">Reviewers</MpTableCell>
-            <MpTableCell v-if="showWeightColumn" as="th" :class="[thCell, css({ width: '14%' })]">
-              <MpFlex align="center" gap="1">
+            <MpTableCell as="th" class="sort-th" :class="[thCell, css({ width: '9%' })]">
+              <span :class="thInner"><span>Reviewers</span><PxColumnSortMenu col-key="reviewers" :sort-type="columnSortTypes.reviewers" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell v-if="showWeightColumn" as="th" class="sort-th" :class="[thCell, css({ width: '14%' })]">
+              <span :class="thInner">
                 <span>Reviewer weight</span>
                 <MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', flexShrink: '0' })" />
-              </MpFlex>
+                <PxColumnSortMenu col-key="weight" :sort-type="columnSortTypes.weight" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" />
+              </span>
             </MpTableCell>
             <MpTableCell as="th" :class="[thCell, css({ width: '12%' })]">Status</MpTableCell>
             <MpTableCell as="th" :class="thCell" />
@@ -611,7 +643,7 @@ function confirmRemoveEmployee() {
                 </MpFlex>
               </MpTableCell>
 
-              <MpTableCell as="td" />
+              <MpTableCell as="td" :class="tightCell" />
 
               <MpTableCell as="td" :class="actionCell">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
@@ -767,3 +799,9 @@ function confirmRemoveEmployee() {
     </MpModalContent>
   </MpModal>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
+.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

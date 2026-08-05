@@ -25,6 +25,7 @@ import {
   MpInput,
   MpIcon,
   MpText,
+  MpTextlink,
   MpBadge,
   MpTable,
   MpTableContainer,
@@ -66,16 +67,18 @@ definePageMeta({ title: 'Goal cycles' })
 
 const router = useRouter()
 const { cycles, addCycle, updateCycle, deleteCycle } = useGoalCyclesStore()
-const { deleteGoalsByCycle } = useGoalsStore()
+const { deleteGoalsByCycle, goals: allGoals } = useGoalsStore()
+// A goal cycle can only be deleted while it's empty — any goal (draft included)
+// blocks deletion.
+function cycleHasGoals(id: string) { return allGoals.value.some(g => g.cycleId === id) }
 
 const statusBadgeType: Record<GoalCycleStatus, 'completed' | 'announcement'> = {
-  'Current goal': 'completed',
-  'Inactive goals': 'announcement',
-  'Past goal': 'announcement',
+  Active: 'completed',
+  Inactive: 'announcement',
 }
 
 // Filtering + search
-const statusOptions: GoalCycleStatus[] = ['Current goal', 'Inactive goals', 'Past goal']
+const statusOptions: GoalCycleStatus[] = ['Active', 'Inactive']
 const statusFilter = ref('')
 const search = ref('')
 
@@ -94,16 +97,42 @@ const filteredCycles = computed(() => {
   return result
 })
 
+// ─── Column sort (behaviour from dona/erp-app's ErpColumnSortMenu) ───────────
+// sortKey '' = default order (the store already sorts by period, latest first).
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  name: 'text',
+  period: 'date', // sort chronologically by the cycle's start date
+  status: 'text',
+}
+function sortValue(c: GoalCycle, key: string): string {
+  if (key === 'name') return c.name
+  if (key === 'period') return c.startDate
+  if (key === 'status') return c.status
+  return ''
+}
+const sortedCycles = computed(() => {
+  if (!sortKey.value) return filteredCycles.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredCycles.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 // Pagination
 const rowsPerPage = ref(10)
 const rowsPerPageOptions = [10, 25, 50, 100]
-const totalRows = computed(() => filteredCycles.value.length)
+const totalRows = computed(() => sortedCycles.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRows.value / rowsPerPage.value)))
 const currentPage = ref(1)
 const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
 
-const pagedCycles = computed(() => filteredCycles.value.slice(showingFrom.value - 1, showingTo.value))
+const pagedCycles = computed(() => sortedCycles.value.slice(showingFrom.value - 1, showingTo.value))
 
 watch([statusFilter, search], () => { currentPage.value = 1 })
 
@@ -119,6 +148,16 @@ const weightMandatory = ref(true)
 const errors = reactive({ name: false, period: false })
 watch(cycleName, () => { errors.name = false })
 watch(cyclePeriod, () => { errors.period = false })
+
+function openHelp() {
+  toast.notify({
+    id: 'goal-cycles-help',
+    position: 'top-center',
+    variant: 'info',
+    title: 'Goal cycles help',
+    description: 'A goal cycle defines the period your team sets and tracks goals in. Create one, then add goals under it.',
+  })
+}
 
 function openDrawer() {
   editingCycleId.value = null
@@ -184,6 +223,17 @@ const deleteModalOpen = ref(false)
 const cycleToDelete = ref<GoalCycle | null>(null)
 
 function askDelete(cycle: GoalCycle) {
+  // Block deletion while the cycle still has goals (drafts count too).
+  if (cycleHasGoals(cycle.id)) {
+    toast.notify({
+      id: 'goal-cycle-has-goals',
+      position: 'top-center',
+      variant: 'error',
+      title: 'Can’t delete this goal cycle',
+      description: 'This goal cycle still has goals in it. Delete all its goals (including drafts) first.',
+    })
+    return
+  }
   cycleToDelete.value = cycle
   deleteModalOpen.value = true
 }
@@ -202,12 +252,25 @@ function confirmDelete() {
   cycleToDelete.value = null
 }
 
+// ─── Empty-state preview (demo FAB) ──────────────────────────────────────────
+// A floating toggle to preview the "no goal cycle yet" scenario even when the
+// mini-DB is seeded — purely a prototype affordance, not a real feature. The
+// empty state also shows for real once every cycle has been deleted.
+const previewEmpty = ref(false)
+const showEmptyState = computed(() => previewEmpty.value || cycles.value.length === 0)
+
 // mekari-way table helpers
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+// Header label + sort menu inline (mirrors erp-app's .rcvg-th-inner).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
+// Goal cycle name — a textlink that navigates to the cycle detail; underlines
+// on hover (the whole row is clickable too, so this stops propagation).
+const nameLink = css({ color: 'text.link', cursor: 'pointer', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 // Whole row navigates to the cycle detail (matches the Actions → View details).
 const clickableRow = css({ cursor: 'pointer', _hover: { background: 'background.neutral.subtle' } })
 
@@ -215,15 +278,44 @@ const clickableRow = css({ cursor: 'pointer', _hover: { background: 'background.
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '5', width: '100%' })
 const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const selectWidth = '100%'
+
+// Empty state — mirrors the goal-cycle detail "No goals in this cycle yet"
+// pattern (illustration + title + caption + primary action).
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
+// Floating demo toggle (bottom-right) to preview the empty state — a round,
+// black, icon-only FAB.
+const fab = css({
+  position: 'fixed', bottom: '24px', right: '24px', zIndex: '20',
+  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  width: '48px', height: '48px', borderRadius: 'full',
+  background: 'gray.900', color: 'white', border: 'none',
+  boxShadow: 'lg', cursor: 'pointer',
+  _hover: { background: 'gray.800' },
+})
 </script>
 
 <template>
   <MpFlex direction="column" gap="6">
     <!-- Page header actions (rendered in the layout title bar, right of H1) -->
     <Teleport to="#page-header-actions" defer>
+      <MpButton variant="secondary" @click="openHelp">Help</MpButton>
       <MpButton variant="primary" @click="openDrawer">New goal cycle</MpButton>
     </Teleport>
 
+    <!-- Empty state: no goal cycle yet (real, or previewed via the demo FAB) -->
+    <MpFlex v-if="showEmptyState" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+        <MpText :class="emptyTitle">No goal cycle yet</MpText>
+        <MpText size="label" :class="captionText">Create a goal cycle to start setting goals for your team. Goal cycles you add will appear here.</MpText>
+      </MpFlex>
+      <MpButton variant="secondary" @click="openDrawer">New goal cycle</MpButton>
+    </MpFlex>
+
+    <template v-else>
     <!-- Filter bar -->
     <MpFlex align="center" justify="space-between" gap="4">
       <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start">
@@ -270,9 +362,15 @@ const selectWidth = '100%'
         <MpTable :is-hoverable="false">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th">Goal cycle name</MpTableCell>
-              <MpTableCell as="th">Goal period</MpTableCell>
-              <MpTableCell as="th">Status</MpTableCell>
+              <MpTableCell as="th" class="gc-sort-th" :class="headCell">
+                <span :class="thInner"><span>Goal cycle name</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="gc-sort-th" :class="headCell">
+                <span :class="thInner"><span>Goal period</span><PxColumnSortMenu col-key="period" :sort-type="columnSortTypes.period" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="gc-sort-th" :class="headCell">
+                <span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
           </MpTableHead>
@@ -283,8 +381,14 @@ const selectWidth = '100%'
               :class="clickableRow"
               @click="router.push({ path: `/goals/goal-cycles/${cycle.id}`, query: { name: cycle.name } })"
             >
-              <MpTableCell as="td" :class="tightCell">
-                <MpText size="label" :class="valueText">{{ cycle.name }}</MpText>
+              <MpTableCell as="td" :class="tightCell" @click.stop>
+                <MpTextlink
+                  as="a"
+                  :class="nameLink"
+                  @click="router.push({ path: `/goals/goal-cycles/${cycle.id}`, query: { name: cycle.name } })"
+                >
+                  {{ cycle.name }}
+                </MpTextlink>
               </MpTableCell>
               <MpTableCell as="td" :class="tightCell">
                 <MpText size="label" :class="valueText">{{ cycle.period }}</MpText>
@@ -362,6 +466,22 @@ const selectWidth = '100%'
         </div>
       </div>
     </MpFlex>
+    </template>
+
+    <!-- Demo-only FAB: round black icon button → scenario picker popover -->
+    <MpPopover is-close-on-select use-portal placement="top-end">
+      <MpPopoverTrigger>
+        <button type="button" :class="fab" title="Preview scenario" aria-label="Preview scenario">
+          <MpIcon name="burger" />
+        </button>
+      </MpPopoverTrigger>
+      <MpPopoverContent>
+        <MpPopoverList>
+          <MpPopoverListItem :is-active="!previewEmpty" @click="previewEmpty = false">Default</MpPopoverListItem>
+          <MpPopoverListItem :is-active="previewEmpty" @click="previewEmpty = true">Empty state</MpPopoverListItem>
+        </MpPopoverList>
+      </MpPopoverContent>
+    </MpPopover>
   </MpFlex>
 
   <!-- New goal cycle drawer -->
@@ -476,3 +596,11 @@ const selectWidth = '100%'
   </MpModal>
   </ClientOnly>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. Kept as an UNLAYERED scoped rule
+   (not a Panda css() @layer utility) so it beats PxColumnSortMenu's unlayered
+   scoped `visibility: hidden` on specificity — a layered rule would always lose
+   to that unlayered base. Mirrors erp-app's `.rcvg-th:hover :deep(.erp-sort-btn)`. */
+.gc-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

@@ -43,10 +43,34 @@ const detail = {
   ],
 }
 
+// ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
+// Group-name column + each level column (keyed col:<index>) sortable; rating
+// labels carry a numeric prefix so text sort with numeric:true orders them well.
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+function sortValue(g: (typeof detail.groups)[number], key: string): string {
+  if (key === 'name') return g.name
+  if (key.startsWith('col:')) return g.ratings[Number(key.slice(4))] ?? ''
+  return ''
+}
+const sortedGroups = computed(() => {
+  if (!sortKey.value) return detail.groups
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...detail.groups].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 const labelText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const h2Class = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const headCell = css({ paddingTop: '2', paddingBottom: '2' })
+// Header label + sort menu inline (mirrors goal-cycles reference).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
 </script>
 
@@ -87,12 +111,16 @@ const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
         <MpTable>
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th">Group name</MpTableCell>
-              <MpTableCell v-for="col in detail.columns" :key="col" as="th">{{ col }}</MpTableCell>
+              <MpTableCell as="th" class="cmx-sort-th" :class="headCell">
+                <span :class="thInner"><span>Group name</span><PxColumnSortMenu col-key="name" sort-type="text" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-for="(col, ci) in detail.columns" :key="col" as="th" class="cmx-sort-th" :class="headCell">
+                <span :class="thInner"><span>{{ col }}</span><PxColumnSortMenu :col-key="`col:${ci}`" sort-type="text" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="g in detail.groups" :key="g.name">
+            <MpTableRow v-for="g in sortedGroups" :key="g.name">
               <MpTableCell as="td" :class="tightCell">
                 <MpText size="label" :class="valueText">{{ g.name }}</MpText>
               </MpTableCell>
@@ -106,3 +134,9 @@ const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
     </MpFlex>
   </MpFlex>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered `visibility: hidden` on specificity. */
+.cmx-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

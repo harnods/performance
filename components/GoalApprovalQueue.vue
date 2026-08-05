@@ -78,20 +78,38 @@ function openSubmission(id: string) {
   router.push({ path: `/goals/goal-cycles/${props.cycleId}/awaiting-approval/${id}`, query: { cycleName: cycle.value?.name } })
 }
 
+// ─── Column sort (PxColumnSortMenu). sortKey '' = default (submittedAt asc). ──
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = { employee: 'text', type: 'text', date: 'date' }
+function sortValue(s: Submission, key: string): string {
+  if (key === 'employee') return employeeById(s.ownerId)?.name ?? s.ownerId
+  if (key === 'type') return typeLabelFor(s)
+  if (key === 'date') return s.submittedAt
+  return ''
+}
+const sortedSubmissions = computed(() => {
+  if (!sortKey.value) return filteredSubmissions.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredSubmissions.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 // ─── Styles — mirrors pages/goals/goal-cycles/index.vue's own filter-bar +
 // table classes exactly, so this reads as the same index-page pattern.
 const wrap = css({ display: 'flex', flexDirection: 'column', gap: '6' })
 const typeFieldClass = css({ width: '200px', cursor: 'pointer', '& select': { pointerEvents: 'none' } })
-// Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
-// — a flatter '2' reads as the narrow/dense table variant and made
-// single-line rows look too short.
-const tightCell = css({ paddingTop: '4', paddingBottom: '4' })
+// Golden rule: 8px top/bottom on every cell. Tallest body cell is the Employee
+// column (name + "code · title") = 2 lines → whole table verticalAlign middle.
+const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-// A button already carries its own vertical padding (md size ≈ 36px tall
-// including it) — stacking the full 16px text-cell padding on top of that
-// made the row noticeably taller than its plain-text siblings. 8px here
-// instead brings the button cell's total height back in line with theirs.
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
@@ -133,10 +151,16 @@ const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
       <MpTable :is-hoverable="false">
         <MpTableHead>
           <MpTableRow>
-            <MpTableCell as="th">Employee</MpTableCell>
-            <MpTableCell as="th">Type</MpTableCell>
-            <MpTableCell as="th">Date</MpTableCell>
-            <MpTableCell as="th" :class="actionHead" />
+            <MpTableCell as="th" class="gaq-sort-th" :class="headCell">
+              <span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="employee" :sort-type="columnSortTypes.employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" class="gaq-sort-th" :class="headCell">
+              <span :class="thInner"><span>Type</span><PxColumnSortMenu col-key="type" :sort-type="columnSortTypes.type" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" class="gaq-sort-th" :class="headCell">
+              <span :class="thInner"><span>Date</span><PxColumnSortMenu col-key="date" :sort-type="columnSortTypes.date" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+            </MpTableCell>
+            <MpTableCell as="th" :class="[headCell, actionHead]" />
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>
@@ -145,7 +169,7 @@ const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
               <MpText size="label" :class="captionText">Nothing waiting on your approval right now.</MpText>
             </MpTableCell>
           </MpTableRow>
-          <MpTableRow v-for="submission in filteredSubmissions" :key="submission.id">
+          <MpTableRow v-for="submission in sortedSubmissions" :key="submission.id">
             <MpTableCell as="td" :class="tightCell">
               <MpFlex direction="column" gap="0">
                 <MpText size="label" :class="valueText">{{ employeeById(submission.ownerId)?.name ?? submission.ownerId }}</MpText>
@@ -167,3 +191,8 @@ const emptyStateWrap = css({ paddingY: '16', textAlign: 'center' })
     </MpTableContainer>
   </div>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover — UNLAYERED (see goal-cycles/index.vue). */
+.gaq-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

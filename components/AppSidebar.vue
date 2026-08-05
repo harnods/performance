@@ -14,19 +14,9 @@ interface NavItem {
 
 const group1: NavItem[] = [
   { icon: 'home', label: 'Home', path: '/' },
-  {
-    icon: 'inbox', label: 'Inbox',
-    children: [
-      { label: 'Notifications', path: '/inbox/notifications' },
-      {
-        label: 'Awaiting approval',
-        children: [
-          { label: 'Reviews', path: '/inbox/awaiting-approval/reviews' },
-          { label: 'Goals', path: '/inbox/awaiting-approval/goals' },
-        ],
-      },
-    ],
-  },
+  // Inbox intentionally omitted from the sidebar — its only entry point is the
+  // header bar (AppHeader). The /inbox/* routes still exist and are reachable
+  // from there.
   { icon: 'dashboard', label: 'Dashboard', path: '/dashboard' },
   { icon: 'reports', label: 'Reports', path: '/reports' },
 ]
@@ -102,8 +92,26 @@ const group3: NavItem[] = [
   },
 ]
 
+// Inbox has no level-1 rail icon (its only entry point is the header), but it
+// DOES own a level-2 submenu. So it's excluded from allGroups (rendered rail)
+// yet included in allItems so activeParent/leaf-path detection lights up the
+// level-2 panel when you're on an /inbox route.
+const inboxItem: NavItem = {
+  icon: 'inbox', label: 'Inbox',
+  children: [
+    { label: 'Notifications', path: '/inbox/notifications' },
+    {
+      label: 'Awaiting approval',
+      children: [
+        { label: 'Goals', path: '/inbox/awaiting-approval/goals' },
+        { label: 'Reviews', path: '/inbox/awaiting-approval/reviews' },
+      ],
+    },
+  ],
+}
+
 const allGroups = computed(() => [group1, group2.value, group3])
-const allItems = computed(() => [...group1, ...group2.value, ...group3])
+const allItems = computed(() => [...group1, ...group2.value, ...group3, inboxItem])
 
 const isChild = (item: PanelItem): item is NavChild => !('divider' in item)
 
@@ -182,7 +190,10 @@ const railBoxSubmenu = css({
   ...railBoxBase, bg: 'background.nav.parent', position: 'relative', zIndex: 1,
   borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default',
 })
-const railBoxOnly = css({ ...railBoxBase, bg: 'background.nav.parent' })
+// Rail with NO level-2 panel: match the base app background (same as full mode,
+// which has no bg and lets background.surface show through). The nav.parent
+// tint is only for the layered look when a submenu panel sits beside it.
+const railBoxOnly = css({ ...railBoxBase, bg: 'background.surface' })
 
 const panelBase = css({
   display: 'flex', flexDirection: 'column', h: '100%', flexShrink: 0,
@@ -391,7 +402,9 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
             <div v-if="gi > 0" :class="groupDivider" style="width: 40px" />
             <div :class="railGroup" :style="gi === 0 ? { paddingTop: '16px' } : {}">
               <template v-for="item in group" :key="item.label">
-                <MpPopover v-if="item.children" trigger="hover" placement="right-start">
+                <!-- Active parent has no hover flyout in submenu mode — its
+                     children are already shown in the level-2 panel. -->
+                <MpPopover v-if="item.children && !isItemActive(item)" trigger="hover" placement="right-start">
                   <MpPopoverTrigger>
                     <NuxtLink
                       :to="itemTarget(item)"

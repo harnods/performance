@@ -159,6 +159,28 @@ const competencyScore = computed(() => {
   const rows = assessmentResult.value
   return rows.length ? +(rows.reduce((s, r) => s + r.score, 0) / rows.length).toFixed(1) : 0
 })
+// ─── Column sort for the results table (PxColumnSortMenu). Sorts only the table
+// rows — the radar (radarData) keeps consuming assessmentResult unsorted. ──────
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = { group: 'text', score: 'number', target: 'number', gap: 'number' }
+function sortValue(r: { group: string, score: number, target: number, gap: number }, key: string): string | number {
+  if (key === 'group') return r.group
+  if (key === 'score') return r.score
+  if (key === 'target') return r.target
+  if (key === 'gap') return r.gap
+  return ''
+}
+const sortedResult = computed(() => {
+  if (!sortKey.value) return assessmentResult.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...assessmentResult.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
 // Radar expects { label, score, target } — map `group` → `label`.
 const radarData = computed(() => assessmentResult.value.map(r => ({ label: r.group, score: r.score, target: r.target })))
 const gapLabel = (g: number) => `${g > 0 ? '+' : ''}${g.toFixed(1)}`
@@ -272,9 +294,14 @@ const scoreBig = css({ fontSize: '24px', fontWeight: '600', lineHeight: '32px', 
 const scoreMax = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 
 // Result table (numeric columns right-aligned; gap cell tinted by sign)
-const numHead = css({ textAlign: 'right', whiteSpace: 'nowrap' })
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const numCellBase = { paddingTop: '2', paddingBottom: '2', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
+// Golden rule: 8px top/bottom on every cell; tallest cell is 1 line → middle.
+const numHead = css({ textAlign: 'right', whiteSpace: 'nowrap', paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+// Header label + sort menu inline; right-aligned numeric headers reverse so the
+// icon sits to the left of the (right-anchored) label.
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const thInnerRight = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle', flexDirection: 'row-reverse' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const numCellBase = { paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 const numCell = css(numCellBase)
 const gapNeg = css({ ...numCellBase, background: 'red.50', color: 'red.700' })
 const gapPos = css({ ...numCellBase, background: 'green.50', color: 'green.700' })
@@ -413,14 +440,22 @@ const gapCellClass = (g: number) => (g < 0 ? gapNeg : g > 0 ? gapPos : numCell)
                   <MpTable :is-hoverable="false">
                     <MpTableHead>
                       <MpTableRow>
-                        <MpTableCell as="th">Competency group</MpTableCell>
-                        <MpTableCell as="th" :class="numHead">Score</MpTableCell>
-                        <MpTableCell as="th" :class="numHead">Target</MpTableCell>
-                        <MpTableCell as="th" :class="numHead">Gap</MpTableCell>
+                        <MpTableCell as="th" class="ed-sort-th" :class="tightCell">
+                          <span :class="thInner"><span>Competency group</span><PxColumnSortMenu col-key="group" :sort-type="columnSortTypes.group" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                        </MpTableCell>
+                        <MpTableCell as="th" class="ed-sort-th" :class="numHead">
+                          <span :class="thInnerRight"><span>Score</span><PxColumnSortMenu col-key="score" :sort-type="columnSortTypes.score" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                        </MpTableCell>
+                        <MpTableCell as="th" class="ed-sort-th" :class="numHead">
+                          <span :class="thInnerRight"><span>Target</span><PxColumnSortMenu col-key="target" :sort-type="columnSortTypes.target" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                        </MpTableCell>
+                        <MpTableCell as="th" class="ed-sort-th" :class="numHead">
+                          <span :class="thInnerRight"><span>Gap</span><PxColumnSortMenu col-key="gap" :sort-type="columnSortTypes.gap" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                        </MpTableCell>
                       </MpTableRow>
                     </MpTableHead>
                     <MpTableBody>
-                      <MpTableRow v-for="r in assessmentResult" :key="r.group">
+                      <MpTableRow v-for="r in sortedResult" :key="r.group">
                         <MpTableCell as="td" :class="tightCell">{{ r.group }}</MpTableCell>
                         <MpTableCell as="td" :class="numCell">{{ num1(r.score) }}</MpTableCell>
                         <MpTableCell as="td" :class="numCell">{{ num1(r.target) }}</MpTableCell>
@@ -450,3 +485,8 @@ const gapCellClass = (g: number) => (g < 0 ? gapNeg : g > 0 ? gapPos : numCell)
     </div>
   </Teleport>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover — UNLAYERED (see goal-cycles/index.vue). */
+.ed-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

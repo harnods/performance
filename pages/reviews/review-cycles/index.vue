@@ -29,6 +29,7 @@ import {
   MpPopoverContent,
   MpPopoverList,
   MpPopoverListItem,
+  toast,
   css,
 } from '@mekari/pixel3'
 
@@ -54,17 +55,9 @@ const purposeFieldClass = css({
 
 const search = ref('')
 
-type CyclePurpose = 'performance' | 'competency' | 'evaluation'
+import type { CyclePurpose, ReviewCycle } from '~/composables/useReviewCyclesStore'
 
-interface Cycle {
-  name: string
-  purpose: CyclePurpose
-  repeat: string
-  nextStart: string | null
-  repeatCaption: string | null
-  total: number
-  done: number
-}
+type Cycle = ReviewCycle
 
 const purposeIcon: Record<CyclePurpose, string> = {
   performance: 'performance',
@@ -78,38 +71,7 @@ const purposeLabel: Record<CyclePurpose, string> = {
   evaluation: 'Evaluation review',
 }
 
-const cycles = ref<Cycle[]>([
-  { name: 'Mid Year Performance Review 2024', purpose: 'performance', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 1 },
-  { name: 'Annual Performance Review 2024', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Jul 2025', repeatCaption: null, total: 3, done: 3 },
-  { name: 'Core Competency Assessment Q3', purpose: 'competency', repeat: 'Repeats quarterly', nextStart: 'Oct 2024', repeatCaption: null, total: 5, done: 1 },
-  { name: 'Probation Evaluation - July 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 3, done: 1 },
-  { name: 'Leadership Competency Review', purpose: 'competency', repeat: 'Repeats yearly', nextStart: 'Jan 2025', repeatCaption: null, total: 4, done: 2 },
-  { name: 'Sales Performance Review Q2', purpose: 'performance', repeat: 'Repeats quarterly', nextStart: 'Oct 2024', repeatCaption: null, total: 8, done: 8 },
-  { name: 'Manager Evaluation 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 3, done: 1 },
-  { name: 'New Joiner Probation Evaluation', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 3, done: 2 },
-  { name: 'Technical Competency Mapping', purpose: 'competency', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 0 },
-  { name: 'End-of-Year Performance Review', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Dec 2025', repeatCaption: null, total: 4, done: 3 },
-  { name: 'Engineering Competency Review H1', purpose: 'competency', repeat: 'Repeats yearly', nextStart: 'Jan 2025', repeatCaption: null, total: 3, done: 3 },
-  { name: 'Product Team Performance Q1', purpose: 'performance', repeat: 'Repeats quarterly', nextStart: 'Apr 2025', repeatCaption: null, total: 6, done: 2 },
-  { name: 'Internship Evaluation - Batch 3', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 3, done: 3 },
-  { name: 'Finance Competency Assessment', purpose: 'competency', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 0 },
-  { name: 'Customer Success Performance H2', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Jan 2025', repeatCaption: null, total: 2, done: 1 },
-  { name: 'Operations Evaluation Q3', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 3, done: 1 },
-  { name: 'HR Business Partner Review', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Jul 2025', repeatCaption: null, total: 3, done: 3 },
-  { name: 'Data Team Competency Check', purpose: 'competency', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 0 },
-  { name: 'Annual Manager Evaluation 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 3, done: 1 },
-  { name: 'Sales Competency Review Q4', purpose: 'competency', repeat: 'Repeats quarterly', nextStart: 'Jan 2025', repeatCaption: null, total: 4, done: 0 },
-  { name: 'Design Team Performance Review', purpose: 'performance', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 1 },
-  { name: 'Probation Evaluation - August 2024', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 3, done: 1 },
-  { name: 'Leadership Performance Assessment', purpose: 'performance', repeat: 'Repeats yearly', nextStart: 'Jul 2025', repeatCaption: null, total: 4, done: 2 },
-  { name: 'Cross-functional Competency Audit', purpose: 'competency', repeat: 'Does not repeat', nextStart: null, repeatCaption: null, total: 1, done: 0 },
-  { name: 'Probation Evaluation – Batch Jan 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 4, done: 2 },
-  { name: 'Probation Evaluation – Batch Sep 2025', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 1, done: 1 },
-  { name: 'Contract Evaluation – Batch Mar 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 1, done: 1 },
-  { name: 'Contract Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: 'Sep 2026', repeatCaption: 'Based on contract duration', total: 1, done: 0 },
-  { name: 'Part-timer Evaluation – Batch Jun 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on contract duration', total: 0, done: 0 },
-  { name: 'Probation Evaluation – Batch Apr 2026', purpose: 'evaluation', repeat: 'Repeats automatically', nextStart: null, repeatCaption: 'Based on probation duration', total: 13, done: 0 },
-])
+const { cycles, deleteCycle } = useReviewCyclesStore()
 
 // Filtering + search
 const filteredCycles = computed(() => {
@@ -121,17 +83,44 @@ const filteredCycles = computed(() => {
   return result
 })
 
+// ─── Column sort (behaviour from PxColumnSortMenu) ───────────────────────────
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  name: 'text',
+  purpose: 'text',
+  repeat: 'text',
+  progress: 'number',
+}
+function sortValue(c: Cycle, key: string): string | number {
+  if (key === 'name') return c.name
+  if (key === 'purpose') return purposeLabel[c.purpose]
+  if (key === 'repeat') return c.repeat
+  if (key === 'progress') return c.total > 0 ? c.done / c.total : 0
+  return ''
+}
+const sortedCycles = computed(() => {
+  if (!sortKey.value) return filteredCycles.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filteredCycles.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 // Pagination
 const rowsPerPage = ref(10)
 const rowsPerPageOptions = [10, 25, 50, 100]
-const totalRows = computed(() => filteredCycles.value.length)
+const totalRows = computed(() => sortedCycles.value.length)
 const totalPages = computed(() => Math.ceil(totalRows.value / rowsPerPage.value))
 const currentPage = ref(1)
 const showingFrom = computed(() => (currentPage.value - 1) * rowsPerPage.value + 1)
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
 
 const pagedCycles = computed(() =>
-  filteredCycles.value.slice(showingFrom.value - 1, showingTo.value),
+  sortedCycles.value.slice(showingFrom.value - 1, showingTo.value),
 )
 
 // Reset page when filter/search changes
@@ -165,9 +154,52 @@ function askDelete(cycle: Cycle) {
 }
 function confirmDelete() {
   if (cycleToDelete.value)
-    cycles.value = cycles.value.filter((c) => c.name !== cycleToDelete.value!.name)
+    deleteCycle(cycleToDelete.value.id)
   deleteModalOpen.value = false
   cycleToDelete.value = null
+}
+
+// ── Row actions: lock/unlock, update repeat, start/stop automatic ────────────────
+// Session-only demo state (locked cycles, stopped automatic cycles).
+const lockedIds = ref<Set<string>>(new Set())
+const stoppedIds = ref<Set<string>>(new Set())
+function isLocked(c: Cycle) { return lockedIds.value.has(c.id) }
+function isStopped(c: Cycle) { return stoppedIds.value.has(c.id) }
+// Lock/Unlock is only offered when the cycle was configured with lock-review;
+// created cycles carry the real flag, seeded perf/competency default to enabled.
+function lockEnabled(c: Cycle) { return c.config ? !!c.config.enable_lock_review : c.purpose !== 'evaluation' }
+
+// Update repeat date modal
+const updateRepeatOpen = ref(false)
+const updateTarget = ref<Cycle | null>(null)
+function openUpdateRepeat(c: Cycle) { updateTarget.value = c; updateRepeatOpen.value = true }
+function onUpdateRepeatSubmit() {
+  toast.notify({ id: 'repeat-updated', position: 'top-center', variant: 'success', title: 'Repeat date cycle updated' })
+}
+
+// Lock/Unlock modal
+const lockOpen = ref(false)
+const lockTarget = ref<Cycle | null>(null)
+const lockToLock = ref(true)
+function openLock(c: Cycle, toLock: boolean) { lockTarget.value = c; lockToLock.value = toLock; lockOpen.value = true }
+function onLockSubmit() {
+  if (lockTarget.value) {
+    const next = new Set(lockedIds.value)
+    if (lockToLock.value) next.add(lockTarget.value.id)
+    else next.delete(lockTarget.value.id)
+    lockedIds.value = next
+    toast.notify({ id: 'lock-toggled', position: 'top-center', variant: 'success', title: `Review cycle ${lockToLock.value ? 'locked' : 'unlocked'}` })
+  }
+  lockOpen.value = false
+}
+
+// Evaluation start/stop automatic cycle
+function toggleAuto(c: Cycle, stop: boolean) {
+  const next = new Set(stoppedIds.value)
+  if (stop) next.add(c.id)
+  else next.delete(c.id)
+  stoppedIds.value = next
+  toast.notify({ id: 'auto-toggled', position: 'top-center', variant: 'success', title: `Automatic cycle ${stop ? 'stopped' : 'started'}` })
 }
 
 const employmentTypeLabel = (cycle: Cycle): string | null => {
@@ -178,9 +210,11 @@ const employmentTypeLabel = (cycle: Cycle): string | null => {
 }
 
 // mekari-way table helpers
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const clickableRow = css({ cursor: 'pointer' })
@@ -267,10 +301,18 @@ const clickableRow = css({ cursor: 'pointer' })
         <MpTable>
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th">Cycle name</MpTableCell>
-              <MpTableCell as="th">Purpose</MpTableCell>
-              <MpTableCell as="th">Repeat cycle</MpTableCell>
-              <MpTableCell as="th">Progress</MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCell">
+                <span :class="thInner"><span>Cycle name</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCell">
+                <span :class="thInner"><span>Purpose</span><PxColumnSortMenu col-key="purpose" :sort-type="columnSortTypes.purpose" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCell">
+                <span :class="thInner"><span>Repeat cycle</span><PxColumnSortMenu col-key="repeat" :sort-type="columnSortTypes.repeat" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="headCell">
+                <span :class="thInner"><span>Progress</span><PxColumnSortMenu col-key="progress" :sort-type="columnSortTypes.progress" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
           </MpTableHead>
@@ -332,10 +374,20 @@ const clickableRow = css({ cursor: 'pointer' })
                   <MpPopoverContent>
                     <MpPopoverList>
                       <MpPopoverListItem @click="navigateTo({ path: `/reviews/review-cycles/${encodeURIComponent(cycle.name)}`, query: { name: cycle.name, purpose: cycle.purpose } })">View details</MpPopoverListItem>
-                      <MpPopoverListItem v-if="cycle.repeat !== 'Does not repeat' && cycle.purpose !== 'evaluation'">
-                        Disable auto-repeat
-                      </MpPopoverListItem>
-                      <MpPopoverListItem>Lock review result</MpPopoverListItem>
+
+                      <!-- Evaluation (automatic) → start/stop; Performance/Competency → update repeat date -->
+                      <template v-if="cycle.purpose === 'evaluation'">
+                        <MpPopoverListItem v-if="isStopped(cycle)" @click="toggleAuto(cycle, false)">Start automatic cycle</MpPopoverListItem>
+                        <MpPopoverListItem v-else @click="toggleAuto(cycle, true)">Stop automatic cycle</MpPopoverListItem>
+                      </template>
+                      <MpPopoverListItem v-else @click="openUpdateRepeat(cycle)">Update repeat date cycle</MpPopoverListItem>
+
+                      <!-- Lock/Unlock — only when the cycle has lock-review enabled -->
+                      <template v-if="lockEnabled(cycle)">
+                        <MpPopoverListItem v-if="isLocked(cycle)" @click="openLock(cycle, false)">Unlock review result</MpPopoverListItem>
+                        <MpPopoverListItem v-else @click="openLock(cycle, true)">Lock review result</MpPopoverListItem>
+                      </template>
+
                       <MpPopoverListItem @click="askDelete(cycle)">
                         <span :class="css({ color: 'text.danger' })">Delete</span>
                       </MpPopoverListItem>
@@ -520,4 +572,24 @@ const clickableRow = css({ cursor: 'pointer' })
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
+
+  <!-- Update repeat date cycle (performance/competency) -->
+  <CycleUpdateRepeatModal
+    v-model:is-open="updateRepeatOpen"
+    :cycle="updateTarget"
+    @submit="onUpdateRepeatSubmit"
+  />
+
+  <!-- Lock / Unlock review result -->
+  <CycleLockReviewModal
+    v-model:is-open="lockOpen"
+    :to-lock="lockToLock"
+    @submit="onLockSubmit"
+  />
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
+.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

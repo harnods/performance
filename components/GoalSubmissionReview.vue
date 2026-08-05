@@ -376,15 +376,15 @@ const colSubCategory = css({ width: '160px' })
 const colGoal = css({ width: '320px' })
 const colGoalType = css({ width: '160px' })
 const colWeight = css({ width: '108px' })
-const actionHead = css({ width: '108px', paddingLeft: '0', paddingRight: '2', whiteSpace: 'nowrap', textAlign: 'right' })
+const actionHead = css({ width: '108px', paddingTop: '2', paddingBottom: '2', paddingLeft: '0', paddingRight: '2', whiteSpace: 'nowrap', textAlign: 'right', verticalAlign: 'top' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '0', paddingRight: '2', width: '108px', whiteSpace: 'nowrap', verticalAlign: 'top' })
 // Label + checkmark on one right-aligned line; the "Accepted" label shows once a row is accepted.
 const actionCellInner = css({ display: 'inline-flex', alignItems: 'center', justifyContent: 'flex-end', gap: '1', width: '100%' })
 const acceptedLabel = css({ color: 'green.700', whiteSpace: 'nowrap' })
-// Matches MpTable's own default (non-narrow) th/td padding (paddingY: '4')
-// per the Pixel3 spec — a flatter '2' reads as the narrow/dense table
-// variant, which made single-line rows (e.g. Goal type) look too short.
-const cellPad = css({ paddingTop: '4', paddingBottom: '4', verticalAlign: 'top' })
+// Golden rule: 8px top/bottom on every cell. The Goal column always stacks
+// code + title + "View details" (≥3 lines) → whole table verticalAlign top.
+const headCellPad = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
+const cellPad = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const cellContent = css({ minWidth: '0', width: '100%', whiteSpace: 'normal', overflowWrap: 'break-word' })
 const headerLabel = css({ fontSize: '14px', fontWeight: '600', color: 'text.default' })
 const goalCode = css({ fontSize: '10px', fontWeight: '600', color: 'text.secondary', lineHeight: '12px' })
@@ -393,7 +393,7 @@ const deleteTag = css({
   fontSize: '12px', fontWeight: '600', width: 'fit-content', background: 'red.50', color: 'red.700',
 })
 const totalRowBg = css({ background: 'background.neutral.subtle' })
-const totalRowCell = css({ paddingTop: '10px', paddingBottom: '10px', verticalAlign: 'top' })
+const totalRowCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const chevronIcon = css({ color: 'text.secondary', flexShrink: '0' })
 
 // Accordion (Figma node 6700:3203) — a "View details" toggle sitting right
@@ -492,11 +492,11 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
               </colgroup>
               <MpTableHead>
                 <MpTableRow>
-                  <MpTableCell as="th" :class="[colDivider, colCategory]"><span :class="headerLabel">Category</span></MpTableCell>
-                  <MpTableCell as="th" :class="[colDivider, colSubCategory]"><span :class="headerLabel">Sub-category</span></MpTableCell>
-                  <MpTableCell as="th" :class="[colDivider, colGoal]"><span :class="headerLabel">Goal</span></MpTableCell>
-                  <MpTableCell as="th" :class="[colDivider, colGoalType]"><span :class="headerLabel">Goal type</span></MpTableCell>
-                  <MpTableCell as="th" :class="[colDivider, colWeight]"><span :class="headerLabel">Goal weight</span></MpTableCell>
+                  <MpTableCell as="th" :class="[headCellPad, colDivider, colCategory]"><span :class="headerLabel">Category</span></MpTableCell>
+                  <MpTableCell as="th" :class="[headCellPad, colDivider, colSubCategory]"><span :class="headerLabel">Sub-category</span></MpTableCell>
+                  <MpTableCell as="th" :class="[headCellPad, colDivider, colGoal]"><span :class="headerLabel">Goal</span></MpTableCell>
+                  <MpTableCell as="th" :class="[headCellPad, colDivider, colGoalType]"><span :class="headerLabel">Goal type</span></MpTableCell>
+                  <MpTableCell as="th" :class="[headCellPad, colDivider, colWeight]"><span :class="headerLabel">Goal weight</span></MpTableCell>
                   <MpTableCell v-if="isCreateSubmission" as="th" :class="actionHead">
                     <MpTooltip v-if="submission.status === 'pending'" :label="allAccepted ? 'Un-accept all' : 'Accept all'" use-portal>
                       <button

@@ -48,6 +48,13 @@ const cycleInfoRows = computed<CycleInfoRow[]>(() => {
       caption: PROGRESS_UPDATE_METHOD_CAPTION[cycle.value.progressUpdateMethod],
     },
     {
+      label: 'Goal weight',
+      value: cycle.value.weightMandatory ? 'Mandatory' : 'Optional',
+      caption: cycle.value.weightMandatory
+        ? 'Users must assign a weight when creating or editing goals.'
+        : 'Users can leave goal weight empty when creating or editing goals.',
+    },
+    {
       label: 'Last updated',
       value: cycle.value.updatedAt ? formatUpdatedAt(cycle.value.updatedAt) : '—',
       caption: cycle.value.updatedBy,

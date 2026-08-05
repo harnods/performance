@@ -1,7 +1,17 @@
 import { employeeById } from '~/utils/employees'
 
-export type GoalCycleStatus = 'Current goal' | 'Inactive goals' | 'Past goal'
+export type GoalCycleStatus = 'Active' | 'Inactive'
 export type ProgressUpdateMethod = 'manual' | 'log-based'
+
+// Status is DERIVED from the period, never stored: the cycle whose period spans
+// today is "Active"; past and future cycles are "Inactive".
+export function goalCycleStatus(cycle: Pick<GoalCycle, 'startDate' | 'endDate'>): GoalCycleStatus {
+  const today = new Date()
+  const t = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime()
+  const start = new Date(cycle.startDate).getTime()
+  const end = new Date(cycle.endDate).getTime()
+  return t >= start && t <= end ? 'Active' : 'Inactive'
+}
 
 export interface GoalCycle {
   id: string
@@ -11,14 +21,17 @@ export interface GoalCycle {
   endDate: string // ISO yyyy-mm-dd
   progressUpdateMethod: ProgressUpdateMethod
   weightMandatory: boolean
-  status: GoalCycleStatus
+  status: GoalCycleStatus // derived from the period (see goalCycleStatus), never persisted
   updatedAt?: string // ISO datetime — stamped on create/edit, shown on the Goal cycle info tab
   updatedBy?: string
 }
 
+// What we actually store — status is computed on read, so it's never persisted.
+type StoredGoalCycle = Omit<GoalCycle, 'status'>
+
 const STORAGE_KEY = 'talenta-goal-cycles-db'
 
-function seed(): GoalCycle[] {
+function seed(): StoredGoalCycle[] {
   return [
     {
       id: 'seed-26-h1',
@@ -28,8 +41,29 @@ function seed(): GoalCycle[] {
       endDate: '2026-06-30',
       progressUpdateMethod: 'manual',
       weightMandatory: true,
-      status: 'Current goal',
       updatedAt: '2025-12-20T14:50:00',
+      updatedBy: 'Rizal Candra',
+    },
+    {
+      id: 'seed-26-h2',
+      name: '26 H2',
+      period: 'H2 2026 (1 Jul - 31 Dec 2026)',
+      startDate: '2026-07-01',
+      endDate: '2026-12-31',
+      progressUpdateMethod: 'manual',
+      weightMandatory: true,
+      updatedAt: '2026-06-25T10:00:00',
+      updatedBy: 'Rizal Candra',
+    },
+    {
+      id: 'seed-27-h1',
+      name: '27 H1',
+      period: 'H1 2027 (1 Jan - 30 Jun 2027)',
+      startDate: '2027-01-01',
+      endDate: '2027-06-30',
+      progressUpdateMethod: 'manual',
+      weightMandatory: true,
+      updatedAt: '2026-07-30T09:00:00',
       updatedBy: 'Rizal Candra',
     },
   ]
@@ -39,12 +73,20 @@ function seed(): GoalCycle[] {
 // Bump whenever seed()/GoalCycle's shape changes in a way stale localStorage
 // would contradict (e.g. adding startDate/endDate) — same guard pattern as
 // useGoalsStore's SEED_VERSION.
-const SEED_VERSION = 3
-const cycles = ref<GoalCycle[]>(seed())
+const SEED_VERSION = 5
+const rawCycles = ref<StoredGoalCycle[]>(seed())
+// Public list with status derived from each period. Sorted latest-period-first
+// (by start date, descending) — a future cycle sits above the current one even
+// though it's Inactive.
+const cycles = computed<GoalCycle[]>(() =>
+  [...rawCycles.value]
+    .sort((a, b) => new Date(b.startDate).getTime() - new Date(a.startDate).getTime())
+    .map(c => ({ ...c, status: goalCycleStatus(c) })),
+)
 let loadedFromStorage = false
 
 function persist() {
-  if (import.meta.client) localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SEED_VERSION, cycles: cycles.value }))
+  if (import.meta.client) localStorage.setItem(STORAGE_KEY, JSON.stringify({ version: SEED_VERSION, cycles: rawCycles.value }))
 }
 
 function loadFromStorage() {
@@ -55,7 +97,7 @@ function loadFromStorage() {
     try {
       const parsed = JSON.parse(raw)
       if (parsed?.version === SEED_VERSION && Array.isArray(parsed.cycles)) {
-        cycles.value = parsed.cycles
+        rawCycles.value = parsed.cycles
         return
       }
     }
@@ -78,16 +120,15 @@ export function useGoalCyclesStore() {
     weightMandatory: boolean
   }): GoalCycle {
     const { currentUserId } = useCurrentUser()
-    const created: GoalCycle = {
-      id: `cycle-${cycles.value.length}-${input.name}`,
-      status: 'Inactive goals',
+    const stored: StoredGoalCycle = {
+      id: `cycle-${rawCycles.value.length}-${input.name}`,
       ...input,
       updatedAt: new Date().toISOString(),
       updatedBy: employeeById(currentUserId.value)?.name,
     }
-    cycles.value = [...cycles.value, created]
+    rawCycles.value = [...rawCycles.value, stored]
     persist()
-    return created
+    return { ...stored, status: goalCycleStatus(stored) }
   }
 
   function updateCycle(id: string, input: {
@@ -99,19 +140,19 @@ export function useGoalCyclesStore() {
     weightMandatory: boolean
   }) {
     const { currentUserId } = useCurrentUser()
-    cycles.value = cycles.value.map(c => (c.id === id
+    rawCycles.value = rawCycles.value.map(c => (c.id === id
       ? { ...c, ...input, updatedAt: new Date().toISOString(), updatedBy: employeeById(currentUserId.value)?.name }
       : c))
     persist()
   }
 
   function deleteCycle(id: string) {
-    cycles.value = cycles.value.filter(c => c.id !== id)
+    rawCycles.value = rawCycles.value.filter(c => c.id !== id)
     persist()
   }
 
   function resetToSeed() {
-    cycles.value = seed()
+    rawCycles.value = seed()
     persist()
   }
 

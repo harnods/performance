@@ -112,9 +112,17 @@ function saveWeights() {
     return
   }
   if (weightMember.value) {
-    const configs: Record<string, { useCustom: boolean, weights: Record<string, number> }> = {}
+    // saveConfigs replaces each method's whole config object, so we must re-emit
+    // the roster here — otherwise a roster set via "Manage reviewer" is dropped
+    // and the reviewer list collapses back to the generated set. The reviewers
+    // currently shown ARE the resolved roster, so pin their codes.
+    const configs: Record<string, { useCustom: boolean, weights: Record<string, number>, roster: string[] }> = {}
     editableGroups.value.forEach((g) => {
-      configs[g.name] = { useCustom: g.useCustom, weights: Object.fromEntries(g.reviewers.map(r => [r.code, r.weight === '' ? 0 : Number(r.weight)])) }
+      configs[g.name] = {
+        useCustom: g.useCustom,
+        weights: Object.fromEntries(g.reviewers.map(r => [r.code, r.weight === '' ? 0 : Number(r.weight)])),
+        roster: g.reviewers.map(r => r.code),
+      }
     })
     saveConfigs(memberKey(weightMember.value), configs)
   }

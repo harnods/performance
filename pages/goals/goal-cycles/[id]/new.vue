@@ -389,7 +389,7 @@ const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
 const tableOuterBorder = css({ borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.bold', borderRadius: '6px', overflow: 'hidden' })
-const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default' })
+const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'top' })
 
@@ -476,7 +476,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpTableCell as="th" :class="colDivider">Goal name</MpTableCell>
             <MpTableCell as="th" :class="colDivider">Goal type</MpTableCell>
             <MpTableCell as="th" :class="colDivider">Goal weight</MpTableCell>
-            <MpTableCell as="th" />
+            <MpTableCell as="th" :class="tightCell" />
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>

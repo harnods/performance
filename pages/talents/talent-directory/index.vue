@@ -75,66 +75,88 @@ const statusOptions = [
 // Applied filters (drive the table).
 const branch = ref('')
 const organization = ref('')
-const jobLevel = ref('')
-const jobGrade = ref('')
-const jobClass = ref('')
-const employmentType = ref('')
-const status = ref('')
 const search = ref('')
 
+// "All filters" drawer (production pattern) — advanced filters are multi-select
+// scopes; branch/organization stay inline. Draft-then-apply lives in the drawer.
+const filtersOpen = ref(false)
+const advFilters = ref<Record<string, string[]>>({})
+const advScopes = ref<string[]>([])
+const talentScopes = [
+  { key: 'jobLevel', label: 'Job level', items: levelOptions.map(o => ({ id: o.value, name: o.label })) },
+  { key: 'jobGrade', label: 'Job grade', items: gradeOptions.map(o => ({ id: o.value, name: o.label })) },
+  { key: 'jobClass', label: 'Job class', items: classOptions.map(o => ({ id: o.value, name: o.label })) },
+  { key: 'employmentType', label: 'Employment type', items: typeOptions.map(o => ({ id: o.value, name: o.label })) },
+  { key: 'status', label: 'Employee status', items: statusOptions.map(o => ({ id: o.value, name: o.label })) },
+]
+function onApplyAdv(p: { filters: Record<string, string[]>, scopes: string[] }) {
+  advFilters.value = p.filters
+  advScopes.value = p.scopes
+}
+
 // Count of "advanced" filters active — badge on the All filters button.
-const advancedCount = computed(() =>
-  [jobLevel, jobGrade, jobClass, employmentType, status].filter(f => f.value).length,
-)
+const advancedCount = computed(() => allFiltersCount(advFilters.value))
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
   return TALENTS.filter((t) => {
     if (branch.value && t.branch !== branch.value) return false
     if (organization.value && t.organization !== organization.value) return false
-    if (jobLevel.value && t.jobLevel !== jobLevel.value) return false
-    if (jobGrade.value && t.jobGrade !== jobGrade.value) return false
-    if (jobClass.value && t.jobClass !== jobClass.value) return false
-    if (employmentType.value && t.employmentType !== employmentType.value) return false
-    if (status.value && t.status !== status.value) return false
+    const adv = advFilters.value
+    if (adv.jobLevel?.length && !adv.jobLevel.includes(t.jobLevel)) return false
+    if (adv.jobGrade?.length && !adv.jobGrade.includes(t.jobGrade)) return false
+    if (adv.jobClass?.length && !adv.jobClass.includes(t.jobClass)) return false
+    if (adv.employmentType?.length && !adv.employmentType.includes(t.employmentType)) return false
+    if (adv.status?.length && !adv.status.includes(t.status)) return false
     if (q && !(t.name.toLowerCase().includes(q) || t.code.toLowerCase().includes(q) || t.jobPosition.toLowerCase().includes(q))) return false
     return true
   })
 })
 
-// ─── All filters modal ───────────────────────────────────────────────────────
-const filtersOpen = ref(false)
-// Draft copies so Cancel discards and Apply commits.
-const draft = ref({ jobLevel: '', jobGrade: '', jobClass: '', employmentType: '', status: '' })
-function openFilters() {
-  draft.value = {
-    jobLevel: jobLevel.value,
-    jobGrade: jobGrade.value,
-    jobClass: jobClass.value,
-    employmentType: employmentType.value,
-    status: status.value,
-  }
-  filtersOpen.value = true
+// ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  name: 'text',
+  branch: 'text',
+  organization: 'text',
+  jobPosition: 'text',
+  jobLevel: 'text',
+  jobGrade: 'text',
+  jobClass: 'text',
+  employmentType: 'text',
+  joinDate: 'date', // sort chronologically by the ISO join date
+  status: 'text',
 }
-function applyFilters() {
-  jobLevel.value = draft.value.jobLevel
-  jobGrade.value = draft.value.jobGrade
-  jobClass.value = draft.value.jobClass
-  employmentType.value = draft.value.employmentType
-  status.value = draft.value.status
-  filtersOpen.value = false
+function sortValue(t: TalentEmployee, key: string): string {
+  if (key === 'name') return t.name
+  if (key === 'branch') return t.branch
+  if (key === 'organization') return t.organization
+  if (key === 'jobPosition') return t.jobPosition
+  if (key === 'jobLevel') return t.jobLevel
+  if (key === 'jobGrade') return t.jobGrade
+  if (key === 'jobClass') return t.jobClass
+  if (key === 'employmentType') return t.employmentType
+  if (key === 'joinDate') return t.joinDate
+  if (key === 'status') return t.status
+  return ''
 }
-function resetDraft() {
-  draft.value = { jobLevel: '', jobGrade: '', jobClass: '', employmentType: '', status: '' }
-}
+const sortedRows = computed(() => {
+  if (!sortKey.value) return filtered.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filtered.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 function clearAll() {
   branch.value = ''
   organization.value = ''
-  jobLevel.value = ''
-  jobGrade.value = ''
-  jobClass.value = ''
-  employmentType.value = ''
-  status.value = ''
+  advFilters.value = {}
+  advScopes.value = []
   search.value = ''
 }
 
@@ -162,13 +184,13 @@ const colCount = computed(() => 2 + COLS.filter(c => visible.value[c.key]).lengt
 // ─── Pagination ───────────────────────────────────────────────────────────────
 const rowsPerPage = ref(10)
 const rowsPerPageOptions = [10, 25, 50, 100]
-const totalRows = computed(() => filtered.value.length)
+const totalRows = computed(() => sortedRows.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRows.value / rowsPerPage.value)))
 const currentPage = ref(1)
 const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
-const paged = computed(() => filtered.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
-watch([branch, organization, jobLevel, jobGrade, jobClass, employmentType, status, search], () => { currentPage.value = 1 })
+const paged = computed(() => sortedRows.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
+watch([branch, organization, advFilters, search], () => { currentPage.value = 1 }, { deep: true })
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 function viewProfile(t: TalentEmployee) {
@@ -180,7 +202,9 @@ function viewProfile(t: TalentEmployee) {
 // background.surface (light gray header), td = background.neutral (white) +
 // background.neutral.hovered on hover. Both are opaque, so the sticky columns
 // still cover the content scrolling underneath.
-const headCell = css({ whiteSpace: 'nowrap' })
+const headCell = css({ whiteSpace: 'nowrap', paddingTop: '2', paddingBottom: '2' })
+// Header label + sort menu inline (mirrors goal-cycles reference).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const bodyCell = css({
   paddingTop: '2', paddingBottom: '2', whiteSpace: 'nowrap', verticalAlign: 'middle',
 })
@@ -197,7 +221,7 @@ const captionText = css({ color: 'text.secondary' })
 
 // Sticky first column (Employee name) — pinned left on horizontal scroll.
 const stickyNameHead = css({
-  whiteSpace: 'nowrap',
+  whiteSpace: 'nowrap', paddingTop: '2', paddingBottom: '2',
   position: 'sticky', left: '0', zIndex: '3',
   '[data-table-has-left-shadow] &': { borderRight: '1px solid', borderRightColor: 'border.default' },
 })
@@ -208,7 +232,7 @@ const stickyNameCell = css({
 })
 // Sticky last column (action) — pinned right so the button stays reachable.
 const stickyActionHead = css({
-  whiteSpace: 'nowrap', width: '1%', textAlign: 'right',
+  whiteSpace: 'nowrap', width: '1%', textAlign: 'right', paddingTop: '2', paddingBottom: '2',
   position: 'sticky', right: '0', zIndex: '3',
   '[data-table-has-right-shadow] &': { borderLeft: '1px solid', borderLeftColor: 'border.default' },
 })
@@ -257,7 +281,7 @@ const filterSelectWidth = '200px'
           searchable
           search-placeholder="Search organization..."
         />
-        <MpButton variant="secondary" left-icon="filter" @click="openFilters">
+        <MpButton variant="secondary" left-icon="filter" @click="filtersOpen = true">
           All filters<template v-if="advancedCount"> ({{ advancedCount }})</template>
         </MpButton>
         <MpButton
@@ -312,16 +336,36 @@ const filterSelectWidth = '200px'
         <MpTable is-hoverable>
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" :class="stickyNameHead">Employee name</MpTableCell>
-              <MpTableCell v-if="visible.branch" as="th" :class="headCell">Branch</MpTableCell>
-              <MpTableCell v-if="visible.organization" as="th" :class="headCell">Organization</MpTableCell>
-              <MpTableCell v-if="visible.jobPosition" as="th" :class="headCell">Job position</MpTableCell>
-              <MpTableCell v-if="visible.jobLevel" as="th" :class="headCell">Job level</MpTableCell>
-              <MpTableCell v-if="visible.jobGrade" as="th" :class="headCell">Job grade</MpTableCell>
-              <MpTableCell v-if="visible.jobClass" as="th" :class="headCell">Job class</MpTableCell>
-              <MpTableCell v-if="visible.employmentType" as="th" :class="headCell">Employment type</MpTableCell>
-              <MpTableCell v-if="visible.joinDate" as="th" :class="headCell">Join date</MpTableCell>
-              <MpTableCell v-if="visible.status" as="th" :class="headCell">Employee status</MpTableCell>
+              <MpTableCell as="th" class="tdir-sort-th" :class="stickyNameHead">
+                <span :class="thInner"><span>Employee name</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.branch" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Branch</span><PxColumnSortMenu col-key="branch" :sort-type="columnSortTypes.branch" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.organization" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Organization</span><PxColumnSortMenu col-key="organization" :sort-type="columnSortTypes.organization" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.jobPosition" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Job position</span><PxColumnSortMenu col-key="jobPosition" :sort-type="columnSortTypes.jobPosition" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.jobLevel" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Job level</span><PxColumnSortMenu col-key="jobLevel" :sort-type="columnSortTypes.jobLevel" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.jobGrade" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Job grade</span><PxColumnSortMenu col-key="jobGrade" :sort-type="columnSortTypes.jobGrade" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.jobClass" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Job class</span><PxColumnSortMenu col-key="jobClass" :sort-type="columnSortTypes.jobClass" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.employmentType" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Employment type</span><PxColumnSortMenu col-key="employmentType" :sort-type="columnSortTypes.employmentType" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.joinDate" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Join date</span><PxColumnSortMenu col-key="joinDate" :sort-type="columnSortTypes.joinDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell v-if="visible.status" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner"><span>Employee status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
               <MpTableCell as="th" :class="stickyActionHead" />
             </MpTableRow>
           </MpTableHead>
@@ -424,45 +468,20 @@ const filterSelectWidth = '200px'
     </MpFlex>
   </MpFlex>
 
-  <!-- ═════ All filters modal ═════ -->
-  <MpModal :is-open="filtersOpen" is-centered @close="filtersOpen = false">
-    <MpModalOverlay />
-    <MpModalContent>
-      <MpModalHeader>All filters</MpModalHeader>
-      <MpModalCloseButton @click="filtersOpen = false" />
-      <MpModalBody>
-        <MpFlex direction="column" gap="4">
-          <MpFormControl>
-            <MpFormLabel>Job level</MpFormLabel>
-            <PxSelectPopover v-model="draft.jobLevel" :options="levelOptions" placeholder="All job levels" is-clearable />
-          </MpFormControl>
-          <MpFormControl>
-            <MpFormLabel>Job grade</MpFormLabel>
-            <PxSelectPopover v-model="draft.jobGrade" :options="gradeOptions" placeholder="All job grades" is-clearable />
-          </MpFormControl>
-          <MpFormControl>
-            <MpFormLabel>Job class</MpFormLabel>
-            <PxSelectPopover v-model="draft.jobClass" :options="classOptions" placeholder="All job classes" is-clearable />
-          </MpFormControl>
-          <MpFormControl>
-            <MpFormLabel>Employment type</MpFormLabel>
-            <PxSelectPopover v-model="draft.employmentType" :options="typeOptions" placeholder="All employment types" is-clearable />
-          </MpFormControl>
-          <MpFormControl>
-            <MpFormLabel>Employee status</MpFormLabel>
-            <PxSelectPopover v-model="draft.status" :options="statusOptions" placeholder="All statuses" is-clearable />
-          </MpFormControl>
-        </MpFlex>
-      </MpModalBody>
-      <MpModalFooter>
-        <MpFlex gap="2" justify="space-between" :class="css({ width: '100%' })">
-          <MpButton variant="ghost" @click="resetDraft">Reset</MpButton>
-          <MpFlex gap="2">
-            <MpButton variant="secondary" @click="filtersOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="applyFilters">Apply filters</MpButton>
-          </MpFlex>
-        </MpFlex>
-      </MpModalFooter>
-    </MpModalContent>
-  </MpModal>
+  <!-- ═════ All filters drawer ═════ -->
+  <PxAllFiltersDrawer
+    :is-open="filtersOpen"
+    :scopes="talentScopes"
+    :applied-filters="advFilters"
+    :applied-scopes="advScopes"
+    @close="filtersOpen = false"
+    @apply="onApplyAdv"
+  />
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered `visibility: hidden` on specificity (a Panda css()
+   @layer utility rule would lose to that unlayered base). */
+.tdir-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

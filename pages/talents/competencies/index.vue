@@ -105,15 +105,42 @@ const filtered = computed(() => {
   return result
 })
 
+// ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  name: 'text',
+  position: 'text',
+  scope: 'text',
+  groups: 'number',
+}
+function sortValue(a: Assignment, key: string): string {
+  if (key === 'name') return a.name
+  if (key === 'position') return a.positions[0] ?? ''
+  if (key === 'scope') return a.scope ? scopeLabel[a.scope] : ''
+  if (key === 'groups') return String(a.groups)
+  return ''
+}
+const sortedRows = computed(() => {
+  if (!sortKey.value) return filtered.value
+  const dir = sortDir.value === 'asc' ? 1 : -1
+  return [...filtered.value].sort((a, b) =>
+    String(sortValue(a, sortKey.value)).localeCompare(
+      String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
+    ) * dir,
+  )
+})
+
 // ─── Pagination ───────────────────────────────────────────────────────────────
 const rowsPerPage = ref(10)
 const rowsPerPageOptions = [10, 25, 50, 100]
-const totalRows = computed(() => filtered.value.length)
+const totalRows = computed(() => sortedRows.value.length)
 const totalPages = computed(() => Math.max(1, Math.ceil(totalRows.value / rowsPerPage.value)))
 const currentPage = ref(1)
 const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
-const paged = computed(() => filtered.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
+const paged = computed(() => sortedRows.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
 watch([scopeFilter, search], () => { currentPage.value = 1 })
 
 // ─── Navigation / actions ────────────────────────────────────────────────────
@@ -130,10 +157,13 @@ function confirmDelete() {
 }
 
 // ─── Table styles (mekari-way) ──────────────────────────────────────────────────
-const tightCell = css({ paddingTop: '2', paddingBottom: '2' })
-const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
-const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
-const scopeCell = css({ paddingTop: '2', paddingBottom: '2', whiteSpace: 'nowrap' })
+const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+const headCell = css({ paddingTop: '2', paddingBottom: '2' })
+// Header label + sort menu inline (mirrors goal-cycles reference).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
+const scopeCell = css({ paddingTop: '2', paddingBottom: '2', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
 </script>
@@ -204,10 +234,18 @@ const captionText = css({ color: 'text.secondary' })
         <MpTable>
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th">Assignment name</MpTableCell>
-              <MpTableCell as="th">Job position</MpTableCell>
-              <MpTableCell as="th">Scope attribute</MpTableCell>
-              <MpTableCell as="th">Groups</MpTableCell>
+              <MpTableCell as="th" class="comp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Assignment name</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="comp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Job position</span><PxColumnSortMenu col-key="position" :sort-type="columnSortTypes.position" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="comp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Scope attribute</span><PxColumnSortMenu col-key="scope" :sort-type="columnSortTypes.scope" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
+              <MpTableCell as="th" class="comp-sort-th" :class="headCell">
+                <span :class="thInner"><span>Groups</span><PxColumnSortMenu col-key="groups" :sort-type="columnSortTypes.groups" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
           </MpTableHead>
@@ -314,3 +352,9 @@ const captionText = css({ color: 'text.secondary' })
     </MpModalContent>
   </MpModal>
 </template>
+
+<style scoped>
+/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
+   PxColumnSortMenu's unlayered `visibility: hidden` on specificity. */
+.comp-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>

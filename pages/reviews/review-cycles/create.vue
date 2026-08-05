@@ -21,6 +21,7 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import { EMPLOYEES } from '~/utils/employees'
 
 definePageMeta({
   title: 'Create new cycle',
@@ -30,6 +31,12 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
+
+// Cycle purpose drives which form renders (production Create.vue → EvaluationForm
+// for probation, GeneralForm for performance/competency). Default 'performance'
+// mirrors production; the Review Cycles list always passes an explicit purpose.
+const purpose = ((route.query.purpose as string) || 'performance') as 'performance' | 'competency' | 'evaluation'
+const isEvaluation = computed(() => purpose === 'evaluation')
 
 const cycleName = ref((route.query.name as string) || 'Probation Evaluation - Product Designer')
 const isEditingName = ref(false)
@@ -60,6 +67,23 @@ const employeeFilterOptions = [
   { value: 'job-position', label: 'Job position' },
   { value: 'job-level', label: 'Job level' },
 ]
+// When a filter dimension is chosen, a multi-select + search picker appears
+// beside it to choose the value(s). Options are real where the data supports
+// it (Organization = departments, Job position = titles), mock otherwise.
+const employeeFilterValues = ref<string[]>([])
+watch(employeeFilter, () => { employeeFilterValues.value = [] })
+const FILTER_BRANCHES = ['HQ Jakarta', 'Bandung', 'Surabaya']
+const FILTER_JOB_LEVELS = ['Staff', 'Supervisor', 'Manager', 'Head']
+const uniq = (arr: string[]) => [...new Set(arr)].sort().map(v => ({ value: v, label: v }))
+const filterValueConfig = computed(() => {
+  switch (employeeFilter.value) {
+    case 'organization': return { label: 'All organization', options: uniq(EMPLOYEES.map(e => e.department)) }
+    case 'branch': return { label: 'All branch', options: FILTER_BRANCHES.map(v => ({ value: v, label: v })) }
+    case 'job-position': return { label: 'All job position', options: uniq(EMPLOYEES.map(e => e.title)) }
+    case 'job-level': return { label: 'All job level', options: FILTER_JOB_LEVELS.map(v => ({ value: v, label: v })) }
+    default: return null
+  }
+})
 
 // Review period
 const reviewPeriodType = ref<'single' | 'multiple'>('single')
@@ -179,7 +203,10 @@ const formColumn = css({
 // Select width: 50% of formColumn on desktop (3/12 grid),
 // full width (12/12) on tablet & mobile. Passed via :class (not :width)
 // because a responsive width needs media queries, which inline style can't do.
-const selectWidth = css({ width: { base: '100%', lg: '50%' } })
+// Every MpSelect uses the standard 3/12-grid width (~264px) — consistent width
+// for Employment status, Employee filter, and every other select in the form.
+const selectWidth = css({ width: { base: '100%', lg: '264px' } })
+const filterCol = css({ width: { base: '100%', lg: '264px' } })
 
 // Inline validation error text (matches MpFormErrorMessage sizing)
 const errorText = css({ color: 'text.danger', fontSize: '12px', lineHeight: '16px' })
@@ -312,7 +339,15 @@ function onSave() {
     <MpButton variant="secondary" right-icon="caret-down">Help</MpButton>
   </Teleport>
 
-  <div :class="gridArea">
+  <!-- Performance / Competency review use the shared General form (production
+       parity: Create.vue → GeneralForm). Evaluation keeps its own form below. -->
+  <CycleGeneralForm
+    v-if="!isEvaluation"
+    :purpose="purpose"
+    :initial-name="(route.query.name as string) || ''"
+  />
+
+  <div v-else :class="gridArea">
     <div :class="formColumn">
 
       <!-- ── Cycle name & basics ──────────────────────────────────────── -->
@@ -359,7 +394,19 @@ function onSave() {
 
         <MpFormControl id="employee-filter">
           <MpFormLabel>Employee filter</MpFormLabel>
-          <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :class="selectWidth" />
+          <MpFlex gap="3" wrap="wrap" align="flex-start">
+            <div :class="filterCol">
+              <PxSelectPopover v-model="employeeFilter" :options="employeeFilterOptions" :width="'100%'" />
+            </div>
+            <div v-if="filterValueConfig" :class="filterCol">
+              <DashMultiSelectSearch
+                v-model="employeeFilterValues"
+                :options="filterValueConfig.options"
+                :all-label="filterValueConfig.label"
+                :width="'100%'"
+              />
+            </div>
+          </MpFlex>
         </MpFormControl>
 
       </div>

@@ -29,6 +29,7 @@ import {
   MpButton,
   MpText,
   MpIcon,
+  MpTooltip,
   MpAvatar,
   MpAvatarGroup,
   MpSelect,
@@ -130,6 +131,16 @@ function selectGoalsView(key: GoalsViewKey) {
 const statusFilter = ref('')
 const search = ref('')
 
+// "All filters" drawer — owner-attribute filters, draft-then-apply.
+const allFiltersOpen = ref(false)
+const appliedFilters = ref<Record<string, string[]>>({})
+const appliedScopes = ref<string[]>([])
+const activeFilterCount = computed(() => allFiltersCount(appliedFilters.value))
+function onApplyAllFilters(p: { filters: Record<string, string[]>, scopes: string[] }) {
+  appliedFilters.value = p.filters
+  appliedScopes.value = p.scopes
+}
+
 // Column visibility — "Team" is the anchor column (locked, always on, shown
 // disabled in the popover); the rest are toggleable.
 const columnOptions = [
@@ -221,14 +232,46 @@ function toggleAligned(id: string) {
   expandedAligned[id] = !expandedAligned[id]
 }
 
+// ─── Column sort. Owner → Category → Sub-category form the rowspan grouping
+// within each department (the leading Team avatar cell always spans the whole
+// department table, so row order never affects it). The sort runs BEFORE
+// withRowSpans and keeps every run contiguous: an Owner/Category/Sub-category
+// sort reorders whole blocks at that level, while Goal/Progress/Status reorder
+// only rows inside the innermost sub-category block. sortKey '' = default order.
+const sortKey = ref('')
+const sortDir = ref<'asc' | 'desc'>('asc')
+function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
+const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
+  goal: 'text', category: 'text', subCategory: 'text', owner: 'text', progress: 'number', status: 'text',
+}
+function goalSortValue(g: { category: string, subCategory: string, ownerId: string, title: string, pill?: number, status: GoalStatus }, key: string): string | number {
+  switch (key) {
+    case 'goal': return g.title
+    case 'category': return g.category
+    case 'subCategory': return g.subCategory
+    case 'owner': return ownerOf(g.ownerId).name
+    case 'progress': return g.pill ?? -1
+    case 'status': return statusLabel[g.status]
+    default: return ''
+  }
+}
+
 const departments = computed(() => DEPARTMENTS
   .filter(name => departmentFilter.value.length === 0 || departmentFilter.value.includes(name))
   .map((name) => {
     const filteredGoals = teamGoals.value.filter(g =>
       g.department === name && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
-      && matchesSearch(g, search.value),
+      && matchesSearch(g, search.value) && ownerMatchesAllFilters(g.ownerId, appliedFilters.value),
     )
-    const rows = withRowSpans(sortByCategory(filteredGoals)).map(g => ({
+    const sortedGoals = sortGoalRows(sortByCategory(filteredGoals), {
+      sortKey: sortKey.value,
+      sortDir: sortDir.value,
+      sortType: (columnSortTypes[sortKey.value] as 'text' | 'number') ?? 'text',
+      sortValue: g => goalSortValue(g, sortKey.value),
+      groupLevels: ['owner', 'category', 'subCategory'],
+      ownerValue: g => g.ownerId,
+    })
+    const rows = withRowSpans(sortedGoals).map(g => ({
       id: g.id,
       showCategory: g.showCategory,
       categoryRowspan: g.categoryRowspan,
@@ -285,6 +328,15 @@ function formatNumber(n: number): string {
   return n.toLocaleString('id-ID')
 }
 
+// Clicking a goal name (or Actions → View details) opens its detail page.
+// Aligned child rows carry a composite `parent::child` id — the real goal id
+// is the child half. cycleName rides along for the detail breadcrumb.
+function goToGoal(row: { kind: string, id: string }) {
+  const id = row.kind === 'aligned' ? row.id.split('::')[1] : row.id
+  router.push({ path: `/goals/goal-cycles/${route.params.id}/goals/${id}`, query: { cycleName: cycle.value?.name } })
+}
+const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'pointer', textAlign: 'left', minWidth: '0', whiteSpace: 'normal', overflowWrap: 'break-word', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
+
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
 const tabItemBase = {
@@ -321,8 +373,10 @@ const collapseAllBtn = css({
   color: 'text.secondary', fontSize: '12px', lineHeight: '16px',
 })
 
-const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default' })
+const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const headerLabel = css({ display: 'inline-flex', alignItems: 'center', gap: '1' })
+// Header label + column-sort menu inline (mirrors goal-cycles/index.vue's thInner).
+const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 
 // Team avatar-group cell — rowspans the whole department table.
@@ -347,7 +401,7 @@ const colOwner = css({ width: '200px' })
 const colProgress = css({ width: '200px' })
 const colStatus = css({ width: '136px' })
 // Action column is a hard 52px: 36px icon button + 8px padding each side.
-const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', whiteSpace: 'nowrap' })
+const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', paddingTop: '2', paddingBottom: '2', whiteSpace: 'nowrap', verticalAlign: 'top' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
 // Sticky right column (Actions), matching ../index.vue and ../company-goals:
 // `is-fixed` alone only tags the cell (data-table-cell-fixed) — position:
@@ -386,6 +440,7 @@ const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', 
 const progressFill = css({ height: '100%', borderRadius: 'full' })
 const fillGreen = css({ background: 'teal.400' })
 const fillOrange = css({ background: 'rose.400' })
+const fillGray = css({ background: 'gray.400' })
 
 const pillBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'sm', paddingInline: '1', paddingBlock: '0.5', fontSize: '10px', lineHeight: '12px', fontWeight: '600' } as const
 const pillGreen = css({ ...pillBase, background: 'green.50', color: 'green.700' })
@@ -394,7 +449,7 @@ const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRad
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
 const statusPillOrange = css({ ...statusPillBase, background: 'orange.50', color: 'orange.700' })
 const statusPillGray = css({ ...statusPillBase, background: 'background.neutral.subtle', color: 'text.default' })
-const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
+const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
 
 const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px', lineHeight: '20px' })
 
@@ -519,7 +574,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverContent>
         </MpPopover>
 
-        <MpButton variant="secondary">All filters</MpButton>
+        <MpButton variant="secondary" @click="allFiltersOpen = true">All filters<template v-if="activeFilterCount"> ({{ activeFilterCount }})</template></MpButton>
       </MpFlex>
 
       <MpFlex align="center" gap="2">
@@ -613,13 +668,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpTableCell as="th" :class="[colDivider, colCheckbox]">
                     <MpCheckbox :is-checked="isAllSelected(selectableIdsFor(dept.rows))" @update:is-checked="toggleSelectAll(selectableIdsFor(dept.rows))" aria-label="Select all" />
                   </MpTableCell>
-                  <MpTableCell as="th" :class="colDivider"><span :class="headerLabel">Goal <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell as="th" :class="[colDivider, colTeam]"><span :class="headerLabel">Team <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell v-if="visibleColumns.category" as="th" :class="[colDivider, colCategory]"><span :class="headerLabel">Category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell v-if="visibleColumns.subCategory" as="th" :class="[colDivider, colSubCategory]"><span :class="headerLabel">Sub-category <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell v-if="visibleColumns.owner" as="th" :class="[colDivider, colOwner]"><span :class="headerLabel">Owner <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell v-if="visibleColumns.progress" as="th" :class="[colDivider, colProgress]"><span :class="headerLabel">Progress <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
-                  <MpTableCell v-if="visibleColumns.status" as="th" :class="[colDivider, colStatus]"><span :class="headerLabel">Status <MpIcon name="sort-default" size="sm" /></span></MpTableCell>
+                  <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                  <MpTableCell as="th" :class="[colDivider, colTeam]"><span :class="headerLabel">Team</span></MpTableCell>
+                  <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                  <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                  <MpTableCell v-if="visibleColumns.owner" as="th" class="sort-th" :class="[colDivider, colOwner]"><span :class="thInner"><span>Owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                  <MpTableCell v-if="visibleColumns.progress" as="th" class="sort-th" :class="[colDivider, colProgress]"><span :class="thInner"><span>Progress</span><PxColumnSortMenu col-key="progress" :sort-type="columnSortTypes.progress" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                  <MpTableCell v-if="visibleColumns.status" as="th" class="sort-th" :class="[colDivider, colStatus]"><span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell as="th" :is-fixed="hasOverflow" :class="[actionHead, hasOverflow && fixedRightCol]" />
                 </MpTableRow>
               </MpTableHead>
@@ -637,10 +692,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
                   <!-- Goal -->
                   <MpTableCell as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
-                    <MpFlex direction="column" gap="0" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
+                    <MpFlex direction="column" gap="0.5" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
                       <span :class="goalCode">{{ row.code }}</span>
                       <MpFlex align="center" gap="2">
-                        <MpText size="label" :class="[valueText, cellContent]">{{ row.title }}</MpText>
+                        <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
                         <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
                       </MpFlex>
                       <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
@@ -694,7 +749,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                         <span :class="pillGreen">{{ row.pill }}%</span>
                       </MpFlex>
                       <div :class="progressTrack">
-                        <div :class="[progressFill, row.status === 'green' ? fillGreen : fillOrange]" :style="{ width: `${row.pill}%` }" />
+                        <div :class="[progressFill, row.status === 'green' ? fillGreen : row.status === 'orange' ? fillOrange : fillGray]" :style="{ width: `${row.pill}%` }" />
                       </div>
                       <MpFlex justify="space-between">
                         <span :class="css({ fontSize: '10px', lineHeight: '12px', color: 'text.secondary' })">
@@ -721,8 +776,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       </MpPopoverTrigger>
                       <MpPopoverContent :class="css({ minWidth: '160px' })">
                         <MpPopoverList>
-                          <MpPopoverListItem>View details</MpPopoverListItem>
-                          <MpPopoverListItem>Update goal progress</MpPopoverListItem>
+                          <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
+                          <MpPopoverListItem @click="goToGoal(row)">Update goal progress</MpPopoverListItem>
                           <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                           <MpPopoverListItem @click="deleteRow(row)">
                             <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -812,4 +867,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpModalContent>
   </MpModal>
   </ClientOnly>
+  <PxAllFiltersDrawer :is-open="allFiltersOpen" :applied-filters="appliedFilters" :applied-scopes="appliedScopes" @close="allFiltersOpen = false" @apply="onApplyAllFilters" />
 </template>
+
+<style scoped>
+/* Reveal the column-sort icon on header hover. UNLAYERED scoped rule (not a
+   Panda css() @layer utility) so it beats PxColumnSortMenu's unlayered scoped
+   `visibility: hidden` on specificity. */
+.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
+</style>
