@@ -34,6 +34,7 @@ const props = defineProps<{ isOpen: boolean, editing: DraftKeyResult | null }>()
 const emit = defineEmits<{ 'update:isOpen': [boolean], save: [DraftKeyResult] }>()
 
 const NAME_MAX = 255
+const DESC_MAX = 255 // match the key-result name limit
 
 const id = ref('')
 const name = ref('')
@@ -273,8 +274,14 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
 
             <!-- Description -->
             <MpFormControl id="kr-description">
-              <MpFormLabel>Description <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></MpFormLabel>
-              <MpTextarea v-model="description" placeholder="Optional" />
+              <div :class="labelRow">
+                <MpFlex align="center" gap="1">
+                  <MpFormLabel>Description</MpFormLabel>
+                  <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText>
+                </MpFlex>
+                <span :class="charCount">{{ description.length }} / {{ DESC_MAX }}</span>
+              </div>
+              <MpTextarea v-model="description" :maxlength="DESC_MAX" placeholder="Describe this key result…" />
             </MpFormControl>
 
             <!-- Measurement unit (+ inline per-unit fields — mirrors Add Goal) -->

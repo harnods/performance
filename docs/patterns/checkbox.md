@@ -72,10 +72,13 @@ cell**, together with that cell's content. There is **no dedicated checkbox-only
   cell usually stacks multiple lines.
 - Don't add a narrow standalone `colCheckbox` column.
 
-> ⚠️ **Current divergence:** the goal-cycle-detail tables (`goal-cycles/[id]/team-goals.vue`
-> and siblings) still render a **separate** `colCheckbox` column (`<col :class="colCheckbox">`
-> + a dedicated checkbox `MpTableCell`). That contradicts this rule and should be reconciled —
-> merge the checkbox into the first content cell.
+- `company-goals.vue` follows this — the checkbox is inside the Goal (first) cell, no
+  `colCheckbox` column.
+- **Team / Organization / Individual goal tables** keep a **dedicated leading `colCheckbox`
+  column** (48px) instead — an accepted exception for those grouped-by-department tables.
+  There, when bulk mode replaces the header with the bulk bar, the bulk-action header cell uses
+  **`paddingInline: 0` + 4px top/bottom** so the bar's checkbox lines up with the body checkbox
+  column and the taller bulk row has breathing room.
 
 ## 3. Bulk action bar — replaces the table header, never shifts the body
 

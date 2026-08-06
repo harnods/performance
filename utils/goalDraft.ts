@@ -17,6 +17,13 @@ export interface DraftKeyResult {
   useBaseline?: boolean
   startValue?: number | '' // baseline
   targetValue?: number | ''
+  // Current achievement, used to draw the per-KR progress bar on the goal
+  // detail page. Set by progress updates, not by the definition drawer — a
+  // freshly-added KR starts at its baseline (0% progress).
+  currentValue?: number
+  // Optional bar tint override. Defaults to the neutral "in progress" blue;
+  // 'orange' flags an off-track KR, 'gray' a not-updated one.
+  status?: 'orange' | 'gray'
   deadlineDate?: string // ISO yyyy-mm-dd — only when measurementUnit === 'deadline'
   deadlineRules?: DeadlineRule[]
   progressMechanism?: 'manual' | 'log-based' // progress update method (matches goal cycle); only when kpiDirection === 'higher'

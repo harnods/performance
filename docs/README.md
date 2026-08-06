@@ -60,6 +60,13 @@ Sequence for any UI work:
 Foundational stack rules (tokens, css(), Nuxt, dev server) live in [`../CLAUDE.md`](../CLAUDE.md)
 and [`../AGENTS.md`](../AGENTS.md). The pattern docs above go deeper per surface.
 
+## Domain docs (Goals)
+
+| Doc | Use it when you're building / touching… |
+|-----|------------------------------------------|
+| [`goals-revamp.md`](goals-revamp.md) | Goals module end-to-end — architecture, IA, every user flow, prod↔revamp gaps. |
+| [`goal-progress-calculation.md`](goal-progress-calculation.md) | **How goal progress is computed** — KR-average roll-up, per-KR `krPct`, leaf `value/max`, seed derivation, direction, status→color. |
+
 ---
 
 ## Keeping these docs true

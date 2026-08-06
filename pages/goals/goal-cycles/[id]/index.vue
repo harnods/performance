@@ -211,9 +211,9 @@ function openAlign(row: { id: string }) {
   aligningGoal.value = goals.value.find(x => x.id === row.id) ?? null
   if (aligningGoal.value) alignModalOpen.value = true
 }
-function onAligned(parentId: string) {
+function onAligned(parentId: string, krId?: string) {
   if (!aligningGoal.value) return
-  updateGoal(aligningGoal.value.id, { alignedToId: parentId })
+  updateGoal(aligningGoal.value.id, { alignedToId: parentId, alignedToKrId: krId })
   toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
 }
 
@@ -506,6 +506,10 @@ const fillGray = css({ background: 'gray.400' })
 
 const pillBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'sm', paddingInline: '1', paddingBlock: '0.5', fontSize: '10px', lineHeight: '12px', fontWeight: '600' } as const
 const pillGreen = css({ ...pillBase, background: 'green.50', color: 'green.700' })
+const pillRose = css({ ...pillBase, background: 'red.50', color: 'red.700' })
+const pillGray = css({ ...pillBase, background: 'gray.100', color: 'gray.600' })
+// Achievement badge colour follows status — never green on an off-track row.
+function pillClass(s: GoalStatus) { return s === 'orange' ? pillRose : s === 'gray' ? pillGray : pillGreen }
 
 const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRadius: 'full', paddingInline: '1.5', fontSize: '14px', lineHeight: '20px' } as const
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
@@ -737,7 +741,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpText size="label" :class="valueText">
                     {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
                   </MpText>
-                  <span :class="pillGreen">{{ row.pill }}%</span>
+                  <span :class="pillClass(row.status)">{{ row.pill }}%</span>
                 </MpFlex>
                 <div :class="progressTrack">
                   <div :class="[progressFill, row.status === 'green' ? fillGreen : row.status === 'orange' ? fillOrange : fillGray]" :style="{ width: `${row.pill}%` }" />

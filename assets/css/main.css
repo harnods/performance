@@ -80,3 +80,20 @@ html, body, #__nuxt {
 .mp-modal__contentRoot--full_false:not(:has([data-modal-type="drawer"])) {
   top: 80px !important;
 }
+
+/* Goal-detail key-results / aligned-goals tables: outer border box.
+   GLOBAL (not scoped, not Panda) on purpose — the border sits on MpTableContainer's
+   root, a child component whose element does NOT reliably receive the page's
+   scoped `data-v` attribute during SSR (only after a client re-render), which is
+   why a scoped rule showed the border only after interacting and lost it on
+   refresh. A global class matches regardless of scope, on both SSR and client. */
+.gd-bordered-table {
+  border: 1px solid var(--mp-colors-border-default, #DCDFE4);
+  border-radius: 6px;
+  overflow: hidden;
+}
+/* Outer box draws the bottom edge — drop the last row's own bottom border. */
+.gd-bordered-table tbody tr:last-child td,
+.gd-bordered-table tbody tr:last-child th {
+  border-bottom: 0 !important;
+}

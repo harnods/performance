@@ -26,7 +26,7 @@ const props = defineProps<{
   goal: Goal | null // the goal being aligned
   candidates: Goal[] // all goals in the cycle (parents are filtered from here)
 }>()
-const emit = defineEmits<{ close: [], aligned: [parentId: string] }>()
+const emit = defineEmits<{ close: [], aligned: [parentId: string, krId?: string] }>()
 
 const LEVEL_GROUPS = [
   { key: 'company', label: 'Company goal' },
@@ -35,7 +35,22 @@ const LEVEL_GROUPS = [
 ] as const
 
 const search = ref('')
+// The align target is either a whole goal (selectedKrId === '') or a specific
+// key result of that goal (selectedKrId set).
 const selectedId = ref('')
+const selectedKrId = ref('')
+function selectGoal(id: string) { selectedId.value = id; selectedKrId.value = '' }
+function selectKr(goalId: string, krId: string) { selectedId.value = goalId; selectedKrId.value = krId }
+// KR measurement line, e.g. "Measurement: 0% → 100%".
+function krMeasureLine(kr: { measurementUnit?: string, startValue?: number | '', targetValue?: number | '' }) {
+  const fmt = (v?: number | '') => {
+    if (v === '' || v == null) return '—'
+    if (kr.measurementUnit === 'amount') return `Rp${Number(v).toLocaleString('id-ID')}`
+    if (kr.measurementUnit === 'percentage') return `${v}%`
+    return Number(v).toLocaleString('id-ID')
+  }
+  return `Measurement: ${fmt(kr.startValue)} → ${fmt(kr.targetValue)}`
+}
 
 // Rules — which parent LEVELS each goal level may align to (member-gated).
 // Prod's DropdownAlignGoal offers Team / Organization / Company parent groups
@@ -98,6 +113,7 @@ function measurementLine(g: Goal): string {
 watch(() => props.isOpen, (open) => {
   if (!open) return
   selectedId.value = props.goal?.alignedToId ?? ''
+  selectedKrId.value = props.goal?.alignedToKrId ?? ''
   search.value = ''
 })
 
@@ -106,7 +122,7 @@ function submit() {
     toast.notify({ id: 'align-goal-none', position: 'top-center', variant: 'error', title: 'Select a goal to align to' })
     return
   }
-  emit('aligned', selectedId.value)
+  emit('aligned', selectedId.value, selectedKrId.value || undefined)
   emit('close')
 }
 
@@ -124,6 +140,13 @@ const groupGap = css({ marginTop: '8' })
 const groupLabel = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
 const optionRow = css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '3', paddingBlock: '3', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default', cursor: 'pointer' })
 const optionMain = css({ display: 'flex', flexDirection: 'column', gap: '0.5', minWidth: '0' })
+// A key result sits indented under its goal, marked with a ↳ branch line and
+// selectable on its own (no background fill).
+const krOptionRow = css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '3', paddingBlock: '3', paddingLeft: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default', cursor: 'pointer' })
+const noBottomBorder = css({ borderBottomWidth: '0' })
+const krLeft = css({ display: 'flex', alignItems: 'flex-start', gap: '2', minWidth: '0' })
+const krBranch = css({ flexShrink: '0', color: 'text.secondary', fontSize: '16px', lineHeight: '20px' })
+const krLabelText = css({ fontSize: '12px', lineHeight: '16px', fontWeight: '600', color: 'text.secondary' })
 const goalIdText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const goalNameText = css({ fontSize: '14px', lineHeight: '20px', fontWeight: '600', color: 'text.default' })
 const optionSub = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
@@ -157,28 +180,50 @@ const emptyText = css({ paddingBlock: '6', textAlign: 'center', color: 'text.sec
               <div :class="groupHeader">
                 <span :class="groupLabel">{{ grp.label }}</span>
               </div>
-              <div
-                v-for="item in grp.items"
-                :key="item.id"
-                :class="optionRow"
-                @click="selectedId = item.id"
-              >
-                <div :class="optionMain">
-                  <MpText :class="goalIdText">{{ item.code }}</MpText>
-                  <MpText :class="goalNameText">{{ item.title }}</MpText>
-                  <MpText :class="optionSub">{{ ownerLine(item.ownerId) }}</MpText>
-                  <MpText :class="optionSub">{{ item.category }}. {{ item.subCategory }}</MpText>
-                  <MpText v-if="measurementLine(item)" :class="optionSub">{{ measurementLine(item) }}</MpText>
+              <template v-for="item in grp.items" :key="item.id">
+                <!-- Align to the whole goal (no divider when its KRs follow) -->
+                <div :class="[optionRow, (item.keyResults?.length ?? 0) > 0 && noBottomBorder]" @click="selectGoal(item.id)">
+                  <div :class="optionMain">
+                    <MpText :class="goalIdText">{{ item.code }}</MpText>
+                    <MpText :class="goalNameText">{{ item.title }}</MpText>
+                    <MpText :class="optionSub">{{ ownerLine(item.ownerId) }}</MpText>
+                    <MpText :class="optionSub">{{ item.category }}. {{ item.subCategory }}</MpText>
+                    <MpText v-if="measurementLine(item)" :class="optionSub">{{ measurementLine(item) }}</MpText>
+                  </div>
+                  <button
+                    type="button"
+                    :class="[selectCircle, selectedId === item.id && !selectedKrId && selectCircleActive]"
+                    :aria-label="selectedId === item.id && !selectedKrId ? 'Selected' : 'Select this goal'"
+                    @click.stop="selectGoal(item.id)"
+                  >
+                    <PxIcon v-if="selectedId === item.id && !selectedKrId" name="done" variant="fill" :size="24" color="green.500" />
+                  </button>
                 </div>
-                <button
-                  type="button"
-                  :class="[selectCircle, selectedId === item.id && selectCircleActive]"
-                  :aria-label="selectedId === item.id ? 'Selected' : 'Select this goal'"
-                  @click.stop="selectedId = item.id"
+                <!-- …or align to one of its key results -->
+                <div
+                  v-for="kr in (item.keyResults ?? [])"
+                  :key="kr.id"
+                  :class="krOptionRow"
+                  @click="selectKr(item.id, kr.id)"
                 >
-                  <PxIcon v-if="selectedId === item.id" name="done" variant="fill" :size="24" color="green.500" />
-                </button>
-              </div>
+                  <div :class="krLeft">
+                    <span :class="krBranch">↳</span>
+                    <div :class="optionMain">
+                      <MpText :class="krLabelText">Key result</MpText>
+                      <MpText :class="goalNameText">{{ kr.title }}</MpText>
+                      <MpText :class="optionSub">{{ krMeasureLine(kr) }}</MpText>
+                    </div>
+                  </div>
+                  <button
+                    type="button"
+                    :class="[selectCircle, selectedId === item.id && selectedKrId === kr.id && selectCircleActive]"
+                    :aria-label="selectedId === item.id && selectedKrId === kr.id ? 'Selected' : 'Select this key result'"
+                    @click.stop="selectKr(item.id, kr.id)"
+                  >
+                    <PxIcon v-if="selectedId === item.id && selectedKrId === kr.id" name="done" variant="fill" :size="24" color="green.500" />
+                  </button>
+                </div>
+              </template>
             </div>
           </template>
           <MpText v-else :class="emptyText">No goals available to align to.</MpText>

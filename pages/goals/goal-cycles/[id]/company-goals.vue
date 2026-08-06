@@ -188,7 +188,7 @@ const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
 // Select + Goal + Actions are always rendered; the rest follow visibleColumns.
 // Used as the colspan for the single merged cell that replaces this header
 // row's columns while 1+ rows are selected.
-const headerColCount = computed(() => 3
+const headerColCount = computed(() => 2 // Goal + action (checkbox now lives inside the Goal cell)
   + [visibleColumns.category, visibleColumns.subCategory, visibleColumns.owner, visibleColumns.progress, visibleColumns.status].filter(Boolean).length)
 
 const filteredGoals = computed(() => companyGoals.value.filter(g =>
@@ -328,7 +328,6 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 // other column divider, not a heavier "sticky" emphasis.
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
-const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
 // Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
 // height/fill is exactly what renders — no extra cell padding stacking on top.
 const noCellPadding = css({ padding: '0' })
@@ -363,6 +362,9 @@ const fillGray = css({ background: 'gray.400' })
 
 const pillBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', borderRadius: 'sm', paddingInline: '1', paddingBlock: '0.5', fontSize: '10px', lineHeight: '12px', fontWeight: '600' } as const
 const pillGreen = css({ ...pillBase, background: 'green.50', color: 'green.700' })
+const pillRose = css({ ...pillBase, background: 'red.50', color: 'red.700' })
+const pillGray = css({ ...pillBase, background: 'gray.100', color: 'gray.600' })
+function pillClass(s: string) { return s === 'orange' ? pillRose : s === 'gray' ? pillGray : pillGreen }
 
 const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRadius: 'full', paddingInline: '1.5', fontSize: '14px', lineHeight: '20px' } as const
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
@@ -505,7 +507,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                explicit colgroup fixes every column's width independent of
                whichever header row is currently rendered. -->
           <colgroup>
-            <col :class="colCheckbox">
             <col :class="colGoal">
             <col v-if="visibleColumns.category" :class="colCategory">
             <col v-if="visibleColumns.subCategory" :class="colSubCategory">
@@ -532,10 +533,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               </MpTableCell>
             </MpTableRow>
             <MpTableRow v-else>
-              <MpTableCell as="th" :class="[colDivider, colCheckbox]">
-                <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
+              <MpTableCell as="th" class="sort-th" :class="colDivider">
+                <MpFlex align="center" gap="2">
+                  <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
+                  <span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                </MpFlex>
               </MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.owner" as="th" class="sort-th" :class="[colDivider, colOwner]"><span :class="thInner"><span>Owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -546,29 +549,28 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpTableHead>
           <MpTableBody>
             <MpTableRow v-for="row in displayRows" :key="row.id">
-              <!-- Select — only real goals (kind 'main') are selectable. -->
-              <MpTableCell as="td" :class="[colDivider, colCheckbox]">
-                <MpCheckbox
-                  v-if="row.kind === 'main'"
-                  :is-checked="isSelected(row.id)"
-                  @update:is-checked="toggleSelect(row.id)"
-                  :aria-label="`Select ${row.title}`"
-                />
-              </MpTableCell>
-
-              <!-- Goal -->
+              <!-- Goal — the row-select checkbox lives inside this first cell
+                   (only real goals, kind 'main', are selectable). -->
               <MpTableCell as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
-                <MpFlex direction="column" gap="0.5" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
-                  <span :class="goalCode">{{ row.code }}</span>
-                  <MpFlex align="center" gap="2">
-                    <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
-                    <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                <MpFlex align="flex-start" gap="2" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
+                  <MpCheckbox
+                    v-if="row.kind === 'main'"
+                    :is-checked="isSelected(row.id)"
+                    @update:is-checked="toggleSelect(row.id)"
+                    :aria-label="`Select ${row.title}`"
+                  />
+                  <MpFlex direction="column" gap="0.5" :class="cellContent">
+                    <span :class="goalCode">{{ row.code }}</span>
+                    <MpFlex align="center" gap="2">
+                      <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
+                      <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                    </MpFlex>
+                    <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
+                    <button v-if="row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                      <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                      View aligned goals ({{ row.alignedGoals.length }})
+                    </button>
                   </MpFlex>
-                  <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                  <button v-if="row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
-                    <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
-                    View aligned goals ({{ row.alignedGoals.length }})
-                  </button>
                 </MpFlex>
               </MpTableCell>
 
@@ -600,7 +602,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                     <MpText size="label" :class="valueText">
                       {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
                     </MpText>
-                    <span :class="pillGreen">{{ row.pill }}%</span>
+                    <span :class="pillClass(row.status)">{{ row.pill }}%</span>
                   </MpFlex>
                   <div :class="progressTrack">
                     <div :class="[progressFill, row.status === 'green' ? fillGreen : row.status === 'orange' ? fillOrange : fillGray]" :style="{ width: `${row.pill}%` }" />

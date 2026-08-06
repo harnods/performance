@@ -21,7 +21,7 @@ import {
   MpAvatar,
   MpAvatarGroup,
   MpInput,
-  MpTextarea,
+  MpRichTextEditor,
   MpInputGroup,
   MpInputLeftAddon,
   MpInputRightAddon,
@@ -47,6 +47,11 @@ import {
   MpModalFooter,
   MpButtonGroup,
   MpDatePicker,
+  MpPopover,
+  MpPopoverTrigger,
+  MpPopoverContent,
+  MpPopoverList,
+  MpPopoverListItem,
   css,
 } from '@mekari/pixel3'
 import { type Employee, EMPLOYEES, employeeMeta } from '~/utils/employees'
@@ -85,9 +90,19 @@ const saveButtonLabel = computed(() => (isEditing.value ? 'Save changes' : 'Save
 
 const nameMax = 120
 const descriptionMax = 1000
+// Limited toolbar per request: bold / italic / underline / strike, bullet &
+// numbered lists, text alignment, and clear-formatting (for pasted styled text).
+const descriptionEditorOptions = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['bulletList', 'orderedList', 'align'],
+  ['clear'],
+]
 
 const name = ref('')
 const description = ref('')
+// MpRichTextEditor reads `value` only on mount (Tiptap), so bump this key each
+// time the drawer (re)opens to force a remount that picks up the loaded value.
+const rteKey = ref(0)
 const goalType = ref('')
 const category = ref('')
 const subCategory = ref('')
@@ -121,6 +136,12 @@ const keyResults = ref<DraftKeyResult[]>([])
 
 const krDrawerOpen = ref(false)
 const editingKr = ref<DraftKeyResult | null>(null)
+// KRs that were already saved on the goal being edited. Prod parity: removing
+// one of these needs a confirm modal; a brand-new KR (create mode, or added
+// this session) is removed immediately without confirmation.
+const savedKrIds = ref<Set<string>>(new Set())
+const krToDelete = ref<DraftKeyResult | null>(null)
+const isKrDeleteOpen = ref(false)
 
 const errors = reactive({ name: false, goalType: false, category: false, weight: false, deadlineDate: false, startValue: false, targetValue: false })
 const startValueErrorMessage = ref('')
@@ -187,6 +208,7 @@ function resetForm() {
     viewerIds.value = [...d.viewerIds]
     restrictedVisibility.value = d.restrictedVisibility ?? false
     keyResults.value = d.keyResults.map(kr => ({ ...kr }))
+    savedKrIds.value = new Set(d.keyResults.map(kr => kr.id))
     // subCategory depends on category — the watcher below resets it to ''
     // the moment `category.value` changes, so it must be set *after* that
     // watcher has flushed, not in the same synchronous pass.
@@ -220,11 +242,16 @@ function resetForm() {
     viewerIds.value = []
     restrictedVisibility.value = false
     keyResults.value = []
+    savedKrIds.value = new Set()
   }
+  rteKey.value++ // remount the rich-text editor so it shows the loaded description
   deadlineRuleErrors.value = []
   viewerDrawerOpen.value = false
+  contribDrawerOpen.value = false
   krDrawerOpen.value = false
   editingKr.value = null
+  krToDelete.value = null
+  isKrDeleteOpen.value = false
   isLeaveOpen.value = false
   nextTick(() => {
     hydrating = false
@@ -385,6 +412,21 @@ function removeViewer(employeeId: string) {
   viewerIds.value = viewerIds.value.filter(id => id !== employeeId)
 }
 
+// Company & Individual goals draw contributors from ALL employees — far too
+// many to list inline — so "Selected employees" opens the same employee-picker
+// drawer as Goal members, scoped to one owner at a time. Team & Organization
+// goals keep the inline checklist: their pool is just the handful of goal
+// members, so a drawer would be overkill there.
+const contribDrawerOpen = ref(false)
+const contribDrawerOwnerId = ref('')
+function openContribDrawer(ownerId: string) {
+  contribDrawerOwnerId.value = ownerId
+  contribDrawerOpen.value = true
+}
+function setContributorIds(ownerId: string, ids: string[]) {
+  contributorsByOwner[ownerId] = [...ids]
+}
+
 // A contributor can never be someone who isn't also a goal member — picking
 // "All members" locks the owner's contributor list to the current member
 // list; picking "Selected members" reveals a checklist scoped to members only.
@@ -434,8 +476,24 @@ function onKrSave(kr: DraftKeyResult) {
     ? keyResults.value.map(k => (k.id === kr.id ? kr : k))
     : [...keyResults.value, kr]
 }
-function removeKeyResult(id: string) {
+// Prod parity: confirm only when removing a KR that was already saved on an
+// existing goal; new KRs delete straight away.
+function askRemoveKr(kr: DraftKeyResult) {
+  if (isEditing.value && savedKrIds.value.has(kr.id)) {
+    krToDelete.value = kr
+    isKrDeleteOpen.value = true
+  } else {
+    doRemoveKr(kr.id)
+  }
+}
+function doRemoveKr(id: string) {
   keyResults.value = keyResults.value.filter(kr => kr.id !== id)
+  savedKrIds.value.delete(id)
+}
+function confirmRemoveKr() {
+  if (krToDelete.value) doRemoveKr(krToDelete.value.id)
+  isKrDeleteOpen.value = false
+  krToDelete.value = null
 }
 
 // Unsaved-changes guard: Esc / close button / Cancel route through
@@ -444,7 +502,7 @@ function removeKeyResult(id: string) {
 const isLeaveOpen = ref(false)
 function snapshot() {
   return JSON.stringify({
-    name: name.value, description: description.value, goalType: goalType.value,
+    name: name.value, description: description.value.replace(/<p>\s*<\/p>/g, '').trim(), goalType: goalType.value,
     category: category.value, subCategory: subCategory.value, weight: weight.value,
     repeat: repeat.value, scheduleEnd: scheduleEnd.value,
     measurementUnit: measurementUnit.value, currency: currency.value,
@@ -610,7 +668,7 @@ const personName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.defa
 const personMeta = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const removeBtn = css({ background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', color: 'icon.secondary', display: 'flex' })
 
-const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
+const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', paddingTop: '2', paddingBottom: '2', borderBottom: '1px solid', borderBottomColor: 'border.default' })
 </script>
 
 <template>
@@ -657,11 +715,18 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
               </MpFormControl>
 
               <MpFormControl id="goal-description">
-                <MpFlex align="center" justify="space-between">
-                  <MpFormLabel>Description</MpFormLabel>
-                  <span :class="charCount">{{ description.length }} / {{ descriptionMax }}</span>
-                </MpFlex>
-                <MpTextarea v-model="description" :maxlength="descriptionMax" />
+                <MpFormLabel>Description</MpFormLabel>
+                <MpRichTextEditor
+                  :key="rteKey"
+                  id="goal-description-rte"
+                  class="goal-desc-rte"
+                  :value="description"
+                  :maxlength="descriptionMax"
+                  has-border
+                  placeholder="Describe this goal…"
+                  :options="descriptionEditorOptions"
+                  @change="(v) => (description = v)"
+                />
               </MpFormControl>
 
               <MpFormControl id="goal-type" :is-invalid="errors.goalType">
@@ -905,10 +970,10 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
               </MpToggle>
             </div>
 
-            <!-- Goal contributor — works the same for every goal type,
-                 including Team goal. A contributor can only ever be chosen
-                 from the goal's own members (see Goal members above). -->
-            <div :class="section">
+            <!-- Goal contributor — only appears once a goal type is chosen
+                 (the contributor pool depends on it: members for Team/Org,
+                 all employees for Company/Individual). -->
+            <div v-if="goalType" :class="section">
               <div :class="sectionHeader">
                 <span :class="sectionTitle">Goal contributor <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
                 <span :class="sectionDesc">People who can update this goal's progress — chosen from the goal's {{ contributorPoolWord }}.</span>
@@ -923,15 +988,35 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
                   <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                 </MpFlex>
                 <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
-                  <MpCheckbox
-                    v-for="id in contributorPool"
-                    :key="id"
-                    :id="`contributor-${owners[0].id}-${id}`"
-                    :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
-                    @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
-                  >
-                    {{ employeeById(id)?.name }}
-                  </MpCheckbox>
+                  <!-- Team/Org: inline checklist scoped to the (small) member pool -->
+                  <template v-if="isNeedMember">
+                    <MpCheckbox
+                      v-for="id in contributorPool"
+                      :key="id"
+                      :id="`contributor-${owners[0].id}-${id}`"
+                      :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
+                      @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
+                    >
+                      {{ employeeById(id)?.name }}
+                    </MpCheckbox>
+                  </template>
+                  <!-- Company/Individual: pool is ALL employees — pick via drawer -->
+                  <template v-else>
+                    <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
+                      <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                      <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                        <span :class="personName">{{ employeeById(id)?.name }}</span>
+                        <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                      </MpFlex>
+                      <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owners[0].id, id, false)">
+                        <MpIcon name="minus-circular" size="sm" />
+                      </button>
+                    </MpFlex>
+                    <button type="button" :class="addLink" @click="openContribDrawer(owners[0].id)">
+                      <MpIcon name="add" size="sm" />
+                      Select employees
+                    </button>
+                  </template>
                 </div>
               </template>
 
@@ -951,15 +1036,35 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
                     <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                   </MpFlex>
                   <div v-if="contributorMode[owner.id] === 'selected'" :class="radioIndent">
-                    <MpCheckbox
-                      v-for="id in contributorPool"
-                      :key="id"
-                      :id="`contributor-${owner.id}-${id}`"
-                      :is-checked="(contributorsByOwner[owner.id] ?? []).includes(id)"
-                      @update:is-checked="(checked) => toggleContributor(owner.id, id, checked)"
-                    >
-                      {{ employeeById(id)?.name }}
-                    </MpCheckbox>
+                    <!-- Team/Org: inline checklist scoped to the (small) member pool -->
+                    <template v-if="isNeedMember">
+                      <MpCheckbox
+                        v-for="id in contributorPool"
+                        :key="id"
+                        :id="`contributor-${owner.id}-${id}`"
+                        :is-checked="(contributorsByOwner[owner.id] ?? []).includes(id)"
+                        @update:is-checked="(checked) => toggleContributor(owner.id, id, checked)"
+                      >
+                        {{ employeeById(id)?.name }}
+                      </MpCheckbox>
+                    </template>
+                    <!-- Company/Individual: pool is ALL employees — pick via drawer -->
+                    <template v-else>
+                      <MpFlex v-for="id in (contributorsByOwner[owner.id] ?? [])" :key="id" :class="personRow">
+                        <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                        <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                          <span :class="personName">{{ employeeById(id)?.name }}</span>
+                          <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                        </MpFlex>
+                        <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owner.id, id, false)">
+                          <MpIcon name="minus-circular" size="sm" />
+                        </button>
+                      </MpFlex>
+                      <button type="button" :class="addLink" @click="openContribDrawer(owner.id)">
+                        <MpIcon name="add" size="sm" />
+                        Select employees
+                      </button>
+                    </template>
                   </div>
                 </div>
               </template>
@@ -971,19 +1076,31 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
                 <span :class="sectionTitle">Key results <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
                 <span :class="sectionDesc">Specific outcomes that automatically update goal progress.</span>
               </div>
-              <div v-for="kr in keyResults" :key="kr.id" :class="krRow">
-                <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                  <span :class="personName">{{ kr.title }}</span>
-                  <span v-if="kr.target" :class="personMeta">{{ kr.target }}</span>
-                </MpFlex>
-                <MpFlex align="center" gap="0" :class="css({ flexShrink: '0' })">
-                  <button type="button" :class="removeBtn" aria-label="Edit key result" @click="openEditKr(kr)">
-                    <MpIcon name="edit" size="sm" />
-                  </button>
-                  <button type="button" :class="removeBtn" aria-label="Remove key result" @click="removeKeyResult(kr.id)">
-                    <MpIcon name="minus-circular" size="sm" />
-                  </button>
-                </MpFlex>
+              <!-- Rows carry their own top/bottom padding + divider, so no gap
+                   between them — wrap in a plain block to opt out of the
+                   section's flex gap. -->
+              <div v-if="keyResults.length">
+                <div v-for="kr in keyResults" :key="kr.id" :class="krRow">
+                  <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                    <span :class="personName">{{ kr.title }}</span>
+                    <span v-if="kr.target" :class="personMeta">{{ kr.target }}</span>
+                  </MpFlex>
+                  <MpFlex align="center" gap="0" :class="css({ flexShrink: '0' })">
+                    <MpPopover is-close-on-select use-portal placement="bottom-end">
+                      <MpPopoverTrigger>
+                        <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Key result actions" />
+                      </MpPopoverTrigger>
+                      <MpPopoverContent :class="css({ minWidth: '160px' })">
+                        <MpPopoverList>
+                          <MpPopoverListItem @click="openEditKr(kr)">Edit key result</MpPopoverListItem>
+                          <MpPopoverListItem @click="askRemoveKr(kr)">
+                            <span :class="css({ color: 'text.danger' })">Delete key result</span>
+                          </MpPopoverListItem>
+                        </MpPopoverList>
+                      </MpPopoverContent>
+                    </MpPopover>
+                  </MpFlex>
+                </div>
               </div>
               <button type="button" :class="addLink" @click="openAddKr">
                 <MpIcon name="add" size="sm" />
@@ -1015,8 +1132,43 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
     @continue="(ids) => { viewerIds = ids }"
   />
 
+  <!-- Contributor picker (Company / Individual goals) — scoped to one owner -->
+  <SelectEmployeesDrawer
+    drawer-id="drawer-select-contributors"
+    :is-open="contribDrawerOpen"
+    title="Select goal contributors"
+    description="People who can update this goal's progress."
+    :initial-selected="contributorsByOwner[contribDrawerOwnerId] ?? []"
+    :exclude-ids="[contribDrawerOwnerId]"
+    :is-required="false"
+    @update:is-open="contribDrawerOpen = $event"
+    @continue="(ids) => setContributorIds(contribDrawerOwnerId, ids)"
+  />
+
   <!-- Add / edit key result — sub-drawer opened on top of this drawer -->
   <AddKeyResultDrawer v-model:is-open="krDrawerOpen" :editing="editingKr" @save="onKrSave" />
+
+  <!-- Delete key result confirmation (only for already-saved KRs on edit) -->
+  <ClientOnly>
+    <MpModal :is-open="isKrDeleteOpen" size="sm" @close="isKrDeleteOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Delete this key result?
+          <MpModalCloseButton @click="isKrDeleteOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">Deleting “{{ krToDelete?.title }}” removes it from this goal and affects the goal’s progress. This takes effect once you save the goal.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isKrDeleteOpen = false">Cancel</MpButton>
+            <MpButton variant="danger" @click="confirmRemoveKr">Delete</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
 
   <!-- Unsaved-changes confirmation -->
   <ClientOnly>
@@ -1040,3 +1192,29 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
     </MpModal>
   </ClientOnly>
 </template>
+
+<style scoped>
+/* Give the description editor room for ~10 lines instead of collapsing to one.
+   MpRichTextEditor has no height prop, so grow its Tiptap editable area. */
+.goal-desc-rte :deep(.ProseMirror),
+.goal-desc-rte :deep([contenteditable='true']) {
+  min-height: 240px;
+}
+
+/* The toolbar's button rows default to align-items: stretch, leaving the icons
+   vertically off-centre. Match the toolbar defensively (its class prefix varies
+   across Pixel builds) and force middle alignment. Unlayered scoped rules with
+   !important beat Panda's atomic utilities regardless of @layer order. */
+.goal-desc-rte :deep([class*='toolbar']) {
+  align-items: center !important;
+}
+.goal-desc-rte :deep([class*='toolbar'] > div),
+.goal-desc-rte :deep([class*='toolbar'] [class*='ai_']) {
+  align-items: center !important;
+}
+.goal-desc-rte :deep([class*='toolbar'] button) {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+}
+</style>

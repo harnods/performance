@@ -74,6 +74,25 @@ Use the built-in default slot for the label + `#description` slot for the captio
 - Exception to "no external MpFlex": when a `MpBadge` sits inline with the label, wrap just the label content in an `MpFlex align="center" gap="2"`.
 - **Multiline label → align top**: rows with a toggle+description + a Manage button use `alignItems: 'flex-start'` (`toggleRowPlain`). Same for checkbox labels >1 line.
 
+## Rich text (long descriptions)
+
+A long free-text field that needs formatting uses **`MpRichTextEditor`** (not `MpTextarea`). Bind with `:value` + `@change` (it is NOT `v-model`), set `has-border` and `:maxlength`, and pass a **limited `:options`** toolbar — the house set is bold / italic / underline / strike, bullet & numbered lists, alignment, and clear-formatting (so pasted styled text can be stripped):
+
+```ts
+const descriptionEditorOptions = [
+  ['bold', 'italic', 'underline', 'strike'],
+  ['bulletList', 'orderedList', 'align'],
+  ['clear'],
+]
+```
+```vue
+<MpRichTextEditor id="goal-description-rte" :value="description" :maxlength="descriptionMax"
+  has-border placeholder="Describe this goal…" :options="descriptionEditorOptions"
+  @change="(v) => (description = v)" />
+```
+
+The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoalDrawer.vue` (goal description). Don't add heading/mention/image/undo unless asked.
+
 ## Input with unit suffix
 
 `MpInputGroup` + `MpInputRightAddon` (unit) / `MpInputLeftAddon` (currency):
