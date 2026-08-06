@@ -17,8 +17,17 @@ const goalCycleTitleFallback = computed(() => {
   return goalCycles.value.find(c => c.id === route.params.id)?.name ?? ''
 })
 
+// Goal category detail resolves its title from the category record (by :uuid),
+// same convention as goalCycleTitleFallback above — so the header shows the
+// category name instead of a static "details" string.
+const { categoryById } = useGoalCategoriesStore()
+const goalCategoryTitleFallback = computed(() => {
+  if (!route.path.startsWith('/goals/goal-categories/detail/')) return ''
+  return categoryById(route.params.uuid as string)?.name ?? ''
+})
+
 const pageTitle = computed(() =>
-  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || ''
+  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || goalCategoryTitleFallback.value || ''
 )
 const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefined))
 
@@ -97,9 +106,14 @@ const cycleBreadcrumb = computed(() => {
                   </MpTextlink>
                 </template>
               </MpFlex>
-              <MpText as="h1" size="h1" weight="semiBold" color="text.default">
-                {{ pageTitle }}
-              </MpText>
+              <MpFlex align="center" gap="2">
+                <MpText as="h1" size="h1" weight="semiBold" color="text.default">
+                  {{ pageTitle }}
+                </MpText>
+                <!-- Optional status badge beside the title. Pages inject via
+                     <Teleport to="#page-title-badge">. -->
+                <div id="page-title-badge" :class="css({ display: 'flex', alignItems: 'center' })" />
+              </MpFlex>
             </MpFlex>
             <div
               id="page-header-actions"

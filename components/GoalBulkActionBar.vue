@@ -35,7 +35,9 @@ onMounted(() => window.addEventListener('keydown', onKeydown))
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const bar = css({
-  height: '52px', paddingInline: '4',
+  // Match the normal column-header row height so selecting rows doesn't make
+  // the header grow taller.
+  height: '40px', paddingInline: '4',
   background: 'gray.25',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
 })

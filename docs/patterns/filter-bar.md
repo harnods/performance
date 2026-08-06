@@ -101,6 +101,26 @@ Filters feed a `computed` that filters the source array; search is case-insensit
 watch([...filters, search], () => { currentPage.value = 1 })
 ```
 
+## Right-cluster icon buttons — column settings & export (MUST have a tooltip)
+
+The right cluster holds two icon-only ghost buttons before the search input, in order
+**column settings → export → search**. Both are icon-only, so both **must be wrapped in an
+`MpTooltip`** (an `aria-label` alone is not enough — the user needs a visible tooltip on
+hover). `use-portal` so the tooltip escapes the table's overflow clip:
+
+```vue
+<MpTooltip label="Column settings" use-portal>
+  <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+</MpTooltip>
+<MpTooltip label="Export" use-portal>
+  <MpButton variant="ghost" left-icon="upload" aria-label="Export" />
+</MpTooltip>
+```
+
+> ⚠️ **Current divergence:** the goal-cycle-detail pages render these buttons with `aria-label`
+> but **no `MpTooltip`** (`goal-cycles/[id]/{index,team-goals,company-goals,organization-goals,individual-goals}.vue`).
+> Wrap them in `MpTooltip` — this is a required rule for icon-only buttons here.
+
 ## Export
 
 **Not on the 6 top-level list pages.** Export exists only on goal-cycle **detail** sub-pages, as an icon-only ghost button in the right cluster (order: column-settings → export → search) — `pages/goals/goal-cycles/[id]/team-goals.vue:535-561`:
@@ -117,6 +137,7 @@ Export is **never** in the page title/header — primary CTAs go through `#page-
 - New dropdown filters → `PxSelectPopover`.
 - Reset `currentPage` to 1 on any filter/search change.
 - Export (when present) = `variant="ghost" left-icon="upload"`, icon-only, right cluster — not the header.
+- Column-settings & export icon buttons **must** be wrapped in `MpTooltip` (`use-portal`).
 
 ## Known inconsistencies (don't propagate)
 

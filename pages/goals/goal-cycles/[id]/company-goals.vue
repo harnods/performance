@@ -382,7 +382,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 <template>
   <!-- Page header actions -->
   <Teleport to="#page-header-actions" defer>
-    <MpButton variant="secondary" right-icon="caret-down">Import goals</MpButton>
+    <MpButton variant="secondary" @click="router.push({ path: `/goals/goal-cycles/${route.params.id}/import` })">Import goals</MpButton>
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
 
@@ -464,7 +464,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+            <MpTooltip label="Column settings" placement="bottom" use-portal><MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" /></MpTooltip>
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
@@ -479,7 +479,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpPopoverList>
           </MpPopoverContent>
         </MpPopover>
-        <MpButton variant="ghost" left-icon="upload" aria-label="Export" />
+        <MpTooltip label="Export" placement="bottom" use-portal><MpButton variant="ghost" left-icon="upload" aria-label="Export" /></MpTooltip>
         <MpFlex :class="css({ width: '200px' })">
           <MpInputGroup>
             <MpInputLeftAddon>
@@ -588,10 +588,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <!-- Owner -->
               <MpTableCell v-if="visibleColumns.owner" as="td" :class="[tightCell, colDivider, colOwner]">
                 <MpFlex direction="column" gap="0" :class="cellContent">
-                  <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
-                  <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
-                  <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
-                  <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
+                  <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }} - {{ row.owner.id }}</MpText>
+                  <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }} | {{ row.owner.department }}</MpText>
                 </MpFlex>
               </MpTableCell>
 

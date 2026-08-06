@@ -46,6 +46,7 @@ Sequence for any UI work:
 | [`patterns/tabs.md`](patterns/tabs.md) | Section/status tabs (pageTabs) vs in-page detail tabs (MpTabs). |
 | [`patterns/filter-bar.md`](patterns/filter-bar.md) | The filter row above a table (search + export always on the right). |
 | [`patterns/pagination.md`](patterns/pagination.md) | Pagination controls under a table. |
+| [`patterns/checkbox.md`](patterns/checkbox.md) | Checkboxes — label gap (the 24px bug), checkbox-in-table (first cell), and the bulk-action bar. |
 | [`patterns/form.md`](patterns/form.md) | Any form — fields, selects, grid, section headers. |
 | [`patterns/page-form.md`](patterns/page-form.md) | Full-page create/edit vs drawer; when to use which. |
 | [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |

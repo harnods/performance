@@ -167,7 +167,7 @@ function seed(): Goal[] {
     id: 'rc-01', level: 'company', ownerId: 'rizal', department: 'Management',
     category: 'Financial', subCategory: 'Revenue Growth',
     code: 'RC-01', title: 'Total company revenue H1 2026 (IDR 9.2B)',
-   weight: 15, contributorIds: ['ali', 'bayu'], viewerIds: ['ali', 'bayu', 'cinta'], status: 'green', unit: 'currency', value: 8798000000, pill: 96, min: 0, max: 9200000000,
+   weight: 5, contributorIds: ['ali', 'bayu'], viewerIds: ['ali', 'bayu', 'cinta'], status: 'green', unit: 'currency', value: 8798000000, pill: 96, min: 0, max: 9200000000,
   }),
   g({
     id: 'rc-02', level: 'company', ownerId: 'rizal', department: 'Management',
@@ -185,7 +185,7 @@ function seed(): Goal[] {
     id: 'rc-04', level: 'company', ownerId: 'rizal', department: 'Management',
     category: 'Internal Process', subCategory: 'Strategy Execution',
     code: 'RC-04', title: 'H1 OKR completion rate (≥ 90%)',
-   weight: 15, contributorIds: [], viewerIds: ['evelyn', 'rio', 'ali', 'bayu', 'andi', 'cinta'], status: 'orange', unit: 'percent', value: 60.6, pill: 67, min: 0, max: 90,
+   weight: 5, contributorIds: [], viewerIds: ['evelyn', 'rio', 'ali', 'bayu', 'andi', 'cinta'], status: 'orange', unit: 'percent', value: 60.6, pill: 67, min: 0, max: 90,
   }),
   g({
     id: 'rc-05', level: 'company', ownerId: 'rizal', department: 'Management',
@@ -216,6 +216,30 @@ function seed(): Goal[] {
     category: 'Learning & Growth', subCategory: 'Strategic Planning',
     code: 'RC-09', title: 'H2 2026 strategic plan completion (By June 30)',
    weight: 10, contributorIds: [], viewerIds: [], status: 'green',
+  }),
+  g({
+    id: 'rc-10', level: 'individual', ownerId: 'rizal', department: 'Management',
+    category: 'Financial', subCategory: 'Cost Discipline',
+    code: 'RC-10', title: 'Company-wide cost optimization program (Launched)',
+   weight: 5, contributorIds: ['evelyn'], viewerIds: ['evelyn'], status: 'green',
+  }),
+  g({
+    id: 'rc-11', level: 'individual', ownerId: 'rizal', department: 'Management',
+    category: 'Customer', subCategory: 'Brand',
+    code: 'RC-11', title: 'National brand awareness campaign (Delivered)',
+   weight: 5, contributorIds: ['bayu'], viewerIds: ['bayu'], status: 'green',
+  }),
+  g({
+    id: 'rc-12', level: 'individual', ownerId: 'rizal', department: 'Management',
+    category: 'Internal Process', subCategory: 'Governance',
+    code: 'RC-12', title: 'Board reporting cadence standardized (Quarterly)',
+   weight: 5, contributorIds: [], viewerIds: [], status: 'green',
+  }),
+  g({
+    id: 'rc-13', level: 'individual', ownerId: 'rizal', department: 'Management',
+    category: 'Learning & Growth', subCategory: 'Succession',
+    code: 'RC-13', title: 'Executive succession plan finalized (By Jun 30)',
+   weight: 5, contributorIds: ['rio'], viewerIds: ['rio'], status: 'green',
   }),
   g({
     id: 'eb-01', level: 'organization', ownerId: 'evelyn', department: 'Accounting',
@@ -749,7 +773,7 @@ function seed(): Goal[] {
   g({
     id: 'es-04', level: 'individual', ownerId: 'eka', department: 'Front of House',
     category: 'Financial', subCategory: 'Avg Check',
-    code: 'ES-04', title: 'Average check contribution growth (+5% vs H2)',
+    code: 'ES-04', title: 'Average check contribution growth (+5% vs H2 2025)',
     alignedToId: 'ca-04',
     weight: 10, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 4.8, pill: 96, min: 0, max: 5,
   }),
@@ -796,18 +820,38 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 9
+const SEED_VERSION = 11
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress
 // state (deterministic per goal), since the cycle only just started. This keeps
 // each employee's H2 goals accurate and consistent with their H1 set while
 // giving the dashboard real "current cycle" progress to read.
+// Titles that bake in a period are rewritten for the H2 cycle so they stay
+// accurate (H1 originals keep saying H1; these H2 clones say H2 / next-half /
+// H2 cycle-end / prior-half = H1 2026). Keyed by the H1 goal `code`; any goal
+// not listed keeps its title verbatim. See docs — goal titles are period-correct
+// per cycle, not cloned blindly.
+const H2_TITLE_BY_CODE: Record<string, string> = {
+  'RC-01': 'Total company revenue H2 2026 (IDR 9.2B)',
+  'RC-04': 'H2 OKR completion rate (≥ 90%)',
+  'RC-09': 'H1 2027 strategic plan completion (By December 31)',
+  'RC-13': 'Executive succession plan finalized (By December 31)',
+  'AI-01': 'Total sales team revenue H2 2026 (IDR 6.3B)',
+  'AI-09': 'Sales playbook update & rollout (Completed H2)',
+  'DD-01': 'Personal sales revenue H2 2026 (IDR 1.8B)',
+  'JT-01': 'Personal sales revenue H2 2026 (IDR 1.7B)',
+  'AP-05': 'Food waste reduction vs H1 2026 (-10%)',
+  'CA-06': 'Table turnover improvement vs H1 2026 (+10%)',
+  'ES-04': 'Average check contribution growth (+5% vs H1 2026)',
+}
+
 function seed26H2(): Goal[] {
   return seed().map((g, i) => {
     const r = (i * 37) % 100
     const alignedToId = g.alignedToId ? `h2-${g.alignedToId}` : undefined
-    const commonoverride = { ...g, id: `h2-${g.id}`, cycleId: 'seed-26-h2', alignedToId }
+    const title = H2_TITLE_BY_CODE[g.code] ?? g.title
+    const commonoverride = { ...g, id: `h2-${g.id}`, cycleId: 'seed-26-h2', alignedToId, title }
     if (!g.unit) {
       // Non-measurable goals: status only, no progress bar.
       return { ...commonoverride, status: (r < 30 ? 'gray' : 'green') as GoalStatus, value: undefined, pill: undefined }

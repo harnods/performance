@@ -24,6 +24,10 @@ export interface GoalCycle {
   status: GoalCycleStatus // derived from the period (see goalCycleStatus), never persisted
   updatedAt?: string // ISO datetime — stamped on create/edit, shown on the Goal cycle info tab
   updatedBy?: string
+  // True only for cycles CREATED in the new Goals UI. Pre-seeded cycles are
+  // treated as carried over from the old UI (flag absent) — those don't block
+  // reverting to the old interface; a new-UI-created cycle does.
+  createdInNewUi?: boolean
 }
 
 // What we actually store — status is computed on read, so it's never persisted.
@@ -125,6 +129,7 @@ export function useGoalCyclesStore() {
       ...input,
       updatedAt: new Date().toISOString(),
       updatedBy: employeeById(currentUserId.value)?.name,
+      createdInNewUi: true,
     }
     rawCycles.value = [...rawCycles.value, stored]
     persist()

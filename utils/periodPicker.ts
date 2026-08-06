@@ -21,6 +21,14 @@ export function formatDateShort(d: Date): string {
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}`
 }
 
+// Compact range — when start and end share a year, show the year only once at
+// the end (e.g. "1 Jan - 30 Jun 2027"); otherwise show it on both.
+export function formatRangeCompact(start: Date, end: Date): string {
+  if (start.getFullYear() === end.getFullYear())
+    return `${start.getDate()} ${MONTH_SHORT[start.getMonth()]} - ${formatDateShort(end)}`
+  return `${formatDateShort(start)} - ${formatDateShort(end)}`
+}
+
 export function yearValue(year: number): PeriodValue {
   return {
     mode: 'year',
@@ -35,7 +43,7 @@ export function semesterValue(year: number, half: 1 | 2): PeriodValue {
   const end = half === 1 ? new Date(year, 5, 30) : new Date(year, 11, 31)
   return {
     mode: 'semester',
-    label: `H${half} ${year} (${formatDateShort(start)} - ${formatDateShort(end)})`,
+    label: `H${half} ${year} (${formatRangeCompact(start, end)})`,
     startDate: toISO(start),
     endDate: toISO(end),
   }
@@ -47,7 +55,7 @@ export function quarterValue(year: number, quarter: 1 | 2 | 3 | 4): PeriodValue 
   const end = new Date(year, startMonth + 3, 0)
   return {
     mode: 'quarter',
-    label: `Q${quarter} ${year} (${formatDateShort(start)} - ${formatDateShort(end)})`,
+    label: `Q${quarter} ${year} (${formatRangeCompact(start, end)})`,
     startDate: toISO(start),
     endDate: toISO(end),
   }
@@ -90,8 +98,23 @@ export function weekValue(date: Date): PeriodValue {
 export function customRangeValue(start: Date, end: Date): PeriodValue {
   return {
     mode: 'custom',
-    label: `${formatDateShort(start)} - ${formatDateShort(end)}`,
+    label: formatRangeCompact(start, end),
     startDate: toISO(start),
     endDate: toISO(end),
   }
+}
+
+// Reconstruct a PeriodValue from a stored cycle's dates so the picker preselects
+// the ORIGINAL preset (e.g. "H1 2026") on edit instead of falling back to a
+// custom range. Goal cycles are half-years, so semester is detected first; any
+// other shape falls back to a custom range.
+export function reconstructPeriod(startDate: string, endDate: string): PeriodValue {
+  const s = new Date(startDate)
+  const e = new Date(endDate)
+  const y = s.getFullYear()
+  const isH1 = s.getMonth() === 0 && s.getDate() === 1 && e.getMonth() === 5 && e.getDate() === 30 && e.getFullYear() === y
+  const isH2 = s.getMonth() === 6 && s.getDate() === 1 && e.getMonth() === 11 && e.getDate() === 31 && e.getFullYear() === y
+  if (isH1) return semesterValue(y, 1)
+  if (isH2) return semesterValue(y, 2)
+  return customRangeValue(s, e)
 }

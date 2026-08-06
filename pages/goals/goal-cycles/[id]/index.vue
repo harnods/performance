@@ -19,6 +19,7 @@ import {
   MpFlex,
   MpButton,
   MpText,
+  MpAvatar,
   MpIcon,
   MpTooltip,
   MpSelect,
@@ -48,6 +49,7 @@ import {
   MpModalBody,
   MpModalFooter,
   MpButtonGroup,
+  toast,
   css,
 } from '@mekari/pixel3'
 
@@ -80,7 +82,7 @@ function continueToNewGoals(employeeIds: string[]) {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
 }
 
-type Tab = 'all' | 'requests' | 'awaiting' | 'info'
+type Tab = 'all' | 'hierarchy' | 'requests' | 'awaiting' | 'info'
 const activeTab = ref<Tab>('all')
 
 // Switching "View as" persona can make the active tab invisible (e.g. an
@@ -106,6 +108,9 @@ const goalsViewOptions = [
 type GoalsViewKey = typeof goalsViewOptions[number]['key']
 const goalsView = ref<GoalsViewKey>('all')
 const goalsViewLabel = computed(() => goalsViewOptions.find(o => o.key === goalsView.value)?.label ?? 'All goals')
+// "My goals" is always a single owner (the current user) — so no per-owner
+// accordion, no owner-level pagination, and no All-filters (owner) drawer.
+const singleOwnerView = computed(() => goalsView.value === 'my')
 
 const scopedRoutes: Partial<Record<GoalsViewKey, string>> = {
   company: 'company-goals',
@@ -176,7 +181,7 @@ const GOAL_TYPE_LABEL: Record<string, string> = {
   individual: 'Individual goal',
 }
 
-const { goals, myGoals, myDirectReportsGoals } = useGoalsStore(route.params.id as string)
+const { goals, myGoals, myDirectReportsGoals, updateGoal } = useGoalsStore(route.params.id as string)
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
@@ -195,6 +200,21 @@ const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = us
 function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
+}
+
+// Align goal — any non-company goal can align (company is top, so no align).
+// The exact allowed parent level(s) per goal level + member gating live in
+// GoalAlignDrawer (individual → team/org; team → org; org → org/company).
+const alignModalOpen = ref(false)
+const aligningGoal = ref<(typeof goals.value)[number] | null>(null)
+function openAlign(row: { id: string }) {
+  aligningGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (aligningGoal.value) alignModalOpen.value = true
+}
+function onAligned(parentId: string) {
+  if (!aligningGoal.value) return
+  updateGoal(aligningGoal.value.id, { alignedToId: parentId })
+  toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
 }
 
 const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
@@ -283,56 +303,76 @@ watch(distinctOwnerIds, (ids) => {
   router.replace({ query: { ...route.query, newOwners: undefined } })
 }, { immediate: true })
 
-const visibleOwnerIds = computed(() => new Set(distinctOwnerIds.value.slice(0, visibleOwnerCount.value)))
-const slicedRows = computed(() => rows.value.filter(row => visibleOwnerIds.value.has(row.ownerId)))
-// Owner rowspan is computed on the sliced+expanded (currently visible) rows,
-// not the full list — otherwise a rowspan computed against the full list
-// would overshoot what's actually rendered. An inserted aligned row always
-// breaks an owner merge in two (it gets its own cell, showing its own real
-// owner), which is correct since it isn't necessarily that owner's goal.
-const visibleRows = computed(() => {
-  const sliced = slicedRows.value
-  const flat: Array<{ kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>, category: string, subCategory: string, categoryWeight: number, code: string, title: string, weight: number, goalType: string, alignedGoals: ReturnType<typeof alignedGoalsOf>, status: (typeof sliced)[number]['status'], unit?: (typeof sliced)[number]['unit'], value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean }> = []
+// ─── Accordion-per-owner (mirrors Organization goals grouping by department) ──
+// Each goal owner is its own collapsible accordion table. Two levels of
+// progressive pagination: PAGE_SIZE owners at a time (some tenants have ~1000
+// employees), and PER_OWNER_PAGE goals at a time inside each owner.
+type FlatRow = {
+  kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>,
+  category: string, subCategory: string, categoryWeight: number, code: string, title: string,
+  weight: number, goalType: string, level?: string, alignedGoals: ReturnType<typeof alignedGoalsOf>,
+  status: (typeof rows.value)[number]['status'], unit?: (typeof rows.value)[number]['unit'],
+  value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean
+}
+
+// owner id → that owner's main goal rows (in the already-sorted `rows` order).
+const ownerGoals = computed(() => {
+  const m = new Map<string, typeof rows.value>()
+  for (const r of rows.value) {
+    const arr = m.get(r.ownerId)
+    if (arr) arr.push(r)
+    else m.set(r.ownerId, [r])
+  }
+  return m
+})
+
+// Owner-level pagination: the first N owners (accordion groups).
+const visibleOwners = computed(() =>
+  distinctOwnerIds.value.slice(0, visibleOwnerCount.value).map((id) => {
+    const g = ownerGoals.value.get(id) ?? []
+    return { id, owner: ownerOf(id), total: g.length }
+  }),
+)
+
+// Goal-level pagination inside each owner.
+const PER_OWNER_PAGE = 10
+const perOwnerVisible = reactive<Record<string, number>>({})
+function goalsShown(id: string) { return perOwnerVisible[id] ?? PER_OWNER_PAGE }
+function loadMoreGoals(id: string) { perOwnerVisible[id] = goalsShown(id) + PER_OWNER_PAGE }
+function ownerHasMoreGoals(id: string, total: number) { return goalsShown(id) < total }
+
+// Accordion expand state — only the first owner is expanded by default, the
+// rest collapsed (mirrors Organization goals, where only the first group opens).
+const expandedOwner = reactive<Record<string, boolean>>({})
+function isOwnerOpen(id: string) { return expandedOwner[id] ?? (id === distinctOwnerIds.value[0]) }
+function toggleOwner(id: string) { expandedOwner[id] = !isOwnerOpen(id) }
+
+// One owner's rows for its currently-visible goal slice, with Category and
+// Sub-category rowspan-merged WITHIN the owner (Owner is the accordion header,
+// so there's no owner column). Aligned ("View aligned goals") rows expand
+// inline and always break the merge.
+function ownerRows(id: string) {
+  const sliced = (ownerGoals.value.get(id) ?? []).slice(0, goalsShown(id))
+  const flat: FlatRow[] = []
   for (const row of sliced) {
     flat.push({ kind: 'main', ...row })
     if (expandedAligned[row.id]) {
       for (const ag of row.alignedGoals) {
         flat.push({
-          kind: 'aligned',
-          id: `${row.id}::${ag.id}`,
-          ownerId: ag.ownerId,
-          owner: ownerOf(ag.ownerId),
-          category: ag.category,
-          subCategory: ag.subCategory,
-          categoryWeight: 0,
-          code: ag.code,
-          title: ag.title,
-          weight: ag.weight,
-          goalType: GOAL_TYPE_LABEL[ag.level],
-          alignedGoals: [],
-          status: ag.status,
-          unit: ag.unit,
-          value: ag.value,
-          pill: ag.pill,
-          min: ag.min,
-          max: ag.max,
+          kind: 'aligned', id: `${row.id}::${ag.id}`, ownerId: ag.ownerId, owner: ownerOf(ag.ownerId),
+          category: ag.category, subCategory: ag.subCategory, categoryWeight: 0, code: ag.code, title: ag.title,
+          weight: ag.weight, goalType: GOAL_TYPE_LABEL[ag.level], alignedGoals: [], status: ag.status,
+          unit: ag.unit, value: ag.value, pill: ag.pill, min: ag.min, max: ag.max,
         })
       }
     }
   }
   return flat.map((row, i) => {
-    if (row.kind === 'aligned') return { ...row, showOwner: true, ownerRowspan: 1, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1 }
+    if (row.kind === 'aligned') return { ...row, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1 }
     const prev = flat[i - 1]
-    // Owner / Category / Sub-category each rowspan-merge across consecutive rows
-    // that match, nested: category only merges within the same owner, sub-category
-    // only within the same owner+category. Rows are sorted owner→category→sub, so
-    // matching rows are always contiguous.
-    const newOwner = i === 0 || prev.kind !== 'main' || prev.ownerId !== row.ownerId
-    const newCategory = newOwner || prev.category !== row.category
+    const newCategory = i === 0 || prev.kind !== 'main' || prev.category !== row.category
     const newSub = newCategory || prev.subCategory !== row.subCategory
-    const sameCatBlock = (r: typeof row) => r.kind === 'main' && r.ownerId === row.ownerId && r.category === row.category
-    // The merged Category cell shows the category's total weight = sum of its
-    // goals' weights for this owner.
+    const sameCatBlock = (r: FlatRow) => r.kind === 'main' && r.category === row.category
     let categoryWeight = row.categoryWeight
     if (newCategory) {
       categoryWeight = 0
@@ -340,16 +380,14 @@ const visibleRows = computed(() => {
     }
     return {
       ...row,
-      showOwner: newOwner,
-      ownerRowspan: newOwner ? countWhile(flat, i, r => r.kind === 'main' && r.ownerId === row.ownerId) : 0,
       showCategory: newCategory,
       categoryRowspan: newCategory ? countWhile(flat, i, sameCatBlock) : 0,
       categoryWeight,
       showSubCategory: newSub,
-      subCategoryRowspan: newSub ? countWhile(flat, i, r => r.kind === 'main' && r.ownerId === row.ownerId && r.category === row.category && r.subCategory === row.subCategory) : 0,
+      subCategoryRowspan: newSub ? countWhile(flat, i, r => r.kind === 'main' && r.category === row.category && r.subCategory === row.subCategory) : 0,
     }
   })
-})
+}
 const hasMore = computed(() => visibleOwnerCount.value < distinctOwnerIds.value.length)
 function loadMore() {
   if (loadingMore.value) return
@@ -359,7 +397,11 @@ function loadMore() {
     loadingMore.value = false
   }, 800)
 }
-watch(goalsView, () => { visibleOwnerCount.value = PAGE_SIZE })
+watch(goalsView, () => {
+  visibleOwnerCount.value = PAGE_SIZE
+  for (const k of Object.keys(perOwnerVisible)) delete perOwnerVisible[k]
+  for (const k of Object.keys(expandedOwner)) delete expandedOwner[k]
+})
 
 function formatNumber(n: number): string {
   return n.toLocaleString('id-ID')
@@ -395,6 +437,11 @@ const statusFieldClass = css({ width: '160px', cursor: 'pointer', '& select': { 
 // outer edge stays borderless — one border per boundary, no doubling.
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const tableOuterBorder = css({ borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.bold', borderRadius: '6px', overflow: 'hidden' })
+// Accordion group per goal owner (mirrors Organization goals).
+const accordionGroup = css({ borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.bold', borderRadius: '6px', overflow: 'hidden' })
+const accordionHeader = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2', minHeight: '44px', paddingInline: '3', paddingBlock: '2', background: 'gray.50', cursor: 'pointer', border: 'none', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default', width: '100%', textAlign: 'left' })
+const accordionLeft = css({ display: 'flex', alignItems: 'center', gap: '2', minWidth: '0' })
+const loadMoreBar = css({ display: 'flex', alignItems: 'center', gap: '1', paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })
 // Sticky first/last column (Select / Actions). `is-fixed` alone only
 // tags the cell (data-table-cell-fixed) — the actual position:sticky/z-index/
 // background need setting explicitly, otherwise the column doesn't visually
@@ -476,6 +523,8 @@ const awaitingBadge = css({
 // the filter bar + table entirely (same pattern as
 // pages/reviews/review-cycles/[id]/index.vue's "No review timeframe yet").
 const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+// Goal hierarchy tab — intentionally empty for now (page to be built later).
+const hierarchyPlaceholder = css({ minHeight: '240px' })
 const emptyIllustration = css({ height: '240px', width: 'auto' })
 const emptyTextWrap = css({ maxWidth: '420px' })
 const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
@@ -484,25 +533,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 <template>
   <!-- Page header actions -->
   <Teleport to="#page-header-actions" defer>
-    <MpPopover is-close-on-select use-portal placement="bottom-end">
-      <MpPopoverTrigger>
-        <MpButton variant="secondary" right-icon="caret-down">Import</MpButton>
-      </MpPopoverTrigger>
-      <MpPopoverContent>
-        <MpPopoverList>
-          <MpPopoverListItem>Import goals</MpPopoverListItem>
-        </MpPopoverList>
-      </MpPopoverContent>
-    </MpPopover>
+    <MpButton variant="secondary" @click="router.push({ path: `/goals/goal-cycles/${route.params.id}/import` })">Import goals</MpButton>
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
 
   <!-- Tabs -->
   <Teleport to="#page-tabs" defer>
     <div :class="tabBar">
-      <MpPopover is-close-on-select use-portal placement="bottom-start">
+      <!-- On the All-goals tab the label is a dropdown (switch scope). From any
+           OTHER tab it's a plain button that just returns to All goals — a
+           second click (now on the tab) opens the scope dropdown. -->
+      <MpPopover v-if="activeTab === 'all'" is-close-on-select use-portal placement="bottom-start">
         <MpPopoverTrigger>
-          <button type="button" :class="activeTab === 'all' ? tabItemActive : tabItem" @click="activeTab = 'all'">
+          <button type="button" :class="tabItemActive">
             {{ goalsViewLabel }}
             <MpIcon name="caret-down" size="sm" />
           </button>
@@ -520,6 +563,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
+      <button v-else type="button" :class="tabItem" @click="activeTab = 'all'">
+        {{ goalsViewLabel }}
+        <MpIcon name="caret-down" size="sm" />
+      </button>
+      <button type="button" :class="activeTab === 'hierarchy' ? tabItemActive : tabItem" @click="activeTab = 'hierarchy'">
+        Goal hierarchy
+      </button>
       <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
         My requests
         <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
@@ -537,6 +587,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
     <GoalMyRequestsList v-if="activeTab === 'requests'" :cycle-id="route.params.id as string" />
     <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
+    <!-- Goal hierarchy — placeholder for now, page intentionally left empty -->
+    <div v-else-if="activeTab === 'hierarchy'" :class="hierarchyPlaceholder" />
     <template v-else>
     <!-- Empty state: brand-new goal cycle, no goals at all yet -->
     <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
@@ -569,19 +621,16 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpPopoverList>
           </MpPopoverContent>
         </MpPopover>
-        <MpButton variant="secondary" @click="allFiltersOpen = true">All filters<template v-if="activeFilterCount"> ({{ activeFilterCount }})</template></MpButton>
+        <MpButton v-if="!singleOwnerView" variant="secondary" @click="allFiltersOpen = true">All filters<template v-if="activeFilterCount"> ({{ activeFilterCount }})</template></MpButton>
       </MpFlex>
 
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+            <MpTooltip label="Column settings" placement="bottom" use-portal><MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" /></MpTooltip>
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
-              <MpPopoverListItem is-disabled>
-                <MpCheckbox id="col-goal-owner" is-checked is-disabled>Goal owner</MpCheckbox>
-              </MpPopoverListItem>
               <MpPopoverListItem v-for="col in columnOptions" :key="col.key">
                 <MpCheckbox :id="`col-${col.key}`" v-model:is-checked="visibleColumns[col.key]">
                   {{ col.label }}
@@ -590,7 +639,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpPopoverList>
           </MpPopoverContent>
         </MpPopover>
-        <MpButton variant="ghost" left-icon="upload" aria-label="Export" />
+        <MpTooltip label="Export" placement="bottom" use-portal><MpButton variant="ghost" left-icon="upload" aria-label="Export" /></MpTooltip>
         <MpFlex :class="css({ width: '200px' })">
           <MpInputGroup>
             <MpInputLeftAddon>
@@ -602,19 +651,26 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpFlex>
     </MpFlex>
 
-    <!-- Goal table. tableOuterBorder must live on a wrapper div, not on
-         MpTableContainer itself — the component already sets its own
-         overflow-x:auto for horizontal scroll, and putting overflow:hidden
-         directly on the same element fights that and disables scrolling. -->
-    <div ref="wrapperRef" :class="tableOuterBorder">
+    <!-- One accordion table per goal owner (owner is the group header, so there
+         is no owner column inside). Owner-level and per-owner goal pagination. -->
+    <div :class="tableOuterBorder">
+    <div v-for="grp in visibleOwners" :key="grp.id">
+      <button v-if="!singleOwnerView" type="button" :class="accordionHeader" @click="toggleOwner(grp.id)">
+        <span :class="accordionLeft">
+          <MpIcon :name="isOwnerOpen(grp.id) ? 'caret-down' : 'caret-right'" size="sm" />
+          <MpAvatar :name="grp.owner.name" :src="grp.owner.photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
+          <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
+            <MpText size="label" weight="semiBold" :class="valueText">{{ grp.owner.name }}</MpText>
+            <MpText size="label-small" :class="captionText">{{ grp.owner.id }} · {{ grp.owner.title }} · {{ grp.owner.department }}</MpText>
+          </MpFlex>
+        </span>
+        <MpText size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+      </button>
+
+      <template v-if="singleOwnerView || isOwnerOpen(grp.id)">
       <MpTableContainer>
         <MpTable :is-hoverable="false" :class="fixedTable">
-        <!-- table-layout:fixed derives column widths from the first row's
-             cells — an explicit colgroup fixes every column's width
-             independent of which optional columns are toggled on/off via
-             Column settings. -->
         <colgroup>
-          <col :class="colOwner">
           <col v-if="visibleColumns.category" :class="colCategory">
           <col v-if="visibleColumns.subCategory" :class="colSubCategory">
           <col v-if="visibleColumns.goal">
@@ -625,33 +681,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </colgroup>
         <MpTableHead>
           <MpTableRow>
-            <MpTableCell as="th" class="sort-th" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, colOwner]"><span :class="thInner"><span>Goal owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.goal" as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.goalType" as="th" class="sort-th" :class="[colDivider, colGoalType]"><span :class="thInner"><span>Goal type</span><PxColumnSortMenu col-key="goalType" :sort-type="columnSortTypes.goalType" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.progress" as="th" class="sort-th" :class="[colDivider, colProgress]"><span :class="thInner"><span>Progress</span><PxColumnSortMenu col-key="progress" :sort-type="columnSortTypes.progress" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.status" as="th" class="sort-th" :class="[colDivider, colStatus]"><span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-            <MpTableCell as="th" :is-fixed="hasOverflow" :class="[actionHead, hasOverflow && fixedRightCol]" />
+            <MpTableCell as="th" :class="actionHead" />
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>
-          <MpTableRow v-for="row in visibleRows" :key="row.id">
-            <!-- Goal owner: rowspan-merged across this owner's consecutive
-                 goals (this table spans many owners at once). Aligned/child
-                 rows leave this blank — their owner already shows inline in
-                 the Goal cell ("Owner: X"), so repeating it here would be
-                 redundant. Sticky-left so it stays visible while scrolling,
-                 but only once the table actually scrolls. -->
-            <MpTableCell v-if="row.showOwner" as="td" :rowspan="row.ownerRowspan" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, ownerCell, colOwner]">
-              <MpFlex v-if="row.kind === 'main'" direction="column" gap="0" :class="cellContent">
-                <MpText size="label" :class="[valueText, cellContent]">{{ row.owner.name }}</MpText>
-                <MpText size="label-small" :class="captionText">{{ row.owner.id }}</MpText>
-                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.title }}</MpText>
-                <MpText size="label-small" :class="[captionText, cellContent]">{{ row.owner.department }}</MpText>
-              </MpFlex>
-            </MpTableCell>
-
+          <MpTableRow v-for="row in ownerRows(grp.id)" :key="row.id">
             <!-- Category: rowspan-merged across this owner's consecutive
                  same-category goals (weight shown = the category's total). -->
             <MpTableCell v-if="visibleColumns.category && row.showCategory" as="td" :rowspan="row.categoryRowspan" :class="[tightCell, colDivider, colCategory]">
@@ -675,13 +715,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
                 </MpFlex>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                <MpFlex v-if="row.kind === 'aligned'" align="flex-start" gap="1" :class="css({ marginTop: '1' })">
-                  <MpText size="label-small" :class="captionText">Owner:</MpText>
-                  <MpFlex direction="column" gap="0">
-                    <MpText size="label-small" :class="captionText">{{ row.owner.name }}</MpText>
-                    <MpText size="label-small" :class="captionText">{{ row.owner.id }} | {{ row.owner.title }} | {{ row.owner.department }}</MpText>
-                  </MpFlex>
-                </MpFlex>
+                <MpText v-if="row.kind === 'aligned'" size="label-small" :class="[captionText, css({ marginTop: '1' })]">
+                  Goal owner: {{ row.owner.name }} - {{ row.owner.id }} | {{ row.owner.title }} | {{ row.owner.department }}
+                </MpText>
                 <button v-if="visibleColumns.alignedGoals && row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
                   <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
                   View aligned goals ({{ row.alignedGoals.length }})
@@ -724,7 +760,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpTableCell>
 
             <!-- Actions -->
-            <MpTableCell as="td" :is-fixed="hasOverflow" :class="[actionCell, hasOverflow && fixedRightCol, fixedBodyBg]">
+            <MpTableCell as="td" :class="actionCell">
               <MpPopover is-close-on-select use-portal placement="bottom-end">
                 <MpPopoverTrigger>
                   <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
@@ -733,6 +769,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpPopoverList>
                     <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
                     <MpPopoverListItem @click="goToGoal(row)">Update goal progress</MpPopoverListItem>
+                    <MpPopoverListItem v-if="row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
                     <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                     <MpPopoverListItem @click="deleteRow(row)">
                       <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -743,41 +780,25 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpTableCell>
           </MpTableRow>
 
-          <!-- Skeleton rows: progressive load-more (appended after existing rows) -->
-          <template v-if="loadingMore">
-            <MpTableRow v-for="i in Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount)" :key="`skel-${i}`">
-              <MpTableCell as="td" :is-fixed="hasOverflow" :class="[hasOverflow ? fixedLeftCol : colDivider, fixedBodyBg, ownerCell, colOwner]">
-                <MpFlex direction="column" gap="1">
-                  <MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" />
-                  <MpSkeleton :class="css({ width: '80px', height: '12px', borderRadius: '4px' })" />
-                </MpFlex>
-              </MpTableCell>
-              <MpTableCell v-if="visibleColumns.category" as="td" :class="[tightCell, colDivider, colCategory]"><MpSkeleton :class="css({ width: '100px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell v-if="visibleColumns.subCategory" as="td" :class="[tightCell, colDivider, colSubCategory]"><MpSkeleton :class="css({ width: '120px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider]"><MpSkeleton :class="css({ width: '220px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell v-if="visibleColumns.goalType" as="td" :class="[tightCell, colDivider, colGoalType]"><MpSkeleton :class="css({ width: '100px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]"><MpSkeleton :class="css({ width: '160px', height: '14px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]"><MpSkeleton :class="css({ width: '72px', height: '22px', borderRadius: '4px' })" /></MpTableCell>
-              <MpTableCell as="td" :is-fixed="hasOverflow" :class="[actionCell, hasOverflow && fixedRightCol, fixedBodyBg]"><MpSkeleton :class="css({ width: '32px', height: '32px', borderRadius: '6px' })" /></MpTableCell>
-            </MpTableRow>
-          </template>
         </MpTableBody>
       </MpTable>
       </MpTableContainer>
 
-      <!-- Load more bar -->
-      <MpFlex
-        align="center"
-        gap="1"
-        :class="css({ paddingX: '4', paddingY: '3', borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default' })"
-      >
-        <MpText size="label" :class="captionText">
-          Showing {{ slicedRows.length }} of {{ rows.length }} goals ({{ Math.min(visibleOwnerCount, distinctOwnerIds.length) }} of {{ distinctOwnerIds.length }} employees).
-        </MpText>
-        <MpTextlink v-if="hasMore && !loadingMore" size="label" @click="loadMore">
-          Load {{ Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount) }} more employees.
-        </MpTextlink>
+      <!-- Per-owner: load more goals (10 at a time) -->
+      <MpFlex v-if="ownerHasMoreGoals(grp.id, grp.total)" :class="loadMoreBar">
+        <MpText size="label" :class="captionText">Showing {{ Math.min(goalsShown(grp.id), grp.total) }} of {{ grp.total }} goals.</MpText>
+        <MpTextlink size="label" @click="loadMoreGoals(grp.id)">Load {{ Math.min(PER_OWNER_PAGE, grp.total - goalsShown(grp.id)) }} more goals.</MpTextlink>
       </MpFlex>
+      </template>
+    </div>
+
+    <!-- Owner-level: load more employees (10 at a time) — inside the shared border -->
+    <MpFlex v-if="!singleOwnerView" align="center" gap="1" :class="loadMoreBar">
+      <MpText size="label" :class="captionText">Showing {{ visibleOwners.length }} of {{ distinctOwnerIds.length }} employees.</MpText>
+      <MpTextlink v-if="hasMore && !loadingMore" size="label" @click="loadMore">
+        Load {{ Math.min(PAGE_SIZE, distinctOwnerIds.length - visibleOwnerCount) }} more employees.
+      </MpTextlink>
+    </MpFlex>
     </div>
     </template>
     </template>
@@ -804,6 +825,15 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
     @save="saveEdit"
+  />
+
+  <!-- Align an individual goal to a higher-level parent goal (member-only) -->
+  <GoalAlignDrawer
+    :is-open="alignModalOpen"
+    :goal="aligningGoal"
+    :candidates="goals"
+    @close="alignModalOpen = false"
+    @aligned="onAligned"
   />
 
   <!-- Delete confirmation -->

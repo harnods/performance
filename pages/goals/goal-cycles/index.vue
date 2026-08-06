@@ -62,6 +62,7 @@ import {
 } from '@mekari/pixel3'
 import type { GoalCycle, GoalCycleStatus, ProgressUpdateMethod } from '~/composables/useGoalCyclesStore'
 import type { PeriodValue } from '~/utils/periodPicker'
+import { reconstructPeriod } from '~/utils/periodPicker'
 
 definePageMeta({ title: 'Goal cycles' })
 
@@ -173,7 +174,8 @@ function openDrawer() {
 function openEditDrawer(cycle: GoalCycle) {
   editingCycleId.value = cycle.id
   cycleName.value = cycle.name
-  cyclePeriod.value = { mode: 'custom', label: cycle.period, startDate: cycle.startDate, endDate: cycle.endDate }
+  // Preselect the ORIGINAL preset (e.g. "H1 2026"), not a custom range.
+  cyclePeriod.value = reconstructPeriod(cycle.startDate, cycle.endDate)
   progressMethod.value = cycle.progressUpdateMethod
   weightMandatory.value = cycle.weightMandatory
   errors.name = false

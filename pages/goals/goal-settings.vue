@@ -18,6 +18,17 @@ import {
   MpBadge,
   MpButton,
   MpTextlink,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerTitle,
+  MpBannerDescription,
+  MpModal,
+  MpModalOverlay,
+  MpModalContent,
+  MpModalHeader,
+  MpModalCloseButton,
+  MpModalBody,
+  MpModalFooter,
   css,
 } from '@mekari/pixel3'
 
@@ -29,7 +40,23 @@ const router = useRouter()
 // Shared with AppSidebar.vue: toggling this swaps the Goals level-2 sitemap
 // between the current menu and the new-experience menu (Goal cycles / Goal
 // categories / Goal settings).
-const useNewInterface = useCookie('goals-new-interface', { default: () => false })
+// Default true to match AppSidebar.vue — the app ships on the new Goals
+// interface, so the toggle reads ON until the user switches back.
+const useNewInterface = useCookie('goals-new-interface', { default: () => true })
+
+// Reverting to the old UI is blocked once a goal cycle has been CREATED in the
+// new UI (pre-seeded cycles are carryover from the old UI and don't count).
+const { cycles } = useGoalCyclesStore()
+const hasNewUiCycle = computed(() => cycles.value.some(c => c.createdInNewUi))
+const revertBlockedOpen = ref(false)
+function onToggleNewInterface(val: boolean) {
+  // Turning it OFF (back to old UI) is blocked while a new-UI cycle exists.
+  if (!val && hasNewUiCycle.value) {
+    revertBlockedOpen.value = true
+    return
+  }
+  useNewInterface.value = val
+}
 const restrictGoalCreator = ref(false)
 const enableGoalCategories = ref(true)
 const receiveGroupedRequests = ref(false)
@@ -78,11 +105,19 @@ const linkRow = css({ paddingLeft: '10' })
         </MpText>
       </div>
       <div :class="toggleWithLink">
-        <MpToggle id="use-new-interface" v-model:is-checked="useNewInterface">
+        <MpToggle id="use-new-interface" :is-checked="useNewInterface" @update:is-checked="onToggleNewInterface">
           Use the new Goals interface
         </MpToggle>
         <div :class="linkRow">
           <MpTextlink>Learn what's new</MpTextlink>
+        </div>
+        <!-- Locked once a goal cycle has been created in the new UI. -->
+        <div v-if="hasNewUiCycle" :class="linkRow">
+          <MpBanner variant="warning">
+            <MpBannerIcon />
+            <MpBannerTitle>Can’t switch back to the old interface</MpBannerTitle>
+            <MpBannerDescription>You’ve created one or more goal cycles in the new Goals interface. Delete those goal cycles first if you need to switch back.</MpBannerDescription>
+          </MpBanner>
         </div>
       </div>
 
@@ -200,4 +235,25 @@ const linkRow = css({ paddingLeft: '10' })
       </div>
     </div>
   </div>
+
+  <!-- Blocked-revert alert: a goal cycle exists that was created in the new UI -->
+  <ClientOnly>
+  <MpModal :is-open="revertBlockedOpen" is-centered @close="revertBlockedOpen = false">
+    <MpModalOverlay />
+    <MpModalContent>
+      <MpModalHeader>
+        Can’t switch back to the old interface
+        <MpModalCloseButton @click="revertBlockedOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText color="text.default">
+          You’ve created one or more goal cycles in the new Goals interface, so you can’t switch back to the old one. Delete those goal cycles first if you really need to revert.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter>
+        <MpButton variant="primary" @click="revertBlockedOpen = false">Got it</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
 </template>

@@ -22,7 +22,7 @@ import {
 
 definePageMeta({
   layout: 'default',
-  title: 'Goal category details',
+  // Title comes from the category name via the layout's goalCategoryTitleFallback.
   breadcrumb: { label: 'Goal categories', to: '/goals/goal-categories' },
 })
 
@@ -50,15 +50,16 @@ function onSave(payload: { name: string, description: string, subCategories: { i
 }
 
 // ─── Styles (DT 2.4) ──────────────────────────────────────────────────────────
-const sectionTitle = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
 const sectionH3 = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px' })
 const section = css({ display: 'flex', flexDirection: 'column', gap: '3', paddingTop: '8' })
 const kvRow = css({ display: 'flex', alignItems: 'flex-start', gap: '4', paddingBlock: '1.5' })
 const kvLabel = css({ width: '160px', flexShrink: '0', color: 'text.secondary', fontSize: '14px', lineHeight: '20px' })
-const subList = css({ margin: '0', paddingLeft: '5', display: 'flex', flexDirection: 'column', gap: '1' })
-const headerRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
+// Bulleted sub-category list — real <ul>/<li> with disc markers (do NOT use
+// display:flex on the ul, that suppresses the list markers).
+const subList = css({ margin: '0', paddingLeft: '5', listStyleType: 'disc' })
+const subItem = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px', marginBottom: '1', _last: { marginBottom: '0' } })
 const subtitle = css({ color: 'text.secondary', fontSize: '14px', lineHeight: '20px' })
 </script>
 
@@ -68,15 +69,15 @@ const subtitle = css({ color: 'text.secondary', fontSize: '14px', lineHeight: '2
       <MpButton variant="secondary" left-icon="edit" @click="isDrawerOpen = true">Edit</MpButton>
     </Teleport>
 
+    <!-- Status badge beside the page title (name) in the header bar. -->
+    <Teleport to="#page-title-badge" defer>
+      <MpBadge for="tableStatus" :type="category.status === 'active' ? 'completed' : 'announcement'">
+        {{ category.status === 'active' ? 'Active' : 'Inactive' }}
+      </MpBadge>
+    </Teleport>
+
     <!-- Summary -->
     <section :class="[section, css({ paddingTop: '0' })]">
-      <div :class="headerRow">
-        <MpText :class="sectionTitle">{{ category.name }}</MpText>
-        <MpBadge for="tableStatus" :type="category.status === 'active' ? 'completed' : 'announcement'">
-          {{ category.status === 'active' ? 'Active' : 'Inactive' }}
-        </MpBadge>
-      </div>
-
       <div :class="css({ display: 'flex', flexDirection: 'column' })">
         <div :class="kvRow">
           <span :class="kvLabel">Description</span>
@@ -85,9 +86,7 @@ const subtitle = css({ color: 'text.secondary', fontSize: '14px', lineHeight: '2
         <div :class="kvRow">
           <span :class="kvLabel">Sub-categories</span>
           <ul v-if="category.subCategories.length" :class="subList">
-            <li v-for="sub in category.subCategories" :key="sub.id">
-              <MpText size="label" :class="valueText">{{ sub.name }}</MpText>
-            </li>
+            <li v-for="sub in category.subCategories" :key="sub.id" :class="subItem">{{ sub.name }}</li>
           </ul>
           <span v-else :class="captionText">—</span>
         </div>

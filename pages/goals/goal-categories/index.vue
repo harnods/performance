@@ -193,14 +193,6 @@ function openSubModal(cat: GoalCategoryRecord) {
   isSubModalOpen.value = true
 }
 
-// ─── Linked goals modal ───────────────────────────────────────────────────────
-const linkedModalCat = ref<GoalCategoryRecord | null>(null)
-const isLinkedModalOpen = ref(false)
-function openLinkedModal(cat: GoalCategoryRecord) {
-  linkedModalCat.value = cat
-  isLinkedModalOpen.value = true
-}
-
 function viewDetails(cat: GoalCategoryRecord) {
   router.push({ path: `/goals/goal-categories/detail/${cat.id}` })
 }
@@ -216,7 +208,7 @@ const modifiedCol = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'm
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
-const nameText = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px' })
+const nameLink = css({ color: 'text.link', cursor: 'pointer', fontSize: '14px', lineHeight: '20px', textDecoration: 'none', width: 'fit-content', _hover: { textDecoration: 'underline' } })
 const descText = css({ color: 'text.secondary', fontSize: '12px', lineHeight: '16px' })
 const linkText = css({ color: 'text.link', cursor: 'pointer', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 const mutedDash = css({ color: 'text.secondary' })
@@ -225,7 +217,10 @@ const statusFieldClass = css({ width: '160px', cursor: 'pointer', '& select': { 
 const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
 const emptyIllustration = css({ height: '200px', width: 'auto' })
 const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
-const subList = css({ margin: '0', paddingLeft: '5', display: 'flex', flexDirection: 'column', gap: '1' })
+// Bulleted list — real <ul>/<li> with disc markers (do NOT use display:flex on
+// the ul, that suppresses the markers).
+const subList = css({ margin: '0', paddingLeft: '5', listStyleType: 'disc' })
+const subItem = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px', marginBottom: '1', _last: { marginBottom: '0' } })
 </script>
 
 <template>
@@ -301,7 +296,7 @@ const subList = css({ margin: '0', paddingLeft: '5', display: 'flex', flexDirect
             <MpTableRow v-for="cat in paged" :key="cat.id">
               <MpTableCell as="td" :class="tightCell">
                 <MpFlex direction="column" gap="0.5">
-                  <span :class="nameText">{{ cat.name }}</span>
+                  <span :class="nameLink" @click="viewDetails(cat)">{{ cat.name }}</span>
                   <span :class="descText">{{ cat.description || '-' }}</span>
                 </MpFlex>
               </MpTableCell>
@@ -312,7 +307,7 @@ const subList = css({ margin: '0', paddingLeft: '5', display: 'flex', flexDirect
                 <span v-else :class="mutedDash">—</span>
               </MpTableCell>
               <MpTableCell as="td" :class="tightCell">
-                <span v-if="linkedGoalCount(cat.name) > 0" :class="linkText" @click="openLinkedModal(cat)">
+                <span v-if="linkedGoalCount(cat.name) > 0" :class="valueText">
                   {{ linkedGoalCount(cat.name) }} {{ linkedGoalCount(cat.name) === 1 ? 'goal' : 'goals' }}
                 </span>
                 <span v-else :class="mutedDash">—</span>
@@ -456,34 +451,13 @@ const subList = css({ margin: '0', paddingLeft: '5', display: 'flex', flexDirect
             <div>
               <MpText size="label" :class="css({ fontWeight: '600', color: 'text.default', marginBottom: '1' })">Sub-categories:</MpText>
               <ul :class="subList">
-                <li v-for="sub in subModalCat?.subCategories" :key="sub.id">
-                  <MpText size="label" :class="valueText">{{ sub.name }}</MpText>
-                </li>
+                <li v-for="sub in subModalCat?.subCategories" :key="sub.id" :class="subItem">{{ sub.name }}</li>
               </ul>
             </div>
           </MpFlex>
         </MpModalBody>
         <MpModalFooter>
           <MpButton variant="ghost" @click="isSubModalOpen = false">Close</MpButton>
-        </MpModalFooter>
-      </MpModalContent>
-    </MpModal>
-  </ClientOnly>
-
-  <!-- Linked goals modal -->
-  <ClientOnly>
-    <MpModal :is-open="isLinkedModalOpen" size="2xl" is-centered @close="isLinkedModalOpen = false">
-      <MpModalOverlay />
-      <MpModalContent>
-        <MpModalHeader>
-          Linked goals ({{ linkedModalCat ? linkedGoalCount(linkedModalCat.name) : 0 }})
-          <MpModalCloseButton @click="isLinkedModalOpen = false" />
-        </MpModalHeader>
-        <MpModalBody>
-          <GoalCategoryLinkedGoals v-if="linkedModalCat" :category-name="linkedModalCat.name" />
-        </MpModalBody>
-        <MpModalFooter>
-          <MpButton variant="ghost" @click="isLinkedModalOpen = false">Close</MpButton>
         </MpModalFooter>
       </MpModalContent>
     </MpModal>

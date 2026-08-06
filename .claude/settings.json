@@ -1,0 +1,26 @@
+{
+  "hooks": {
+    "UserPromptSubmit": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "echo '{\"hookSpecificOutput\":{\"hookEventName\":\"UserPromptSubmit\",\"additionalContext\":\"[design-docs guard] This repo has a design-system doc set. Before building, replicating, or changing ANY page/feature/component: (1) READ docs/README.md and the matching docs/patterns/*.md FIRST (tables are the top offender: docs/patterns/table.md); (2) cross-check ai.mekari.design/mcp and the pixel / implement-to-pixel / mekari-taste skills; (3) mirror existing patterns exactly, do not invent new components or CSS. ALSO: if this task creates or changes a UI pattern the docs do not yet cover, UPDATE the relevant docs/patterns/*.md (or add a new one and link it in docs/README.md) in the SAME change, without being asked.\"}}'",
+            "statusMessage": "Loading design-docs guard"
+          }
+        ]
+      }
+    ],
+    "Stop": [
+      {
+        "hooks": [
+          {
+            "type": "command",
+            "command": "bash \"${CLAUDE_PROJECT_DIR:-.}/.claude/hooks/design-docs-stop.sh\"",
+            "statusMessage": "Design-docs backstop"
+          }
+        ]
+      }
+    ]
+  }
+}

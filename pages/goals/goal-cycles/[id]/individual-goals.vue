@@ -45,6 +45,7 @@ import {
   MpModalBody,
   MpModalFooter,
   MpButtonGroup,
+  toast,
   css,
 } from '@mekari/pixel3'
 
@@ -156,7 +157,7 @@ function slugify(name: string) {
   return name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '')
 }
 
-const { individualGoals, goals } = useGoalsStore(route.params.id as string)
+const { individualGoals, goals, updateGoal } = useGoalsStore(route.params.id as string)
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
@@ -177,6 +178,19 @@ function deleteRow(row: { id: string }) {
   if (g) askDeleteGoal(g)
 }
 
+// Align goal — pick a higher-level parent goal for this individual goal.
+const alignModalOpen = ref(false)
+const aligningGoal = ref<(typeof goals.value)[number] | null>(null)
+function openAlign(row: { id: string }) {
+  aligningGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (aligningGoal.value) alignModalOpen.value = true
+}
+function onAligned(parentId: string) {
+  if (!aligningGoal.value) return
+  updateGoal(aligningGoal.value.id, { alignedToId: parentId })
+  toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
+}
+
 // Bulk select — Select is always the first column; every row here is a
 // real goal (no aligned-row nesting on this page, unlike the other 4). One
 // shared selection set across every department's table; each table's own
@@ -187,7 +201,7 @@ function selectableIdsForDept(dept: { owners: { rows: { id: string }[] }[] }) {
   return dept.owners.flatMap(o => o.rows.map(r => r.id))
 }
 // Select + Goal owner + Goal + Actions are always rendered; the rest follow visibleColumns.
-const totalCols = computed(() => 4 + Object.values(visibleColumns).filter(Boolean).length)
+const totalCols = computed(() => 3 + Object.values(visibleColumns).filter(Boolean).length)
 function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
 }
@@ -428,7 +442,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 <template>
   <!-- Page header actions -->
   <Teleport to="#page-header-actions" defer>
-    <MpButton variant="secondary" right-icon="caret-down">Import goals</MpButton>
+    <MpButton variant="secondary" @click="router.push({ path: `/goals/goal-cycles/${route.params.id}/import` })">Import goals</MpButton>
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
 
@@ -512,11 +526,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <MpPopoverTrigger>
             <MpFlex :class="statusFieldClass">
               <MpSelect
-                :placeholder="departmentFilter.length ? `Organization (${departmentFilter.length})` : 'Organization'"
+                :model-value="departmentFilter.length ? 'selected' : ''"
+                placeholder="Organization"
                 tabindex="-1"
                 aria-hidden="true"
               >
-                <option v-for="dept in DEPARTMENTS" :key="dept" :value="dept">{{ dept }}</option>
+                <option value="selected">Organization ({{ departmentFilter.length }})</option>
               </MpSelect>
             </MpFlex>
           </MpPopoverTrigger>
@@ -541,7 +556,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+            <MpTooltip label="Column settings" placement="bottom" use-portal><MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" /></MpTooltip>
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpPopoverList>
@@ -556,7 +571,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpPopoverList>
           </MpPopoverContent>
         </MpPopover>
-        <MpButton variant="ghost" left-icon="upload" aria-label="Export" />
+        <MpTooltip label="Export" placement="bottom" use-portal><MpButton variant="ghost" left-icon="upload" aria-label="Export" /></MpTooltip>
         <MpFlex :class="css({ width: '200px' })">
           <MpInputGroup>
             <MpInputLeftAddon>
@@ -598,7 +613,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                    explicit colgroup fixes every column's width independent of
                    whichever header row is currently rendered. -->
               <colgroup>
-                <col :class="colCheckbox">
                 <col :class="colGoal">
                 <col :class="colOwner">
                 <col v-if="visibleColumns.category" :class="colCategory">
@@ -625,10 +639,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   </MpTableCell>
                 </MpTableRow>
                 <MpTableRow v-else>
-                  <MpTableCell as="th" :class="[colDivider, colCheckbox]">
-                    <MpCheckbox :is-checked="isAllSelected(selectableIdsForDept(dept))" @update:is-checked="toggleSelectAll(selectableIdsForDept(dept))" aria-label="Select all" />
+                  <MpTableCell as="th" class="sort-th" :class="colDivider">
+                    <MpFlex align="center" gap="2">
+                      <MpCheckbox :is-checked="isAllSelected(selectableIdsForDept(dept))" @update:is-checked="toggleSelectAll(selectableIdsForDept(dept))" aria-label="Select all" />
+                      <span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                    </MpFlex>
                   </MpTableCell>
-                  <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell as="th" class="sort-th" :class="[colDivider, colOwner]"><span :class="thInner"><span>Goal owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -645,38 +661,34 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                      separate row, and never collapsed (see file header). -->
                 <template v-for="owner in dept.owners" :key="owner.key">
                     <MpTableRow v-for="(row, ri) in owner.rows" :key="row.id">
-                      <!-- Select — every row here is a real goal. -->
-                      <MpTableCell as="td" :class="[colDivider, colCheckbox]">
-                        <MpCheckbox
-                          :is-checked="isSelected(row.id)"
-                          @update:is-checked="toggleSelect(row.id)"
-                          :aria-label="`Select ${row.title}`"
-                        />
-                      </MpTableCell>
-
-                      <!-- Goal -->
+                      <!-- Goal (per-row select checkbox merged into this first cell) -->
                       <MpTableCell as="td" :class="[tightCell, colDivider]">
-                        <MpFlex direction="column" gap="0.5" :class="cellContent">
-                          <span :class="goalCode">{{ row.code }}</span>
-                          <MpFlex align="center" gap="2">
-                            <span :class="goalNameLink" @click="goToGoal(row.id)">{{ row.title }}</span>
-                            <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                        <MpFlex align="flex-start" gap="2">
+                          <MpCheckbox
+                            :is-checked="isSelected(row.id)"
+                            @update:is-checked="toggleSelect(row.id)"
+                            :aria-label="`Select ${row.title}`"
+                          />
+                          <MpFlex direction="column" gap="0.5" :class="cellContent">
+                            <span :class="goalCode">{{ row.code }}</span>
+                            <MpFlex align="center" gap="2">
+                              <span :class="goalNameLink" @click="goToGoal(row.id)">{{ row.title }}</span>
+                              <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                            </MpFlex>
+                            <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
+                            <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
+                              <MpIcon name="caret-right" size="sm" />
+                              View aligned goals ({{ row.alignedGoals.length }})
+                            </button>
                           </MpFlex>
-                          <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                          <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
-                            <MpIcon name="caret-right" size="sm" />
-                            View aligned goals ({{ row.alignedGoals.length }})
-                          </button>
                         </MpFlex>
                       </MpTableCell>
 
                       <MpTableCell v-if="ri === 0" as="td" :rowspan="owner.rows.length" :class="[tightCell, colDivider, colOwner]">
                         <div :class="ownerHeaderCell">
                           <MpFlex direction="column" gap="0" :class="cellContent">
-                            <MpText size="label" :class="[valueText, cellContent]">{{ owner.name }}</MpText>
-                            <MpText size="label-small" :class="captionText">{{ owner.code }}</MpText>
-                            <MpText size="label-small" :class="[captionText, cellContent]">{{ owner.title }}</MpText>
-                            <MpText size="label-small" :class="[captionText, cellContent]">{{ owner.department }}</MpText>
+                            <MpText size="label" :class="[valueText, cellContent]">{{ owner.name }} - {{ owner.code }}</MpText>
+                            <MpText size="label-small" :class="[captionText, cellContent]">{{ owner.title }} | {{ owner.department }}</MpText>
                           </MpFlex>
                         </div>
                       </MpTableCell>
@@ -733,6 +745,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                             <MpPopoverList>
                               <MpPopoverListItem @click="goToGoal(row.id)">View details</MpPopoverListItem>
                               <MpPopoverListItem @click="goToGoal(row.id)">Update goal progress</MpPopoverListItem>
+                              <MpPopoverListItem @click="openAlign(row)">Align goal</MpPopoverListItem>
                               <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                               <MpPopoverListItem @click="deleteRow(row)">
                                 <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -774,6 +787,15 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
     @save="saveEdit"
+  />
+
+  <!-- Align an individual goal to a higher-level parent goal (member-only) -->
+  <GoalAlignDrawer
+    :is-open="alignModalOpen"
+    :goal="aligningGoal"
+    :candidates="goals"
+    @close="alignModalOpen = false"
+    @aligned="onAligned"
   />
 
   <!-- Delete confirmation -->

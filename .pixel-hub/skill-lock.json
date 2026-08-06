@@ -1,0 +1,26 @@
+{
+  "version": 1,
+  "skills": {
+    "implement-to-pixel": {
+      "source": "bitbucket:mid-kelola-indonesia/pixel-hub",
+      "ref": "main",
+      "skillVersion": "2026.6.29",
+      "skillPath": "skills/implement-to-pixel/SKILL.md",
+      "computedHash": "9bec213d7706d43b4cb2703070eabb2b2e0c4e62b997b2a74877add0536cd387"
+    },
+    "mekari-taste": {
+      "source": "bitbucket:mid-kelola-indonesia/pixel-hub",
+      "ref": "main",
+      "skillVersion": "2026.6.29",
+      "skillPath": "skills/mekari-taste/SKILL.md",
+      "computedHash": "8e95d23068d81ce0840563cc50877ebacf0af50fc5e7139bdfa52c4cd62afd54"
+    },
+    "pixel": {
+      "source": "bitbucket:mid-kelola-indonesia/pixel-hub",
+      "ref": "main",
+      "skillVersion": "2026.7.2",
+      "skillPath": "skills/pixel/SKILL.md",
+      "computedHash": "6cab4f80ba9074b0639d8d97ceb28fc92910a9a96b15307a16aa6d76438031a2"
+    }
+  }
+}

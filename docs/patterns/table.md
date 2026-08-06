@@ -140,6 +140,15 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
   ```
 - **Accordion / expand:** clicking anywhere on the row (or a group header bar) toggles; caret-right → caret-down; kebab/controls inside use `@click.stop`.
 
+## Row selection & bulk actions
+
+- The row-select checkbox goes **inside the first content cell**, not a separate checkbox
+  column. The select-all checkbox goes inside the first header cell.
+- When 1+ rows are selected, the **column-header row is replaced** (via `colspan`) by the bulk
+  action bar — never a floating bar above the table. Column widths are locked by `<colgroup>`
+  so the body does **not** shift when selection toggles.
+- Full anatomy + wiring: **[`checkbox.md`](checkbox.md)**.
+
 ## Numeric columns — right-align + tabular-nums
 
 ```ts

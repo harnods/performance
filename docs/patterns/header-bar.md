@@ -28,6 +28,8 @@ See also [`page-title.md`](page-title.md) for the title/breadcrumb inside the pe
 </MpFlex>
 ```
 
+A status badge can sit beside the title via the `#page-title-badge` teleport target (inline after the `<h1>`) — see [`page-title.md`](page-title.md).
+
 Two opt-outs via `definePageMeta`:
 - `noPageHeader: true` → skips the whole title+tabs block, stage runs flush to top (e.g. `pages/inbox/notifications.vue`).
 - `boxed: true` → flat grey canvas, no white stage panel (e.g. `pages/dashboard.vue`, `pages/index.vue`). Logic: `layouts/default.vue:27,123-134`.
