@@ -207,6 +207,14 @@ function onAligned(parentId: string, krId?: string) {
   toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
 }
 
+// Update progress — shared drawer, opened in place from the row action.
+const isUpdateProgressOpen = ref(false)
+const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
+function openUpdateProgress(row: { id: string }) {
+  updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (updatingGoal.value) isUpdateProgressOpen.value = true
+}
+
 // Bulk select — Select is always the first column; only real 'main' rows
 // are selectable (aligned rows are a nested reference to a goal already
 // listed under its own owner elsewhere). One shared selection set across
@@ -779,7 +787,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       <MpPopoverContent :class="css({ minWidth: '160px' })">
                         <MpPopoverList>
                           <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                          <MpPopoverListItem @click="goToGoal(row)">Update goal progress</MpPopoverListItem>
+                          <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                           <MpPopoverListItem v-if="row.kind === 'main'" @click="openAlign(row)">Align goal</MpPopoverListItem>
                           <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                           <MpPopoverListItem @click="deleteRow(row)">
@@ -831,6 +839,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     @close="alignModalOpen = false"
     @aligned="onAligned"
   />
+
+  <UpdateProgressDrawer :is-open="isUpdateProgressOpen" :goal="updatingGoal" @close="isUpdateProgressOpen = false" />
 
   <!-- Delete confirmation -->
   <ClientOnly>

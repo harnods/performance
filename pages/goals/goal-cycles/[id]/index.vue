@@ -217,6 +217,14 @@ function onAligned(parentId: string, krId?: string) {
   toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
 }
 
+// Update progress — opens the shared drawer in place (no navigation to detail).
+const isUpdateProgressOpen = ref(false)
+const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
+function openUpdateProgress(row: { id: string }) {
+  updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (updatingGoal.value) isUpdateProgressOpen.value = true
+}
+
 const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
 
 const sourceGoals = computed(() => {
@@ -772,7 +780,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 <MpPopoverContent :class="css({ minWidth: '160px' })">
                   <MpPopoverList>
                     <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                    <MpPopoverListItem @click="goToGoal(row)">Update goal progress</MpPopoverListItem>
+                    <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                     <MpPopoverListItem v-if="row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
                     <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                     <MpPopoverListItem @click="deleteRow(row)">
@@ -838,6 +846,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :candidates="goals"
     @close="alignModalOpen = false"
     @aligned="onAligned"
+  />
+
+  <!-- Update goal progress (shared drawer, opened from the row action) -->
+  <UpdateProgressDrawer
+    :is-open="isUpdateProgressOpen"
+    :goal="updatingGoal"
+    @close="isUpdateProgressOpen = false"
   />
 
   <!-- Delete confirmation -->

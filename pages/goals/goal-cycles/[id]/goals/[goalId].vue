@@ -26,12 +26,6 @@ import {
   MpIcon,
   MpButton,
   MpButtonGroup,
-  MpInput,
-  MpInputGroup,
-  MpInputLeftAddon,
-  MpInputRightAddon,
-  MpFormControl,
-  MpFormLabel,
   MpPopover,
   MpPopoverTrigger,
   MpPopoverContent,
@@ -50,19 +44,6 @@ import {
   MpModalCloseButton,
   MpModalBody,
   MpModalFooter,
-  MpDrawer,
-  MpDrawerContent,
-  MpDrawerHeader,
-  MpDrawerCloseButton,
-  MpDrawerBody,
-  MpDrawerFooter,
-  MpDrawerOverlay,
-  MpDatePicker,
-  MpTextarea,
-  MpUpload,
-  MpBanner,
-  MpBannerIcon,
-  MpBannerDescription,
   toast,
   css,
 } from '@mekari/pixel3'
@@ -112,10 +93,6 @@ function betterLabel(dir?: 'higher' | 'lower') {
   return dir === 'lower' ? 'Lower is better' : 'Higher is better'
 }
 const measurementTypeLabel = computed(() => betterLabel(goal.value?.direction))
-// Header status pill on the Update-progress modal (prod parity).
-const goalStatusLabel = computed(() => (goal.value ? STATUS_LABEL[goal.value.status] : '—'))
-// Rich-text goal description → plain text for the modal summary.
-const goalDescriptionText = computed(() => (goal.value?.description ?? '').replace(/<[^>]*>/g, ' ').replace(/\s+/g, ' ').trim())
 
 const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
 // The achievement % badge on a progress bar takes the goal's status colour:
@@ -331,119 +308,9 @@ function goalHref(id: string) {
   return { path: `/goals/goal-cycles/${cycleId.value}/goals/${id}`, query: { cycleName: cycleName.value } }
 }
 
-// ─── Update progress ────────────────────────────────────────────────────────
+// ─── Update progress (opens the shared UpdateProgressDrawer component) ──────
 const isUpdateOpen = ref(false)
-const upStatus = ref<GoalStatus>('green')
-const upValue = ref<number | ''>('')
-// Per-key-result draft inputs when the goal is KR-driven.
-const krDraft = ref<{ id: string, currentValue: number | '' }[]>([])
-// Progress precedence (production parity): key results → aligned children →
-// manual. A KR-driven goal is updated per-KR; a goal with aligned children is
-// read-only (progress rolls up from the children); a leaf goal is manual.
-const updateMode = computed<'kr' | 'children' | 'goal'>(() =>
-  (keyResults.value.length ? 'kr' : (alignedChildren.value.length ? 'children' : 'goal')))
-function krMeta(id: string) { return keyResults.value.find(k => k.id === id) }
-// Extra fields mirrored from production's Update-progress modal (notes,
-// effective date, attachments) + a Submit confirmation step.
-const upNotes = ref('')
-const upEffectiveDate = ref<Date | null>(null)
-const upFiles = ref<{ name: string, sizeLabel: string }[]>([])
-const isConfirmUpdateOpen = ref(false)
-function mechanismLabel(m?: string) { return m === 'log-based' ? 'Log-based' : 'Manual entry' }
-// Live achievement % for a KR from its draft input value.
-function krDraftPct(d: { id: string, currentValue: number | '' }) {
-  const kr = krMeta(d.id)
-  if (!kr) return 0
-  const start = typeof kr.startValue === 'number' ? kr.startValue : 0
-  const target = Number(kr.targetValue)
-  const cur = d.currentValue === '' ? 0 : Number(d.currentValue)
-  if (!Number.isFinite(target) || target === start) return 0
-  const raw = kr.kpiDirection === 'lower' ? (start - cur) / (start - target) : (cur - start) / (target - start)
-  return Math.max(0, Math.min(100, Math.round(raw * 100)))
-}
-// Progress-bar colour is decided MANUALLY by the status dropdown — on track = teal,
-// off track = rose, not updated = gray — regardless of the entered value.
-const statusFillClass = computed(() => (upStatus.value === 'orange' ? fillOrange : upStatus.value === 'gray' ? fillGray : fillGreen))
-// Goal-level progress update method: KR-driven goals inherit their KRs' method,
-// otherwise manual entry. (We only model the two methods on key results.)
-const goalMechanism = computed(() => keyResults.value[0]?.progressMechanism ?? 'manual')
-// Status options for the manual status dropdown; deadline goals use Complete / Not started.
-const statusOptions = computed(() => (goal.value?.unit === 'deadline'
-  ? [{ value: 'green', label: 'Complete' }, { value: 'gray', label: 'Not started' }]
-  : [{ value: 'green', label: 'On track' }, { value: 'orange', label: 'Off track' }, { value: 'gray', label: 'Not updated' }]))
-function bytesLabel(n: number) {
-  if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`
-  if (n >= 1024) return `${Math.round(n / 1024)} KB`
-  return `${n} B`
-}
-function onUploadFiles(payload: unknown) {
-  const raw = (payload as { target?: { files?: FileList } })?.target?.files ?? payload
-  const list: File[] = raw instanceof FileList ? Array.from(raw) : Array.isArray(raw) ? raw as File[] : []
-  for (const f of list) {
-    if (upFiles.value.length >= 5) break
-    upFiles.value = [...upFiles.value, { name: f.name, sizeLabel: bytesLabel(f.size) }]
-  }
-}
-function removeUpFile(i: number) { upFiles.value = upFiles.value.filter((_, idx) => idx !== i) }
-function disabledFutureDate(d: Date) { return d.getTime() > Date.now() }
-function confirmSubmitUpdate() { isConfirmUpdateOpen.value = false; saveUpdate() }
-
-function openUpdate() {
-  if (!goal.value) return
-  upStatus.value = goal.value.status // On track / Off track / Not updated — user decides manually
-  upValue.value = goal.value.value ?? ''
-  krDraft.value = keyResults.value.map(kr => ({
-    id: kr.id,
-    currentValue: typeof kr.currentValue === 'number' ? kr.currentValue : (typeof kr.startValue === 'number' ? kr.startValue : 0),
-  }))
-  upNotes.value = ''
-  upEffectiveDate.value = null
-  upFiles.value = []
-  isConfirmUpdateOpen.value = false
-  isUpdateOpen.value = true
-}
-
-function saveUpdate() {
-  if (!goal.value) return
-  if (updateMode.value === 'children') { // read-only — nothing to persist
-    isUpdateOpen.value = false
-    return
-  }
-  if (updateMode.value === 'kr') {
-    const list = keyResults.value.map((kr) => {
-      const d = krDraft.value.find(x => x.id === kr.id)
-      const cur = d ? (d.currentValue === '' ? 0 : Number(d.currentValue)) : (kr.currentValue ?? 0)
-      const start = typeof kr.startValue === 'number' ? kr.startValue : 0
-      const target = Number(kr.targetValue)
-      const pct = (!Number.isFinite(target) || target === start)
-        ? 0
-        : Math.max(0, Math.min(100, Math.round(((kr.kpiDirection === 'lower' ? start - cur : cur - start) / (kr.kpiDirection === 'lower' ? start - target : target - start)) * 100)))
-      const status: DraftKeyResult['status'] = pct === 0 ? 'gray' : pct < 45 ? 'orange' : undefined
-      return { ...kr, currentValue: cur, status }
-    })
-    // Goal achievement = average of its key results (matches the goal detail copy).
-    const goalPct = Math.round(list.reduce((a, kr) => a + krPct(kr), 0) / (list.length || 1))
-    const max = goal.value.max ?? 100
-    const min = goal.value.min ?? 0
-    updateGoal(goal.value.id, {
-      keyResults: list,
-      pill: goalPct,
-      value: goal.value.unit ? Math.round(min + (max - min) * (goalPct / 100)) : goal.value.value,
-      status: upStatus.value, // manual status decides the bar colour, not the %
-    })
-  }
-  else {
-    const patch: Partial<Goal> = { status: upStatus.value }
-    if (goal.value.unit && goal.value.unit !== 'deadline') {
-      const v = Number(upValue.value) || 0
-      patch.value = v
-      patch.pill = goal.value.max ? Math.round((v / goal.value.max) * 100) : goal.value.pill
-    }
-    updateGoal(goal.value.id, patch)
-  }
-  isUpdateOpen.value = false
-  toast.notify({ id: 'goal-progress-updated', position: 'top-center', variant: 'success', title: 'Progress updated' })
-}
+function openUpdate() { isUpdateOpen.value = true }
 
 // ─── Edit (reuse the shared drawer flow) ──────────────────────────────────────
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
@@ -589,7 +456,6 @@ const pillGray = css({ ...pillBase, background: 'gray.100', color: 'gray.600' })
 // Achievement badge colour tracks the (manual) status — never mix green with a red bar.
 function pillClass(s?: GoalStatus) { return s === 'orange' ? pillRose : s === 'gray' ? pillGray : pillGreen }
 const goalPillClass = computed(() => pillClass(goal.value?.status))
-const upPillClass = computed(() => pillClass(upStatus.value))
 const rangeRow = css({ display: 'flex', justifyContent: 'space-between', maxWidth: '360px', marginTop: '1' })
 const rangeMin = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const rangeMax = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
@@ -608,20 +474,6 @@ const kvLabel = css({ color: 'text.secondary', fontSize: '12px', lineHeight: '16
 const kvValue = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px' })
 const infoBanner = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding: '3', borderRadius: '6px', background: 'background.information.subtle', border: '1px solid', borderColor: 'border.information' })
 const ownerRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
-// Update-progress modal (prod parity)
-// Full-bleed to the drawer edges (cancel MpDrawerBody's 24px padding), light gray
-// (#f9f9f9 ≈ gray.25), separated by a bottom border — not a rounded card.
-const upHeaderBlock = css({ display: 'flex', flexDirection: 'column', gap: '2', marginTop: '-6', marginInline: '-6', paddingInline: '6', paddingTop: '6', paddingBottom: '6', background: 'gray.25', borderBottom: '1px solid', borderBottomColor: 'border.default' })
-const upStatusControl = css({ flexShrink: '0', width: '180px' }) // status dropdown in the header block
-const upFieldW = css({ maxWidth: '264px' }) // 3-col width, same as a form select (effective date + attachment)
-const upMetaRow = css({ display: 'flex', alignItems: 'center', flexWrap: 'wrap', gap: '3', fontSize: '12px', lineHeight: '16px', color: 'text.default' })
-const upMetaItem = css({ display: 'inline-flex', alignItems: 'center', gap: '1' })
-const upMetaSep = css({ width: '1px', height: '12px', background: 'border.default' })
-const krProgRow = css({ display: 'flex', flexDirection: 'column', gap: '2', paddingTop: '4', paddingBottom: '4', borderBottom: '1px solid', borderBottomColor: 'border.default', _lastOfType: { borderBottom: 'none' } })
-const upItemRow = css({ display: 'flex', alignItems: 'flex-start', gap: '6' })
-const upItemBar = css({ flexGrow: '1', minWidth: '0' })
-const upItemInput = css({ flexShrink: '0', width: '33%' })
-const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2', padding: '2', borderRadius: '6px', border: '1px solid', borderColor: 'border.default', marginTop: '2' })
 const goalCode = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const linkReset = css({ color: 'text.link', cursor: 'pointer', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 const addKrRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '2' })
@@ -1179,214 +1031,8 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
     Goal not found.
   </div>
 
-  <!-- ═════ Update progress modal ═════ -->
-  <ClientOnly>
-    <MpDrawer :is-open="isUpdateOpen" size="lg" placement="right" :is-close-on-overlay-click="false" @close="isUpdateOpen = false">
-      <MpDrawerOverlay />
-      <MpDrawerContent>
-        <MpDrawerHeader>
-          Update progress
-          <MpDrawerCloseButton @click="isUpdateOpen = false" />
-        </MpDrawerHeader>
-        <MpDrawerBody>
-          <MpFlex direction="column" gap="5">
-            <!-- Goal summary header block -->
-            <div v-if="goal" :class="upHeaderBlock">
-              <MpFlex align="flex-start" justify="space-between" gap="4">
-                <MpFlex direction="column" gap="0">
-                  <span :class="[goalCode, css({ color: 'text.default' })]">{{ goal.code }}</span>
-                  <MpText size="label" weight="semiBold" :class="valueText">
-                    {{ goal.title }}<template v-if="goal.weight"> ({{ goal.weight }}%)</template>
-                  </MpText>
-                </MpFlex>
-                <!-- Status is decided manually — dropdown (read-only roll-up shows a badge) -->
-                <div v-if="updateMode !== 'children'" :class="upStatusControl">
-                  <PxSelectPopover
-                    v-model="upStatus"
-                    :options="statusOptions"
-                    :width="'180px'"
-                  />
-                </div>
-                <MpBadge v-else for="tableStatus" :type="statusBadgeType(goal.status)" size="sm">{{ goalStatusLabel }}</MpBadge>
-              </MpFlex>
-              <div :class="upMetaRow">
-                <span :class="upMetaItem">{{ goalTypeLabel }}</span>
-                <span :class="upMetaSep" />
-                <span :class="upMetaItem">{{ cycle?.period ?? '—' }}</span>
-                <template v-if="goal.direction">
-                  <span :class="upMetaSep" />
-                  <span :class="upMetaItem">{{ betterLabel(goal.direction) }}</span>
-                </template>
-                <span :class="upMetaSep" />
-                <span :class="upMetaItem">{{ mechanismLabel(goalMechanism) }}</span>
-              </div>
-              <div v-if="goalDescriptionText" :class="css({ fontSize: '12px', lineHeight: '18px', color: 'text.default' })">{{ goalDescriptionText }}</div>
-              <div :class="upMetaRow">
-                <span :class="upMetaItem">{{ goal.category }}<template v-if="goal.subCategory"> · {{ goal.subCategory }}</template></span>
-              </div>
-              <!-- This goal's own progress bar -->
-              <div :class="css({ marginTop: '1' })">
-                <MpFlex align="center" gap="2">
-                  <MpText size="label" weight="semiBold" :class="valueText">
-                    <template v-if="goal.unit && goal.unit !== 'deadline'">{{ formatValue(goal.unit, goal.value) }}</template>
-                    <template v-else>{{ goal.pill ?? 0 }}%</template>
-                  </MpText>
-                  <span :class="upPillClass">{{ goal.pill ?? 0 }}%</span>
-                </MpFlex>
-                <div :class="[progressTrack, css({ maxWidth: 'none', marginTop: '1' })]">
-                  <div :class="[progressFill, statusFillClass]" :style="{ width: `${Math.min(goal.pill ?? 0, 100)}%` }" />
-                </div>
-                <div v-if="goal.unit && goal.unit !== 'deadline'" :class="[rangeRow, css({ maxWidth: 'none' })]">
-                  <span :class="rangeMin">{{ formatValue(goal.unit, goal.min ?? 0) }}</span>
-                  <span :class="rangeMax">{{ formatValue(goal.unit, goal.max) }}</span>
-                </div>
-              </div>
-            </div>
-
-            <!-- Info banner — aligned children roll up (prod copy) -->
-            <MpBanner v-if="updateMode === 'children'" variant="info" is-inline>
-              <MpBannerIcon />
-              <MpBannerDescription>Progress cannot be updated manually if they have goal aligned and the progress will be taken from the child goal.</MpBannerDescription>
-            </MpBanner>
-
-            <!-- KR-driven goal: one UpdateProgressItem per key result -->
-            <template v-if="updateMode === 'kr'">
-              <MpText :class="sectionH2">Key results<template v-if="krDraft.length"> ({{ krDraft.length }})</template></MpText>
-              <div v-for="d in krDraft" :key="d.id" :class="krProgRow">
-                <MpFlex direction="column" gap="0">
-                  <MpText size="label" weight="semiBold" :class="valueText">{{ krMeta(d.id)?.title }}</MpText>
-                  <div :class="upMetaRow">
-                    <span :class="upMetaItem">{{ betterLabel(krMeta(d.id)?.kpiDirection) }}</span>
-                    <span :class="upMetaSep" />
-                    <span :class="upMetaItem">{{ mechanismLabel(krMeta(d.id)?.progressMechanism) }}</span>
-                  </div>
-                  <div v-if="krMeta(d.id)?.description" :class="css({ fontSize: '12px', lineHeight: '18px', color: 'text.secondary', marginTop: '1' })">{{ krMeta(d.id)?.description }}</div>
-                </MpFlex>
-                <div :class="upItemRow">
-                  <div :class="upItemBar">
-                    <MpFlex align="center" gap="2">
-                      <MpText size="label" weight="semiBold" :class="valueText">{{ krFmt(krMeta(d.id)!, d.currentValue === '' ? 0 : Number(d.currentValue)) }}</MpText>
-                      <span :class="upPillClass">{{ krDraftPct(d) }}%</span>
-                    </MpFlex>
-                    <div :class="[progressTrack, css({ maxWidth: 'none', marginTop: '1' })]">
-                      <div :class="[progressFill, statusFillClass]" :style="{ width: `${krDraftPct(d)}%` }" />
-                    </div>
-                    <div :class="[rangeRow, css({ maxWidth: 'none' })]">
-                      <span :class="rangeMin">{{ krFmt(krMeta(d.id)!, krMeta(d.id)?.startValue ?? 0) }}</span>
-                      <span :class="rangeMax">{{ krFmt(krMeta(d.id)!, krMeta(d.id)?.targetValue) }}</span>
-                    </div>
-                  </div>
-                  <div :class="upItemInput">
-                    <MpFormControl :id="`up-kr-${d.id}`">
-                      <MpFormLabel>Progress</MpFormLabel>
-                      <MpInputGroup>
-                        <MpInputLeftAddon v-if="krMeta(d.id)?.measurementUnit === 'amount'">Rp</MpInputLeftAddon>
-                        <MpInput v-model="d.currentValue" type="number" placeholder="0" />
-                        <MpInputRightAddon v-if="krMeta(d.id)?.measurementUnit === 'percentage'">%</MpInputRightAddon>
-                      </MpInputGroup>
-                    </MpFormControl>
-                  </div>
-                </div>
-              </div>
-            </template>
-
-            <!-- Aligned-children goal: read-only roll-up bar -->
-            <template v-else-if="updateMode === 'children'">
-              <MpText size="label" weight="semiBold" :class="valueText">{{ alignedChildren.length }} align goal{{ alignedChildren.length === 1 ? '' : 's' }}</MpText>
-              <div :class="upItemBar">
-                <MpFlex align="center" gap="2">
-                  <MpText size="label" weight="semiBold" :class="valueText">{{ goal?.pill ?? 0 }}%</MpText>
-                </MpFlex>
-                <div :class="[progressTrack, css({ maxWidth: 'none', marginTop: '1' })]">
-                  <div :class="[progressFill, statusFillClass]" :style="{ width: `${Math.min(goal?.pill ?? 0, 100)}%` }" />
-                </div>
-              </div>
-            </template>
-
-            <!-- Leaf goal: value input (status lives in the header dropdown) -->
-            <template v-else>
-              <div v-if="goal?.unit && goal.unit !== 'deadline'" :class="upItemRow">
-                <div :class="upItemBar">
-                  <MpFlex align="center" gap="2">
-                    <MpText size="label" weight="semiBold" :class="valueText">{{ formatValue(goal.unit, upValue === '' ? 0 : Number(upValue)) }}</MpText>
-                    <span :class="upPillClass">{{ goal?.pill ?? 0 }}%</span>
-                  </MpFlex>
-                  <div :class="[progressTrack, css({ maxWidth: 'none', marginTop: '1' })]">
-                    <div :class="[progressFill, statusFillClass]" :style="{ width: `${Math.min(goal?.pill ?? 0, 100)}%` }" />
-                  </div>
-                  <div :class="[rangeRow, css({ maxWidth: 'none' })]">
-                    <span :class="rangeMin">{{ formatValue(goal.unit, goal.min ?? 0) }}</span>
-                    <span :class="rangeMax">{{ formatValue(goal.unit, goal.max) }}</span>
-                  </div>
-                </div>
-                <div :class="upItemInput">
-                  <MpFormControl id="up-value">
-                    <MpFormLabel>Progress</MpFormLabel>
-                    <MpInputGroup>
-                      <MpInputLeftAddon v-if="goal?.unit === 'currency'">Rp</MpInputLeftAddon>
-                      <MpInput v-model="upValue" type="number" placeholder="0" />
-                      <MpInputRightAddon v-if="goal?.unit === 'percent'">%</MpInputRightAddon>
-                    </MpInputGroup>
-                  </MpFormControl>
-                </div>
-              </div>
-            </template>
-
-            <!-- Notes / Effective date / Attachment (not for read-only roll-up) -->
-            <template v-if="updateMode !== 'children'">
-              <MpFormControl id="up-notes">
-                <MpFormLabel>Notes</MpFormLabel>
-                <MpTextarea v-model="upNotes" :rows="3" placeholder="Optional" />
-              </MpFormControl>
-              <MpFormControl id="up-effective-date" :class="upFieldW">
-                <MpFormLabel>Effective date (optional)</MpFormLabel>
-                <MpDatePicker v-model="upEffectiveDate" placeholder="DD MMM YYYY" format="DD MMM YYYY" :disabled-date="disabledFutureDate" />
-              </MpFormControl>
-              <MpFormControl id="up-attachment" :class="upFieldW">
-                <MpFormLabel>Add attachment</MpFormLabel>
-                <MpUpload :is-multiple="true" is-full-width accept=".jpg,.jpeg,.png,.pdf,.doc,.docx,.xls,.xlsx" @change="onUploadFiles" />
-                <MpText size="label-small" :class="[captionText, css({ marginTop: '1' })]">Max. 5 files, 10 MB each. JPG, PNG, PDF, DOC, XLS.</MpText>
-                <div v-for="(f, i) in upFiles" :key="i" :class="upFileRow">
-                  <MpFlex align="center" gap="2" :class="css({ minWidth: '0' })">
-                    <MpIcon name="document" size="sm" :class="css({ color: 'icon.default', flexShrink: '0' })" />
-                    <MpText size="label" :class="[valueText, css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap' })]">{{ f.name }}</MpText>
-                    <MpText size="label-small" :class="captionText">{{ f.sizeLabel }}</MpText>
-                  </MpFlex>
-                  <MpButton variant="ghost" size="sm" left-icon="delete" :class="css({ flexShrink: '0' })" @click="removeUpFile(i)">Remove</MpButton>
-                </div>
-              </MpFormControl>
-            </template>
-          </MpFlex>
-        </MpDrawerBody>
-        <MpDrawerFooter>
-          <MpButtonGroup>
-            <MpButton variant="ghost" @click="isUpdateOpen = false">{{ updateMode === 'children' ? 'Close' : 'Cancel' }}</MpButton>
-            <MpButton v-if="updateMode !== 'children'" variant="primary" @click="isConfirmUpdateOpen = true">Submit</MpButton>
-          </MpButtonGroup>
-        </MpDrawerFooter>
-      </MpDrawerContent>
-    </MpDrawer>
-
-    <!-- Update progress confirmation -->
-    <MpModal :is-open="isConfirmUpdateOpen" size="sm" @close="isConfirmUpdateOpen = false">
-      <MpModalOverlay />
-      <MpModalContent>
-        <MpModalHeader>
-          Update this goal's progress?
-          <MpModalCloseButton @click="isConfirmUpdateOpen = false" />
-        </MpModalHeader>
-        <MpModalBody>
-          <MpText size="label" :class="valueText">This saves your changes and recalculates the goal's achievement from the values you entered. You can update it again anytime.</MpText>
-        </MpModalBody>
-        <MpModalFooter>
-          <MpButtonGroup>
-            <MpButton variant="ghost" @click="isConfirmUpdateOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmSubmitUpdate">Update progress</MpButton>
-          </MpButtonGroup>
-        </MpModalFooter>
-      </MpModalContent>
-    </MpModal>
-  </ClientOnly>
+  <!-- ═════ Update progress (shared drawer component) ═════ -->
+  <UpdateProgressDrawer :is-open="isUpdateOpen" :goal="goal" @close="isUpdateOpen = false" />
 
   <!-- ═════ Key result drawer (shared measurement form) ═════ -->
   <AddKeyResultDrawer v-model:is-open="isKrDrawerOpen" :editing="editingKr" @save="onKrSave" />

@@ -167,6 +167,15 @@ const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
 
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
+
+// Update progress — shared drawer, opened in place from the row action.
+const isUpdateProgressOpen = ref(false)
+const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
+function openUpdateProgress(row: { id: string }) {
+  updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (updatingGoal.value) isUpdateProgressOpen.value = true
+}
+
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) openEditGoal(g)
@@ -633,7 +642,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
                       <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                      <MpPopoverListItem @click="goToGoal(row)">Update goal progress</MpPopoverListItem>
+                      <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                       <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                       <MpPopoverListItem @click="deleteRow(row)">
                         <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -673,6 +682,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :editing-draft="editingDraft"
     @save="saveEdit"
   />
+
+  <UpdateProgressDrawer :is-open="isUpdateProgressOpen" :goal="updatingGoal" @close="isUpdateProgressOpen = false" />
 
   <!-- Delete confirmation -->
   <ClientOnly>

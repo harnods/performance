@@ -161,7 +161,10 @@ direction auto-derivation, and status→color mapping).
 
 **Layout — rebuilt to production 1:1** (`ModalUpdateProgress.vue` / `UpdateProgressItem.vue`), now a
 **right-side `MpDrawer size="lg"`** (not a modal) with **overlay-click disabled**
-(`is-close-on-overlay-click="false"` — don't lose a half-filled form).
+(`is-close-on-overlay-click="false"` — don't lose a half-filled form). It's a **shared component**
+`components/UpdateProgressDrawer.vue` (`:goal` + `:is-open`, emits `close`/`saved`), opened in place by
+the **row "Update goal progress" action** on every goal list (goal-cycle index + Company/Org/Team/
+Individual pages) and by the goal detail page — no navigation to detail required.
 - **Goal summary header block** (rounded neutral-subtle panel, **all text at `text.default`** for
   readability): code + title `(weight%)`; a **manual status dropdown** (`PxSelectPopover`, 180px:
   `On track / Off track / Not updated`; deadline goals = `Complete / Not started`) — read-only
