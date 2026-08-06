@@ -210,6 +210,18 @@ none). Entries come from `composables/useGoalActivityStore.ts`:
   `updatedAt`/`updatedBy` so the detail footer "Last updated by … on …" reflects it. A **comment**
   the user posts also shows in the log (via the comments store), without bumping "last updated".
 
+### I.3 Close goal
+Row **"Close goal"** action (menu order: View details · Update goal progress · Align goal · Activity
+log · Edit · **Close goal** · Delete) on the goal-cycle index + all scoped pages, and in the goal
+detail Actions menu. Prod parity (`ModalDelete type="close"`): **no approval, no progress threshold** —
+immediate on confirm. Confirmation modal is **non-destructive** (primary/blue, not red): title
+*"Close goal?"*, body *"Once a goal has closed, {name} can no longer submit progress or be edited."*,
+confirm **"Yes, close goal"**. Sets `Goal.isClosed = true` (prod `goal_status === 2`), logs an activity
+event ("closed the goal") and stamps `updatedAt`. A closed goal is **read-only**: Update progress /
+Align / Edit / Close and the KR Add/Edit/Delete controls are hidden; View details, Activity log and
+Delete remain. Shown with a **"Closed" badge** next to the goal name. No reopen (terminal, as in prod).
+Handled by shared `composables/useGoalCloser.ts`.
+
 ### J. Goal categories
 `/goals/goal-categories` → **Add goal category** (`GoalCategoryFormDrawer`: name /60 unique,
 description /255, dynamic sub-categories /60 unique; in-use sub-cat can't be removed;

@@ -135,12 +135,13 @@ function selectGoalsView(key: GoalsViewKey) {
 const columnOptions = [
   { key: 'category', label: 'Category' },
   { key: 'subCategory', label: 'Sub-category' },
-  { key: 'goal', label: 'Goal' },
+  { key: 'goal', label: 'Goal name' },
   { key: 'goalId', label: 'Goal ID' },
   { key: 'alignedGoals', label: 'Aligned goals' },
   { key: 'goalType', label: 'Goal type' },
   { key: 'progress', label: 'Progress' },
   { key: 'status', label: 'Status' },
+  { key: 'lastUpdated', label: 'Last updated' },
 ] as const
 type ColumnKey = typeof columnOptions[number]['key']
 const visibleColumns = reactive<Record<ColumnKey, boolean>>({
@@ -152,7 +153,10 @@ const visibleColumns = reactive<Record<ColumnKey, boolean>>({
   goalType: true,
   progress: true,
   status: true,
+  lastUpdated: false, // hidden by default
 })
+// Goal name is the anchor column — always on, shown disabled (can't uncheck).
+const toggleableColumns = computed(() => columnOptions.filter(c => c.key !== 'goal'))
 
 const statusFilter = ref('')
 const search = ref('')
@@ -200,6 +204,11 @@ const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = us
 function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
+}
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
+function closeRow(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) askCloseGoal(g)
 }
 
 // Align goal — any non-company goal can align (company is top, so no align).
@@ -483,6 +492,7 @@ const colSubCategory = css({ width: '184px' })
 const colGoalType = css({ width: '160px' })
 const colProgress = css({ width: '224px' })
 const colStatus = css({ width: '136px' })
+const colLastUpdated = css({ width: '200px' })
 // Action column is a hard 52px: 36px icon button + 8px padding each side.
 const actionHead = css({ width: '52px', paddingLeft: '2', paddingRight: '2', paddingTop: '2', paddingBottom: '2', whiteSpace: 'nowrap', verticalAlign: 'top' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', paddingRight: '2', width: '52px', whiteSpace: 'nowrap', verticalAlign: 'top' })
@@ -648,16 +658,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpTooltip label="Column settings" placement="bottom" use-portal><MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" /></MpTooltip>
+            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" title="Column settings" />
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
-            <MpPopoverList>
-              <MpPopoverListItem v-for="col in columnOptions" :key="col.key">
-                <MpCheckbox :id="`col-${col.key}`" v-model:is-checked="visibleColumns[col.key]">
-                  {{ col.label }}
-                </MpCheckbox>
-              </MpPopoverListItem>
-            </MpPopoverList>
+            <MpFlex direction="column" gap="2" :class="css({ padding: '2' })">
+              <MpCheckbox id="col-goal" is-checked is-disabled>Goal name</MpCheckbox>
+              <MpCheckbox v-for="col in toggleableColumns" :key="col.key" :id="`col-${col.key}`" v-model:is-checked="visibleColumns[col.key]">{{ col.label }}</MpCheckbox>
+            </MpFlex>
           </MpPopoverContent>
         </MpPopover>
         <MpTooltip label="Export" placement="bottom" use-portal><MpButton variant="ghost" left-icon="upload" aria-label="Export" /></MpTooltip>
@@ -698,6 +705,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <col v-if="visibleColumns.goalType" :class="colGoalType">
           <col v-if="visibleColumns.progress" :class="colProgress">
           <col v-if="visibleColumns.status" :class="colStatus">
+          <col v-if="visibleColumns.lastUpdated" :class="colLastUpdated">
           <col :class="actionHead">
         </colgroup>
         <MpTableHead>
@@ -708,6 +716,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpTableCell v-if="visibleColumns.goalType" as="th" class="sort-th" :class="[colDivider, colGoalType]"><span :class="thInner"><span>Goal type</span><PxColumnSortMenu col-key="goalType" :sort-type="columnSortTypes.goalType" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.progress" as="th" class="sort-th" :class="[colDivider, colProgress]"><span :class="thInner"><span>Progress</span><PxColumnSortMenu col-key="progress" :sort-type="columnSortTypes.progress" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell v-if="visibleColumns.status" as="th" class="sort-th" :class="[colDivider, colStatus]"><span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+            <MpTableCell v-if="visibleColumns.lastUpdated" as="th" :class="[colDivider, colLastUpdated]"><span :class="thInner"><span>Last updated</span></span></MpTableCell>
             <MpTableCell as="th" :class="actionHead" />
           </MpTableRow>
         </MpTableHead>
@@ -734,6 +743,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 <MpFlex align="center" gap="2">
                   <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
                   <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                  <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
                 </MpFlex>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
                 <MpText v-if="row.kind === 'aligned'" size="label-small" :class="[captionText, css({ marginTop: '1' })]">
@@ -780,6 +790,14 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <span :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
             </MpTableCell>
 
+            <MpTableCell v-if="visibleColumns.lastUpdated" as="td" :class="[tightCell, colDivider, colLastUpdated]">
+              <template v-if="row.updatedAt">
+                <MpText size="label" :class="[valueText, cellContent]">{{ row.updatedAt }}</MpText>
+                <MpText size="label-small" :class="css({ color: 'text.secondary' })">by {{ row.updatedBy || row.owner.name }}</MpText>
+              </template>
+              <span v-else :class="css({ color: 'text.secondary' })">—</span>
+            </MpTableCell>
+
             <!-- Actions -->
             <MpTableCell as="td" :class="actionCell">
               <MpPopover is-close-on-select use-portal placement="bottom-end">
@@ -789,10 +807,11 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 <MpPopoverContent :class="css({ minWidth: '160px' })">
                   <MpPopoverList>
                     <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                    <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
-                    <MpPopoverListItem v-if="row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
+                    <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                    <MpPopoverListItem v-if="!row.isClosed && row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
                     <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
-                    <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
+                    <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
+                    <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
                     <MpPopoverListItem @click="deleteRow(row)">
                       <span :class="css({ color: 'text.danger' })">Delete</span>
                     </MpPopoverListItem>
@@ -867,6 +886,28 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <!-- Goal activity log (history) -->
   <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="activityGoal" @close="isActivityLogOpen = false" />
+
+  <!-- Close goal confirmation (prod copy; non-destructive primary button) -->
+  <ClientOnly>
+    <MpModal :is-open="isCloseModalOpen" size="sm" @close="isCloseModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Close goal?
+          <MpModalCloseButton @click="isCloseModalOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
 
   <!-- Delete confirmation -->
   <ClientOnly>

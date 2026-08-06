@@ -29,6 +29,7 @@ const emit = defineEmits<{ close: [], saved: [] }>()
 const { goals, updateGoal } = useGoalsStore()
 const { cycles } = useGoalCyclesStore()
 const { logActivity } = useGoalActivityStore()
+const { createSubmission } = useGoalApprovalsStore()
 
 const cycle = computed(() => cycles.value.find(c => c.id === props.goal?.cycleId))
 const keyResults = computed<DraftKeyResult[]>(() => props.goal?.keyResults ?? [])
@@ -131,6 +132,9 @@ function saveUpdate() {
   const g = props.goal
   if (!g) return
   if (updateMode.value === 'children') { emit('close'); return } // read-only roll-up
+
+  // Build the progress patch (same for both immediate + approval paths).
+  const patch: Partial<Goal> = { status: upStatus.value }
   if (updateMode.value === 'kr') {
     const list = keyResults.value.map((kr) => {
       const d = krDraft.value.find(x => x.id === kr.id)
@@ -146,22 +150,33 @@ function saveUpdate() {
     const goalPct = Math.round(list.reduce((a, kr) => a + krPct(kr), 0) / (list.length || 1))
     const max = g.max ?? 100
     const min = g.min ?? 0
-    updateGoal(g.id, {
-      keyResults: list,
-      pill: goalPct,
-      value: g.unit ? Math.round(min + (max - min) * (goalPct / 100)) : g.value,
-      status: upStatus.value,
-    })
+    patch.keyResults = list
+    patch.pill = goalPct
+    patch.value = g.unit ? Math.round(min + (max - min) * (goalPct / 100)) : g.value
   }
-  else {
-    const patch: Partial<Goal> = { status: upStatus.value }
-    if (g.unit && g.unit !== 'deadline') {
-      const v = Number(upValue.value) || 0
-      patch.value = v
-      patch.pill = g.max ? Math.round((v / g.max) * 100) : g.pill
-    }
-    updateGoal(g.id, patch)
+  else if (g.unit && g.unit !== 'deadline') {
+    const v = Number(upValue.value) || 0
+    patch.value = v
+    patch.pill = g.max ? Math.round((v / g.max) * 100) : g.pill
   }
+
+  // A direct report's progress update goes to the approval queue (submitted as
+  // an edit that touches only value/pill — the review UI labels it "Update goal
+  // progress"); everyone else applies immediately.
+  if (needsApproval(g.ownerId)) {
+    const { cycleId, ...rest } = g
+    createSubmission(
+      [{ type: 'edit', goalId: g.id, ownerId: g.ownerId, cycleId: g.cycleId, before: g, after: { ...rest, ...patch } }],
+      g.ownerId,
+      g.cycleId,
+    )
+    toast.notify({ id: 'goal-progress-submitted', position: 'top-center', variant: 'success', title: 'Progress update sent for approval' })
+    emit('saved')
+    emit('close')
+    return
+  }
+
+  updateGoal(g.id, patch)
   // Record it in the activity log + bump the goal's "last updated" stamp.
   logActivity(g.id, {
     type: 'progress',

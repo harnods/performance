@@ -326,6 +326,10 @@ const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = us
 function deleteGoalAction() {
   if (goal.value) askDeleteGoal(goal.value)
 }
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
+function closeGoalAction() {
+  if (goal.value) askCloseGoal(goal.value)
+}
 const isRemoveAlignOpen = ref(false)
 function removeAlignment() { isRemoveAlignOpen.value = true }
 function confirmRemoveAlignment() {
@@ -601,9 +605,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         </MpPopoverTrigger>
         <MpPopoverContent :class="css({ minWidth: '180px' })">
           <MpPopoverList>
-            <MpPopoverListItem @click="openUpdate">Update progress</MpPopoverListItem>
+            <MpPopoverListItem v-if="!goal.isClosed" @click="openUpdate">Update progress</MpPopoverListItem>
             <MpPopoverListItem @click="isActivityLogOpen = true">Activity log</MpPopoverListItem>
-            <MpPopoverListItem @click="editGoal">Edit goal</MpPopoverListItem>
+            <MpPopoverListItem v-if="!goal.isClosed" @click="editGoal">Edit goal</MpPopoverListItem>
+            <MpPopoverListItem v-if="!goal.isClosed" @click="closeGoalAction">Close goal</MpPopoverListItem>
             <MpPopoverListItem @click="deleteGoalAction">
               <span :class="css({ color: 'text.danger' })">Delete goal</span>
             </MpPopoverListItem>
@@ -730,7 +735,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                 Key Results track specific outcomes that automatically update the goal progress.
               </MpText>
             </div>
-            <button type="button" :class="addKrLink" @click="openAddKr">
+            <button v-if="!goal.isClosed" type="button" :class="addKrLink" @click="openAddKr">
               <MpIcon name="add" size="sm" />
               Add key result
             </button>
@@ -772,7 +777,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                     <span v-else :class="kvValue">{{ kr.target || '—' }}</span>
                   </MpTableCell>
                   <MpTableCell as="td" :class="[cell, actionCell]">
-                    <MpPopover is-close-on-select use-portal placement="bottom-end">
+                    <MpPopover v-if="!goal.isClosed" is-close-on-select use-portal placement="bottom-end">
                       <MpPopoverTrigger>
                         <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Key result actions" />
                       </MpPopoverTrigger>
@@ -1066,6 +1071,28 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
 
   <!-- Activity log (history) drawer -->
   <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="goal" @close="isActivityLogOpen = false" />
+
+  <!-- Close goal confirmation (prod copy; non-destructive primary button) -->
+  <ClientOnly>
+    <MpModal :is-open="isCloseModalOpen" size="sm" @close="isCloseModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Close goal?
+          <MpModalCloseButton @click="isCloseModalOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="valueText">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
 
   <!-- ═════ Key result drawer (shared measurement form) ═════ -->
   <AddKeyResultDrawer v-model:is-open="isKrDrawerOpen" :editing="editingKr" @save="onKrSave" />

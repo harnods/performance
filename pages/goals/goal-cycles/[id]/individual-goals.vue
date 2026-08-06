@@ -177,6 +177,12 @@ function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose } = useGoalCloser()
+function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.has(g.id))) }
+function closeRow(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) askCloseGoal(g)
+}
 
 // Align goal — pick a higher-level parent goal for this individual goal.
 const alignModalOpen = ref(false)
@@ -216,6 +222,15 @@ function openActivityLog(row: { id: string }) {
 const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
 function selectableIdsForDept(dept: { owners: { rows: { id: string }[] }[] }) {
   return dept.owners.flatMap(o => o.rows.map(r => r.id))
+}
+// Bulk selection is scoped per department: the bulk bar (and its count) only
+// shows in the department where rows are actually selected.
+function deptSelectedCount(dept: { owners: { rows: { id: string }[] }[] }) {
+  return selectableIdsForDept(dept).filter(id => isSelected(id)).length
+}
+function clearDeptSelection(dept: { owners: { rows: { id: string }[] }[] }) {
+  const remove = new Set(selectableIdsForDept(dept))
+  selectedIds.value = new Set([...selectedIds.value].filter(id => !remove.has(id)))
 }
 // Select + Goal owner + Goal + Actions are always rendered; the rest follow visibleColumns.
 const totalCols = computed(() => 3 + Object.values(visibleColumns).filter(Boolean).length)
@@ -411,7 +426,7 @@ const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
 // height/fill is exactly what renders — no extra cell padding stacking on top.
 // Bulk-action header cell: no horizontal padding (the bar owns its own inset so
 // its checkbox lines up with the body checkbox column), + 4px top/bottom.
-const noCellPadding = css({ paddingInline: '0', paddingTop: '1', paddingBottom: '1' })
+const noCellPadding = css({ paddingBlock: '1', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -578,19 +593,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpTooltip label="Column settings" placement="bottom" use-portal><MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" /></MpTooltip>
+            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" title="Column settings" />
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
-            <MpPopoverList>
-              <MpPopoverListItem is-disabled>
-                <MpCheckbox id="col-goal-owner" is-checked is-disabled>Goal owner</MpCheckbox>
-              </MpPopoverListItem>
-              <MpPopoverListItem v-for="col in columnOptions" :key="col.key">
-                <MpCheckbox :id="`col-${col.key}`" v-model:is-checked="visibleColumns[col.key]">
-                  {{ col.label }}
-                </MpCheckbox>
-              </MpPopoverListItem>
-            </MpPopoverList>
+            <MpFlex direction="column" gap="2" :class="css({ padding: '2' })">
+              <MpCheckbox id="col-goal-owner" is-checked is-disabled>Goal owner</MpCheckbox>
+              <MpCheckbox v-for="col in columnOptions" :key="col.key" :id="`col-${col.key}`" v-model:is-checked="visibleColumns[col.key]">{{ col.label }}</MpCheckbox>
+            </MpFlex>
           </MpPopoverContent>
         </MpPopover>
         <MpTooltip label="Export" placement="bottom" use-portal><MpButton variant="ghost" left-icon="upload" aria-label="Export" /></MpTooltip>
@@ -646,16 +655,16 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <MpTableHead>
                 <!-- Selection summary replaces the column-header row entirely
                      (not a bar above the table) while 1+ rows are selected. -->
-                <MpTableRow v-if="selectedCount > 0">
+                <MpTableRow v-if="deptSelectedCount(dept) > 0">
                   <MpTableCell as="th" :colspan="totalCols" :class="noCellPadding">
                     <GoalBulkActionBar
-                      :selected-count="selectedCount"
+                      :selected-count="deptSelectedCount(dept)"
                       :is-all-selected="isAllSelected(selectableIdsForDept(dept))"
                       @toggle-select-all="toggleSelectAll(selectableIdsForDept(dept))"
-                      @clear="clearSelection"
+                      @clear="clearDeptSelection(dept)"
                       @edit-goals="goToImport('edit-goals')"
                       @update-progress="goToImport('update-progress')"
-                      @close-goals="goToImport('close-goals')"
+                      @close-goals="onBulkClose"
                       @delete-goals="isBulkDeleteModalOpen = true"
                     />
                   </MpTableCell>
@@ -696,6 +705,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                             <MpFlex align="center" gap="2">
                               <span :class="goalNameLink" @click="goToGoal(row.id)">{{ row.title }}</span>
                               <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                              <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
                             </MpFlex>
                             <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
                             <button v-if="row.alignedGoals.length" type="button" :class="alignedLink">
@@ -766,10 +776,11 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                           <MpPopoverContent :class="css({ minWidth: '160px' })">
                             <MpPopoverList>
                               <MpPopoverListItem @click="goToGoal(row.id)">View details</MpPopoverListItem>
-                              <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
-                              <MpPopoverListItem @click="openAlign(row)">Align goal</MpPopoverListItem>
+                              <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                              <MpPopoverListItem v-if="!row.isClosed" @click="openAlign(row)">Align goal</MpPopoverListItem>
                               <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
-                              <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
+                              <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
+                              <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
                               <MpPopoverListItem @click="deleteRow(row)">
                                 <span :class="css({ color: 'text.danger' })">Delete</span>
                               </MpPopoverListItem>
@@ -825,6 +836,24 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="activityGoal" @close="isActivityLogOpen = false" />
 
+  <ClientOnly>
+    <MpModal :is-open="isCloseModalOpen" size="sm" @close="isCloseModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>Close goal?<MpModalCloseButton @click="isCloseModalOpen = false" /></MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
+
   <!-- Delete confirmation -->
   <ClientOnly>
   <MpModal :is-open="isDeleteModalOpen" @close="isDeleteModalOpen = false">
@@ -851,6 +880,24 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <!-- Bulk delete confirmation -->
   <ClientOnly>
+  <ClientOnly>
+    <MpModal :is-open="isBulkCloseModalOpen" size="sm" @close="isBulkCloseModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>Close {{ goalsToClose.length }} goal{{ goalsToClose.length === 1 ? '' : 's' }}?<MpModalCloseButton @click="isBulkCloseModalOpen = false" /></MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">Once closed, these goals can no longer submit progress or be edited. Goals owned by direct reports are sent for approval first.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isBulkCloseModalOpen = false">Cancel</MpButton>
+            <MpButton variant="primary" @click="confirmBulkClose(); clearSelection()">Yes, close goals</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
+
   <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
     <MpModalOverlay />
     <MpModalContent>

@@ -83,6 +83,7 @@ export interface Goal {
   deadlineDate?: string // ISO yyyy-mm-dd — only meaningful when unit === 'deadline'
   deadlineRules?: DeadlineRule[]
   isDraft?: boolean // saved via "Save as draft" on the "New goals" page rather than "Save"
+  isClosed?: boolean // a closed goal is read-only: no progress update / edit / align (prod goal_status === 2)
   description?: string
   useBaseline?: boolean
   direction?: 'higher' | 'lower'

@@ -36,10 +36,11 @@ onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 
 const bar = css({
   // Match the normal column-header row height so selecting rows doesn't make
-  // the header grow taller.
-  height: '40px', paddingInline: '4',
-  background: 'gray.25',
-  borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
+  // the header grow taller. Background + bottom border are owned by the host
+  // <th> so the bar can sit at the cell's own left padding — keeping its
+  // select-all checkbox aligned with the body checkbox column — while the
+  // fill still covers the full cell width (no two-tone header).
+  height: '40px', paddingInline: '0',
 })
 const valueText = css({ color: 'text.default' })
 const hintText = css({ color: 'text.secondary' })

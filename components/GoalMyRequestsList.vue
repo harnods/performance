@@ -40,8 +40,15 @@ const cycle = computed(() => cycles.value.find(c => c.id === props.cycleId))
 const { submissions } = useGoalApprovalsStore(props.cycleId)
 const { currentUserId } = useCurrentUser()
 
-const TYPE_OPTIONS = ['Create goal', 'Edit goal', 'Update goal progress', 'Delete goal'] as const
-const TYPE_LABEL = { create: 'Create goal', edit: 'Edit goal', progress: 'Update goal progress', delete: 'Delete goal' } as const
+const TYPE_OPTIONS = ['Create goal', 'Edit goal', 'Update goal progress', 'Close goal', 'Delete goal'] as const
+const TYPE_LABEL = { create: 'Create goal', edit: 'Edit goal', progress: 'Update goal progress', delete: 'Delete goal', close: 'Close goal' } as const
+
+// A close is submitted as an edit that only flips isClosed → label it "Close goal".
+function isCloseOnly(item: Submission['items'][number]): boolean {
+  const b = item.before as Record<string, unknown> | undefined
+  const a = item.after as Record<string, unknown> | undefined
+  return item.type === 'edit' && !!a && !b?.isClosed && !!a.isClosed
+}
 
 // A progress-only edit touches just the goal's value/progress, not its
 // definition — so it reads as "Update goal progress" rather than "Edit goal".
@@ -58,6 +65,7 @@ function typeLabelFor(submission: Submission): string {
   const types = submission.items.map(i => i.type)
   if (types.includes('create')) return TYPE_LABEL.create
   const edits = submission.items.filter(i => i.type === 'edit')
+  if (edits.length && edits.every(isCloseOnly)) return TYPE_LABEL.close
   if (edits.length && edits.every(isProgressOnly)) return TYPE_LABEL.progress
   if (types.includes('edit')) return TYPE_LABEL.edit
   return TYPE_LABEL.delete
