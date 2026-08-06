@@ -112,5 +112,9 @@ export function draftFromGoal(goal: Goal, owner: Employee): DraftGoal {
     keyResults: goal.keyResults ? goal.keyResults.map(kr => ({ ...kr })) : [],
     restrictedVisibility: goal.restrictedVisibility ?? false,
     ownerIds: [owner.id],
+    // Prod parity: once a goal has any achievement, its measurement unit &
+    // direction are locked on edit (prod keys this off an API flag, not the
+    // numeric value; our mock proxy is "achievement > 0").
+    hasProgress: (goal.pill ?? 0) > 0,
   }
 }

@@ -95,6 +95,10 @@ toggles the Start value; **Goal direction** (Higher/Lower is better; hidden for 
 Deadline = `MpDatePicker` (clamped to cycle period) + optional graduated **deadline rules**
 (Days exceeded → Achievement %, max `MAX_DEADLINE_RULES`). Schedule: Start disabled
 (inherits cycle), End bounded to `[cycleStart+1, cycleEnd]`, **Repeat this goal** + preview.
+**Edit lock (prod parity):** once a goal already has achievement, its **measurement unit** and
+**direction** are locked on edit with a "Can't be changed — this goal already has progress" note.
+Prod keys this off an API flag (`goal.disable_measure_type` / `disable_measure_progress`, *not* the
+numeric value); our mock proxy is `hasProgress = (goal.pill ?? 0) > 0`, carried on `DraftGoal`.
 
 ### D. Key results — `AddKeyResultDrawer` sub-drawer
 From "Key results (Optional) + Add key result". Fields: **name** (/255) · Description ·
@@ -103,6 +107,11 @@ direction** · **Progress update method** (Manual/Log-based, only when direction
 Emits a `DraftKeyResult` (baseline/target/direction + summary string). Sub-drawer has its own
 unsaved-changes guard. On the goal detail page each KR draws its own progress bar and
 **drives the goal's overall %** — see §I and [`goal-progress-calculation.md`](goal-progress-calculation.md).
+**Edit lock (prod parity):** editing a KR that already has progress locks its **measurement unit**
+and **direction** (proxy for prod's per-KR `disable_measure_type`; here: `currentValue` moved off
+baseline). **Delete KR:** confirm modal only for KRs already saved on the goal (prod parity — new
+KRs delete immediately); the warning states it affects the goal's progress. KRs stay Optional (a
+goal can have zero); no min/max count.
 
 ### E. Align a goal to a parent — `GoalAlignDrawer`
 Row Actions → **Align goal** (hidden for company-level). Level rules `ALLOWED_PARENT_LEVELS`:

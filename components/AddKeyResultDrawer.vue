@@ -59,6 +59,14 @@ const ruleErrors = ref<{ index: number, message: string }[]>([])
 
 const isEdit = computed(() => !!props.editing)
 const isDeadline = computed(() => measurementUnit.value === 'deadline')
+// Prod parity: a KR that already has progress can't change its measurement unit
+// or direction on edit (proxy for prod's per-KR disable_measure_type flag —
+// here: the current value has moved off the baseline).
+const lockMeasurement = computed(() => {
+  const d = props.editing
+  if (!d) return false
+  return typeof d.currentValue === 'number' && d.currentValue !== (typeof d.startValue === 'number' ? d.startValue : 0)
+})
 const currencySymbol = computed(() => CURRENCY_OPTIONS.find(c => c.value === currency.value)?.symbol ?? '')
 
 function formatThousands(v: number | ''): string {
@@ -290,9 +298,10 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
                 <MpFormLabel>Measurement unit</MpFormLabel>
                 <MpText size="label" :class="reqStar">*</MpText>
               </MpFlex>
+              <MpText v-if="lockMeasurement" size="label-small" :class="css({ color: 'text.secondary', marginBottom: '1', display: 'block' })">Can't be changed — this key result already has progress.</MpText>
               <MpFlex :class="radioCol">
                 <template v-for="opt in MEASUREMENT_UNIT_OPTIONS" :key="opt.value">
-                  <MpRadio name="kr-unit" :value="opt.value" :is-checked="measurementUnit === opt.value" @update:is-checked="measurementUnit = opt.value">
+                  <MpRadio name="kr-unit" :value="opt.value" :is-checked="measurementUnit === opt.value" :is-disabled="lockMeasurement" @update:is-checked="measurementUnit = opt.value">
                     {{ opt.label }}
                   </MpRadio>
                   <div v-if="measurementUnit === opt.value" :class="radioIndent">
@@ -388,11 +397,11 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
                 <MpText size="label" :class="reqStar">*</MpText>
               </MpFlex>
               <MpFlex :class="radioCol">
-                <MpRadio name="kr-direction" value="higher" :is-checked="kpiDirection === 'higher'" @update:is-checked="kpiDirection = 'higher'">
+                <MpRadio name="kr-direction" value="higher" :is-checked="kpiDirection === 'higher'" :is-disabled="lockMeasurement" @update:is-checked="kpiDirection = 'higher'">
                   Higher is better
                   <template #description>Achievement increases as the value goes up — e.g. revenue, satisfaction score.</template>
                 </MpRadio>
-                <MpRadio name="kr-direction" value="lower" :is-checked="kpiDirection === 'lower'" @update:is-checked="kpiDirection = 'lower'">
+                <MpRadio name="kr-direction" value="lower" :is-checked="kpiDirection === 'lower'" :is-disabled="lockMeasurement" @update:is-checked="kpiDirection = 'lower'">
                   Lower is better
                   <template #description>Achievement increases as the value goes down — e.g. cost, defect rate, response time.</template>
                 </MpRadio>

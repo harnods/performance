@@ -299,6 +299,9 @@ const targetValueAmountDisplay = computed({
 const currencySymbol = computed(() => CURRENCY_OPTIONS.find(c => c.value === currency.value)?.symbol ?? '')
 
 const isDeadlineUnit = computed(() => measurementUnit.value === 'deadline')
+// Prod parity: a goal that already has achievement can't change its measurement
+// unit or direction on edit (the scale it's been measured against is fixed).
+const lockMeasurement = computed(() => isEditing.value && !!props.editingDraft?.hasProgress)
 
 // Deadline achievement is a date, not a baseline/target scale — switching
 // to it clears fields that only make sense for the other units (and vice
@@ -814,12 +817,14 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpFormLabel>Measurement unit</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
+                <MpText v-if="lockMeasurement" size="label-small" :class="[css({ color: 'text.secondary', marginBottom: '1', display: 'block' })]">Can't be changed — this goal already has progress.</MpText>
                 <MpFlex direction="column" gap="2">
                   <template v-for="opt in MEASUREMENT_UNIT_OPTIONS" :key="opt.value">
                     <MpRadio
                       name="measurement-unit"
                       :value="opt.value"
                       :is-checked="measurementUnit === opt.value"
+                      :is-disabled="lockMeasurement"
                       @update:is-checked="measurementUnit = opt.value"
                     >
                       {{ opt.label }}
@@ -927,11 +932,11 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
                 <MpFlex direction="column" gap="2">
-                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" @update:is-checked="direction = 'higher'">
+                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'higher'">
                     Higher is better
                     <template #description>Achievement increases as the value goes up — e.g. revenue, satisfaction score.</template>
                   </MpRadio>
-                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" @update:is-checked="direction = 'lower'">
+                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'lower'">
                     Lower is better
                     <template #description>Achievement increases as the value goes down — e.g. cost, defect rate, response time.</template>
                   </MpRadio>

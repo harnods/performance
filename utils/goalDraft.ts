@@ -60,6 +60,9 @@ export interface DraftGoal {
   // detaches them into their own DraftGoal, shrinking this list on the
   // original. Removing the last owner drops the entry entirely.
   ownerIds: string[]
+  // True when the goal being edited already has achievement — locks the
+  // measurement unit & direction on edit (prod parity). Absent for new goals.
+  hasProgress?: boolean
 }
 
 let seq = 0
