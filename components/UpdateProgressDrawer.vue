@@ -28,6 +28,7 @@ const emit = defineEmits<{ close: [], saved: [] }>()
 
 const { goals, updateGoal } = useGoalsStore()
 const { cycles } = useGoalCyclesStore()
+const { logActivity } = useGoalActivityStore()
 
 const cycle = computed(() => cycles.value.find(c => c.id === props.goal?.cycleId))
 const keyResults = computed<DraftKeyResult[]>(() => props.goal?.keyResults ?? [])
@@ -161,6 +162,17 @@ function saveUpdate() {
     }
     updateGoal(g.id, patch)
   }
+  // Record it in the activity log + bump the goal's "last updated" stamp.
+  logActivity(g.id, {
+    type: 'progress',
+    status: upStatus.value,
+    wording: keyResults.value.length
+      ? `Updated the key results — goal achievement is now ${g.pill ?? 0}%.`
+      : (g.unit && g.unit !== 'deadline'
+        ? `Updated the goal progress to ${g.pill ?? 0}%.`
+        : `Set the goal status to ${STATUS_LABEL[upStatus.value]}.`),
+    files: upFiles.value.length ? upFiles.value.map(f => ({ name: f.name, sizeLabel: f.sizeLabel })) : undefined,
+  })
   toast.notify({ id: 'goal-progress-updated', position: 'top-center', variant: 'success', title: 'Progress updated' })
   emit('saved')
   emit('close')

@@ -22,10 +22,12 @@ const activeEmployee = computed(() => employeeById(currentUserId.value))
 const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
 const { resetToSeed: resetReviewerWeights } = useReviewerWeightsStore()
+const { clearRecorded: clearActivityLog } = useGoalActivityStore()
 function resetDemoData() {
   resetToSeed()
   resetGoalsToSeed()
   resetReviewerWeights()
+  clearActivityLog()
   toast.notify({
     id: 'demo-data-reset',
     position: 'top-center',

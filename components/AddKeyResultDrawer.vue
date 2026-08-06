@@ -231,11 +231,17 @@ function submit() {
     measurementUnit: measurementUnit.value,
     currency: currency.value,
     useBaseline: useBaseline.value,
-    startValue: startValue.value,
-    targetValue: targetValue.value,
+    // Keep these numeric — MpInput yields strings, and the goal detail's
+    // krIsMeasured() requires number types (else the KR renders unmeasured).
+    startValue: startValue.value === '' ? '' : Number(startValue.value),
+    targetValue: targetValue.value === '' ? '' : Number(targetValue.value),
     deadlineDate: isDeadline.value && deadlineDate.value ? toISO(deadlineDate.value) : '',
     deadlineRules: isDeadline.value && deadlineRulesEnabled.value ? deadlineRules.value.map(r => ({ ...r })) : [],
     progressMechanism: progressMechanism.value,
+    // Preserve existing achievement — editing measurement (unit/target/baseline)
+    // must NOT wipe the KR's recorded progress.
+    currentValue: props.editing?.currentValue,
+    status: props.editing?.status,
   })
   doClose()
 }

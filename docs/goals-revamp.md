@@ -190,6 +190,26 @@ Individual pages) and by the goal detail page — no navigation to detail requir
 - Footer **Submit** opens a confirmation modal *"Update progress confirmation" / "Are you sure
   want to update this progress?"* → Submit persists via `saveUpdate`.
 
+### I.2 Activity log (goal history)
+Prod calls this the **activity journey / history** (`ModalHistory.vue` + `HistoryList`/`HistoryItem`,
+`GET /goals/progress-history/{uuid}`) — a **modal** in prod, rebuilt here as a **right drawer**
+`components/GoalActivityLogDrawer.vue`. Opened by the row **"Activity log"** action (menu order: View
+details · Update goal progress · Align goal · **Activity log** · Edit · Delete), by the goal detail
+Actions menu, and by the detail page's **"Last updated by … on …"** link. Layout: goal-summary header
+(code · name+weight · description · owner avatar) + a **vertical timeline** (dot + connecting line)
+of entries, newest first. Three entry kinds mirror prod: **progress** (actor + status pill
+On track/Off track · wording · effective date · attachment rows — `doc` icon, name + size, with
+**Reupload** and **Delete** actions per file, prod parity), **approval** (`Approved by {name}`),
+and **goal created** (`Goal created by {name}`) as the oldest. Includes an **empty state** (prod had
+none). Entries come from `composables/useGoalActivityStore.ts`:
+- **Baseline** (deterministic per goal): created + optional approval + 1–3 progress updates ramping to
+  the goal's `pill`, plus the goal's **comments** (from `useGoalCommentsStore`, newest first).
+- **Recorded events** (real, persisted to `talenta-goal-activity-db`): every user action calls
+  `logActivity(goalId, …)` — **update progress**, **add/edit/delete key result**, **edit goal**,
+  **align / remove alignment** — which prepends a timeline entry *and* bumps the goal's
+  `updatedAt`/`updatedBy` so the detail footer "Last updated by … on …" reflects it. A **comment**
+  the user posts also shows in the log (via the comments store), without bumping "last updated".
+
 ### J. Goal categories
 `/goals/goal-categories` → **Add goal category** (`GoalCategoryFormDrawer`: name /60 unique,
 description /255, dynamic sub-categories /60 unique; in-use sub-cat can't be removed;

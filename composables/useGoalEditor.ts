@@ -82,6 +82,7 @@ export function useGoalEditor() {
       return
     }
     updateGoal(editingGoal.value.id, updated)
+    useGoalActivityStore().logActivity(editingGoal.value.id, { type: 'event', wording: 'edited the goal details.' })
     isEditDrawerOpen.value = false
     toast.notify({
       id: 'goal-updated',

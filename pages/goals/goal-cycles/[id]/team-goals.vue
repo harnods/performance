@@ -204,6 +204,7 @@ function openAlign(row: { id: string }) {
 function onAligned(parentId: string, krId?: string) {
   if (!aligningGoal.value) return
   updateGoal(aligningGoal.value.id, { alignedToId: parentId, alignedToKrId: krId })
+  useGoalActivityStore().logActivity(aligningGoal.value.id, { type: "event", wording: "aligned this goal to a parent goal." })
   toast.notify({ id: 'goal-aligned', position: 'top-center', variant: 'success', title: 'Goal aligned' })
 }
 
@@ -213,6 +214,14 @@ const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
 function openUpdateProgress(row: { id: string }) {
   updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
   if (updatingGoal.value) isUpdateProgressOpen.value = true
+}
+
+// Activity log — opens the history drawer for a goal.
+const isActivityLogOpen = ref(false)
+const activityGoal = ref<(typeof goals.value)[number] | null>(null)
+function openActivityLog(row: { id: string }) {
+  activityGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (activityGoal.value) isActivityLogOpen.value = true
 }
 
 // Bulk select — Select is always the first column; only real 'main' rows
@@ -789,6 +798,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                           <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
                           <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                           <MpPopoverListItem v-if="row.kind === 'main'" @click="openAlign(row)">Align goal</MpPopoverListItem>
+                          <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                           <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                           <MpPopoverListItem @click="deleteRow(row)">
                             <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -841,6 +851,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   />
 
   <UpdateProgressDrawer :is-open="isUpdateProgressOpen" :goal="updatingGoal" @close="isUpdateProgressOpen = false" />
+
+  <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="activityGoal" @close="isActivityLogOpen = false" />
 
   <!-- Delete confirmation -->
   <ClientOnly>

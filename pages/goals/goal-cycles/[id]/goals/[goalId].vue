@@ -65,6 +65,7 @@ const goalId = computed(() => route.params.goalId as string)
 
 const { goals, updateGoal } = useGoalsStore(cycleId.value)
 const { cycles } = useGoalCyclesStore()
+const { logActivity } = useGoalActivityStore()
 const cycle = computed(() => cycles.value.find(c => c.id === cycleId.value))
 const goal = computed(() => goals.value.find(g => g.id === goalId.value))
 
@@ -311,6 +312,8 @@ function goalHref(id: string) {
 // ─── Update progress (opens the shared UpdateProgressDrawer component) ──────
 const isUpdateOpen = ref(false)
 function openUpdate() { isUpdateOpen.value = true }
+// Activity log (history) drawer for this goal.
+const isActivityLogOpen = ref(false)
 
 // ─── Edit (reuse the shared drawer flow) ──────────────────────────────────────
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
@@ -326,7 +329,10 @@ function deleteGoalAction() {
 const isRemoveAlignOpen = ref(false)
 function removeAlignment() { isRemoveAlignOpen.value = true }
 function confirmRemoveAlignment() {
-  if (goal.value) updateGoal(goal.value.id, { alignedToId: undefined, alignedToKrId: undefined })
+  if (goal.value) {
+    updateGoal(goal.value.id, { alignedToId: undefined, alignedToKrId: undefined })
+    logActivity(goal.value.id, { type: 'event', wording: 'removed the goal alignment.' })
+  }
   toast.notify({ id: 'goal-alignment-removed', position: 'top-center', variant: 'success', title: 'Alignment removed' })
   isRemoveAlignOpen.value = false
 }
@@ -351,11 +357,26 @@ function openEditKr(kr: DraftKeyResult) {
   editingKr.value = kr
   isKrDrawerOpen.value = true
 }
+const KR_UNIT_LABEL: Record<string, string> = { percentage: 'Percentage', number: 'Number', amount: 'Amount', deadline: 'Deadline' }
+function krMechLabel(m?: string) { return m === 'log-based' ? 'Log-based' : 'Manual entry' }
+// Human-readable "what changed, from → to" list for an edited key result.
+function describeKrChanges(a: DraftKeyResult, b: DraftKeyResult): string[] {
+  const out: string[] = []
+  if (a.title !== b.title) out.push(`name “${a.title}” → “${b.title}”`)
+  if ((a.measurementUnit ?? '') !== (b.measurementUnit ?? '')) out.push(`measurement unit ${KR_UNIT_LABEL[a.measurementUnit ?? ''] ?? '—'} → ${KR_UNIT_LABEL[b.measurementUnit ?? ''] ?? '—'}`)
+  if ((a.kpiDirection ?? '') !== (b.kpiDirection ?? '')) out.push(`direction ${betterLabel(a.kpiDirection)} → ${betterLabel(b.kpiDirection)}`)
+  if (Number(a.startValue) !== Number(b.startValue)) out.push(`baseline ${krFmt(a, a.startValue)} → ${krFmt(b, b.startValue)}`)
+  if (Number(a.targetValue) !== Number(b.targetValue)) out.push(`target ${krFmt(a, a.targetValue)} → ${krFmt(b, b.targetValue)}`)
+  if ((a.deadlineDate ?? '') !== (b.deadlineDate ?? '')) out.push(`deadline ${a.deadlineDate || '—'} → ${b.deadlineDate || '—'}`)
+  if ((a.progressMechanism ?? '') !== (b.progressMechanism ?? '')) out.push(`progress method ${krMechLabel(a.progressMechanism)} → ${krMechLabel(b.progressMechanism)}`)
+  return out
+}
 function onKrSave(kr: DraftKeyResult) {
   if (!goal.value) return
   const list = [...keyResults.value]
   const i = list.findIndex(k => k.id === kr.id)
   const editing = i !== -1
+  const changes = editing ? describeKrChanges(list[i], kr) : []
   // A freshly-added KR starts at its baseline (0% progress); an edited one
   // keeps whatever current value it already had.
   const currentValue = editing ? (list[i].currentValue ?? (typeof kr.startValue === 'number' ? kr.startValue : undefined)) : (typeof kr.startValue === 'number' ? kr.startValue : undefined)
@@ -364,6 +385,12 @@ function onKrSave(kr: DraftKeyResult) {
   if (editing) list[i] = merged
   else list.push(merged)
   updateGoal(goal.value.id, { keyResults: list })
+  logActivity(goal.value.id, {
+    type: 'event',
+    wording: editing
+      ? `edited the key result “${kr.title}”${changes.length ? ` — ${changes.join(', ')}` : ''}.`
+      : `added the key result “${kr.title}”.`,
+  })
   toast.notify({ id: 'kr-saved', position: 'top-center', variant: 'success', title: editing ? 'Key result updated' : 'Key result added' })
 }
 
@@ -405,7 +432,9 @@ function askDeleteKr(kr: DraftKeyResult) {
 }
 function confirmDeleteKr() {
   if (!goal.value || !krToDelete.value) return
+  const title = krToDelete.value.title
   updateGoal(goal.value.id, { keyResults: keyResults.value.filter(k => k.id !== krToDelete.value!.id) })
+  logActivity(goal.value.id, { type: 'event', wording: `deleted the key result “${title}”.` })
   isKrDeleteOpen.value = false
   krToDelete.value = null
   toast.notify({ id: 'kr-deleted', position: 'top-center', variant: 'success', title: 'Key result deleted' })
@@ -573,6 +602,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         <MpPopoverContent :class="css({ minWidth: '180px' })">
           <MpPopoverList>
             <MpPopoverListItem @click="openUpdate">Update progress</MpPopoverListItem>
+            <MpPopoverListItem @click="isActivityLogOpen = true">Activity log</MpPopoverListItem>
             <MpPopoverListItem @click="editGoal">Edit goal</MpPopoverListItem>
             <MpPopoverListItem @click="deleteGoalAction">
               <span :class="css({ color: 'text.danger' })">Delete goal</span>
@@ -1022,7 +1052,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         </div>
 
         <!-- Goal last-updated — pinned to the bottom of the rail, opens the log -->
-        <a href="#" :class="lastUpdatedLink">Last updated by {{ owner?.name }}<template v-if="goal.updatedAt"> on {{ goal.updatedAt }}</template></a>
+        <a :class="lastUpdatedLink" @click.prevent="isActivityLogOpen = true">Last updated by {{ owner?.name }}<template v-if="goal.updatedAt"> on {{ goal.updatedAt }}</template></a>
       </aside>
     </div>
   </div>
@@ -1033,6 +1063,9 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
 
   <!-- ═════ Update progress (shared drawer component) ═════ -->
   <UpdateProgressDrawer :is-open="isUpdateOpen" :goal="goal" @close="isUpdateOpen = false" />
+
+  <!-- Activity log (history) drawer -->
+  <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="goal" @close="isActivityLogOpen = false" />
 
   <!-- ═════ Key result drawer (shared measurement form) ═════ -->
   <AddKeyResultDrawer v-model:is-open="isKrDrawerOpen" :editing="editingKr" @save="onKrSave" />

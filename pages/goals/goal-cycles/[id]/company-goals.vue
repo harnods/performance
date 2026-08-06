@@ -176,6 +176,14 @@ function openUpdateProgress(row: { id: string }) {
   if (updatingGoal.value) isUpdateProgressOpen.value = true
 }
 
+// Activity log — opens the history drawer for a goal.
+const isActivityLogOpen = ref(false)
+const activityGoal = ref<(typeof goals.value)[number] | null>(null)
+function openActivityLog(row: { id: string }) {
+  activityGoal.value = goals.value.find(x => x.id === row.id) ?? null
+  if (activityGoal.value) isActivityLogOpen.value = true
+}
+
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) openEditGoal(g)
@@ -643,6 +651,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                     <MpPopoverList>
                       <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
                       <MpPopoverListItem @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                      <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                       <MpPopoverListItem @click="editRow(row)">Edit</MpPopoverListItem>
                       <MpPopoverListItem @click="deleteRow(row)">
                         <span :class="css({ color: 'text.danger' })">Delete</span>
@@ -684,6 +693,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   />
 
   <UpdateProgressDrawer :is-open="isUpdateProgressOpen" :goal="updatingGoal" @close="isUpdateProgressOpen = false" />
+
+  <GoalActivityLogDrawer :is-open="isActivityLogOpen" :goal="activityGoal" @close="isActivityLogOpen = false" />
 
   <!-- Delete confirmation -->
   <ClientOnly>
