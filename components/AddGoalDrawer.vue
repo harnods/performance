@@ -38,6 +38,13 @@ import {
   MpDrawerBody,
   MpDrawerFooter,
   MpDrawerOverlay,
+  MpModal,
+  MpModalOverlay,
+  MpModalContent,
+  MpModalHeader,
+  MpModalCloseButton,
+  MpModalBody,
+  MpModalFooter,
   MpButtonGroup,
   MpDatePicker,
   css,
@@ -104,11 +111,16 @@ const contributorsByOwner = reactive<Record<string, string[]>>({})
 const contributorMode = reactive<Record<string, 'all' | 'selected' | undefined>>({})
 const viewerIds = ref<string[]>([])
 const restrictedVisibility = ref(false)
+// Only Team & Organization goals have members (prod parity: isNeedMember =
+// team/org). Company & Individual goals have NO member field — their
+// contributors are picked from ALL employees instead of from members.
+const isNeedMember = computed(() => goalType.value === 'team' || goalType.value === 'organization')
+const contributorPool = computed(() => (isNeedMember.value ? viewerIds.value : EMPLOYEES.map(e => e.id)))
+const contributorPoolWord = computed(() => (isNeedMember.value ? 'members' : 'employees'))
 const keyResults = ref<DraftKeyResult[]>([])
 
-const showKeyResultForm = ref(false)
-const keyResultTitle = ref('')
-const keyResultTarget = ref('')
+const krDrawerOpen = ref(false)
+const editingKr = ref<DraftKeyResult | null>(null)
 
 const errors = reactive({ name: false, goalType: false, category: false, weight: false, deadlineDate: false, startValue: false, targetValue: false })
 const startValueErrorMessage = ref('')
@@ -130,7 +142,12 @@ function sameIdSet(a: string[], b: string[]): boolean {
   return a.every(id => setB.has(id))
 }
 
+// True while resetForm() is populating fields — lets the measurementUnit
+// watcher skip its interactive-only defaults so loaded/edit values aren't
+// clobbered (the watcher flushes after resetForm's synchronous pass).
+let hydrating = false
 function resetForm() {
+  hydrating = true
   errors.name = false
   errors.goalType = false
   errors.category = false
@@ -189,8 +206,9 @@ function resetForm() {
     scheduleEnd.value = props.cycleEndDate ? toDate(props.cycleEndDate) : null
     measurementUnit.value = 'percentage'
     currency.value = 'IDR'
-    startValue.value = ''
-    targetValue.value = ''
+    // Percentage (the default unit) starts at 0 and targets 100%.
+    startValue.value = 0
+    targetValue.value = 100
     useBaseline.value = true
     direction.value = 'higher'
     deadlineDate.value = null
@@ -205,9 +223,13 @@ function resetForm() {
   }
   deadlineRuleErrors.value = []
   viewerDrawerOpen.value = false
-  showKeyResultForm.value = false
-  keyResultTitle.value = ''
-  keyResultTarget.value = ''
+  krDrawerOpen.value = false
+  editingKr.value = null
+  isLeaveOpen.value = false
+  nextTick(() => {
+    hydrating = false
+    initialSnapshot.value = snapshot()
+  })
 }
 
 watch(() => props.isOpen, (open) => { if (open) resetForm() })
@@ -256,18 +278,21 @@ const isDeadlineUnit = computed(() => measurementUnit.value === 'deadline')
 // versa) so stale values from a previous unit never get silently saved.
 // Deadline goals also can't repeat (there's no "period length" to cascade).
 watch(measurementUnit, (unit) => {
+  if (hydrating) return // loading/reset sets these explicitly — don't override
   if (unit === 'deadline') {
     startValue.value = ''
     targetValue.value = ''
     useBaseline.value = true
     direction.value = 'higher'
     repeat.value = false
+    return
   }
-  else {
-    deadlineDate.value = null
-    deadlineRulesEnabled.value = false
-    deadlineRules.value = []
-  }
+  deadlineDate.value = null
+  deadlineRulesEnabled.value = false
+  deadlineRules.value = []
+  // Percentage defaults to 0 → 100%; other scales start blank for the user.
+  startValue.value = unit === 'percentage' ? 0 : ''
+  targetValue.value = unit === 'percentage' ? 100 : ''
 })
 
 function addDeadlineRule() {
@@ -365,7 +390,7 @@ function removeViewer(employeeId: string) {
 // list; picking "Selected members" reveals a checklist scoped to members only.
 function setContributorMode(ownerId: string, mode: 'all' | 'selected') {
   contributorMode[ownerId] = mode
-  if (mode === 'all') contributorsByOwner[ownerId] = [...viewerIds.value]
+  if (mode === 'all') contributorsByOwner[ownerId] = [...contributorPool.value]
 }
 function toggleContributor(ownerId: string, employeeId: string, checked: boolean) {
   const current = contributorsByOwner[ownerId] ?? []
@@ -375,6 +400,9 @@ function toggleContributor(ownerId: string, employeeId: string, checked: boolean
 // picked: "all"-mode owners stay synced to the current member list, and any
 // owner's contributor list gets stripped of anyone no longer a member.
 watch(viewerIds, (ids) => {
+  // Only meaningful when contributors are scoped to members (team/org). For
+  // company/individual the pool is all employees, so members don't gate them.
+  if (!isNeedMember.value) return
   for (const owner of props.owners) {
     contributorsByOwner[owner.id] = contributorMode[owner.id] === 'all'
       ? [...ids]
@@ -385,22 +413,63 @@ watch(viewerIds, (ids) => {
 // A restricted-visibility toggle only makes sense for Organization goals —
 // clear it if the type changes away so a stale "on" can't silently carry
 // over to a different goal type.
-watch(goalType, (type) => { if (type !== 'organization') restrictedVisibility.value = false })
+watch(goalType, (type) => {
+  if (type !== 'organization') restrictedVisibility.value = false
+  // Company & Individual goals have no members — drop any carried over from a
+  // previous team/org selection so they aren't saved.
+  if (type !== 'team' && type !== 'organization') viewerIds.value = []
+})
 
-function addKeyResult() {
-  if (!keyResultTitle.value.trim()) return
-  keyResults.value = [...keyResults.value, { id: `kr-${keyResults.value.length}-${Date.now()}`, title: keyResultTitle.value.trim(), target: keyResultTarget.value.trim() }]
-  keyResultTitle.value = ''
-  keyResultTarget.value = ''
-  showKeyResultForm.value = false
+function openAddKr() {
+  editingKr.value = null
+  krDrawerOpen.value = true
+}
+function openEditKr(kr: DraftKeyResult) {
+  editingKr.value = kr
+  krDrawerOpen.value = true
+}
+function onKrSave(kr: DraftKeyResult) {
+  const exists = keyResults.value.some(k => k.id === kr.id)
+  keyResults.value = exists
+    ? keyResults.value.map(k => (k.id === kr.id ? kr : k))
+    : [...keyResults.value, kr]
 }
 function removeKeyResult(id: string) {
   keyResults.value = keyResults.value.filter(kr => kr.id !== id)
 }
 
-function close() {
+// Unsaved-changes guard: Esc / close button / Cancel route through
+// requestClose — if the form differs from its opened state, confirm before
+// discarding. (Overlay-click stays disabled entirely.)
+const isLeaveOpen = ref(false)
+function snapshot() {
+  return JSON.stringify({
+    name: name.value, description: description.value, goalType: goalType.value,
+    category: category.value, subCategory: subCategory.value, weight: weight.value,
+    repeat: repeat.value, scheduleEnd: scheduleEnd.value,
+    measurementUnit: measurementUnit.value, currency: currency.value,
+    startValue: startValue.value, targetValue: targetValue.value, useBaseline: useBaseline.value,
+    direction: direction.value, deadlineDate: deadlineDate.value,
+    deadlineRulesEnabled: deadlineRulesEnabled.value, deadlineRules: deadlineRules.value,
+    viewerIds: viewerIds.value, restrictedVisibility: restrictedVisibility.value,
+    keyResults: keyResults.value, contributorsByOwner, contributorMode,
+  })
+}
+const initialSnapshot = ref('')
+function isDirty() { return snapshot() !== initialSnapshot.value }
+function doClose() {
   emit('update:isOpen', false)
 }
+// The "Leave without saving?" alert fires ONLY on Esc, and only when the form
+// is dirty. Cancel, the close (×) button, and overlay just close directly.
+function requestClose() { if (isDirty()) isLeaveOpen.value = true; else doClose() }
+function cancelLeave() { isLeaveOpen.value = false }
+function discardAndClose() { isLeaveOpen.value = false; doClose() }
+function onEsc(e: KeyboardEvent) {
+  if (e.key === 'Escape' && props.isOpen) { e.preventDefault(); requestClose() }
+}
+onMounted(() => window.addEventListener('keydown', onEsc))
+onBeforeUnmount(() => window.removeEventListener('keydown', onEsc))
 
 function save() {
   errors.name = !name.value.trim()
@@ -542,16 +611,15 @@ const personMeta = css({ fontSize: '14px', lineHeight: '20px', color: 'text.seco
 const removeBtn = css({ background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', color: 'icon.secondary', display: 'flex' })
 
 const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
-const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding: '3', borderRadius: '6px', border: '1px solid', borderColor: 'border.default' })
 </script>
 
 <template>
   <ClientOnly>
-    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="lg" is-keep-alive @close="close">
+    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="lg" is-keep-alive :is-close-on-overlay-click="false" :is-close-on-esc="false" @close="doClose">
       <MpDrawerContent>
         <MpDrawerHeader>
           {{ drawerTitle }}
-          <MpDrawerCloseButton @click="close" />
+          <MpDrawerCloseButton @click="doClose" />
         </MpDrawerHeader>
         <MpDrawerBody>
           <div :class="fields">
@@ -807,14 +875,16 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
             </div>
 
             <!-- Goal members (moved before Goal contributor — a contributor
-                 can only ever be picked from a goal's own members below). -->
-            <div :class="section">
+                 can only ever be picked from a goal's own members below).
+                 Company & Individual goals have no members, so this whole
+                 section is hidden for them. -->
+            <div v-if="isNeedMember" :class="section">
               <div :class="sectionHeader">
                 <span :class="sectionTitle">Goal members <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
                 <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
               </div>
               <MpFlex v-for="id in viewerIds" :key="id" :class="personRow">
-                <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="md" variant-color="gray" />
+                <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
                 <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                   <span :class="personName">{{ employeeById(id)?.name }}</span>
                   <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
@@ -841,20 +911,20 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
             <div :class="section">
               <div :class="sectionHeader">
                 <span :class="sectionTitle">Goal contributor <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
-                <span :class="sectionDesc">People who contribute to this goal's progress — chosen from the goal's members above.</span>
+                <span :class="sectionDesc">People who can update this goal's progress — chosen from the goal's {{ contributorPoolWord }}.</span>
               </div>
 
-              <MpText v-if="viewerIds.length === 0" size="label" :class="helperText">Add goal members first to choose contributors from them.</MpText>
+              <MpText v-if="isNeedMember && viewerIds.length === 0" size="label" :class="helperText">Add goal members first to choose contributors from them.</MpText>
 
               <!-- Single owner: one radio + inline checklist -->
               <template v-else-if="owners.length === 1">
                 <MpFlex direction="column" gap="2">
-                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All members</MpRadio>
-                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected members</MpRadio>
+                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All {{ contributorPoolWord }}</MpRadio>
+                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                 </MpFlex>
                 <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
                   <MpCheckbox
-                    v-for="id in viewerIds"
+                    v-for="id in contributorPool"
                     :key="id"
                     :id="`contributor-${owners[0].id}-${id}`"
                     :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
@@ -869,7 +939,7 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
               <template v-else>
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
                   <div :class="personRow">
-                    <MpAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="md" variant-color="gray" />
+                    <MpAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0">
                       <span :class="personName">{{ owner.name }}</span>
                       <span :class="personMeta">{{ employeeMeta(owner) }}</span>
@@ -877,12 +947,12 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
                   </div>
 
                   <MpFlex direction="column" gap="2">
-                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'all'" @update:is-checked="setContributorMode(owner.id, 'all')">All members</MpRadio>
-                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected members</MpRadio>
+                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'all'" @update:is-checked="setContributorMode(owner.id, 'all')">All {{ contributorPoolWord }}</MpRadio>
+                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                   </MpFlex>
                   <div v-if="contributorMode[owner.id] === 'selected'" :class="radioIndent">
                     <MpCheckbox
-                      v-for="id in viewerIds"
+                      v-for="id in contributorPool"
                       :key="id"
                       :id="`contributor-${owner.id}-${id}`"
                       :is-checked="(contributorsByOwner[owner.id] ?? []).includes(id)"
@@ -904,27 +974,18 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
               <div v-for="kr in keyResults" :key="kr.id" :class="krRow">
                 <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                   <span :class="personName">{{ kr.title }}</span>
-                  <span v-if="kr.target" :class="personMeta">Target: {{ kr.target }}</span>
+                  <span v-if="kr.target" :class="personMeta">{{ kr.target }}</span>
                 </MpFlex>
-                <button type="button" :class="removeBtn" aria-label="Remove key result" @click="removeKeyResult(kr.id)">
-                  <MpIcon name="minus-circular" size="sm" />
-                </button>
+                <MpFlex align="center" gap="0" :class="css({ flexShrink: '0' })">
+                  <button type="button" :class="removeBtn" aria-label="Edit key result" @click="openEditKr(kr)">
+                    <MpIcon name="edit" size="sm" />
+                  </button>
+                  <button type="button" :class="removeBtn" aria-label="Remove key result" @click="removeKeyResult(kr.id)">
+                    <MpIcon name="minus-circular" size="sm" />
+                  </button>
+                </MpFlex>
               </div>
-              <div v-if="showKeyResultForm" :class="krForm">
-                <MpFormControl id="kr-title">
-                  <MpFormLabel>Key result title</MpFormLabel>
-                  <MpInput v-model="keyResultTitle" />
-                </MpFormControl>
-                <MpFormControl id="kr-target">
-                  <MpFormLabel>Target</MpFormLabel>
-                  <MpInput v-model="keyResultTarget" />
-                </MpFormControl>
-                <MpButtonGroup>
-                  <MpButton variant="ghost" @click="showKeyResultForm = false">Cancel</MpButton>
-                  <MpButton variant="primary" @click="addKeyResult">Add</MpButton>
-                </MpButtonGroup>
-              </div>
-              <button v-else type="button" :class="addLink" @click="showKeyResultForm = true">
+              <button type="button" :class="addLink" @click="openAddKr">
                 <MpIcon name="add" size="sm" />
                 Add key result
               </button>
@@ -933,7 +994,7 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
         </MpDrawerBody>
         <MpDrawerFooter>
           <MpButtonGroup>
-            <MpButton variant="ghost" @click="close">Cancel</MpButton>
+            <MpButton variant="ghost" @click="doClose">Cancel</MpButton>
             <MpButton variant="primary" @click="save">{{ saveButtonLabel }}</MpButton>
           </MpButtonGroup>
         </MpDrawerFooter>
@@ -953,4 +1014,29 @@ const krForm = css({ display: 'flex', flexDirection: 'column', gap: '3', padding
     @update:is-open="viewerDrawerOpen = $event"
     @continue="(ids) => { viewerIds = ids }"
   />
+
+  <!-- Add / edit key result — sub-drawer opened on top of this drawer -->
+  <AddKeyResultDrawer v-model:is-open="krDrawerOpen" :editing="editingKr" @save="onKrSave" />
+
+  <!-- Unsaved-changes confirmation -->
+  <ClientOnly>
+    <MpModal :is-open="isLeaveOpen" @close="cancelLeave">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Leave without saving?
+          <MpModalCloseButton @click="cancelLeave" />
+        </MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">The details you've entered haven't been saved and will be lost if you leave.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="cancelLeave">Cancel</MpButton>
+            <MpButton variant="primary" @click="discardAndClose">Discard</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
 </template>

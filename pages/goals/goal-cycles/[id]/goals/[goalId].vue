@@ -548,7 +548,7 @@ const alignCard = css({ display: 'flex', flexDirection: 'column', gap: '1' })
 
   <!-- ═════ Update progress modal ═════ -->
   <ClientOnly>
-    <MpModal :is-open="isUpdateOpen" is-centered @close="isUpdateOpen = false">
+    <MpModal :is-open="isUpdateOpen" @close="isUpdateOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
@@ -630,7 +630,7 @@ const alignCard = css({ display: 'flex', flexDirection: 'column', gap: '1' })
 
   <!-- Key result delete confirmation -->
   <ClientOnly>
-    <MpModal :is-open="isKrDeleteOpen" is-centered @close="isKrDeleteOpen = false">
+    <MpModal :is-open="isKrDeleteOpen" @close="isKrDeleteOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
@@ -666,7 +666,7 @@ const alignCard = css({ display: 'flex', flexDirection: 'column', gap: '1' })
   <ClientOnly>
     <MpModal :is-open="isDeleteModalOpen" @close="isDeleteModalOpen = false">
       <MpModalOverlay />
-      <MpModalContent :class="css({ marginTop: '80px' })">
+      <MpModalContent>
         <MpModalHeader>
           Delete goal?
           <MpModalCloseButton @click="isDeleteModalOpen = false" />

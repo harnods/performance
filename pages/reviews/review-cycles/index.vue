@@ -457,7 +457,7 @@ const clickableRow = css({ cursor: 'pointer' })
 
   <!-- Create cycle modal -->
   <!-- 3 cards × 216px + 2 gaps × 16px + modal body padding 48px = 728px -->
-  <MpModal :is-open="createModalOpen" is-centered @close="createModalOpen = false">
+  <MpModal :is-open="createModalOpen" @close="createModalOpen = false">
     <MpModalOverlay />
     <!-- width = 3×216px cards + 2×16px gaps + 2×40px body padding = 760px -->
     <MpModalContent class="mp-modal__content--create-cycle">
@@ -554,7 +554,7 @@ const clickableRow = css({ cursor: 'pointer' })
   </MpModal>
 
   <!-- Delete confirmation modal -->
-  <MpModal :is-open="deleteModalOpen" is-centered @close="deleteModalOpen = false">
+  <MpModal :is-open="deleteModalOpen" @close="deleteModalOpen = false">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>Delete review cycle?</MpModalHeader>

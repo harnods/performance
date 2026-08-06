@@ -1802,7 +1802,7 @@ function confirmRemoveEmployee() {
     :cycle-key="String(route.params.id)"
   />
 
-  <MpModal :is-open="employeeModalOpen" is-centered @close="employeeModalOpen = false">
+  <MpModal :is-open="employeeModalOpen" @close="employeeModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ width: '640px', maxWidth: '90vw' })">
       <MpModalHeader>
@@ -1826,7 +1826,7 @@ function confirmRemoveEmployee() {
               <MpTableRow v-for="emp in sortedModalEmployees" :key="emp.id">
                 <MpTableCell as="td" :class="tightCellMid">
                   <MpFlex align="center" gap="3">
-                    <MpAvatar :name="emp.name" size="sm" />
+                    <MpAvatar :name="emp.name" size="lg" />
                     <MpFlex direction="column" gap="0">
                       <MpText size="label" weight="semiBold" :class="valueText">{{ emp.name }}</MpText>
                       <MpText size="label-small" :class="captionText">
@@ -1849,7 +1849,7 @@ function confirmRemoveEmployee() {
   </MpModal>
 
   <!-- Extend review period modal -->
-  <MpModal :is-open="extendModalOpen" is-centered @close="extendModalOpen = false">
+  <MpModal :is-open="extendModalOpen" @close="extendModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ width: '600px', maxWidth: '90vw' })">
       <MpModalHeader>
@@ -1911,7 +1911,7 @@ function confirmRemoveEmployee() {
   <!-- Remove employee confirmation -->
   <MpModal :is-open="removeEmployeeModalOpen" @close="cancelRemoveEmployee">
     <MpModalOverlay />
-    <MpModalContent :class="css({ marginTop: '80px' })">
+    <MpModalContent>
       <MpModalHeader>
         Remove employee?
         <MpModalCloseButton @click="cancelRemoveEmployee" />

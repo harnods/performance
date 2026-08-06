@@ -158,7 +158,7 @@ const reqStar = css({ color: 'text.danger' })
 const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const subHeader = css({ fontSize: '14px', fontWeight: '600', color: 'text.default', marginBottom: '2' })
 const subRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
-const removeBtn = css({ flexShrink: '0', marginTop: '1' })
+const removeBtn = css({ flexShrink: '0' })
 const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '1', marginTop: '2', background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', color: 'text.link', fontSize: '14px', lineHeight: '20px' })
 const valueText = css({ color: 'text.default' })
 </script>
@@ -195,7 +195,7 @@ const valueText = css({ color: 'text.default' })
 
             <div>
               <MpText :class="subHeader">Sub-categories</MpText>
-              <MpFlex direction="column" gap="3">
+              <MpFlex direction="column" gap="2">
                 <MpFormControl v-for="(sub, i) in subs" :id="`sub-${i}`" :key="sub.id" :is-invalid="!!errors.subs[i]">
                   <div :class="subRow">
                     <div :class="css({ flex: '1' })">
@@ -209,8 +209,8 @@ const valueText = css({ color: 'text.default' })
                   </div>
                 </MpFormControl>
               </MpFlex>
-              <button type="button" :class="addLink" @click="addSubCategory">
-                <MpIcon name="add-circular" size="sm" />
+              <button type="button" :class="[addLink, css({ marginTop: '5' })]" @click="addSubCategory">
+                <MpIcon name="add" size="sm" />
                 Add sub-category
               </button>
             </div>
@@ -229,7 +229,7 @@ const valueText = css({ color: 'text.default' })
 
   <!-- Save-changes confirmation (only when editing a category in use) -->
   <ClientOnly>
-    <MpModal :is-open="isConfirmOpen" is-centered @close="isConfirmOpen = false">
+    <MpModal :is-open="isConfirmOpen" @close="isConfirmOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>

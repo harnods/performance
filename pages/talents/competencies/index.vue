@@ -333,7 +333,7 @@ const captionText = css({ color: 'text.secondary' })
   </MpFlex>
 
   <!-- Delete confirmation -->
-  <MpModal :is-open="deleteModalOpen" is-centered @close="deleteModalOpen = false">
+  <MpModal :is-open="deleteModalOpen" @close="deleteModalOpen = false">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>Delete assignment</MpModalHeader>

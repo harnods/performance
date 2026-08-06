@@ -224,7 +224,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
 
 <template>
   <!-- View reviewer -->
-  <MpModal :is-open="viewOpen" is-centered size="lg" @close="viewOpen = false">
+  <MpModal :is-open="viewOpen" size="lg" @close="viewOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="contentCol">
       <MpModalHeader>Reviewers<MpModalCloseButton /></MpModalHeader>
@@ -267,7 +267,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
   </MpModal>
 
   <!-- Set reviewer weight -->
-  <MpModal :is-open="weightOpen" is-centered size="lg" @close="weightOpen = false">
+  <MpModal :is-open="weightOpen" size="lg" @close="weightOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="contentCol">
       <MpModalHeader :class="css({ flexShrink: '0' })">Set reviewer weight<MpModalCloseButton /></MpModalHeader>
@@ -329,7 +329,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
   </MpModal>
 
   <!-- Manage reviewer -->
-  <MpModal :is-open="manageOpen" is-centered size="lg" @close="manageOpen = false">
+  <MpModal :is-open="manageOpen" size="lg" @close="manageOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="contentCol">
       <MpModalHeader :class="css({ flexShrink: '0' })">Manage reviewer<MpModalCloseButton /></MpModalHeader>
@@ -360,7 +360,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
                 <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
                   <MpFlex v-for="emp in shownReviewers(g)" :key="emp.code" align="center" justify="space-between" gap="3" :class="pickerRow">
                     <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                      <MpAvatar :name="emp.name" :src="emp.photo" size="md" variant-color="gray" />
+                      <MpAvatar :name="emp.name" :src="emp.photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
                         <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
                         <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.jobPosition }} · {{ emp.organization }}</MpText>

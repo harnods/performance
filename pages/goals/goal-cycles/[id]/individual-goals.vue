@@ -802,7 +802,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <ClientOnly>
   <MpModal :is-open="isDeleteModalOpen" @close="isDeleteModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent :class="css({ marginTop: '80px' })">
+    <MpModalContent>
       <MpModalHeader>
         Delete goal?
         <MpModalCloseButton @click="isDeleteModalOpen = false" />
@@ -826,7 +826,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <ClientOnly>
   <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
     <MpModalOverlay />
-    <MpModalContent :class="css({ marginTop: '80px' })">
+    <MpModalContent>
       <MpModalHeader>
         Delete {{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }}?
         <MpModalCloseButton @click="isBulkDeleteModalOpen = false" />

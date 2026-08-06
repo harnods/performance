@@ -77,7 +77,7 @@ const listWrap = css({ maxHeight: '300px', overflowY: 'auto', display: 'flex', f
 
 <template>
   <ClientOnly>
-    <MpModal :is-open="isOpen" size="lg" is-centered @close="close">
+    <MpModal :is-open="isOpen" size="lg" @close="close">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>

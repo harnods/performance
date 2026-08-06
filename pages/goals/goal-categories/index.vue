@@ -387,7 +387,7 @@ const subItem = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px
 
   <!-- Delete confirmation -->
   <ClientOnly>
-    <MpModal :is-open="isDeleteOpen" is-centered @close="isDeleteOpen = false">
+    <MpModal :is-open="isDeleteOpen" @close="isDeleteOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
@@ -409,7 +409,7 @@ const subItem = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px
 
   <!-- Archive confirmation -->
   <ClientOnly>
-    <MpModal :is-open="isArchiveOpen" is-centered @close="isArchiveOpen = false">
+    <MpModal :is-open="isArchiveOpen" @close="isArchiveOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
@@ -438,7 +438,7 @@ const subItem = css({ color: 'text.default', fontSize: '14px', lineHeight: '20px
 
   <!-- Sub-categories view modal -->
   <ClientOnly>
-    <MpModal :is-open="isSubModalOpen" is-centered @close="isSubModalOpen = false">
+    <MpModal :is-open="isSubModalOpen" @close="isSubModalOpen = false">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>

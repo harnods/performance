@@ -238,7 +238,7 @@ const linkRow = css({ paddingLeft: '10' })
 
   <!-- Blocked-revert alert: a goal cycle exists that was created in the new UI -->
   <ClientOnly>
-  <MpModal :is-open="revertBlockedOpen" is-centered @close="revertBlockedOpen = false">
+  <MpModal :is-open="revertBlockedOpen" @close="revertBlockedOpen = false">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>

@@ -576,7 +576,7 @@ const fab = css({
 
   <!-- Delete confirmation -->
   <ClientOnly>
-  <MpModal :is-open="deleteModalOpen" is-centered @close="deleteModalOpen = false">
+  <MpModal :is-open="deleteModalOpen" @close="deleteModalOpen = false">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>

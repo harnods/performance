@@ -32,6 +32,10 @@ Load-bearing rule (`CycleGeneralForm.vue:201-205` comment): a toggle only flips 
 
 Conventions:
 - Always wrapped in `<ClientOnly>`; `placement="right"`; `is-keep-alive`.
+- **Form-bearing drawers guard against losing input:**
+  - `:is-close-on-overlay-click="false"` — an outside click never closes (too easy to hit by accident).
+  - Esc stays enabled, but every close path (Esc, close button, Cancel) routes through a `requestClose()` that runs a **dirty check** (snapshot of the form at open vs now). If the form changed, it opens a **"Leave without saving?"** confirm (Cancel / Discard) instead of closing; only Discard (or a clean form) actually closes. A successful Save closes directly (not "unsaved").
+  - Both `AddGoalDrawer` and `AddKeyResultDrawer` implement this; the modal copy mirrors the page-level guard in `pages/goals/goal-cycles/[id]/new.vue`.
 - Size `md` for simple forms, `lg` for complex/tabbed/two-column.
 - Title = computed edit/add label (`isEdit ? 'Edit …' : 'Add …'`).
 - Contract: `isOpen` prop + `update:isOpen` emit (parent uses `v-model:is-open`) + a domain emit (`save`/`saved`/`continue`).

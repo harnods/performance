@@ -702,7 +702,7 @@ function confirmRemoveEmployee() {
   </MpFlex>
 
   <!-- Extend review timeframe modal -->
-  <MpModal :is-open="extendModalOpen" is-centered @close="extendModalOpen = false">
+  <MpModal :is-open="extendModalOpen" @close="extendModalOpen = false">
     <MpModalOverlay />
     <MpModalContent :class="css({ width: '600px', maxWidth: '90vw' })">
       <MpModalHeader>
@@ -782,7 +782,7 @@ function confirmRemoveEmployee() {
   <!-- Remove employee confirmation (mirrors cycle-details page). -->
   <MpModal :is-open="removeEmployeeModalOpen" @close="cancelRemoveEmployee">
     <MpModalOverlay />
-    <MpModalContent :class="css({ marginTop: '80px' })">
+    <MpModalContent>
       <MpModalHeader>
         Remove employee?
         <MpModalCloseButton @click="cancelRemoveEmployee" />

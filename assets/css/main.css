@@ -73,3 +73,10 @@ html, body, #__nuxt {
   opacity: 1 !important;
   visibility: visible !important;
 }
+
+/* All modals (dialogs) are top-aligned, anchored 80px from the top of the
+   viewport — project rule. Drawers keep their full-height placement, so they're
+   excluded via :has(). (is-centered is removed from every modal in the app.) */
+.mp-modal__contentRoot--full_false:not(:has([data-modal-type="drawer"])) {
+  top: 80px !important;
+}

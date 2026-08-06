@@ -52,6 +52,7 @@ Sequence for any UI work:
 | [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |
 | [`patterns/date-format.md`](patterns/date-format.md) | Date & timestamp formatting (table vs non-table golden rule). |
 | [`patterns/badges.md`](patterns/badges.md) | Status badges/pills. |
+| [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |

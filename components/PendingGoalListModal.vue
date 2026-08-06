@@ -66,7 +66,7 @@ const caption = css({ color: 'text.secondary' })
 
 <template>
   <ClientOnly>
-    <MpModal :is-open="isOpen" size="lg" is-centered @close="close">
+    <MpModal :is-open="isOpen" size="lg" @close="close">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>

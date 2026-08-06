@@ -7,7 +7,19 @@ import type { CurrencyCode, MeasurementUnit } from './goalTaxonomy'
 export interface DraftKeyResult {
   id: string
   title: string
+  // Short measurement summary for list display (e.g. "0 → 100%", "By 30 Jun 2026").
   target: string
+  // Rich fields (mirrors production ModalKeyResult / InputMeasurement).
+  description?: string
+  kpiDirection?: 'higher' | 'lower' // Increase (higher) / Decrease (lower) KPI
+  measurementUnit?: MeasurementUnit // percentage | number | amount | deadline
+  currency?: CurrencyCode // only when measurementUnit === 'amount'
+  useBaseline?: boolean
+  startValue?: number | '' // baseline
+  targetValue?: number | ''
+  deadlineDate?: string // ISO yyyy-mm-dd — only when measurementUnit === 'deadline'
+  deadlineRules?: DeadlineRule[]
+  progressMechanism?: 'manual' | 'log-based' // progress update method (matches goal cycle); only when kpiDirection === 'higher'
 }
 
 export interface DraftGoal {

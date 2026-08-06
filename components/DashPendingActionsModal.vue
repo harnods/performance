@@ -81,7 +81,7 @@ const emptyCell = css({ textAlign: 'center', padding: '6', color: 'text.secondar
 
 <template>
   <ClientOnly>
-    <MpModal :is-open="isOpen" size="lg" is-centered @close="close">
+    <MpModal :is-open="isOpen" size="lg" @close="close">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>

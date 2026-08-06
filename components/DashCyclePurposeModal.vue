@@ -68,7 +68,7 @@ const charCount = css({ fontSize: '12px', color: 'text.secondary' })
 
 <template>
   <ClientOnly>
-    <MpModal :is-open="isOpen" is-centered @close="close">
+    <MpModal :is-open="isOpen" @close="close">
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
