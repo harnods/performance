@@ -9,8 +9,23 @@
 // and resubmits the whole thing for another look.
 
 import type { Goal } from './useGoalsStore'
+import { EMPLOYEE_MANAGER } from './useGoalsStore'
+import { employeeById } from '~/utils/employees'
 
 export type SubmissionItemType = 'create' | 'edit' | 'delete'
+
+// Human label for what a submission does — drives inbox copy + traceability.
+function actionLabelFor(items: { type: string, before?: Record<string, unknown>, after?: Record<string, unknown> }[]): string {
+  if (items.some(i => i.type === 'create')) return 'create goals'
+  if (items.some(i => i.type === 'delete')) return 'delete a goal'
+  const edits = items.filter(i => i.type === 'edit')
+  if (edits.length && edits.every(i => !!i.after && !i.before?.isClosed && !!i.after.isClosed)) return 'close a goal'
+  if (edits.length && edits.every((i) => {
+    const b = i.before, a = i.after
+    return !!b && !!a && (b.value !== a.value || b.pill !== a.pill)
+  })) return 'update goal progress'
+  return 'edit a goal'
+}
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
 
 export interface SubmissionItem {
@@ -681,6 +696,28 @@ export function useGoalApprovalsStore(cycleId?: string) {
     }
     submissionsData.value = [...submissionsData.value, submission]
     persist()
+    // Notify the approver (manager) so the request is traceable in their inbox.
+    const approverId = EMPLOYEE_MANAGER[ownerId]
+    if (approverId) {
+      const ownerName = employeeById(ownerId)?.name ?? 'A team member'
+      const label = actionLabelFor(submission.items as unknown as { type: string, before?: Record<string, unknown>, after?: Record<string, unknown> }[])
+      useInboxNotificationsStore().addNotification({
+        recipientId: approverId,
+        group: 'Today',
+        title: 'Goal approval requested',
+        timeLabel: 'Just now',
+        summary: `${ownerName} requested to ${label}. Review and approve or request changes.`,
+        senderName: ownerName,
+        senderTimestamp: 'Just now',
+        body: `${ownerName} submitted a request to ${label} for the current goal cycle. Review the details, then approve or request changes.`,
+        details: [
+          { label: 'Request type', value: label.charAt(0).toUpperCase() + label.slice(1) },
+          { label: 'Submitted by', value: ownerName },
+          { label: 'Goals in request', value: `${submission.items.length}` },
+        ],
+        actions: [{ label: 'Review request', variant: 'primary', to: `/goals/goal-cycles/${targetCycleId}/awaiting-approval/${submissionId}` }],
+      })
+    }
     return submission
   }
 
@@ -697,13 +734,42 @@ export function useGoalApprovalsStore(cycleId?: string) {
     }
     submissionsData.value = submissionsData.value.map(s => (s.id !== submissionId ? s : { ...s, status: 'approved' as const }))
     persist()
+    notifyOwner(submission, 'approved')
   }
 
   // The "Not approve" decision — nothing is committed; the whole batch
   // stays put with one reason for the owner to act on.
   function rejectSubmission(submissionId: string, reason: string) {
+    const submission = submissionById(submissionId)
     submissionsData.value = submissionsData.value.map(s => (s.id !== submissionId ? s : { ...s, status: 'rejected' as const, rejectReason: reason }))
     persist()
+    if (submission) notifyOwner(submission, 'rejected', reason)
+  }
+
+  // Close the loop back to the owner's inbox on a decision.
+  function notifyOwner(submission: Submission, outcome: 'approved' | 'rejected', reason?: string) {
+    const approverName = employeeById(EMPLOYEE_MANAGER[submission.ownerId] ?? '')?.name ?? 'Your manager'
+    const label = actionLabelFor(submission.items as unknown as { type: string, before?: Record<string, unknown>, after?: Record<string, unknown> }[])
+    useInboxNotificationsStore().addNotification({
+      recipientId: submission.ownerId,
+      group: 'Today',
+      title: outcome === 'approved' ? 'Request approved' : 'Changes requested',
+      timeLabel: 'Just now',
+      summary: outcome === 'approved'
+        ? `${approverName} approved your request to ${label}. The change is now live.`
+        : `${approverName} requested changes to your request to ${label}.`,
+      senderName: approverName,
+      senderTimestamp: 'Just now',
+      body: outcome === 'approved'
+        ? `${approverName} approved your request to ${label} for the current goal cycle. The change has been applied.`
+        : `${approverName} did not approve your request to ${label} for the current goal cycle. Reason: ${reason ?? '—'}. Please revise and resubmit.`,
+      details: [
+        { label: 'Decision', value: outcome === 'approved' ? 'Approved' : 'Changes requested' },
+        { label: 'Reviewed by', value: approverName },
+        ...(outcome === 'rejected' && reason ? [{ label: 'Reason', value: reason }] : []),
+      ],
+      actions: [{ label: outcome === 'approved' ? 'View goal' : 'Update goals', variant: 'primary', to: `/goals/goal-cycles/${submission.cycleId}` }],
+    })
   }
 
   // Lets a single goal inside the batch be corrected (via AddGoalDrawer) —

@@ -36,6 +36,9 @@ import {
   MpDrawerHeader,
   MpDrawerCloseButton,
   MpDrawerBody,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerDescription,
   MpDrawerFooter,
   MpDrawerOverlay,
   MpModal,
@@ -55,6 +58,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import { type Employee, EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { EMPLOYEE_MANAGER } from '~/composables/useGoalsStore'
 import { CURRENCY_OPTIONS, type CurrencyCode, GOAL_CATEGORIES, GOAL_TYPE_OPTIONS, MEASUREMENT_UNIT_OPTIONS, type MeasurementUnit } from '~/utils/goalTaxonomy'
 import { type DraftGoal, type DraftKeyResult, nextGoalCode } from '~/utils/goalDraft'
 import { addDays, clampEndDate, computeRepeatPeriods, toDate, toISO } from '~/utils/goalSchedule'
@@ -85,6 +89,12 @@ const emit = defineEmits<{
 }>()
 
 const isEditing = computed(() => !!props.editingDraft)
+// A direct report's goal edit goes to approval — warn up front in the drawer.
+const editNeedsApproval = computed(() => isEditing.value && props.owners.some(o => needsApproval(o.id)))
+const approverName = computed(() => {
+  const o = props.owners.find(x => needsApproval(x.id))
+  return (o ? employeeById(EMPLOYEE_MANAGER[o.id]) : undefined)?.name ?? 'your manager'
+})
 const drawerTitle = computed(() => (isEditing.value ? 'Edit goal' : 'Add goal'))
 const saveButtonLabel = computed(() => (isEditing.value ? 'Save changes' : 'Save'))
 
@@ -683,6 +693,10 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
           <MpDrawerCloseButton @click="doClose" />
         </MpDrawerHeader>
         <MpDrawerBody>
+          <MpBanner v-if="editNeedsApproval" variant="info" is-inline :class="css({ marginBottom: '4' })">
+            <MpBannerIcon />
+            <MpBannerDescription>These changes will be sent to {{ approverName }} for approval before they take effect.</MpBannerDescription>
+          </MpBanner>
           <div :class="fields">
             <!-- Goal details -->
             <div :class="section">

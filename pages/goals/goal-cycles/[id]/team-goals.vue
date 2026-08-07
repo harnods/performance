@@ -872,7 +872,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpModalContent>
         <MpModalHeader>Close goal?<MpModalCloseButton @click="isCloseModalOpen = false" /></MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.</MpText>
+          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.<template v-if="needsApproval(goalToClose?.ownerId)"> This close will be sent to the manager for approval before it takes effect.</template></MpText>
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
@@ -895,7 +895,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpModalHeader>
       <MpModalBody>
         <MpText :class="valueText">
-          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.
+          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.<template v-if="needsApproval(goalToDelete?.ownerId)"> This delete will be sent to the manager for approval before it takes effect.</template>
         </MpText>
       </MpModalBody>
       <MpModalFooter>

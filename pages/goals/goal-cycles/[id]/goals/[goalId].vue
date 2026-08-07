@@ -66,6 +66,7 @@ const goalId = computed(() => route.params.goalId as string)
 const { goals, updateGoal } = useGoalsStore(cycleId.value)
 const { cycles } = useGoalCyclesStore()
 const { logActivity } = useGoalActivityStore()
+const { createSubmission } = useGoalApprovalsStore()
 const cycle = computed(() => cycles.value.find(c => c.id === cycleId.value))
 const goal = computed(() => goals.value.find(g => g.id === goalId.value))
 
@@ -388,6 +389,13 @@ function onKrSave(kr: DraftKeyResult) {
   const merged: DraftKeyResult = { ...kr, currentValue, status }
   if (editing) list[i] = merged
   else list.push(merged)
+  // A direct report's KR change routes to approval (submitted as a goal edit);
+  // everyone else applies it immediately.
+  if (needsApproval(goal.value.ownerId)) {
+    submitGoalEdit({ keyResults: list })
+    toast.notify({ id: 'kr-submitted', position: 'top-center', variant: 'success', title: 'Key result change sent for approval' })
+    return
+  }
   updateGoal(goal.value.id, { keyResults: list })
   logActivity(goal.value.id, {
     type: 'event',
@@ -396,6 +404,16 @@ function onKrSave(kr: DraftKeyResult) {
       : `added the key result “${kr.title}”.`,
   })
   toast.notify({ id: 'kr-saved', position: 'top-center', variant: 'success', title: editing ? 'Key result updated' : 'Key result added' })
+}
+// Submit a goal edit (partial patch) to the approval queue for a direct report.
+function submitGoalEdit(patch: Partial<Goal>) {
+  if (!goal.value) return
+  const { cycleId, ...rest } = goal.value
+  createSubmission(
+    [{ type: 'edit', goalId: goal.value.id, ownerId: goal.value.ownerId, cycleId: goal.value.cycleId, before: goal.value, after: { ...rest, ...patch } }],
+    goal.value.ownerId,
+    goal.value.cycleId,
+  )
 }
 
 // ─── Key result progress bar ────────────────────────────────────────────────
@@ -437,10 +455,16 @@ function askDeleteKr(kr: DraftKeyResult) {
 function confirmDeleteKr() {
   if (!goal.value || !krToDelete.value) return
   const title = krToDelete.value.title
-  updateGoal(goal.value.id, { keyResults: keyResults.value.filter(k => k.id !== krToDelete.value!.id) })
-  logActivity(goal.value.id, { type: 'event', wording: `deleted the key result “${title}”.` })
+  const nextList = keyResults.value.filter(k => k.id !== krToDelete.value!.id)
   isKrDeleteOpen.value = false
   krToDelete.value = null
+  if (needsApproval(goal.value.ownerId)) {
+    submitGoalEdit({ keyResults: nextList })
+    toast.notify({ id: 'kr-delete-submitted', position: 'top-center', variant: 'success', title: 'Key result change sent for approval' })
+    return
+  }
+  updateGoal(goal.value.id, { keyResults: nextList })
+  logActivity(goal.value.id, { type: 'event', wording: `deleted the key result “${title}”.` })
   toast.notify({ id: 'kr-deleted', position: 'top-center', variant: 'success', title: 'Key result deleted' })
 }
 
@@ -1082,7 +1106,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           <MpModalCloseButton @click="isCloseModalOpen = false" />
         </MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="valueText">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.</MpText>
+          <MpText size="label" :class="valueText">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.<template v-if="needsApproval(goalToClose?.ownerId)"> This close will be sent to the manager for approval before it takes effect.</template></MpText>
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
@@ -1164,7 +1188,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         </MpModalHeader>
         <MpModalBody>
           <MpText :class="valueText">
-            <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.
+            <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.<template v-if="needsApproval(goalToDelete?.ownerId)"> This delete will be sent to the manager for approval before it takes effect.</template>
           </MpText>
         </MpModalBody>
         <MpModalFooter>

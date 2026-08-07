@@ -20,6 +20,8 @@ import {
   toast, css,
 } from '@mekari/pixel3'
 import type { Goal, GoalStatus } from '~/composables/useGoalsStore'
+import { EMPLOYEE_MANAGER } from '~/composables/useGoalsStore'
+import { employeeById } from '~/utils/employees'
 import type { DraftKeyResult } from '~/utils/goalDraft'
 import { alignedGoalsOf } from '~/utils/goalRows'
 
@@ -32,6 +34,7 @@ const { logActivity } = useGoalActivityStore()
 const { createSubmission } = useGoalApprovalsStore()
 
 const cycle = computed(() => cycles.value.find(c => c.id === props.goal?.cycleId))
+const approverName = computed(() => employeeById(EMPLOYEE_MANAGER[props.goal?.ownerId ?? ''] ?? '')?.name ?? 'your manager')
 const keyResults = computed<DraftKeyResult[]>(() => props.goal?.keyResults ?? [])
 const alignedChildren = computed(() => (props.goal ? alignedGoalsOf(props.goal, goals.value) : []))
 
@@ -416,7 +419,8 @@ const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: '
           <MpModalCloseButton @click="isConfirmUpdateOpen = false" />
         </MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="valueText">This saves your changes and recalculates the goal's achievement from the values you entered. You can update it again anytime.</MpText>
+          <MpText v-if="goal && needsApproval(goal.ownerId)" size="label" :class="valueText">This progress update will be sent to {{ approverName }} for approval before it takes effect.</MpText>
+          <MpText v-else size="label" :class="valueText">This saves your changes and recalculates the goal's achievement from the values you entered. You can update it again anytime.</MpText>
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
