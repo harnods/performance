@@ -44,6 +44,8 @@ const props = defineProps<{
   description?: string
   initialSelected?: string[]
   excludeIds?: string[]
+  /** When provided, only these employee ids are selectable (candidate whitelist). */
+  includeIds?: string[]
   excludeNote?: string
   isRequired?: boolean
   confirmLabel?: string
@@ -57,6 +59,7 @@ const resolvedDrawerId = computed(() => props.drawerId ?? 'drawer-select-employe
 const drawerTitle = computed(() => props.title ?? 'Select employees')
 const drawerDescription = computed(() => props.description ?? 'Select employees to create this goal for.')
 const excluded = computed(() => new Set(props.excludeIds ?? []))
+const included = computed(() => (props.includeIds ? new Set(props.includeIds) : null))
 const resolvedExcludeNote = computed(() => props.excludeNote
   ?? `The goal owner${(props.excludeIds?.length ?? 0) > 1 ? 's' : ''} won't appear in the list below. They can't be their own contributor or viewer.`)
 
@@ -81,7 +84,9 @@ function matches(name: string, code: string, q: string) {
 }
 
 const availableEmployees = computed(() =>
-  EMPLOYEES.filter(e => !selectedIds.value.includes(e.id) && !excluded.value.has(e.id) && matches(e.name, e.code, availableSearch.value)),
+  EMPLOYEES.filter(e => !selectedIds.value.includes(e.id) && !excluded.value.has(e.id)
+    && (!included.value || included.value.has(e.id))
+    && matches(e.name, e.code, availableSearch.value)),
 )
 const selectedEmployees = computed(() =>
   selectedIds.value

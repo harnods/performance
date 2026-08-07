@@ -1,5 +1,6 @@
 <script setup lang="ts">
 import { MpFlex, MpText, MpTextlink, css } from '@mekari/pixel3'
+import { poolById } from '~/utils/succession'
 
 type Breadcrumb = { label: string, to?: string | Record<string, unknown> }
 const route = useRoute()
@@ -26,8 +27,15 @@ const goalCategoryTitleFallback = computed(() => {
   return categoryById(route.params.uuid as string)?.name ?? ''
 })
 
+// Succession plan detail resolves its title from the pool record (by :id) — the
+// key position name — same convention as the fallbacks above.
+const successionTitleFallback = computed(() => {
+  if (!route.path.startsWith('/talents/succession-plans/')) return ''
+  return poolById(route.params.id as string)?.keyPosition ?? ''
+})
+
 const pageTitle = computed(() =>
-  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || goalCategoryTitleFallback.value || ''
+  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || goalCategoryTitleFallback.value || successionTitleFallback.value || ''
 )
 const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefined))
 

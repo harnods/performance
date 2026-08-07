@@ -131,6 +131,26 @@ function scoreFor(employeeId: string, title: string, group: string, target: numb
   return Math.round(raw * 2) / 2
 }
 
+// Competency targets for a position at a SPECIFIC scope value. A real
+// competency assignment stores a matrix (group × scope value); targets climb
+// with seniority. We synthesize that from the department base target: the
+// highest scope value that has an assessment carries the full base target, and
+// each step down the scope order reduces it by 0.5 (floored at 1). So picking a
+// different scope value in Succession Step 2 yields a different target column.
+export function targetsForScopeValue(title: string, scopeValue: string): GroupTarget[] {
+  const info = POSITION_INFO[title]
+  if (!info) return []
+  const order = scopeOptions(info.scope).map(o => o.value)
+  const rank = order.indexOf(scopeValue)
+  if (rank < 0) return []
+  const topCoveredRank = Math.max(...info.values.map(v => order.indexOf(v)))
+  const steps = Math.max(0, topCoveredRank - rank)
+  return (DEPARTMENT_GROUPS[info.department] ?? []).map((g) => {
+    const raw = g.target - steps * 0.5
+    return { group: g.group, target: Math.round(Math.max(1, Math.min(5, raw)) * 2) / 2 }
+  })
+}
+
 export interface AssessmentRow { group: string, score: number, target: number }
 
 // Competency result for an employee in a given job position.

@@ -51,3 +51,23 @@ export const employeeMeta = (e: Employee) => `${e.code} | ${e.title} | ${e.depar
 export function employeeById(id: string): Employee | undefined {
   return EMPLOYEES.find(e => e.id === id)
 }
+
+// ─── Derived HR attributes (deterministic, stable per employee) ────────────────
+// The mock has no backend, so service length and employment status are derived
+// from the id — stable across renders and consistent wherever an employee is
+// filtered (e.g. Succession candidate criteria).
+export type EmploymentStatus = 'permanent' | 'contract' | 'probation'
+function ehash(s: string): number {
+  let h = 0
+  for (let i = 0; i < s.length; i++) h = (h * 31 + s.charCodeAt(i)) >>> 0
+  return h
+}
+/** Whole years of service, 0–7, stable per employee. */
+export function employeeTenureYears(id: string): number {
+  return ehash(id) % 8
+}
+/** Employment status ~ 60% permanent / 30% contract / 10% probation, stable per employee. */
+export function employeeEmploymentStatus(id: string): EmploymentStatus {
+  const r = ehash(`${id}|status`) % 10
+  return r < 6 ? 'permanent' : r < 9 ? 'contract' : 'probation'
+}

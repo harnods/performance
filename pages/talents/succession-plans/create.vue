@@ -1,44 +1,27 @@
 <!--
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-  Mekari Talenta Performance — Create succession plan (Step 2: Competency criteria)
-  Source: Flexible Competency Assignment PRD — US3 (Succession Plan Step 2)
+  Mekari Talenta Performance — Create succession plan (3-step wizard)
+  Replicated from production (talenta-performance:
+    src/views/talent-management/succession-pool/components/FormSuccessionPlan.vue
+    + FormStep1/2/3.vue). Steps: Employment criteria → Competency criteria →
+    Successor talent. Flat form sections per the repo design doc — NO gray
+    card/box wrappers around form fields.
   Token mode: Pixel 2.4
-  Patterns used: layout-shell, form-view, conditional adaptive picker, info notice
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
-
-  ⚠️ ASSUMED LAYOUT — no current-UI reference for the existing Succession Plan Step 2
-     was available. Structure (read-only position context + adaptive picker + criteria
-     placeholder + Back/Next) is a reasonable Mekari form; DESIGN MUST VALIDATE.
-
-  ⚠️ STEP INDICATOR DEVIATION — @mekari/pixel3 v1.0.12 ships NO stepper component.
-     The numbered step indicator below is a minimal inline placeholder. Replace with
-     the official Pixel stepper when available, and reconcile against the real
-     succession create flow. Do NOT treat this indicator as a finished pattern.
-
-  CORE PRD BEHAVIOR (the actual change): the Step-2 attribute picker ADAPTS to the
-  scoping attribute of the competency assignment linked to the selected job position:
-    - assignment scoped by job level → "Select job level" (existing behavior)
-    - scoped by grade  → "Select grade";  job level picker hidden
-    - scoped by class  → "Select class";  job level picker hidden
-    - unscoped         → "Select job level" (existing behavior)
-    - no assignment    → no picker; informational notice (PxNoAssignmentNotice)
-
-  DEMO CONTROL: a "Linked assignment scope" switcher (top of page) simulates what the
-  server would resolve, so all variants are reviewable. Remove when wired to real data.
-
-  COPY DEFAULTS (PRD specifies intent, not strings — iterate freely).
 -->
 <script setup lang="ts">
 import {
-  MpFlex,
-  MpButton,
-  MpText,
-  MpIcon,
-  MpFormControl,
-  MpFormLabel,
-  MpFormHelpText,
-  css,
+  MpFlex, MpButton, MpText, MpIcon, MpRadio, MpAvatar, MpTooltip,
+  MpFormControl, MpFormLabel, MpFormHelpText, MpFormErrorMessage,
+  MpTable, MpTableContainer, MpTableHead, MpTableBody, MpTableRow, MpTableCell,
+  MpButtonGroup,
+  toast, css,
 } from '@mekari/pixel3'
+import {
+  KEY_POSITIONS, ORGANIZATIONS, MIN_SERVICE_LENGTH_OPTIONS, EMPLOYMENT_STATUS_OPTIONS,
+  READINESS_OPTIONS, candidateIds,
+} from '~/utils/succession'
+import { POSITION_INFO, scopeOptions, targetsForScopeValue, type ScopeType } from '~/utils/competency'
 
 definePageMeta({
   title: 'Create succession plan',
@@ -48,180 +31,319 @@ definePageMeta({
 
 const router = useRouter()
 
-// ─── Demo control: simulated resolved assignment scope for the chosen position ───
-type Scope = 'job-level' | 'grade' | 'class' | 'unscoped' | 'none'
-const linkedScope = ref<Scope>('job-level')
-const scopeSwitcher = [
-  { value: 'job-level', label: 'Scoped: job level' },
-  { value: 'grade', label: 'Scoped: grade' },
-  { value: 'class', label: 'Scoped: class' },
-  { value: 'unscoped', label: 'Unscoped' },
-  { value: 'none', label: 'No assignment' },
-]
+const STEPS = ['Position & criteria', 'Competency assessment', 'Successor talent']
+const step = ref(0)
 
-// ─── Step-2 picker state ─────────────────────────────────────────────────────────
-const attributeValue = ref('')
-watch(linkedScope, () => { attributeValue.value = '' })
+// Inline validation: `submitted` flips true when the user tries to advance an
+// incomplete step; per-field computeds surface the error under each field.
+// Reset when the step advances so the next step starts clean.
+const submitted = ref(false)
 
-const jobLevelOptions = [
-  { value: 'manager', label: 'Manager' },
-  { value: 'senior-manager', label: 'Senior Manager' },
-  { value: 'director', label: 'Director' },
-]
-const gradeOptions = Array.from({ length: 6 }, (_, i) => ({ value: `grade-${i + 1}`, label: `Grade ${i + 1}` }))
-const classOptions = ['A', 'B', 'C', 'D'].map(c => ({ value: `class-${c.toLowerCase()}`, label: `Class ${c}` }))
+// ─── Step 1 — employment criteria ─────────────────────────────────────────────
+const keyPosition = ref('')
+const organization = ref('')
+const serviceLength = ref('')
+const employeeStatus = ref('')
+const keyPositionOptions = KEY_POSITIONS.map(k => ({ value: k.value, label: k.job }))
+const orgOptions = ORGANIZATIONS.map(o => ({ value: o, label: o }))
+const selectedKeyPosition = computed(() => KEY_POSITIONS.find(k => k.value === keyPosition.value))
+// Prod parity: Key position & Organization are independent selects (no auto-fill,
+// no cross-filter) — the two fields do not constrain each other.
+const keyPositionInvalid = computed(() => submitted.value && !keyPosition.value)
+const organizationInvalid = computed(() => submitted.value && !organization.value)
 
-// Resolve picker dimension from the linked assignment's scope.
-const pickerDimension = computed<'job-level' | 'grade' | 'class' | null>(() => {
-  switch (linkedScope.value) {
-    case 'grade': return 'grade'
-    case 'class': return 'class'
-    case 'job-level':
-    case 'unscoped': return 'job-level'
-    default: return null // 'none'
-  }
+// ─── Step 2 — competency assessment ──────────────────────────────────────────
+// The competency standard for a position is resolved from the REAL competency
+// data (utils/competency.ts): the position's scope attribute (job level / grade
+// / class), the scope values that actually have an assessment, and the
+// department's competency groups + target scores. A position with no assessment
+// defined shows a no-assignment notice.
+const assessmentType = ref<'talenta' | 'manual'>('talenta')
+const scopeValue = ref('')
+const SCOPE_LABEL: Record<ScopeType, string> = { 'job-level': 'Job level', grade: 'Grade', class: 'Class' }
+const assignment = computed(() => {
+  const title = selectedKeyPosition.value?.job
+  return title ? POSITION_INFO[title] : undefined
 })
-const pickerOptions = computed(() => {
-  switch (pickerDimension.value) {
-    case 'grade': return gradeOptions
-    case 'class': return classOptions
-    case 'job-level': return jobLevelOptions
-    default: return []
-  }
-}) as ComputedRef<{ value: string; label: string }[]>
-
-const dimensionLabel = computed(() => ({
-  'job-level': 'Job level',
-  grade: 'Grade',
-  class: 'Class',
-}[pickerDimension.value ?? 'job-level']))
-const dimensionWord = computed(() => dimensionLabel.value.toLowerCase())
-const noticeAttribute = computed<'job level' | 'grade' | 'class' | ''>(() =>
-  pickerDimension.value === 'grade' ? 'grade' : pickerDimension.value === 'class' ? 'class' : '',
-)
-
-const hasAssignment = computed(() => linkedScope.value !== 'none')
-
-function onBack() { router.push('/talents/succession-plans') }
-function onNext() { router.push('/talents/succession-plans') }
-
-// ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────────
-const gridArea = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '6' })
-const formColumn = css({
-  gridColumn: { base: 'span 12 / span 12', lg: 'span 6 / span 6' },
-  display: 'flex', flexDirection: 'column', gap: '4',
+const hasAssignment = computed(() => !!assignment.value)
+const scopeLabel = computed(() => (assignment.value ? SCOPE_LABEL[assignment.value.scope] : ''))
+const scopeValueOptions = computed(() => {
+  const a = assignment.value
+  if (!a) return [] as { value: string, label: string }[]
+  return scopeOptions(a.scope).filter(o => a.values.includes(o.value))
 })
-const selectWidth = '320px'
-
-// Minimal placeholder step indicator (NO Pixel stepper exists in this version)
-const stepRow = css({ display: 'flex', alignItems: 'center', gap: '2', marginBottom: '2' })
-const stepDotBase = {
-  display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: '24px', height: '24px', borderRadius: 'full', fontSize: '12px', fontWeight: '600',
-} as const
-const stepDotDone = css({ ...stepDotBase, background: 'background.brand.bold', color: 'text.inverse' })
-const stepDotActive = css({ ...stepDotBase, background: 'background.brand.bold', color: 'text.inverse' })
-const stepDotIdle = css({ ...stepDotBase, border: '1px solid', borderColor: 'border.default', color: 'text.secondary' })
-const stepLine = css({ width: '32px', height: '1px', background: 'border.default' })
-const stepLabelActive = css({ color: 'text.link', fontWeight: '600', fontSize: '14px' })
-const stepLabelIdle = css({ color: 'text.secondary', fontSize: '14px' })
-
-const readonlyField = css({
-  display: 'flex', alignItems: 'center', minHeight: '40px', width: selectWidth, paddingInline: '3',
-  border: '1px solid', borderColor: 'border.default', borderRadius: 'md',
-  background: 'background.surface', color: 'text.secondary',
+const scopeValueLabel = computed(() => scopeValueOptions.value.find(o => o.value === scopeValue.value)?.label ?? '')
+// Competency targets resolve for the CHOSEN scope value — change it and the
+// target column changes (higher scope value → higher targets).
+const resolvedTargets = computed(() => {
+  const title = selectedKeyPosition.value?.job
+  return title && scopeValue.value ? targetsForScopeValue(title, scopeValue.value) : []
 })
-const criteriaBlock = css({
-  display: 'flex', alignItems: 'center', minHeight: '64px', paddingInline: '4', width: '100%',
-  border: '1px solid', borderColor: 'border.default', borderRadius: 'md', background: 'background.surface',
+const scopeValueInvalid = computed(() => submitted.value && hasAssignment.value && !scopeValue.value)
+// Changing the key position invalidates the chosen scope value.
+watch(keyPosition, () => { scopeValue.value = '' })
+
+// ─── Step 3 — successor talent (optional; can be filled in later) ─────────────
+interface Chosen { employeeId: string, readiness: string }
+const selectedTalents = ref<Chosen[]>([])
+const isPickerOpen = ref(false)
+// Only employees matching the Step 1 criteria (service length + employment
+// status) are selectable as candidates.
+const candidateIdList = computed(() => candidateIds(serviceLength.value, employeeStatus.value))
+function openPicker() { isPickerOpen.value = true }
+// Drawer returns the full selected id set; merge to preserve readiness already
+// set on talents that stay, seed empty readiness for newly added ones.
+function onSelectContinue(ids: string[]) {
+  const existing = new Map(selectedTalents.value.map(t => [t.employeeId, t]))
+  selectedTalents.value = ids.map(id => existing.get(id) ?? { employeeId: id, readiness: '' })
+}
+function removeTalent(id: string) { selectedTalents.value = selectedTalents.value.filter(t => t.employeeId !== id) }
+// Step 3 is optional; if talent IS added, each should carry a readiness.
+const readinessInvalid = computed(() => submitted.value && selectedTalents.value.some(t => !t.readiness))
+
+// ─── Navigation / validation ─────────────────────────────────────────────────
+// Errors surface inline in the form (never as a toast). `submitted` is flipped
+// on each advance attempt and reset once the step passes.
+function step1Valid() { return !!keyPosition.value && !!organization.value }
+function step2Valid() { return hasAssignment.value && !!scopeValue.value }
+function step3Valid() { return selectedTalents.value.every(t => t.readiness) }
+function next() {
+  submitted.value = true
+  if (step.value === 0 && !step1Valid()) return
+  if (step.value === 1 && !step2Valid()) return
+  submitted.value = false
+  step.value = Math.min(step.value + 1, STEPS.length - 1)
+}
+function back() { submitted.value = false; step.value = Math.max(step.value - 1, 0) }
+function cancel() { router.push('/talents/succession-plans') }
+function submit() {
+  submitted.value = true
+  if (!step3Valid()) return
+  const n = selectedTalents.value.length
+  toast.notify({ id: 'sp-created', position: 'top-center', variant: 'success', title: `${selectedKeyPosition.value?.job} pool created${n ? ` with ${n} successor${n > 1 ? 's' : ''}` : ' — add successor talent anytime'}` })
+  router.push('/talents/succession-plans')
+}
+
+// ─── Styles (DT 2.4) — flat form sections, no card/box wrappers ────────────────
+const page = css({ display: 'flex', flexDirection: 'column', gap: '6', maxWidth: '860px' })
+const section = css({ display: 'flex', flexDirection: 'column', gap: '4' })
+const h2Text = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
+const h3Text = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
+const sectionCaption = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
+const reqMark = css({ color: 'text.danger' })
+const selectWidth = '360px'
+// Step indicator
+const stepRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
+const dotBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: 'full', fontSize: '12px', fontWeight: '600', flexShrink: '0' } as const
+const dotDone = css({ ...dotBase, background: 'background.brand.bold', color: 'text.inverse' })
+const dotActive = css({ ...dotBase, background: 'background.brand.bold', color: 'text.inverse' })
+const dotIdle = css({ ...dotBase, border: '1px solid', borderColor: 'border.default', color: 'text.secondary' })
+const stepLine = css({ width: '28px', height: '1px', background: 'border.default' })
+const stepLabelOn = css({ color: 'text.link', fontWeight: '600', fontSize: '14px' })
+const stepLabelOff = css({ color: 'text.secondary', fontSize: '14px' })
+const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2', paddingTop: '4' })
+const cellHLeft = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'left', verticalAlign: 'middle' })
+const cellHRight = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'right', verticalAlign: 'middle' })
+const cellB = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+// Contained table — not full-bleed, so it carries an outer border. The last body
+// row drops its bottom border so it doesn't double up with the container border.
+const borderedTable = css({
+  border: '1px solid',
+  borderColor: 'border.default',
+  borderRadius: 'md',
+  overflow: 'hidden',
+  '& tbody tr:last-child td': { borderBottom: 'none' },
 })
-const divider = css({ height: '1px', background: 'border.default', marginTop: '4' })
-const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '4', marginBottom: '2' })
-const h2Class = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
-const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2', paddingTop: '6' })
+const nameText = css({ fontSize: '14px', fontWeight: '600', color: 'text.default' })
+const subText = css({ fontSize: '12px', color: 'text.secondary' })
+// Empty state (docs/empty-state.md)
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
-const demoBox = css({
-  display: 'flex', flexDirection: 'column', gap: '2', padding: '3', marginBottom: '2',
-  border: '1px dashed', borderColor: 'border.brand', borderRadius: 'md', background: 'background.surface',
-})
 </script>
 
 <template>
-  <div :class="gridArea">
-    <div :class="formColumn">
+  <div :class="page">
+    <!-- Step indicator -->
+    <div :class="stepRow">
+      <template v-for="(s, i) in STEPS" :key="s">
+        <span :class="i < step ? dotDone : i === step ? dotActive : dotIdle">
+          <MpIcon v-if="i < step" name="check" size="sm" color="text.inverse" />
+          <template v-else>{{ i + 1 }}</template>
+        </span>
+        <MpText :class="i === step ? stepLabelOn : stepLabelOff">{{ s }}</MpText>
+        <span v-if="i < STEPS.length - 1" :class="stepLine" />
+      </template>
+    </div>
 
-      <!-- ═════ DEMO control — remove when wired to real assignment data ═════ -->
-      <div :class="demoBox">
-        <MpText size="label-small" weight="semiBold" :class="css({ color: 'text.link' })">
-          DEMO — linked assignment scope (simulates server resolution)
-        </MpText>
-        <PxSelectPopover v-model="linkedScope" :options="scopeSwitcher" :width="'240px'" />
-      </div>
-
-      <!-- ═════ Step indicator (placeholder — no Pixel stepper in v1.0.12) ═════ -->
-      <div :class="stepRow">
-        <span :class="stepDotDone"><MpIcon name="check" :class="css({ width: '14px', height: '14px' })" /></span>
-        <MpText :class="stepLabelIdle">Plan details</MpText>
-        <span :class="stepLine" />
-        <span :class="stepDotActive">2</span>
-        <MpText :class="stepLabelActive">Competency criteria</MpText>
-        <span :class="stepLine" />
-        <span :class="stepDotIdle">3</span>
-        <MpText :class="stepLabelIdle">Review</MpText>
-      </div>
-
-      <!-- ═════ Read-only position context (carried from Step 1) ═════ -->
-      <MpFormControl id="position-context" :is-read-only="true">
-        <MpFormLabel>Job position</MpFormLabel>
-        <div :class="readonlyField">
-          <MpText size="label">Product Manager</MpText>
-        </div>
-        <MpFormHelpText>Selected in Step 1.</MpFormHelpText>
+    <!-- STEP 1 — Employment criteria -->
+    <div v-if="step === 0" :class="section">
+      <MpFlex direction="column" gap="1">
+        <MpText as="h2" :class="h2Text">Position</MpText>
+        <MpText :class="sectionCaption">Choose the position you're planning a successor for, then set the criteria candidates must meet.</MpText>
+      </MpFlex>
+      <MpFormControl id="key-position" :is-invalid="keyPositionInvalid">
+        <MpFormLabel>Key position <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+        <PxSelectPopover v-model="keyPosition" :options="keyPositionOptions" placeholder="Select key position" :width="selectWidth" searchable />
+        <MpFormHelpText>The role you want to prepare a successor for.</MpFormHelpText>
+        <MpFormErrorMessage>You must select key position</MpFormErrorMessage>
       </MpFormControl>
-
-      <!-- ═════ Adaptive attribute picker — follows the assignment's scope ═════ -->
-      <MpFormControl v-if="hasAssignment" :id="`attr-${pickerDimension}`">
-        <MpFormLabel>{{ dimensionLabel }}</MpFormLabel>
-        <PxSelectPopover
-          v-model="attributeValue"
-          :options="pickerOptions"
-          :placeholder="`Select ${dimensionWord}`"
-          :width="selectWidth"
-          searchable
-        />
-        <MpFormHelpText>
-          The picker dimension follows the competency assignment linked to this job position.
-        </MpFormHelpText>
+      <MpFormControl id="organization" :is-invalid="organizationInvalid">
+        <MpFormLabel>Organization <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+        <PxSelectPopover v-model="organization" :options="orgOptions" placeholder="Select organization" :width="selectWidth" searchable />
+        <MpFormHelpText>The organization this position is for.</MpFormHelpText>
+        <MpFormErrorMessage>You must select organization</MpFormErrorMessage>
       </MpFormControl>
+      <MpFlex direction="column" gap="1" :class="css({ marginTop: '4' })">
+        <MpText as="h2" :class="h2Text">Criteria</MpText>
+        <MpText :class="sectionCaption">Only employees who match these criteria will appear as candidates.</MpText>
+      </MpFlex>
+      <MpFormControl id="min-service-length">
+        <MpFormLabel>Minimum service length</MpFormLabel>
+        <PxSelectPopover v-model="serviceLength" :options="MIN_SERVICE_LENGTH_OPTIONS" placeholder="Select minimum service length" :width="selectWidth" />
+      </MpFormControl>
+      <MpFormControl id="employment-status">
+        <MpFormLabel>Employment status</MpFormLabel>
+        <PxSelectPopover v-model="employeeStatus" :options="EMPLOYMENT_STATUS_OPTIONS" placeholder="Select employment status" :width="selectWidth" />
+      </MpFormControl>
+    </div>
 
-      <!-- No assignment → informational notice, no picker (shared US2/US4 component) -->
-      <PxNoAssignmentNotice v-else :attribute="noticeAttribute" />
+    <div v-if="step === 1" :class="section">
+      <MpFlex direction="column" gap="1">
+        <MpText as="h2" :class="h2Text">Set competency assessment</MpText>
+        <MpText :class="sectionCaption">Set the competency standard candidates must meet for this position.</MpText>
+      </MpFlex>
+      <MpFormControl id="assessment-type">
+        <MpFlex align="center" gap="1">
+          <MpFormLabel>Where do candidate scores come from?</MpFormLabel>
+          <MpTooltip label="Manual input is for assessment done on a third-party platform. You'll enter those scores per candidate after the plan is created." placement="top" use-portal><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip>
+        </MpFlex>
+        <MpFlex direction="column" gap="3">
+          <MpRadio name="assessment-type" :is-checked="assessmentType === 'talenta'" @update:is-checked="assessmentType = 'talenta'">
+            From Talenta Performance
+            <template #description>Use competency scores already recorded in Talenta Performance.</template>
+          </MpRadio>
+          <MpRadio name="assessment-type" :is-checked="assessmentType === 'manual'" @update:is-checked="assessmentType = 'manual'">
+            Manual input
+            <template #description>Competencies were assessed outside Talenta Performance. You'll enter the scores manually.</template>
+          </MpRadio>
+        </MpFlex>
+      </MpFormControl>
+      <!-- No competency assessment defined for this position -->
+      <PxNoAssignmentNotice v-if="!hasAssignment" contact-hr />
 
-      <!-- ═════ Competency criteria (resolved from the matched assignment) ═════ -->
-      <div :class="divider" />
-      <div :class="sectionHeader">
-        <MpText as="h2" :class="h2Class">Competency criteria</MpText>
-        <MpText size="label" :class="captionText">
-          Target competencies are resolved from the matched assignment.
-        </MpText>
-      </div>
-      <div :class="criteriaBlock">
-        <MpText size="label" :class="captionText">
-          <template v-if="hasAssignment">
-            Competency groups and targets for the selected {{ dimensionWord }} will appear here.
-          </template>
-          <template v-else>
-            No competency target to apply — there is no assignment for this job position.
-          </template>
-        </MpText>
-      </div>
+      <template v-else>
+        <!-- Scope dimension for this position (job level / grade / class) -->
+        <MpFormControl id="scope-value" :is-invalid="scopeValueInvalid">
+          <MpFormLabel>{{ scopeLabel }} <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+          <PxSelectPopover v-model="scopeValue" :options="scopeValueOptions" :placeholder="`Select ${scopeLabel.toLowerCase()}`" :width="selectWidth" />
+          <MpFormHelpText>Only {{ scopeLabel.toLowerCase() }}s with a competency assessment for this role are shown.</MpFormHelpText>
+          <MpFormErrorMessage>You must select {{ scopeLabel.toLowerCase() }}</MpFormErrorMessage>
+        </MpFormControl>
 
-      <!-- ═════ Footer ═════ -->
-      <div :class="footerBar">
-        <MpButton variant="ghost" @click="onBack">Back</MpButton>
-        <MpButton variant="primary" @click="onNext">Next</MpButton>
-      </div>
+        <!-- Resolved competency standard — targets for the CHOSEN scope value -->
+        <MpFormControl id="competency-standard">
+          <MpFormLabel>Competency standard</MpFormLabel>
+          <MpTableContainer v-if="scopeValue" :class="[borderedTable, css({ marginTop: '1' })]">
+            <MpTable :is-hoverable="false">
+              <MpTableHead>
+                <MpTableRow>
+                  <MpTableCell as="th" :class="cellHLeft">Competency group</MpTableCell>
+                  <MpTableCell as="th" :class="cellHRight">Target score · {{ scopeValueLabel }}</MpTableCell>
+                </MpTableRow>
+              </MpTableHead>
+              <MpTableBody>
+                <MpTableRow v-for="g in resolvedTargets" :key="g.group">
+                  <MpTableCell as="td" :class="cellB">{{ g.group }}</MpTableCell>
+                  <MpTableCell as="td" :class="[cellB, css({ textAlign: 'right', fontVariantNumeric: 'tabular-nums' })]">{{ g.target.toFixed(1) }}</MpTableCell>
+                </MpTableRow>
+              </MpTableBody>
+            </MpTable>
+          </MpTableContainer>
+          <MpText v-else size="label" :class="css({ color: 'text.secondary', paddingBlock: '3', display: 'block' })">Select a {{ scopeLabel.toLowerCase() }} above to see its competency targets.</MpText>
+          <MpFormHelpText>Targets come from the competency assessment for this role at the selected {{ scopeLabel.toLowerCase() }} — candidates are measured against them.</MpFormHelpText>
+        </MpFormControl>
+      </template>
+    </div>
 
+    <div v-if="step === 2" :class="section">
+      <MpFlex justify="space-between" align="flex-start" gap="4">
+        <MpFlex direction="column" gap="1">
+          <MpText :class="h3Text">Select successor talent</MpText>
+          <MpText size="label" :class="captionText">Optional — you can create the pool now and add talent later. Only employees who match your Step 1 criteria appear as candidates.</MpText>
+        </MpFlex>
+        <MpButton v-if="selectedTalents.length" variant="secondary" left-icon="add" :class="css({ flexShrink: '0' })" @click="openPicker">Add talent</MpButton>
+      </MpFlex>
+
+      <MpText v-if="readinessInvalid" size="label" :class="css({ color: 'text.danger' })">You must select readiness for each successor talent you added</MpText>
+
+      <MpTableContainer v-if="selectedTalents.length" :class="borderedTable">
+        <MpTable :is-hoverable="false">
+          <MpTableHead>
+            <MpTableRow>
+              <MpTableCell as="th" :class="[cellHLeft, css({ width: '55%' })]">Employee</MpTableCell>
+              <MpTableCell as="th" :class="cellHLeft">Readiness</MpTableCell>
+              <MpTableCell as="th" :class="cellHLeft" aria-label="Actions" />
+            </MpTableRow>
+          </MpTableHead>
+          <MpTableBody>
+            <MpTableRow v-for="t in selectedTalents" :key="t.employeeId">
+              <MpTableCell as="td" :class="cellB">
+                <MpFlex align="center" gap="2">
+                  <MpAvatar :id="`t-${t.employeeId}`" :name="employeeById(t.employeeId)?.name" :src="employeeById(t.employeeId)?.photo" size="md" variant-color="gray" />
+                  <MpFlex direction="column" gap="0">
+                    <span :class="nameText">{{ employeeById(t.employeeId)?.name }}</span>
+                    <span :class="subText">{{ employeeById(t.employeeId)?.title }}</span>
+                  </MpFlex>
+                </MpFlex>
+              </MpTableCell>
+              <MpTableCell as="td" :class="cellB">
+                <PxSelectPopover v-model="t.readiness" :options="READINESS_OPTIONS" placeholder="Select range" :width="'200px'" />
+              </MpTableCell>
+              <MpTableCell as="td" :class="[cellB, css({ textAlign: 'right' })]">
+                <button type="button" :class="css({ border: 'none', background: 'transparent', cursor: 'pointer', color: 'text.secondary', _hover: { color: 'text.danger' } })" aria-label="Remove" @click="removeTalent(t.employeeId)">
+                  <MpIcon name="minus-circular" size="sm" />
+                </button>
+              </MpTableCell>
+            </MpTableRow>
+          </MpTableBody>
+        </MpTable>
+      </MpTableContainer>
+      <!-- Empty state (docs/empty-state.md) — replaces the list when no talent picked -->
+      <MpFlex v-else direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+        <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+        <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+          <MpText :class="emptyTitle">No successor talent yet</MpText>
+          <MpText size="label" :class="captionText">Add employees you're grooming for this position, or create the pool now and add them later.</MpText>
+        </MpFlex>
+        <MpButton variant="secondary" left-icon="add" @click="openPicker">Add talent</MpButton>
+      </MpFlex>
+    </div>
+
+    <!-- Footer — Cancel · Back · Next/Create (Cancel & Back ghost) -->
+    <div :class="footerBar">
+      <MpButtonGroup>
+        <MpButton variant="ghost" @click="cancel">Cancel</MpButton>
+        <MpButton v-if="step > 0" variant="ghost" @click="back">Back</MpButton>
+        <MpButton v-if="step < STEPS.length - 1" variant="primary" @click="next">Next</MpButton>
+        <MpButton v-else variant="primary" @click="submit">Create</MpButton>
+      </MpButtonGroup>
     </div>
   </div>
+
+  <!-- Add talent picker — shared two-column employee select drawer -->
+  <SelectEmployeesDrawer
+    :is-open="isPickerOpen"
+    drawer-id="drawer-select-successors"
+    title="Add successor talent"
+    description="Only employees who match your Step 1 criteria (service length and employment status) are listed."
+    :initial-selected="selectedTalents.map(t => t.employeeId)"
+    :include-ids="candidateIdList"
+    :is-required="false"
+    confirm-label="Add talent"
+    @update:is-open="isPickerOpen = $event"
+    @continue="onSelectContinue"
+  />
 </template>
