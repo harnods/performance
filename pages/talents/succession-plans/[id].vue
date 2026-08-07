@@ -71,9 +71,27 @@ function onAddContinue(ids: string[]) {
   const before = successors.value.length
   successors.value = ids.map(id => existing.get(id) ?? { employeeId: id, readiness: '' })
   const added = successors.value.length - before
-  if (added > 0) toast.notify({ id: 'succ-added', position: 'top-center', variant: 'success', title: `${added} successor talent added` })
+  if (added > 0) toast.notify({ id: 'succ-added', position: 'top-center', variant: 'success', title: `${added} successor talent${added > 1 ? 's' : ''} added` })
 }
 function removeTalent(id: string) { successors.value = successors.value.filter(s => s.employeeId !== id) }
+
+// ─── Row action modals (shared components) ────────────────────────────────────
+const promoteTarget = ref<Row | null>(null)
+const readinessTarget = ref<Row | null>(null)
+const removeTarget = ref<Row | null>(null)
+const assessTarget = ref<Row | null>(null)
+function openPromote(r: Row) { promoteTarget.value = r }
+function openReadiness(r: Row) { readinessTarget.value = r }
+function openRemove(r: Row) { removeTarget.value = r }
+function openAssess(r: Row) { assessTarget.value = r }
+function openProfile(employeeId: string) { router.push(`/talents/talent-directory/${employeeId}`) }
+function confirmRemove() { if (removeTarget.value) removeTalent(removeTarget.value.id) }
+const isManual = computed(() => pool.value?.assessmentType === 'manual')
+function onReadinessSave(v: string) {
+  const t = readinessTarget.value
+  if (!t) return
+  successors.value = successors.value.map(s => (s.employeeId === t.id ? { ...s, readiness: v } : s))
+}
 
 // ─── Filter ──────────────────────────────────────────────────────────────────
 const search = ref('')
@@ -92,7 +110,7 @@ const sortTypes: Record<string, 'text' | 'number' | 'date'> = { employee: 'text'
 function sortValue(r: Row, key: string): string | number {
   if (key === 'employee') return r.name
   if (key === 'organization') return r.department
-  if (key === 'readiness') return Number(r.readiness)
+  if (key === 'readiness') return r.readiness === '99' ? 0 : Number(r.readiness) // Ready now = most ready → sorts first asc
   if (key === 'date') return r.date.getTime()
   return ''
 }
@@ -230,15 +248,15 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
               <MpTableCell as="td" :class="[cell, css({ textAlign: 'right' })]">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
-                    <MpButton variant="secondary" right-icon="caret-down">Action</MpButton>
+                    <MpButton variant="secondary" right-icon="caret-down">Actions</MpButton>
                   </MpPopoverTrigger>
                   <MpPopoverContent :class="css({ minWidth: '180px' })">
                     <MpPopoverList>
-                      <MpPopoverListItem>Promote</MpPopoverListItem>
-                      <MpPopoverListItem>Update assessment</MpPopoverListItem>
-                      <MpPopoverListItem>Edit readiness</MpPopoverListItem>
-                      <MpPopoverListItem>View details</MpPopoverListItem>
-                      <MpPopoverListItem @click="removeTalent(r.id)"><span :class="css({ color: 'text.danger' })">Remove from pool</span></MpPopoverListItem>
+                      <MpPopoverListItem @click="openPromote(r)">Promote</MpPopoverListItem>
+                      <MpPopoverListItem v-if="isManual" @click="openAssess(r)">Update assessment</MpPopoverListItem>
+                      <MpPopoverListItem @click="openReadiness(r)">Update readiness</MpPopoverListItem>
+                      <MpPopoverListItem @click="openProfile(r.id)">View details</MpPopoverListItem>
+                      <MpPopoverListItem @click="openRemove(r)"><span :class="css({ color: 'text.danger' })">Remove from pool</span></MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
                 </MpPopover>
@@ -248,7 +266,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
         </MpTable>
         <div v-if="!totalRows" :class="emptyBlock">
           <MpIcon name="employee" size="lg" :class="css({ color: 'icon.secondary' })" />
-          <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No successor talent to display.</MpText>
+          <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No successor talent yet</MpText>
         </div>
       </MpTableContainer>
 
@@ -325,6 +343,35 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     confirm-label="Add talent"
     @update:is-open="isPickerOpen = $event"
     @continue="onAddContinue"
+  />
+
+  <!-- Row action modals (shared) -->
+  <SuccessionPromoteModal
+    :is-open="!!promoteTarget"
+    :employee="promoteTarget"
+    :key-position-value="pool?.keyPositionValue ?? ''"
+    :key-position-label="pool?.keyPosition ?? ''"
+    @update:is-open="v => { if (!v) promoteTarget = null }"
+  />
+  <SuccessionReadinessModal
+    :is-open="!!readinessTarget"
+    :employee="readinessTarget"
+    :readiness="readinessTarget?.readiness ?? ''"
+    @update:is-open="v => { if (!v) readinessTarget = null }"
+    @save="onReadinessSave"
+  />
+  <SuccessionAssessmentModal
+    :is-open="!!assessTarget"
+    :employee="assessTarget"
+    :groups="standardGroups"
+    @update:is-open="v => { if (!v) assessTarget = null }"
+  />
+  <SuccessionRemoveModal
+    :is-open="!!removeTarget"
+    :employee="removeTarget"
+    :key-position="pool?.keyPosition ?? ''"
+    @update:is-open="v => { if (!v) removeTarget = null }"
+    @confirm="confirmRemove"
   />
 </template>
 

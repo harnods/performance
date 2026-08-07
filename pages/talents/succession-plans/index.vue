@@ -16,7 +16,9 @@ import {
   MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem,
   css,
 } from '@mekari/pixel3'
-import { SUCCESSION_POOLS, employeeRows, readinessLabel, ORGANIZATIONS } from '~/utils/succession'
+import { SUCCESSION_POOLS, employeeRows, readinessLabel, ORGANIZATIONS, poolById } from '~/utils/succession'
+import { targetsForScopeValue } from '~/utils/competency'
+import type { Employee } from '~/utils/employees'
 
 definePageMeta({ title: 'Succession plans', layout: 'default' })
 
@@ -31,13 +33,51 @@ const keyPositionRows = computed(() => SUCCESSION_POOLS.filter(p =>
   (!orgFilter.value || p.organization === orgFilter.value)
   && (!search.value || p.keyPosition.toLowerCase().includes(search.value.toLowerCase())),
 ))
+// Rows removed this session (mock isn't reactive/persisted) — filtered out live.
+const removedKeys = ref<Set<string>>(new Set())
+const rowKey = (poolId: string, empId: string) => `${poolId}:${empId}`
 const empRows = computed(() => employeeRows().filter(r =>
-  (!orgFilter.value || r.organization === orgFilter.value)
+  !removedKeys.value.has(rowKey(r.poolId, r.employee.id))
+  && (!orgFilter.value || r.organization === orgFilter.value)
   && (!search.value || r.employee.name.toLowerCase().includes(search.value.toLowerCase())),
 ))
 
 function openDetail(id: string) { router.push(`/talents/succession-plans/${id}`) }
+function openProfile(employeeId: string) { router.push(`/talents/talent-directory/${employeeId}`) }
 function openCreate() { router.push('/talents/succession-plans/create') }
+
+// Row action modals (shared components), same set as the plan detail page.
+type EmpRow = ReturnType<typeof employeeRows>[number]
+const promoteEmp = ref<Employee | null>(null)
+const promoteKp = ref<{ value: string, label: string }>({ value: '', label: '' })
+const readinessEmp = ref<Employee | null>(null)
+const readinessVal = ref('')
+const assessEmp = ref<Employee | null>(null)
+const assessGroups = ref<{ group: string, target: number }[]>([])
+const removeEmp = ref<Employee | null>(null)
+const removeKp = ref('')
+const removeRow = ref<EmpRow | null>(null)
+function confirmRemove() {
+  if (removeRow.value) removedKeys.value = new Set(removedKeys.value).add(rowKey(removeRow.value.poolId, removeRow.value.employee.id))
+}
+function openPromote(r: EmpRow) {
+  promoteEmp.value = r.employee
+  promoteKp.value = { value: poolById(r.poolId)?.keyPositionValue ?? '', label: r.keyPosition }
+}
+function openReadiness(r: EmpRow) {
+  readinessEmp.value = r.employee
+  readinessVal.value = r.readiness
+}
+function openAssess(r: EmpRow) {
+  const p = poolById(r.poolId)
+  assessEmp.value = r.employee
+  assessGroups.value = p ? targetsForScopeValue(p.keyPosition, p.scopeValue) : []
+}
+function openRemove(r: EmpRow) {
+  removeRow.value = r
+  removeEmp.value = r.employee
+  removeKp.value = r.keyPosition
+}
 
 // ─── Column sort (behaviour from goal-cycles/index.vue) ───────────────────────
 // sortKey '' = default order. Keys differ per tab, so the tab watcher resets it.
@@ -56,7 +96,7 @@ function empSortValue(r: typeof empRows.value[number], key: string): string | nu
   if (key === 'employee') return r.employee.name
   if (key === 'keyPosition') return r.keyPosition
   if (key === 'organization') return r.organization
-  if (key === 'readiness') return Number(r.readiness) // 99 = ready now, sorts last asc
+  if (key === 'readiness') return r.readiness === '99' ? 0 : Number(r.readiness) // Ready now = most ready → sorts first asc
   return ''
 }
 function sortRows<T>(rows: T[], valueOf: (r: T, k: string) => string | number): T[] {
@@ -158,7 +198,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
           <MpTableRow>
             <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Key position</span><PxColumnSortMenu col-key="keyPosition" :sort-type="kpSortTypes.keyPosition" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Organization</span><PxColumnSortMenu col-key="organization" :sort-type="kpSortTypes.organization" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-            <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Successor talent</span><PxColumnSortMenu col-key="successors" :sort-type="kpSortTypes.successors" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+            <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Successor talents</span><PxColumnSortMenu col-key="successors" :sort-type="kpSortTypes.successors" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell as="th" :class="headCell" />
           </MpTableRow>
         </MpTableHead>
@@ -191,7 +231,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
       </MpTable>
       <div v-if="!keyPositionRows.length" :class="emptyBlock">
         <MpIcon name="briefcase" size="lg" :class="css({ color: 'icon.secondary' })" />
-        <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No data to display.</MpText>
+        <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No succession plan yet</MpText>
       </div>
     </MpTableContainer>
 
@@ -200,7 +240,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
       <MpTable :is-hoverable="false">
         <MpTableHead>
           <MpTableRow>
-            <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Employee to nominate</span><PxColumnSortMenu col-key="employee" :sort-type="empSortTypes.employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+            <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="employee" :sort-type="empSortTypes.employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Key position</span><PxColumnSortMenu col-key="keyPosition" :sort-type="empSortTypes.keyPosition" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Organization</span><PxColumnSortMenu col-key="organization" :sort-type="empSortTypes.organization" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
             <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Readiness</span><PxColumnSortMenu col-key="readiness" :sort-type="empSortTypes.readiness" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -223,7 +263,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
                 </span>
                 <MpFlex direction="column" gap="0">
                   <span :class="nameText">{{ r.employee.name }}</span>
-                  <span :class="subText">{{ r.employee.code }} | {{ r.employee.title }}</span>
+                  <span :class="subText">{{ r.employee.code }} | {{ r.employee.title }} | {{ r.employee.department }}</span>
                 </MpFlex>
               </MpFlex>
             </MpTableCell>
@@ -233,14 +273,15 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
             <MpTableCell as="td" :class="[cell, css({ textAlign: 'right' })]">
               <MpPopover is-close-on-select use-portal placement="bottom-end">
                 <MpPopoverTrigger>
-                  <MpButton variant="secondary" right-icon="caret-down">Action</MpButton>
+                  <MpButton variant="secondary" right-icon="caret-down">Actions</MpButton>
                 </MpPopoverTrigger>
                 <MpPopoverContent :class="css({ minWidth: '180px' })">
                   <MpPopoverList>
-                    <MpPopoverListItem>Promote</MpPopoverListItem>
-                    <MpPopoverListItem>Change readiness</MpPopoverListItem>
-                    <MpPopoverListItem>View detail</MpPopoverListItem>
-                    <MpPopoverListItem><span :class="css({ color: 'text.danger' })">Remove from pool</span></MpPopoverListItem>
+                    <MpPopoverListItem @click="openPromote(r)">Promote</MpPopoverListItem>
+                    <MpPopoverListItem v-if="poolById(r.poolId)?.assessmentType === 'manual'" @click="openAssess(r)">Update assessment</MpPopoverListItem>
+                    <MpPopoverListItem @click="openReadiness(r)">Update readiness</MpPopoverListItem>
+                    <MpPopoverListItem @click="openProfile(r.employee.id)">View details</MpPopoverListItem>
+                    <MpPopoverListItem @click="openRemove(r)"><span :class="css({ color: 'text.danger' })">Remove from pool</span></MpPopoverListItem>
                   </MpPopoverList>
                 </MpPopoverContent>
               </MpPopover>
@@ -250,7 +291,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
       </MpTable>
       <div v-if="!empRows.length" :class="emptyBlock">
         <MpIcon name="employee" size="lg" :class="css({ color: 'icon.secondary' })" />
-        <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No data to display.</MpText>
+        <MpText size="label" weight="semiBold" :class="css({ color: 'text.default' })">No successor talent yet</MpText>
       </div>
     </MpTableContainer>
 
@@ -278,6 +319,34 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     </div>
     </MpFlex>
   </div>
+
+  <!-- Row action modals (shared) -->
+  <SuccessionPromoteModal
+    :is-open="!!promoteEmp"
+    :employee="promoteEmp"
+    :key-position-value="promoteKp.value"
+    :key-position-label="promoteKp.label"
+    @update:is-open="v => { if (!v) promoteEmp = null }"
+  />
+  <SuccessionReadinessModal
+    :is-open="!!readinessEmp"
+    :employee="readinessEmp"
+    :readiness="readinessVal"
+    @update:is-open="v => { if (!v) readinessEmp = null }"
+  />
+  <SuccessionAssessmentModal
+    :is-open="!!assessEmp"
+    :employee="assessEmp"
+    :groups="assessGroups"
+    @update:is-open="v => { if (!v) assessEmp = null }"
+  />
+  <SuccessionRemoveModal
+    :is-open="!!removeEmp"
+    :employee="removeEmp"
+    :key-position="removeKp"
+    @update:is-open="v => { if (!v) removeEmp = null }"
+    @confirm="confirmRemove"
+  />
 </template>
 
 <style scoped>

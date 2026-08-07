@@ -69,13 +69,17 @@ export interface SuccessionPool {
   // The single scope value (job level / grade / class) this plan was created
   // for — chosen in create Step 2. Its competency targets are the standard.
   scopeValue: string
+  // Where candidate scores come from (create Step 2). 'manual' pools let you
+  // enter scores by hand (the "Update assessment" row action); 'talenta' pools
+  // pull scores from Talenta Performance and hide that action.
+  assessmentType: 'talenta' | 'manual'
   successors: SuccessorTalent[]
 }
 
 // Seeded pools (Key Position view). Grounded in ~/utils/employees.
 export const SUCCESSION_POOLS: SuccessionPool[] = [
   {
-    id: 'sp-1', keyPositionValue: 'head-accounting', keyPosition: 'Head of Accounting', organization: 'Accounting', isOldPool: false, scopeValue: 'senior-manager',
+    id: 'sp-1', keyPositionValue: 'head-accounting', keyPosition: 'Head of Accounting', organization: 'Accounting', isOldPool: false, scopeValue: 'senior-manager', assessmentType: 'talenta',
     successors: [
       { employeeId: 'agung', readiness: '99' },
       { employeeId: 'christin', readiness: '1' },
@@ -83,14 +87,14 @@ export const SUCCESSION_POOLS: SuccessionPool[] = [
     ],
   },
   {
-    id: 'sp-2', keyPositionValue: 'sales-director', keyPosition: 'Sales Director', organization: 'Sales', isOldPool: false, scopeValue: 'director',
+    id: 'sp-2', keyPositionValue: 'sales-director', keyPosition: 'Sales Director', organization: 'Sales', isOldPool: false, scopeValue: 'director', assessmentType: 'manual',
     successors: [
       { employeeId: 'daud', readiness: '1' },
       { employeeId: 'ali', readiness: '99' },
     ],
   },
   {
-    id: 'sp-3', keyPositionValue: 'head-chef', keyPosition: 'Head Chef', organization: 'Kitchen', isOldPool: true, scopeValue: 'manager',
+    id: 'sp-3', keyPositionValue: 'head-chef', keyPosition: 'Head Chef', organization: 'Kitchen', isOldPool: true, scopeValue: 'manager', assessmentType: 'manual',
     successors: [
       { employeeId: 'eka', readiness: '3' },
       { employeeId: 'fajar', readiness: '2' },

@@ -210,7 +210,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                     </MpFlex>
                     <MpIcon name="add" size="sm" class="add-employee-icon" :class="addEmployeeIcon" />
                   </button>
-                  <p v-if="!availableEmployees.length" :class="emptyText">No employees found.</p>
+                  <p v-if="!availableEmployees.length" :class="emptyText">No employees found</p>
                 </div>
               </div>
             </div>
@@ -240,7 +240,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                       <MpIcon name="minus-circular" size="md" />
                     </button>
                   </MpFlex>
-                  <p v-if="!selectedIds.length" :class="emptyText">No employees selected yet.</p>
+                  <p v-if="!selectedIds.length" :class="emptyText">No employees selected yet</p>
                 </div>
               </div>
             </div>
@@ -249,7 +249,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
         <MpDrawerFooter>
           <MpFlex align="center" justify="space-between" :class="css({ width: '100%' })">
             <MpText v-if="hasSelectionError" size="label" :class="css({ color: 'text.danger' })">
-              Select at least one employee to continue.
+              You must select at least one employee
             </MpText>
             <span v-else />
             <MpButtonGroup>

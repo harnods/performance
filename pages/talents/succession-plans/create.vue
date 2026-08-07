@@ -120,7 +120,7 @@ function submit() {
   submitted.value = true
   if (!step3Valid()) return
   const n = selectedTalents.value.length
-  toast.notify({ id: 'sp-created', position: 'top-center', variant: 'success', title: `${selectedKeyPosition.value?.job} pool created${n ? ` with ${n} successor${n > 1 ? 's' : ''}` : ' — add successor talent anytime'}` })
+  toast.notify({ id: 'sp-created', position: 'top-center', variant: 'success', title: `Succession plan created${n ? ` with ${n} successor${n > 1 ? 's' : ''}` : ' — add successor talent anytime'}` })
   router.push('/talents/succession-plans')
 }
 
@@ -239,7 +239,7 @@ const captionText = css({ color: 'text.secondary' })
         <MpFormControl id="scope-value" :is-invalid="scopeValueInvalid">
           <MpFormLabel>{{ scopeLabel }} <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
           <PxSelectPopover v-model="scopeValue" :options="scopeValueOptions" :placeholder="`Select ${scopeLabel.toLowerCase()}`" :width="selectWidth" />
-          <MpFormHelpText>Only {{ scopeLabel.toLowerCase() }}s with a competency assessment for this role are shown.</MpFormHelpText>
+          <MpFormHelpText>Only {{ scopeLabel.toLowerCase() }} values with a competency assessment for this role are shown.</MpFormHelpText>
           <MpFormErrorMessage>You must select {{ scopeLabel.toLowerCase() }}</MpFormErrorMessage>
         </MpFormControl>
 
@@ -274,10 +274,10 @@ const captionText = css({ color: 'text.secondary' })
           <MpText :class="h3Text">Select successor talent</MpText>
           <MpText size="label" :class="captionText">Optional — you can create the pool now and add talent later. Only employees who match your Step 1 criteria appear as candidates.</MpText>
         </MpFlex>
-        <MpButton v-if="selectedTalents.length" variant="secondary" left-icon="add" :class="css({ flexShrink: '0' })" @click="openPicker">Add talent</MpButton>
+        <MpButton v-if="selectedTalents.length" variant="secondary" left-icon="add" :class="css({ flexShrink: '0' })" @click="openPicker">Add successor talent</MpButton>
       </MpFlex>
 
-      <MpText v-if="readinessInvalid" size="label" :class="css({ color: 'text.danger' })">You must select readiness for each successor talent you added</MpText>
+      <MpText v-if="readinessInvalid" size="label" :class="css({ color: 'text.danger' })">You must select readiness for each successor talent</MpText>
 
       <MpTableContainer v-if="selectedTalents.length" :class="borderedTable">
         <MpTable :is-hoverable="false">
@@ -300,7 +300,7 @@ const captionText = css({ color: 'text.secondary' })
                 </MpFlex>
               </MpTableCell>
               <MpTableCell as="td" :class="cellB">
-                <PxSelectPopover v-model="t.readiness" :options="READINESS_OPTIONS" placeholder="Select range" :width="'200px'" />
+                <PxSelectPopover v-model="t.readiness" :options="READINESS_OPTIONS" placeholder="Select readiness" :width="'200px'" />
               </MpTableCell>
               <MpTableCell as="td" :class="[cellB, css({ textAlign: 'right' })]">
                 <button type="button" :class="css({ border: 'none', background: 'transparent', cursor: 'pointer', color: 'text.secondary', _hover: { color: 'text.danger' } })" aria-label="Remove" @click="removeTalent(t.employeeId)">
@@ -318,7 +318,7 @@ const captionText = css({ color: 'text.secondary' })
           <MpText :class="emptyTitle">No successor talent yet</MpText>
           <MpText size="label" :class="captionText">Add employees you're grooming for this position, or create the pool now and add them later.</MpText>
         </MpFlex>
-        <MpButton variant="secondary" left-icon="add" @click="openPicker">Add talent</MpButton>
+        <MpButton variant="secondary" left-icon="add" @click="openPicker">Add successor talent</MpButton>
       </MpFlex>
     </div>
 
@@ -342,7 +342,7 @@ const captionText = css({ color: 'text.secondary' })
     :initial-selected="selectedTalents.map(t => t.employeeId)"
     :include-ids="candidateIdList"
     :is-required="false"
-    confirm-label="Add talent"
+    confirm-label="Add successor talent"
     @update:is-open="isPickerOpen = $event"
     @continue="onSelectContinue"
   />
