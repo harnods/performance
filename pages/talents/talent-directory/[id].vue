@@ -380,7 +380,7 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
               :id="`marker-${profile.base.id}`"
               :name="profile.base.name"
               :src="profile.base.photo"
-              size="md"
+              size="lg"
               variant-color="gray"
               :class="boxMarker"
             />
