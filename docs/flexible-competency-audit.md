@@ -137,15 +137,18 @@ Shared components: `SuccessionPromoteModal`, `SuccessionReadinessModal`, `Succes
 
 **Intentional (demo scope):** notify-HR promote (no state change), key-position list from `EMPLOYEES`, Step 2 per-scope-value targets vs prod matrix, Step 3 optional, View details → talent directory.
 
-**To address (real issues, mostly competency side):**
-1. **No persistence in Competencies** — created assignments never appear in the list; deletes reappear on reload (violates the repo persist-mock rule).
-2. **Detail page is a static mock** ignoring the id; its Edit hardcodes `scope: 'job-level'`.
-3. **Edit prefill is synthetic** (fixed "Product Manager") — real content lost on edit.
-4. **D3 integrity rules unenforced** (uniqueness, one-type-per-position) — the guarantee S3 relies on.
-5. **Two disconnected mock universes** — Succession/profile use `utils/competency.ts`; Competencies create/list/detail/import use their own hardcoded lists; positions don't match, so nothing created in Competencies is resolvable in Succession. PRD mandates a single shared resolver.
+**Resolved (competency module now real, persisted, coherent):**
+1. ✅ **Competency persistence** — `composables/useCompetencyStore.ts` (localStorage). Create/edit/delete persist; created assignments appear in the list.
+2. ✅ **Detail reads the real record** by id (no longer a static mock); Edit no longer hardcodes scope.
+3. ✅ **Edit prefill loads the real record** (name, positions, scope, matrix, per-cell targets).
+5. ✅ **Single coherent dataset** — `utils/competencyAssignments.ts` seeds ~17 scenarios grounded in `POSITION_INFO`/`DEPARTMENT_GROUPS`/`targetsForScopeValue`, so targets equal Succession's value-for-value; create/edit options use real positions + real competency groups.
+- ✅ **Succession persistence** — `useSuccessionStore` (localStorage); add/remove/readiness persist.
+
+**Still open (out of scope so far):**
+4. **D3 integrity rules unenforced** (per-value uniqueness, one-scope-type-per-position) on create/edit.
 6. **S13 import** — resolver/fallback/template are no-ops; Upload/History tabs empty.
 7. **old_pool** — data present, no UI honors it.
-8. Session-only mock (succession add/remove/readiness) — not persisted across reload.
+8. **Gap chart / Review form / Review result / PDF / reports / activity log / analytics** (S2, S4, S5, S7, S8, S11, S12) — not built.
 
 ---
 

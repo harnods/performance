@@ -34,8 +34,14 @@ const successionTitleFallback = computed(() => {
   return successionPoolById(route.params.id as string)?.keyPosition ?? ''
 })
 
+const { assignmentById: competencyById } = useCompetencyStore()
+const competencyTitleFallback = computed(() => {
+  if (!route.path.startsWith('/talents/competencies/')) return ''
+  return competencyById(route.params.id as string)?.name ?? ''
+})
+
 const pageTitle = computed(() =>
-  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || goalCategoryTitleFallback.value || successionTitleFallback.value || ''
+  (route.meta.title as string) || (route.query.timeframe as string) || (route.query.name as string) || goalCycleTitleFallback.value || goalCategoryTitleFallback.value || successionTitleFallback.value || competencyTitleFallback.value || ''
 )
 const breadcrumb = computed(() => (route.meta.breadcrumb as Breadcrumb | undefined))
 

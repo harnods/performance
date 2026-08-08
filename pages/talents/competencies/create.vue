@@ -33,6 +33,8 @@ import {
   MpBannerDescription,
   css,
 } from '@mekari/pixel3'
+import { POSITION_INFO, DEPARTMENT_GROUPS } from '~/utils/competency'
+import type { CompetencyAssignment } from '~/utils/competencyAssignments'
 
 definePageMeta({
   title: 'Create assignment',
@@ -76,14 +78,9 @@ const COPY = {
 }
 
 // ─── Option data (mock) ─────────────────────────────────────────────────────────
-const jobPositionOptions = [
-  { value: 'product-manager', label: 'Product Manager' },
-  { value: 'engineering-manager', label: 'Engineering Manager' },
-  { value: 'software-engineer', label: 'Software Engineer' },
-  { value: 'ux-designer', label: 'UX Designer' },
-  { value: 'data-analyst', label: 'Data Analyst' },
-  { value: 'sales-executive', label: 'Sales Executive' },
-]
+// Real job positions + competency groups (shared data), so a created assignment
+// is coherent with Succession. Position value = its title.
+const jobPositionOptions = Object.keys(POSITION_INFO).sort().map(t => ({ value: t, label: t }))
 
 const scopeTypeOptions = [
   { value: 'job-level', label: 'Job level' },
@@ -103,14 +100,9 @@ const jobLevelOptions = [
 const gradeOptions = Array.from({ length: 6 }, (_, i) => ({ value: `grade-${i + 1}`, label: `Grade ${i + 1}` }))
 const classOptions = ['A', 'B', 'C', 'D'].map(c => ({ value: `class-${c.toLowerCase()}`, label: `Class ${c}` }))
 
-const competencyGroupOptions = [
-  { value: 'leadership', label: 'Leadership' },
-  { value: 'communication', label: 'Communication' },
-  { value: 'technical-excellence', label: 'Technical excellence' },
-  { value: 'product-thinking', label: 'Product thinking' },
-  { value: 'stakeholder-management', label: 'Stakeholder management' },
-  { value: 'execution', label: 'Execution' },
-]
+const competencyGroupOptions = [...new Set(Object.values(DEPARTMENT_GROUPS).flatMap(gs => gs.map(g => g.group)))]
+  .sort()
+  .map(g => ({ value: g, label: g }))
 const ratingOptions = [
   { value: 'na', label: 'Not applicable' },
   { value: '1', label: '1 — Needs development' },
@@ -202,30 +194,32 @@ function mapScope(q?: string): '' | 'job-level' | 'grade' | 'class' {
   if (q === 'job-class' || q === 'class') return 'class'
   return ''
 }
+const store = useCompetencyStore()
+function slug(s: string) { return s.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)/g, '') }
+
+// Load the real record being edited so the form shows its actual name,
+// positions, scope, columns and per-cell targets.
 function buildEditPrefill() {
-  assignmentName.value = (route.query.name as string) || ''
-  scopeType.value = mapScope(route.query.scope as string | undefined)
-
-  positionTags.value = [{ id: 'tag-product-manager', text: 'Product Manager', value: 'product-manager' }]
-  selectedPositions.value = positionTags.value.map(t => t.value)
-
-  const colValues
-    = scopeType.value === 'job-level' ? ['associate', 'specialist', 'senior', 'manager']
-    : scopeType.value === 'grade' ? ['grade-1', 'grade-2', 'grade-3', 'grade-4']
-    : scopeType.value === 'class' ? ['class-a', 'class-b', 'class-c', 'class-d']
-    : ['all'] // unscoped → single synthetic "All employees" column
+  const rec = store.assignmentById(route.query.edit as string)
+  if (!rec) {
+    assignmentName.value = (route.query.name as string) || ''
+    scopeType.value = mapScope(route.query.scope as string | undefined)
+    return
+  }
+  assignmentName.value = rec.name
+  scopeType.value = rec.scope ?? ''
+  positionTags.value = rec.positions.map((p, i) => ({ id: `tag-${i}`, text: p, value: p }))
+  selectedPositions.value = [...rec.positions]
+  const colValues = rec.scope ? rec.values : ['all']
   columns.value = colValues.map(v => makeColumn(v))
-
-  const mockGroups = [
-    { groupId: 'leadership', ratings: ['1', '2', '3', '4'] },
-    { groupId: 'communication', ratings: ['2', '3', '3', '4'] },
-    { groupId: 'product-thinking', ratings: ['na', '2', '3', '4'] },
-    { groupId: 'execution', ratings: ['2', '3', '4', '5'] },
-  ]
-  rows.value = mockGroups.map((g) => {
+  rows.value = rec.groups.map((g) => {
     const ratings: Record<number, string> = {}
-    columns.value.forEach((c, i) => { ratings[c.cid] = g.ratings[i] ?? g.ratings[g.ratings.length - 1] })
-    return { rid: nextId(), groupId: g.groupId, ratings }
+    columns.value.forEach((c) => {
+      const key = rec.scope ? c.value : 'all'
+      const val = g.ratings[key]
+      ratings[c.cid] = val === 'na' || val == null ? 'na' : String(val)
+    })
+    return { rid: nextId(), groupId: g.group, ratings }
   })
 }
 if (isEdit.value) buildEditPrefill()
@@ -330,15 +324,41 @@ function validate(): boolean {
 
 const submitLabel = computed(() => (isEdit.value ? 'Save changes' : COPY.submit))
 
+// Build a persisted record from the matrix form.
+function buildRecord(): CompetencyAssignment {
+  const scope = scopeType.value === '' ? null : scopeType.value
+  const values = scope ? columns.value.map(c => c.value).filter(Boolean) : ['all']
+  const groups = rows.value.filter(r => r.groupId).map((r) => {
+    const ratings: Record<string, number | 'na'> = {}
+    if (scope) {
+      for (const c of columns.value) {
+        if (!c.value) continue
+        const v = r.ratings[c.cid]
+        ratings[c.value] = v === 'na' || v == null || v === '' ? 'na' : Number(v)
+      }
+    }
+    else {
+      const v = r.ratings[columns.value[0]?.cid]
+      ratings.all = v === 'na' || v == null || v === '' ? 'na' : Number(v)
+    }
+    return { group: r.groupId, ratings }
+  })
+  const name = assignmentName.value.trim()
+  return { id: slug(name), name, positions: [...selectedPositions.value], scope, values, groups, updatedAt: new Date().toISOString() }
+}
+
 function onSubmit() {
   submitted.value = true
   if (!validate()) return
-  router.push({
-    path: '/talents/competencies',
-    query: isEdit.value
-      ? { updated: '1', name: assignmentName.value.trim() }
-      : { created: '1', name: assignmentName.value.trim() },
-  })
+  const rec = buildRecord()
+  if (isEdit.value) {
+    store.updateAssignment(route.query.edit as string, { name: rec.name, positions: rec.positions, values: rec.values, groups: rec.groups, updatedAt: rec.updatedAt })
+    router.push({ path: '/talents/competencies', query: { updated: '1', name: rec.name } })
+  }
+  else {
+    store.addAssignment(rec)
+    router.push({ path: '/talents/competencies', query: { created: '1', name: rec.name } })
+  }
 }
 function onCancel() {
   router.push('/talents/competencies')

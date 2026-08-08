@@ -44,6 +44,8 @@ import {
   css,
 } from '@mekari/pixel3'
 
+import type { AssignScope } from '~/utils/competencyAssignments'
+
 definePageMeta({ title: 'Assignments', layout: 'default' })
 
 const route = useRoute()
@@ -66,22 +68,19 @@ interface Assignment {
   groups: number
 }
 
-const assignments = ref<Assignment[]>([
-  { id: 'pm-manager', name: 'Product Manager — Manager level', positions: ['Product Manager', 'Senior Product Manager'], scope: 'job-level', groups: 4 },
-  { id: 'eng-baseline', name: 'Engineering competency baseline', positions: ['Software Engineer', 'Frontend Engineer', 'Backend Engineer'], scope: null, groups: 6 },
-  { id: 'sales-grade-3', name: 'Sales — Grade 3', positions: ['Sales Executive'], scope: 'job-grade', groups: 3 },
-  { id: 'ux-senior', name: 'UX Designer — Senior', positions: ['UX Designer', 'Product Designer'], scope: 'job-level', groups: 5 },
-  { id: 'data-class-a', name: 'Data Analyst — Class A', positions: ['Data Analyst'], scope: 'job-class', groups: 4 },
-  { id: 'em-leadership', name: 'Engineering Manager leadership', positions: ['Engineering Manager', 'Tech Lead'], scope: 'job-level', groups: 6 },
-  { id: 'sales-baseline', name: 'Sales competency baseline', positions: ['Sales Executive', 'Account Executive'], scope: null, groups: 3 },
-  { id: 'pm-grade-5', name: 'Product Manager — Grade 5', positions: ['Product Manager'], scope: 'job-grade', groups: 4 },
-  { id: 'ux-class-b', name: 'UX Designer — Class B', positions: ['UX Designer'], scope: 'job-class', groups: 4 },
-  { id: 'eng-senior', name: 'Software Engineer — Senior', positions: ['Software Engineer', 'Backend Engineer'], scope: 'job-level', groups: 5 },
-  { id: 'data-baseline', name: 'Data competency baseline', positions: ['Data Analyst', 'Data Scientist'], scope: null, groups: 5 },
-  { id: 'em-grade-7', name: 'Engineering Manager — Grade 7', positions: ['Engineering Manager'], scope: 'job-grade', groups: 6 },
-  { id: 'sales-class-c', name: 'Sales Executive — Class C', positions: ['Sales Executive'], scope: 'job-class', groups: 3 },
-  { id: 'pm-baseline', name: 'Product competency baseline', positions: ['Product Manager', 'Associate PM'], scope: null, groups: 4 },
-])
+// Assignments come from the persisted store (seeded with real, succession-
+// coherent scenarios). List rows are derived from each full record.
+const { assignments: records, deleteAssignment } = useCompetencyStore()
+function toScopeAttr(s: AssignScope): ScopeAttr {
+  return s === 'grade' ? 'job-grade' : s === 'class' ? 'job-class' : s === 'job-level' ? 'job-level' : null
+}
+const assignments = computed<Assignment[]>(() => records.value.map(r => ({
+  id: r.id,
+  name: r.name,
+  positions: r.positions,
+  scope: toScopeAttr(r.scope),
+  groups: r.groups.length,
+})))
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
 const scopeOptions = [
@@ -152,7 +151,7 @@ const deleteModalOpen = ref(false)
 const toDelete = ref<Assignment | null>(null)
 function askDelete(a: Assignment) { toDelete.value = a; deleteModalOpen.value = true }
 function confirmDelete() {
-  if (toDelete.value) assignments.value = assignments.value.filter(a => a.id !== toDelete.value!.id)
+  if (toDelete.value) deleteAssignment(toDelete.value.id)
   deleteModalOpen.value = false
   toDelete.value = null
 }

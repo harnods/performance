@@ -21,27 +21,37 @@ import {
   css,
 } from '@mekari/pixel3'
 
+import { scopeOptions } from '~/utils/competency'
+
 const route = useRoute()
+const router = useRouter()
 const id = route.params.id as string
-const name = computed(() => (route.query.name as string) || 'Assignment')
 
 definePageMeta({
   layout: 'default',
   breadcrumb: { label: 'Assignments', to: '/talents/competencies' },
 })
 
-// Mock detail (in production this is fetched by id). Mirrors the matrix create form.
-const detail = {
-  positions: ['Product Manager', 'Senior Product Manager'],
-  scope: 'Job level' as string | null,
-  columns: ['Associate', 'Specialist', 'Senior', 'Manager'],
-  groups: [
-    { name: 'Leadership', ratings: ['1 — Needs development', '2 — Developing', '3 — Proficient', '4 — Advanced'] },
-    { name: 'Communication', ratings: ['2 — Developing', '3 — Proficient', '3 — Proficient', '4 — Advanced'] },
-    { name: 'Product thinking', ratings: ['Not applicable', '2 — Developing', '3 — Proficient', '4 — Advanced'] },
-    { name: 'Execution', ratings: ['2 — Developing', '3 — Proficient', '4 — Advanced', '5 — Expert'] },
-  ],
+const { assignmentById } = useCompetencyStore()
+const record = computed(() => assignmentById(id))
+// Title (layout fallback also resolves it); redirect if the assignment is gone.
+const name = computed(() => record.value?.name ?? 'Assignment')
+watchEffect(() => { if (import.meta.client && !record.value) router.replace('/talents/competencies') })
+
+const SCOPE_NAME = { 'job-level': 'Job level', grade: 'Grade', class: 'Class' } as const
+function cell(x: number | 'na' | undefined): string {
+  return x === 'na' || x == null ? 'Not applicable' : Number(x).toFixed(1)
 }
+// Read-only detail derived from the real record — columns are the scope values
+// (or "All employees" when unscoped), cells are the target scores.
+const detail = computed(() => {
+  const r = record.value
+  if (!r) return { positions: [] as string[], scope: null as string | null, columns: [] as string[], groups: [] as { name: string, ratings: string[] }[] }
+  const opts = r.scope ? scopeOptions(r.scope) : []
+  const columns = r.scope ? r.values.map(v => opts.find(o => o.value === v)?.label ?? v) : ['All employees']
+  const groups = r.groups.map(g => ({ name: g.group, ratings: r.values.map(v => cell(g.ratings[v])) }))
+  return { positions: r.positions, scope: r.scope ? SCOPE_NAME[r.scope] : null, columns, groups }
+})
 
 // ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
 // Group-name column + each level column (keyed col:<index>) sortable; rating
@@ -49,15 +59,15 @@ const detail = {
 const sortKey = ref('')
 const sortDir = ref<'asc' | 'desc'>('asc')
 function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
-function sortValue(g: (typeof detail.groups)[number], key: string): string {
+function sortValue(g: { name: string, ratings: string[] }, key: string): string {
   if (key === 'name') return g.name
   if (key.startsWith('col:')) return g.ratings[Number(key.slice(4))] ?? ''
   return ''
 }
 const sortedGroups = computed(() => {
-  if (!sortKey.value) return detail.groups
+  if (!sortKey.value) return detail.value.groups
   const dir = sortDir.value === 'asc' ? 1 : -1
-  return [...detail.groups].sort((a, b) =>
+  return [...detail.value.groups].sort((a, b) =>
     String(sortValue(a, sortKey.value)).localeCompare(
       String(sortValue(b, sortKey.value)), undefined, { numeric: true, sensitivity: 'base' },
     ) * dir,
@@ -81,7 +91,7 @@ const fieldRow = css({ display: 'flex', flexDirection: 'column', gap: '1' })
       <MpButton
         variant="primary"
         left-icon="edit"
-        @click="navigateTo({ path: '/talents/competencies/create', query: { edit: id, name, scope: 'job-level' } })"
+        @click="navigateTo({ path: '/talents/competencies/create', query: { edit: id, name, scope: record?.scope ?? '' } })"
       >
         Edit
       </MpButton>
