@@ -16,29 +16,29 @@ import {
   MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem,
   css,
 } from '@mekari/pixel3'
-import { SUCCESSION_POOLS, employeeRows, readinessLabel, ORGANIZATIONS, poolById } from '~/utils/succession'
-import { targetsForScopeValue } from '~/utils/competency'
+import { readinessLabel, ORGANIZATIONS } from '~/utils/succession'
+import { targetsForScopeValue, POSITION_INFO, scopeOptions } from '~/utils/competency'
 import type { Employee } from '~/utils/employees'
+import type { EmployeeRow } from '~/composables/useSuccessionStore'
 
 definePageMeta({ title: 'Succession plans', layout: 'default' })
 
 const router = useRouter()
+const { pools, employeeRows, poolById, removeSuccessor, updateReadiness } = useSuccessionStore()
 
 const tab = ref<'key-position' | 'employee'>('key-position')
 const search = ref('')
 const orgFilter = ref('')
 const orgOptions = ORGANIZATIONS.map(o => ({ value: o, label: o }))
 
-const keyPositionRows = computed(() => SUCCESSION_POOLS.filter(p =>
+// Default order is newest-first (most recently added on top). A manual column
+// sort overrides this (see sortRows below).
+const keyPositionRows = computed(() => [...pools.value].reverse().filter(p =>
   (!orgFilter.value || p.organization === orgFilter.value)
   && (!search.value || p.keyPosition.toLowerCase().includes(search.value.toLowerCase())),
 ))
-// Rows removed this session (mock isn't reactive/persisted) — filtered out live.
-const removedKeys = ref<Set<string>>(new Set())
-const rowKey = (poolId: string, empId: string) => `${poolId}:${empId}`
-const empRows = computed(() => employeeRows().filter(r =>
-  !removedKeys.value.has(rowKey(r.poolId, r.employee.id))
-  && (!orgFilter.value || r.organization === orgFilter.value)
+const empRows = computed(() => [...employeeRows.value].reverse().filter(r =>
+  (!orgFilter.value || r.organization === orgFilter.value)
   && (!search.value || r.employee.name.toLowerCase().includes(search.value.toLowerCase())),
 ))
 
@@ -47,24 +47,30 @@ function openProfile(employeeId: string) { router.push(`/talents/talent-director
 function openCreate() { router.push('/talents/succession-plans/create') }
 
 // Row action modals (shared components), same set as the plan detail page.
-type EmpRow = ReturnType<typeof employeeRows>[number]
+type EmpRow = EmployeeRow
 const promoteEmp = ref<Employee | null>(null)
 const promoteKp = ref<{ value: string, label: string }>({ value: '', label: '' })
 const readinessEmp = ref<Employee | null>(null)
 const readinessVal = ref('')
+const readinessRow = ref<EmpRow | null>(null)
+function onReadinessSave(v: string) {
+  if (readinessRow.value) updateReadiness(readinessRow.value.poolId, readinessRow.value.employee.id, v)
+}
 const assessEmp = ref<Employee | null>(null)
 const assessGroups = ref<{ group: string, target: number }[]>([])
+const assessScopeLabel = ref('')
 const removeEmp = ref<Employee | null>(null)
 const removeKp = ref('')
 const removeRow = ref<EmpRow | null>(null)
 function confirmRemove() {
-  if (removeRow.value) removedKeys.value = new Set(removedKeys.value).add(rowKey(removeRow.value.poolId, removeRow.value.employee.id))
+  if (removeRow.value) removeSuccessor(removeRow.value.poolId, removeRow.value.employee.id)
 }
 function openPromote(r: EmpRow) {
   promoteEmp.value = r.employee
   promoteKp.value = { value: poolById(r.poolId)?.keyPositionValue ?? '', label: r.keyPosition }
 }
 function openReadiness(r: EmpRow) {
+  readinessRow.value = r
   readinessEmp.value = r.employee
   readinessVal.value = r.readiness
 }
@@ -72,6 +78,8 @@ function openAssess(r: EmpRow) {
   const p = poolById(r.poolId)
   assessEmp.value = r.employee
   assessGroups.value = p ? targetsForScopeValue(p.keyPosition, p.scopeValue) : []
+  const info = p ? POSITION_INFO[p.keyPosition] : undefined
+  assessScopeLabel.value = info ? (scopeOptions(info.scope).find(o => o.value === p!.scopeValue)?.label ?? '') : ''
 }
 function openRemove(r: EmpRow) {
   removeRow.value = r
@@ -147,17 +155,24 @@ const avatarWrap = css({ marginLeft: '-8px', border: '2px solid', borderColor: '
 const moreAvatar = css({ marginLeft: '-8px', display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '40px', height: '40px', borderRadius: 'full', background: 'background.neutral.subtle', border: '2px solid', borderColor: 'background.stage', fontSize: '12px', fontWeight: '600', color: 'text.secondary' })
 const emptyBlock = css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1', paddingBlock: '16', textAlign: 'center' })
 const captionText = css({ color: 'text.secondary' })
+const readyDot = css({ display: 'inline-block', width: '8px', height: '8px', borderRadius: 'full', background: 'green.500', flexShrink: '0' })
 // Header label + sort menu inline (mirrors goal-cycles/index.vue's thInner).
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
-// Avatar hover coachmark (behaviour from goals goal detail).
-const coachCardBase = { position: 'absolute', left: '0', zIndex: '30', display: 'flex', alignItems: 'center', gap: '3', background: 'white', borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.default', borderRadius: 'md', boxShadow: '0px 4px 16px rgba(16, 24, 40, 0.12)', paddingInline: '3', paddingBlock: '2', whiteSpace: 'nowrap' } as const
-const coachCard = css({ ...coachCardBase, top: 'calc(100% + 8px)' })
-// Last row opens the card upward so it isn't clipped by the table container.
-const coachCardUp = css({ ...coachCardBase, bottom: 'calc(100% + 8px)' })
+// Avatar hover coachmark — teleported to <body> and positioned at the hovered
+// avatar so the table container's overflow can't clip it (position via inline
+// left/top is unavoidable for a portalled, dynamically-placed element).
+const hoverCoach = ref<{ id: string, name: string, meta: string, photo?: string, x: number, y: number } | null>(null)
+function showCoach(e: MouseEvent, employeeId: string) {
+  const emp = employeeById(employeeId)
+  if (!emp) return
+  const r = (e.currentTarget as HTMLElement).getBoundingClientRect()
+  hoverCoach.value = { id: employeeId, name: emp.name, meta: `${emp.code} | ${emp.title} | ${emp.department}`, photo: emp.photo, x: r.left + r.width / 2, y: r.top }
+}
+function hideCoach() { hoverCoach.value = null }
+const coachFloat = css({ position: 'fixed', transform: 'translate(-50%, calc(-100% - 8px))', zIndex: '1000', display: 'flex', alignItems: 'center', gap: '3', background: 'white', borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.default', borderRadius: 'md', boxShadow: '0px 4px 16px rgba(16, 24, 40, 0.12)', paddingInline: '3', paddingBlock: '2', whiteSpace: 'nowrap', pointerEvents: 'none' })
 const coachText = css({ display: 'flex', flexDirection: 'column', gap: '0' })
 const coachName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const coachMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
-const avatarItem = css({ position: 'relative', display: 'inline-flex' })
 </script>
 
 <template>
@@ -203,22 +218,15 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
           </MpTableRow>
         </MpTableHead>
         <MpTableBody>
-          <MpTableRow v-for="(p, pi) in pagedKeyPositionRows" :key="p.id">
+          <MpTableRow v-for="p in pagedKeyPositionRows" :key="p.id">
             <MpTableCell as="td" :class="cell">
               <span :class="kpLink" @click="openDetail(p.id)">{{ p.keyPosition }}</span>
             </MpTableCell>
             <MpTableCell as="td" :class="cell">{{ p.organization }}</MpTableCell>
             <MpTableCell as="td" :class="cell">
               <div :class="avatarGroup">
-                <span v-for="s in p.successors.slice(0, 5)" :key="s.employeeId" class="avatar-item" :class="[avatarWrap, avatarItem]">
+                <span v-for="s in p.successors.slice(0, 5)" :key="s.employeeId" :class="avatarWrap" @mouseenter="showCoach($event, s.employeeId)" @mouseleave="hideCoach">
                   <MpAvatar :id="`pool-${p.id}-${s.employeeId}`" :name="employeeById(s.employeeId)?.name" :src="employeeById(s.employeeId)?.photo" size="lg" variant-color="gray" />
-                  <div class="coach-card" :class="pi === pagedKeyPositionRows.length - 1 ? coachCardUp : coachCard">
-                    <MpAvatar :id="`pool-coach-${p.id}-${s.employeeId}`" :name="employeeById(s.employeeId)?.name" :src="employeeById(s.employeeId)?.photo" size="md" variant-color="gray" />
-                    <div :class="coachText">
-                      <span :class="coachName">{{ employeeById(s.employeeId)?.name }}</span>
-                      <span :class="coachMeta">{{ employeeById(s.employeeId)?.code }} | {{ employeeById(s.employeeId)?.title }} | {{ employeeById(s.employeeId)?.department }}</span>
-                    </div>
-                  </div>
                 </span>
                 <span v-if="p.successors.length > 5" :class="moreAvatar">+{{ p.successors.length - 5 }}</span>
               </div>
@@ -251,16 +259,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
           <MpTableRow v-for="(r, i) in pagedEmpRows" :key="`${r.poolId}-${r.employee.id}-${i}`">
             <MpTableCell as="td" :class="cell">
               <MpFlex align="center" gap="2">
-                <span class="avatar-item" :class="avatarItem">
-                  <MpAvatar :id="`emp-${r.poolId}-${r.employee.id}`" :name="r.employee.name" :src="r.employee.photo" size="lg" variant-color="gray" />
-                  <div class="coach-card" :class="i === pagedEmpRows.length - 1 ? coachCardUp : coachCard">
-                    <MpAvatar :id="`emp-coach-${r.poolId}-${r.employee.id}`" :name="r.employee.name" :src="r.employee.photo" size="md" variant-color="gray" />
-                    <div :class="coachText">
-                      <span :class="coachName">{{ r.employee.name }}</span>
-                      <span :class="coachMeta">{{ r.employee.code }} | {{ r.employee.title }} | {{ r.employee.department }}</span>
-                    </div>
-                  </div>
-                </span>
+                <MpAvatar :id="`emp-${r.poolId}-${r.employee.id}`" :name="r.employee.name" :src="r.employee.photo" size="lg" variant-color="gray" />
                 <MpFlex direction="column" gap="0">
                   <span :class="nameText">{{ r.employee.name }}</span>
                   <span :class="subText">{{ r.employee.code }} | {{ r.employee.title }} | {{ r.employee.department }}</span>
@@ -269,7 +268,12 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
             </MpTableCell>
             <MpTableCell as="td" :class="cell">{{ r.keyPosition }}</MpTableCell>
             <MpTableCell as="td" :class="cell">{{ r.organization }}</MpTableCell>
-            <MpTableCell as="td" :class="cell">{{ readinessLabel(r.readiness) }}</MpTableCell>
+            <MpTableCell as="td" :class="cell">
+              <MpFlex as="span" align="center" gap="1.5">
+                <span v-if="r.readiness === '99'" :class="readyDot" />
+                {{ readinessLabel(r.readiness) }}
+              </MpFlex>
+            </MpTableCell>
             <MpTableCell as="td" :class="[cell, css({ textAlign: 'right' })]">
               <MpPopover is-close-on-select use-portal placement="bottom-end">
                 <MpPopoverTrigger>
@@ -333,11 +337,13 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     :employee="readinessEmp"
     :readiness="readinessVal"
     @update:is-open="v => { if (!v) readinessEmp = null }"
+    @save="onReadinessSave"
   />
   <SuccessionAssessmentModal
     :is-open="!!assessEmp"
     :employee="assessEmp"
     :groups="assessGroups"
+    :scope-value-label="assessScopeLabel"
     @update:is-open="v => { if (!v) assessEmp = null }"
   />
   <SuccessionRemoveModal
@@ -347,25 +353,23 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     @update:is-open="v => { if (!v) removeEmp = null }"
     @confirm="confirmRemove"
   />
+
+  <!-- Avatar hover coachmark, teleported to body so the table can't clip it -->
+  <ClientOnly>
+    <Teleport to="body">
+      <div v-if="hoverCoach" :class="coachFloat" :style="{ left: `${hoverCoach.x}px`, top: `${hoverCoach.y}px` }">
+        <MpAvatar :id="`coach-${hoverCoach.id}`" :name="hoverCoach.name" :src="hoverCoach.photo" size="md" variant-color="gray" />
+        <div :class="coachText">
+          <span :class="coachName">{{ hoverCoach.name }}</span>
+          <span :class="coachMeta">{{ hoverCoach.meta }}</span>
+        </div>
+      </div>
+    </Teleport>
+  </ClientOnly>
 </template>
 
 <style scoped>
 /* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
    PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
 .sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
-
-/* Avatar hover coachmark — unlayered so it beats Panda's @layer utilities. */
-.avatar-item .coach-card {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
-}
-.avatar-item:hover { z-index: 20; }
-.avatar-item:hover .coach-card {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
 </style>

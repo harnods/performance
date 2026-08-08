@@ -18,7 +18,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import { toast } from '@mekari/pixel3'
-import { poolById, readinessLabel, assessmentDate, type SuccessorTalent } from '~/utils/succession'
+import { readinessLabel, assessmentDate } from '~/utils/succession'
 import { POSITION_INFO, scopeOptions, targetsForScopeValue, type ScopeType } from '~/utils/competency'
 import { employeeById } from '~/utils/employees'
 
@@ -31,6 +31,7 @@ definePageMeta({
 
 const route = useRoute()
 const router = useRouter()
+const { poolById, setSuccessors, removeSuccessor, updateReadiness } = useSuccessionStore()
 const pool = computed(() => poolById(route.params.id as string))
 // Unknown pool → back to the list (the mock only seeds a few).
 watchEffect(() => { if (import.meta.client && !pool.value) router.replace('/talents/succession-plans') })
@@ -50,14 +51,11 @@ const scopeValueLabel = computed(() => {
 // Competency targets resolved for THAT scope value.
 const standardGroups = computed(() => (pool.value && assignment.value ? targetsForScopeValue(pool.value.keyPosition, pool.value.scopeValue) : []))
 
-// Local, reactive copy of the pool's successors so additions/removals reflect
-// in the table this session (the module mock isn't reactive/persisted).
-const successors = ref<SuccessorTalent[]>([])
-watch(pool, (p) => { successors.value = p ? p.successors.map(s => ({ ...s })) : [] }, { immediate: true })
-
+// Rows come straight from the store pool (reactive + persisted).
 interface Row { id: string, name: string, code: string, title: string, department: string, photo?: string, readiness: string, date: Date }
+// Default order newest-first (most recently added on top); a column sort overrides.
 const allRows = computed<Row[]>(() =>
-  successors.value.flatMap((s) => {
+  [...(pool.value?.successors ?? [])].reverse().flatMap((s) => {
     const e = employeeById(s.employeeId)
     if (!e || !pool.value) return []
     return [{ id: e.id, name: e.name, code: e.code, title: e.title, department: e.department, photo: e.photo, readiness: s.readiness, date: assessmentDate(pool.value.id, e.id) }]
@@ -67,13 +65,12 @@ const allRows = computed<Row[]>(() =>
 // ─── Add successor talent (page-header action) ────────────────────────────────
 const isPickerOpen = ref(false)
 function onAddContinue(ids: string[]) {
-  const existing = new Map(successors.value.map(s => [s.employeeId, s]))
-  const before = successors.value.length
-  successors.value = ids.map(id => existing.get(id) ?? { employeeId: id, readiness: '' })
-  const added = successors.value.length - before
+  if (!pool.value) return
+  const before = pool.value.successors.length
+  setSuccessors(pool.value.id, ids)
+  const added = (pool.value?.successors.length ?? 0) - before
   if (added > 0) toast.notify({ id: 'succ-added', position: 'top-center', variant: 'success', title: `${added} successor talent${added > 1 ? 's' : ''} added` })
 }
-function removeTalent(id: string) { successors.value = successors.value.filter(s => s.employeeId !== id) }
 
 // ─── Row action modals (shared components) ────────────────────────────────────
 const promoteTarget = ref<Row | null>(null)
@@ -85,12 +82,12 @@ function openReadiness(r: Row) { readinessTarget.value = r }
 function openRemove(r: Row) { removeTarget.value = r }
 function openAssess(r: Row) { assessTarget.value = r }
 function openProfile(employeeId: string) { router.push(`/talents/talent-directory/${employeeId}`) }
-function confirmRemove() { if (removeTarget.value) removeTalent(removeTarget.value.id) }
+function confirmRemove() { if (pool.value && removeTarget.value) removeSuccessor(pool.value.id, removeTarget.value.id) }
 const isManual = computed(() => pool.value?.assessmentType === 'manual')
 function onReadinessSave(v: string) {
   const t = readinessTarget.value
-  if (!t) return
-  successors.value = successors.value.map(s => (s.employeeId === t.id ? { ...s, readiness: v } : s))
+  if (!t || !pool.value) return
+  updateReadiness(pool.value.id, t.id, v)
 }
 
 // ─── Filter ──────────────────────────────────────────────────────────────────
@@ -167,15 +164,8 @@ const nameText = css({ fontSize: '14px', fontWeight: '600', color: 'text.default
 const subText = css({ fontSize: '12px', color: 'text.secondary' })
 const captionText = css({ color: 'text.secondary' })
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
+const readyDot = css({ display: 'inline-block', width: '8px', height: '8px', borderRadius: 'full', background: 'green.500', flexShrink: '0' })
 const emptyBlock = css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1', paddingBlock: '16', textAlign: 'center' })
-// Avatar hover coachmark (behaviour from index.vue).
-const coachCardBase = { position: 'absolute', left: '0', zIndex: '30', display: 'flex', alignItems: 'center', gap: '3', background: 'white', borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.default', borderRadius: 'md', boxShadow: '0px 4px 16px rgba(16, 24, 40, 0.12)', paddingInline: '3', paddingBlock: '2', whiteSpace: 'nowrap' } as const
-const coachCard = css({ ...coachCardBase, top: 'calc(100% + 8px)' })
-const coachCardUp = css({ ...coachCardBase, bottom: 'calc(100% + 8px)' })
-const coachText = css({ display: 'flex', flexDirection: 'column', gap: '0' })
-const coachName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
-const coachMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
-const avatarItem = css({ position: 'relative', display: 'inline-flex' })
 </script>
 
 <template>
@@ -223,19 +213,10 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
-            <MpTableRow v-for="(r, i) in paged" :key="r.id">
+            <MpTableRow v-for="r in paged" :key="r.id">
               <MpTableCell as="td" :class="cell">
                 <MpFlex align="center" gap="2">
-                  <span class="avatar-item" :class="avatarItem">
-                    <MpAvatar :id="`succ-${r.id}`" :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
-                    <div class="coach-card" :class="i === paged.length - 1 ? coachCardUp : coachCard">
-                      <MpAvatar :id="`succ-coach-${r.id}`" :name="r.name" :src="r.photo" size="md" variant-color="gray" />
-                      <div :class="coachText">
-                        <span :class="coachName">{{ r.name }}</span>
-                        <span :class="coachMeta">{{ r.code }} | {{ r.title }} | {{ r.department }}</span>
-                      </div>
-                    </div>
-                  </span>
+                  <MpAvatar :id="`succ-${r.id}`" :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                   <MpFlex direction="column" gap="0">
                     <span :class="nameText">{{ r.name }}</span>
                     <span :class="subText">{{ r.code }} | {{ r.title }}</span>
@@ -243,7 +224,12 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
                 </MpFlex>
               </MpTableCell>
               <MpTableCell as="td" :class="cell">{{ r.department }}</MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ readinessLabel(r.readiness) }}</MpTableCell>
+              <MpTableCell as="td" :class="cell">
+                <MpFlex as="span" align="center" gap="1.5">
+                  <span v-if="r.readiness === '99'" :class="readyDot" />
+                  {{ readinessLabel(r.readiness) }}
+                </MpFlex>
+              </MpTableCell>
               <MpTableCell as="td" :class="cell">{{ formatDate(r.date) }}</MpTableCell>
               <MpTableCell as="td" :class="[cell, css({ textAlign: 'right' })]">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
@@ -338,7 +324,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     drawer-id="drawer-add-successors"
     title="Add successor talent"
     description="Select employees to add to this succession pool."
-    :initial-selected="successors.map(s => s.employeeId)"
+    :initial-selected="(pool?.successors ?? []).map(s => s.employeeId)"
     :is-required="false"
     confirm-label="Add talent"
     @update:is-open="isPickerOpen = $event"
@@ -364,6 +350,7 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
     :is-open="!!assessTarget"
     :employee="assessTarget"
     :groups="standardGroups"
+    :scope-value-label="scopeValueLabel"
     @update:is-open="v => { if (!v) assessTarget = null }"
   />
   <SuccessionRemoveModal
@@ -378,19 +365,4 @@ const avatarItem = css({ position: 'relative', display: 'inline-flex' })
 <style scoped>
 /* Reveal the column sort icon on header hover. */
 .sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
-
-/* Avatar hover coachmark — unlayered so it beats Panda's @layer utilities. */
-.avatar-item .coach-card {
-  opacity: 0;
-  visibility: hidden;
-  pointer-events: none;
-  transform: translateY(-4px);
-  transition: opacity 0.12s ease, transform 0.12s ease, visibility 0.12s;
-}
-.avatar-item:hover { z-index: 20; }
-.avatar-item:hover .coach-card {
-  opacity: 1;
-  visibility: visible;
-  transform: translateY(0);
-}
 </style>

@@ -30,7 +30,9 @@ function confirm() {
 }
 
 const bodyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
-const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlock: '4' })
+const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginTop: '4' })
+// Consistent across all succession modals: 24px · divider · 24px after the card.
+const divider = css({ borderBottom: '1px solid', borderBottomColor: 'border.default', marginTop: '6', marginBottom: '6' })
 const name = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const job = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 </script>
@@ -50,6 +52,7 @@ const job = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' 
               <span :class="job">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>
             </MpFlex>
           </div>
+          <div :class="divider" />
           <MpText :class="bodyText">They will no longer be a successor talent for {{ keyPosition }}. You can add them back anytime.</MpText>
         </MpModalBody>
         <MpModalFooter>

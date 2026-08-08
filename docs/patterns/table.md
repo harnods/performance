@@ -117,6 +117,20 @@ Hover-reveal needs an **unlayered** scoped rule to beat the component's `visibil
 
 > ⚠️ Only `goal-cycles/index.vue` actually wires sorting. The Custom goal tables render a **static, non-functional** `<MpIcon name="sort-default" size="sm" />` that does nothing. When you build a sortable table, wire `PxColumnSortMenu` properly — don't copy the decorative icon.
 
+## Default row order — newest-first
+
+Every data table's **default** order (no manual column sort active) is **newest-first**: the most recently added/updated row on top. A newly created record must never land at the bottom.
+
+- Store/list that appends new rows → reverse the base for display: `[...rows].reverse()`, or sort by `updatedAt`/`createdAt`/`startDate` desc when such a field exists (e.g. `goal-cycles` sorts by start date desc).
+- Only the no-sort default is affected — a manual `PxColumnSortMenu` sort still overrides.
+- Exceptions: read-only reference tables with an intrinsic order (e.g. a competency-standard group list) and genuine chronological logs keep their own order.
+
+```ts
+// newest-first default; manual sort wins
+const rows = computed(() => [...store.pools.value].reverse().filter(matchesFilters))
+const sorted = computed(() => (sortKey.value ? [...rows.value].sort(byColumn) : rows.value))
+```
+
 ## Clickable name cell — use a plain styled `<span>`
 
 Preferred (avoids MpTextlink's button padding, works with row-level `@click.stop`):

@@ -69,7 +69,8 @@ const statusOptions = [
 const statusFilter = ref('all')
 const search = ref('')
 
-const filtered = computed(() => categories.value
+// Default order newest-first (most recently added on top); a column sort overrides.
+const filtered = computed(() => [...categories.value].reverse()
   .filter(c => statusFilter.value === 'all' || c.status === statusFilter.value)
   .filter(c => !search.value || c.name.toLowerCase().includes(search.value.toLowerCase())))
 

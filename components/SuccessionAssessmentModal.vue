@@ -21,6 +21,8 @@ const props = defineProps<{
   isOpen: boolean
   employee: AssessEmployee | null
   groups: GroupTarget[]
+  /** The scope value the targets apply to, e.g. "Manager" / "Grade 3" / "Class B". */
+  scopeValueLabel?: string
 }>()
 const emit = defineEmits<{ 'update:isOpen': [boolean] }>()
 
@@ -51,10 +53,13 @@ function save() {
 }
 
 const bodyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
-const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlock: '4' })
+const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginTop: '4' })
+// Consistent across all succession modals: 24px · divider · 24px after the card.
+const divider = css({ borderBottom: '1px solid', borderBottomColor: 'border.default', marginTop: '6', marginBottom: '6' })
 const nameC = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const jobC = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
-const sectionLabel = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default', marginBottom: '2', display: 'block' })
+const sectionLabel = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default', display: 'block' })
+const sectionCaption = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', display: 'block', marginTop: '1', marginBottom: '2' })
 const rowC = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '4', paddingBlock: '2', borderBottom: '1px solid', borderBottomColor: 'border.default', _last: { borderBottom: 'none' } })
 const groupName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 const groupTarget = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
@@ -76,7 +81,9 @@ const errText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.danger'
               <span :class="jobC">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>
             </MpFlex>
           </div>
+          <div :class="divider" />
           <span :class="sectionLabel">Assessment scores</span>
+          <span v-if="scopeValueLabel" :class="sectionCaption">Targets shown are for {{ scopeValueLabel }}.</span>
           <div v-for="g in groups" :key="g.group" :class="rowC">
             <MpFlex direction="column" gap="0">
               <span :class="groupName">{{ g.group }}</span>

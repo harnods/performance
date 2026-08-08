@@ -44,7 +44,9 @@ function confirm() {
 }
 
 const modalText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
-const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginBlock: '4' })
+const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginTop: '4' })
+// Consistent across all succession modals: 24px · divider · 24px after the card.
+const divider = css({ borderBottom: '1px solid', borderBottomColor: 'border.default', marginTop: '6', marginBottom: '6' })
 const name = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const job = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const req = css({ color: 'text.danger' })
@@ -57,7 +59,6 @@ const req = css({ color: 'text.danger' })
       <MpModalContent>
         <MpModalHeader>Promote this employee?<MpModalCloseButton @click="close" /></MpModalHeader>
         <MpModalBody>
-          <MpText :class="modalText">You are about to promote the following employee:</MpText>
           <div v-if="employee" :class="card">
             <MpAvatar :id="`promote-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
@@ -65,9 +66,11 @@ const req = css({ color: 'text.danger' })
               <span :class="job">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>
             </MpFlex>
           </div>
+          <div :class="divider" />
           <MpFormControl id="promote-key-position" :is-invalid="keyPosInvalid">
-            <MpFormLabel>Key position <MpText as="span" :class="req">*</MpText></MpFormLabel>
-            <PxSelectPopover v-model="keyPos" :options="options" placeholder="Select position" :width="'100%'" />
+            <MpFormLabel>Promote to key position <MpText as="span" :class="req">*</MpText></MpFormLabel>
+            <!-- Single option → nothing to choose; keep the select but disable it (pre-selected) -->
+            <PxSelectPopover v-model="keyPos" :options="options" placeholder="Select position" :width="'100%'" :is-disabled="options.length === 1" />
             <MpFormErrorMessage>You must select key position</MpFormErrorMessage>
           </MpFormControl>
           <MpText :class="[modalText, css({ marginTop: '4' })]">We will notify HR admin to proceed with the promotion. Do you want to continue?</MpText>

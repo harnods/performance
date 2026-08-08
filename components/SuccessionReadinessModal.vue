@@ -42,7 +42,9 @@ function save() {
   close()
 }
 
-const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginBottom: '4' })
+const card = css({ display: 'flex', alignItems: 'center', gap: '3', marginTop: '4' })
+// Consistent across all succession modals: 24px · divider · 24px after the card.
+const divider = css({ borderBottom: '1px solid', borderBottomColor: 'border.default', marginTop: '6', marginBottom: '6' })
 const name = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const job = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const req = css({ color: 'text.danger' })
@@ -62,6 +64,7 @@ const req = css({ color: 'text.danger' })
               <span :class="job">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>
             </MpFlex>
           </div>
+          <div :class="divider" />
           <MpFormControl id="readiness-range" :is-invalid="invalid">
             <MpFormLabel>Readiness <MpText as="span" :class="req">*</MpText></MpFormLabel>
             <PxSelectPopover v-model="value" :options="READINESS_OPTIONS" placeholder="Select range" :width="'100%'" />

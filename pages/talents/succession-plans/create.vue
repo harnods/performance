@@ -119,6 +119,17 @@ function cancel() { router.push('/talents/succession-plans') }
 function submit() {
   submitted.value = true
   if (!step3Valid()) return
+  const kp = selectedKeyPosition.value
+  if (!kp) return
+  // Persist the new plan to the mini-DB so it shows up in the index/detail.
+  useSuccessionStore().addPool({
+    keyPositionValue: kp.value,
+    keyPosition: kp.job,
+    organization: organization.value,
+    scopeValue: scopeValue.value,
+    assessmentType: assessmentType.value,
+    successors: selectedTalents.value.map(t => ({ employeeId: t.employeeId, readiness: t.readiness })),
+  })
   const n = selectedTalents.value.length
   toast.notify({ id: 'sp-created', position: 'top-center', variant: 'success', title: `Succession plan created${n ? ` with ${n} successor${n > 1 ? 's' : ''}` : ' — add successor talent anytime'}` })
   router.push('/talents/succession-plans')
@@ -133,14 +144,18 @@ const sectionCaption = css({ fontSize: '14px', lineHeight: '20px', color: 'text.
 const reqMark = css({ color: 'text.danger' })
 const selectWidth = '360px'
 // Step indicator
-const stepRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
-const dotBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '24px', height: '24px', borderRadius: 'full', fontSize: '12px', fontWeight: '600', flexShrink: '0' } as const
+// Numbered stepper (Pixel variant): outline number circle, connector line to
+// the right, label left-aligned below. Active = brand outline + brand label.
+const stepRow = css({ display: 'flex', alignItems: 'flex-start', width: '100%' })
+const stepItem = css({ flex: '1', display: 'flex', flexDirection: 'column', gap: '2', minWidth: '0' })
+const topRow = css({ display: 'flex', alignItems: 'center', width: '100%' })
+const stepLine = css({ flex: '1', height: '1px', background: 'border.default', marginInline: '3' })
+const dotBase = { display: 'inline-flex', alignItems: 'center', justifyContent: 'center', width: '32px', height: '32px', borderRadius: 'full', fontSize: '14px', fontWeight: '600', flexShrink: '0' } as const
 const dotDone = css({ ...dotBase, background: 'background.brand.bold', color: 'text.inverse' })
-const dotActive = css({ ...dotBase, background: 'background.brand.bold', color: 'text.inverse' })
-const dotIdle = css({ ...dotBase, border: '1px solid', borderColor: 'border.default', color: 'text.secondary' })
-const stepLine = css({ width: '28px', height: '1px', background: 'border.default' })
-const stepLabelOn = css({ color: 'text.link', fontWeight: '600', fontSize: '14px' })
-const stepLabelOff = css({ color: 'text.secondary', fontSize: '14px' })
+const dotActive = css({ ...dotBase, border: '1.5px solid', borderColor: 'border.brand', color: 'text.link', background: 'transparent' })
+const dotIdle = css({ ...dotBase, border: '1px solid', borderColor: 'border.default', color: 'text.secondary', background: 'transparent' })
+const stepLabelOn = css({ color: 'text.link', fontWeight: '600', fontSize: '14px', textAlign: 'left' })
+const stepLabelOff = css({ color: 'text.secondary', fontSize: '14px', textAlign: 'left' })
 const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'flex-end', gap: '2', paddingTop: '4' })
 const cellHLeft = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'left', verticalAlign: 'middle' })
 const cellHRight = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'right', verticalAlign: 'middle' })
@@ -166,16 +181,18 @@ const captionText = css({ color: 'text.secondary' })
 
 <template>
   <div :class="page">
-    <!-- Step indicator -->
+    <!-- Step indicator — number on top, label centered below, connectors between -->
     <div :class="stepRow">
-      <template v-for="(s, i) in STEPS" :key="s">
-        <span :class="i < step ? dotDone : i === step ? dotActive : dotIdle">
-          <MpIcon v-if="i < step" name="check" size="sm" color="text.inverse" />
-          <template v-else>{{ i + 1 }}</template>
-        </span>
+      <div v-for="(s, i) in STEPS" :key="s" :class="stepItem">
+        <div :class="topRow">
+          <span :class="i < step ? dotDone : i === step ? dotActive : dotIdle">
+            <MpIcon v-if="i < step" name="check" size="sm" color="text.inverse" />
+            <template v-else>{{ i + 1 }}</template>
+          </span>
+          <span v-if="i < STEPS.length - 1" :class="stepLine" />
+        </div>
         <MpText :class="i === step ? stepLabelOn : stepLabelOff">{{ s }}</MpText>
-        <span v-if="i < STEPS.length - 1" :class="stepLine" />
-      </template>
+      </div>
     </div>
 
     <!-- STEP 1 — Employment criteria -->

@@ -98,8 +98,9 @@ const scopeFieldClass = css({
   '& select': { pointerEvents: 'none' },
 })
 
+// Default order newest-first (most recently added on top); a column sort overrides.
 const filtered = computed(() => {
-  let result = assignments.value
+  let result = [...assignments.value].reverse()
   if (scopeFilter.value) result = result.filter(a => a.scope === scopeFilter.value)
   if (search.value) result = result.filter(a => a.name.toLowerCase().includes(search.value.toLowerCase()))
   return result
