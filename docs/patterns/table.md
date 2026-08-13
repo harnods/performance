@@ -154,6 +154,131 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
   ```
 - **Accordion / expand:** clicking anywhere on the row (or a group header bar) toggles; caret-right → caret-down; kebab/controls inside use `@click.stop`.
 
+## Row action menu (kebab) — branch on row state with `<template>`
+
+The trailing action cell is a `MpPopover` + `MpPopoverList` of `MpPopoverListItem`s.
+When a row's **lifecycle state** changes which actions make sense, split the list into
+`<template v-if="…">` / `<template v-else>` blocks rather than hanging a `v-if` on every
+single item — the reader should be able to see each state's whole menu at a glance.
+
+```vue
+<MpPopoverList>
+  <template v-if="row.isDraft">
+    <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="submitRowForApproval(row)">Submit for approval</MpPopoverListItem>
+    <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+    <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
+    <MpPopoverListItem @click="deleteRow(row)"><span :class="css({ color: 'text.danger' })">Delete</span></MpPopoverListItem>
+  </template>
+  <template v-else> … the live-goal menu … </template>
+</MpPopoverList>
+```
+
+- Destructive item last, wrapped in `<span :class="css({ color: 'text.danger' })">`.
+- Never offer an action the row's state can't honour (no "Update progress"/"Close goal"
+  on a draft — it isn't live yet).
+- Keep the branches identical across sibling tables. The goal tables carry the same
+  draft branch in all five files.
+
+## In-cell accordion (expand within a cell, not a new row)
+
+Secondary detail that belongs to one cell expands **inside that cell**, under a caret
+toggle — no extra `MpTableRow`, so rowspan/merged cells are unaffected (the cell just
+grows taller). Use this only for detail with no values of its own in the *other*
+columns. The moment an expanded entry needs its own Progress/Status/etc., switch to
+**real inserted rows** instead (below) — a repeating goal's past occurrences look like
+an in-cell list at first glance but each one has its own achievement, so they don't
+qualify.
+
+```vue
+<MpFlex v-if="expanded[row.id]" direction="column" gap="1">…plain text per entry, same values as the row above…</MpFlex>
+```
+
+## Real inserted rows that stay "attached" to their parent
+
+Two goal-table accordions insert real `MpTableRow`s below the row that owns them —
+**"View aligned goals"** (a different goal, e.g. built for `alignedToId`) and
+**"View previous goals"** (the SAME goal, an earlier finished period). Both merge
+their rows into the parent's Category/Sub-category/Goal type cells (`rowspan` spans
+parent + all its inserted rows) instead of repeating identical text on every row —
+only Progress/Status differ per row. The actual **expanded aligned goals** are the one
+exception: each is a genuinely different goal (can even have a different owner), so
+it always gets its **own**, un-merged Category/Sub-category/Goal type cell.
+
+```ts
+// blue left border marks a real inserted row as a child of the one above it
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+```
+
+**The "View aligned goals" trigger's position depends on whether the OTHER
+accordion is expanded** — it is normally just the parent row's own last line
+(simplest, most common case: nothing else on the row). But once past-occurrence
+rows are inserted below the parent, the trigger moves to become its own row,
+placed *after* them, so the reading order stays fixed: parent → past occurrences →
+aligned-goals trigger → aligned goals. Leaving it fixed inside the parent row would
+make it look like it sits "above" content inserted below it, even though its own
+expand state never changed.
+
+```vue
+<!-- Parent row's own last line — ONLY when there's nothing expanded below to push it out. -->
+<button v-if="visibleColumns.alignedGoals && row.alignedGoals.length && !expandedRepeat[row.id]" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+  <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+  View aligned goals ({{ row.alignedGoals.length }})
+</button>
+```
+
+```js
+// ownerRows(): the trigger becomes its own 'aligned-trigger' row ONLY when
+// repeat is expanded — otherwise it stays inline in the main row above.
+if (row.alignedGoals.length && expandedRepeat[row.id]) {
+  flat.push({ kind: 'aligned-trigger', /* … */ parentGoalId: row.id })
+}
+```
+
+### ⚠️ The #1 way to break column alignment for the REST of the table
+
+Every `rowspan` on a merged cell (Category/Sub-category/Goal type) MUST agree on
+exactly how many physical rows it covers — **Category, Sub-category, and Goal type
+rowspans must never disagree**, or two cells end up claiming the same physical row,
+and the browser silently shifts every `<td>` after that point into the wrong column
+for the rest of the table (invisible in a plain text dump — you only see it by
+inspecting rendered `rowspan` attributes or looking at the actual pixels).
+
+This bit us for real: the pre-existing "two sibling `'main'` rows sharing a category
+merge their cell" behavior (via a plain consecutive-scan) doesn't know about a
+`'main'` row's OWN repeat/trigger children. A goal with an expanded repeat block
+followed by a sibling `'main'` goal in the same category produced Category
+`rowspan=10` (reaching through the repeat block into the sibling) while Sub-category/
+Goal type stopped at `rowspan=9` (correctly not reaching the sibling, since its
+subcategory/type differ) — a real, live bug, not hypothetical.
+
+**The fix:** a `'main'` row's sibling-merge chain must stop dead the moment ANY row
+in the chain has its own repeat/trigger children (`unitSize() > 1`) — never reach
+*past* an expanded block into a following sibling, even when categories match:
+
+```js
+function mergeSpan(matches) {
+  let span = 0, j = i
+  while (j < flat.length && flat[j].kind === 'main' && matches(flat[j])) {
+    const size = unitSize(j)
+    span += size
+    j += size
+    if (size > 1) break // this row had its own repeat/trigger children — stop here
+  }
+  return span
+}
+const categoryRowspan = newCategory ? mergeSpan(r => r.category === row.category) : 0
+const subCategoryRowspan = newSub ? mergeSpan(r => r.category === row.category && r.subCategory === row.subCategory) : 0
+```
+
+Whenever you add a new row-merging concept to a Custom table, **grep for every place
+that computes a `rowspan` on the same column set and verify they can never diverge**
+for the same physical span — that's the actual invariant, not "does this look right
+in one screenshot."
+
+Reference: `goal-cycles/[id]/index.vue` — `ownerRows()`'s `unitSize()` + `mergeSpan()`
+helpers, and the `'main' | 'aligned' | 'repeat' | 'aligned-trigger'` `FlatRow.kind`
+union.
+
 ## Row selection & bulk actions
 
 - The row-select checkbox goes **inside the first content cell**, not a separate checkbox

@@ -19,7 +19,6 @@ import {
   MpButton,
   MpIcon,
   MpAvatar,
-  MpAvatarGroup,
   MpInput,
   MpRichTextEditor,
   MpInputGroup,
@@ -33,6 +32,7 @@ import {
   MpCheckbox,
   MpRadio,
   MpToggle,
+  MpTooltip,
   MpDrawer,
   MpDrawerContent,
   MpDrawerHeader,
@@ -176,6 +176,12 @@ const contributorsByOwner = reactive<Record<string, string[]>>({})
 const contributorMode = reactive<Record<string, 'all' | 'selected' | undefined>>({})
 const viewerIds = ref<string[]>([])
 const restrictedVisibility = ref(false)
+// Owners can update their own goal's progress by default; turning this off
+// hands that job to the goal contributors alone. Per-owner, same pattern as
+// contributorsByOwner — one owner's toggle doesn't affect another's.
+const ownerCanUpdateProgressByOwner = reactive<Record<string, boolean>>({})
+const ownerCanUpdateProgressHint = "When off, only contributors from the option selected below can update this goal's progress."
+const ownerCanUpdateProgressActivateHint = "When activated, goal owner can also update this goal's progress."
 // Only Team & Organization goals have members (prod parity: isNeedMember =
 // team/org). Company & Individual goals have NO member field — their
 // contributors are picked from ALL employees instead of from members.
@@ -257,6 +263,8 @@ function resetForm() {
     }
     viewerIds.value = [...d.viewerIds]
     restrictedVisibility.value = d.restrictedVisibility ?? false
+    for (const key of Object.keys(ownerCanUpdateProgressByOwner)) delete ownerCanUpdateProgressByOwner[key]
+    for (const owner of props.owners) ownerCanUpdateProgressByOwner[owner.id] = d.ownerCanUpdateProgressByOwner[owner.id] ?? true
     keyResults.value = d.keyResults.map(kr => ({ ...kr }))
     savedKrIds.value = new Set(d.keyResults.map(kr => kr.id))
     alignTo.value = d.alignedToId ?? ''
@@ -293,6 +301,8 @@ function resetForm() {
     for (const owner of props.owners) { contributorsByOwner[owner.id] = []; contributorMode[owner.id] = undefined }
     viewerIds.value = []
     restrictedVisibility.value = false
+    for (const key of Object.keys(ownerCanUpdateProgressByOwner)) delete ownerCanUpdateProgressByOwner[key]
+    for (const owner of props.owners) ownerCanUpdateProgressByOwner[owner.id] = true
     keyResults.value = []
     savedKrIds.value = new Set()
     alignTo.value = ''
@@ -335,6 +345,16 @@ const remainingWeightByOwner = computed(() => {
   const current = weight.value === '' ? 0 : Number(weight.value)
   return props.alreadyUsedWeightByOwner.map(o => ({ id: o.id, name: o.name, remaining: 100 - o.weight - current }))
 })
+// Past 5 owners this hint list gets long — cap it and let a "View N more"
+// link (reset per goal/owner-set change below) expand the rest in place.
+const WEIGHT_HINT_CAP = 5
+const weightHintExpanded = ref(false)
+watch(remainingWeightByOwner, () => { weightHintExpanded.value = false })
+const visibleRemainingWeightByOwner = computed(() => {
+  if (!remainingWeightByOwner.value) return null
+  return weightHintExpanded.value ? remainingWeightByOwner.value : remainingWeightByOwner.value.slice(0, WEIGHT_HINT_CAP)
+})
+const hiddenRemainingWeightCount = computed(() => Math.max(0, (remainingWeightByOwner.value?.length ?? 0) - WEIGHT_HINT_CAP))
 
 function formatThousands(v: number | ''): string {
   return v === '' ? '' : Number(v).toLocaleString('en-US')
@@ -464,6 +484,17 @@ const ownerNamesSummary = computed(() => {
   return `${names[0]}, ${names[1]} and ${names.length - 2} more`
 })
 
+// MpAvatarGroup's `max` doesn't cap a v-for'd slot in this build — it renders
+// every avatar unbounded and never shows the excess bubble (confirmed live
+// with 26 owners). Hand-roll the same 5-avatar cap used elsewhere
+// (goal-cycles/[id]/new.vue) instead of trusting the component's own prop.
+// Unlike new.vue's page-level bar, this compact drawer field has no room for
+// a "+N" counter avatar — the overflow is folded into the "N more" text
+// instead (see the template), which opens allOwnersModalOpen.
+const OWNER_AVATAR_CAP = 5
+const visibleOwners = computed(() => props.owners.slice(0, OWNER_AVATAR_CAP))
+const allOwnersModalOpen = ref(false)
+
 const viewerDrawerOpen = ref(false)
 
 function removeViewer(employeeId: string) {
@@ -568,6 +599,7 @@ function snapshot() {
     direction: direction.value, deadlineDate: deadlineDate.value,
     deadlineRulesEnabled: deadlineRulesEnabled.value, deadlineRules: deadlineRules.value,
     viewerIds: viewerIds.value, restrictedVisibility: restrictedVisibility.value,
+    ownerCanUpdateProgressByOwner,
     keyResults: keyResults.value, contributorsByOwner, contributorMode,
   })
 }
@@ -672,6 +704,7 @@ function save() {
     viewerIds: [...viewerIds.value],
     keyResults: [...keyResults.value],
     restrictedVisibility: restrictedVisibility.value,
+    ownerCanUpdateProgressByOwner: JSON.parse(JSON.stringify(ownerCanUpdateProgressByOwner)),
     // Whoever this drawer instance is scoped to via `owners` — the full page
     // selection when adding, or just one owner when detach-editing their row.
     ownerIds: props.owners.map(o => o.id),
@@ -700,6 +733,10 @@ const noSpinner = css({
 const helperText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const weightHintWrap = css({ marginTop: '2' })
 const warningText = css({ color: 'text.warning' })
+const weightHintMoreLink = css({
+  background: 'transparent', border: 'none', padding: '0', marginTop: '1',
+  cursor: 'pointer', textAlign: 'left', color: 'text.link', textDecoration: 'underline',
+})
 const repeatPreviewBox = css({
   display: 'flex', flexDirection: 'column', gap: '1',
   padding: '3', borderRadius: '6px', background: 'background.neutral.subtle',
@@ -718,6 +755,21 @@ const ownerBox = css({
   background: 'background.neutral.subtle',
 })
 
+// Hand-rolled cap for the owner avatar stack (see ownerNamesSummary above) —
+// imitates MpAvatarGroup's own look: 2px white ring + spacing:-2 overlap.
+const ownerAvatarStack = css({ display: 'flex', alignItems: 'center' })
+const ownerAvatarStackItem = css({ display: 'flex', _notFirst: { marginLeft: '-8px' } })
+const ownerAvatarRing = css({ display: 'flex', borderRadius: 'full', borderWidth: '2px', borderStyle: 'solid', borderColor: 'background.surface' })
+const ownerMoreLink = css({
+  background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
+  color: 'text.link', fontSize: '14px', lineHeight: '20px', textDecoration: 'underline',
+})
+const ownerList = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
+const ownerListRow = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
+const ownerListRowDivider = css({ paddingBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
+const ownerListName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const ownerListMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+
 const addLink = css({
   display: 'inline-flex', alignItems: 'center', gap: '2',
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
@@ -725,6 +777,8 @@ const addLink = css({
 })
 const personCard = css({ display: 'flex', flexDirection: 'column', gap: '3', padding: '3', borderRadius: '6px', border: '1px solid', borderColor: 'border.default' })
 const personRow = css({ display: 'flex', alignItems: 'center', gap: '3' })
+// Owner identity (left) + their self-update-progress toggle (right), same row.
+const personRowBetween = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3' })
 const personName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 const personMeta = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const removeBtn = css({ background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', color: 'icon.secondary', display: 'flex' })
@@ -756,13 +810,20 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               <MpFormControl id="goal-owner">
                 <MpFormLabel>Goal owner</MpFormLabel>
                 <div :class="ownerBox">
-                  <MpAvatarGroup v-if="owners.length > 1" id="goal-owner-avatars" size="lg" :max="2">
-                    <MpAvatar v-for="o in owners" :key="o.id" :id="o.id" :name="o.name" :src="o.photo" variant-color="gray" />
-                  </MpAvatarGroup>
+                  <div v-if="owners.length > 1" id="goal-owner-avatars" :class="ownerAvatarStack">
+                    <div v-for="o in visibleOwners" :key="o.id" :class="ownerAvatarStackItem">
+                      <MpAvatar :id="o.id" :name="o.name" :src="o.photo" size="lg" variant-color="gray" :class="ownerAvatarRing" />
+                    </div>
+                  </div>
                   <MpAvatar v-else-if="owners[0]" :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="sm" variant-color="gray" />
                   <MpText size="label" :class="css({ color: owners.length ? 'text.default' : 'text.secondary' })">
-                    <template v-if="owners.length === 1">{{ owners[0].name }} ({{ owners[0].code }})</template>
-                    <template v-else>{{ ownerNamesSummary }}</template>
+                    <template v-if="owners.length === 0">No owner selected</template>
+                    <template v-else-if="owners.length === 1">{{ owners[0].name }} ({{ owners[0].code }})</template>
+                    <template v-else-if="owners.length === 2">{{ ownerNamesSummary }}</template>
+                    <template v-else>
+                      {{ owners[0].name }}, {{ owners[1].name }} and
+                      <button type="button" :class="ownerMoreLink" @click="allOwnersModalOpen = true">{{ owners.length - 2 }} more</button>
+                    </template>
                   </MpText>
                 </div>
               </MpFormControl>
@@ -839,8 +900,11 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpInputRightAddon>%</MpInputRightAddon>
                 </MpInputGroup>
                 <MpFormErrorMessage>Goal weight is required and must be between 1 and 100.</MpFormErrorMessage>
-                <MpFlex v-if="!errors.weight && remainingWeightByOwner" direction="column" gap="0" :class="weightHintWrap">
-                  <span v-for="o in remainingWeightByOwner" :key="o.id" :class="[helperText, o.remaining < 0 && warningText]">{{ o.name }}: {{ o.remaining }}% remaining</span>
+                <MpFlex v-if="!errors.weight && visibleRemainingWeightByOwner" direction="column" gap="0" :class="weightHintWrap">
+                  <span v-for="o in visibleRemainingWeightByOwner" :key="o.id" :class="[helperText, o.remaining < 0 && warningText]">{{ o.name }}: {{ o.remaining }}% remaining</span>
+                  <button v-if="hiddenRemainingWeightCount && !weightHintExpanded" type="button" :class="[helperText, weightHintMoreLink]" @click="weightHintExpanded = true">
+                    View {{ hiddenRemainingWeightCount }} more
+                  </button>
                 </MpFlex>
                 <span v-else-if="!errors.weight" :class="[helperText, weightHintWrap, remainingWeight < 0 && warningText]">{{ remainingWeight }}% remaining from total weight</span>
               </MpFormControl>
@@ -1060,54 +1124,95 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
 
               <MpText v-if="isNeedMember && viewerIds.length === 0" size="label" :class="helperText">Add goal members first to choose contributors from them.</MpText>
 
-              <!-- Single owner: one radio + inline checklist -->
+              <!-- Single owner: same card + inline toggle as the multi-owner case below -->
               <template v-else-if="owners.length === 1">
-                <MpFlex direction="column" gap="2">
-                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All {{ contributorPoolWord }}</MpRadio>
-                  <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
-                </MpFlex>
-                <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
-                  <!-- Team/Org: inline checklist scoped to the (small) member pool -->
-                  <template v-if="isNeedMember">
-                    <MpCheckbox
-                      v-for="id in contributorPool"
-                      :key="id"
-                      :id="`contributor-${owners[0].id}-${id}`"
-                      :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
-                      @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
-                    >
-                      {{ employeeById(id)?.name }}
-                    </MpCheckbox>
-                  </template>
-                  <!-- Company/Individual: pool is ALL employees — pick via drawer -->
-                  <template v-else>
-                    <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
-                      <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
-                      <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                        <span :class="personName">{{ employeeById(id)?.name }}</span>
-                        <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                <div :class="personCard">
+                  <div :class="personRowBetween">
+                    <div :class="personRow">
+                      <MpAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
+                      <MpFlex direction="column" gap="0">
+                        <span :class="personName">{{ owners[0].name }}</span>
+                        <span :class="personMeta">{{ employeeMeta(owners[0]) }}</span>
                       </MpFlex>
-                      <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owners[0].id, id, false)">
-                        <MpIcon name="minus-circular" size="sm" />
+                    </div>
+                    <!-- Contributors are the ones updating progress; this decides
+                         whether the goal owner keeps that ability for their own
+                         copy of the goal. -->
+                    <MpTooltip :label="(ownerCanUpdateProgressByOwner[owners[0].id] ?? true) ? ownerCanUpdateProgressHint : ownerCanUpdateProgressActivateHint" :show-delay="0" use-portal>
+                      <MpFlex as="span" align="center" gap="2">
+                        <span>Allow self-update</span>
+                        <MpToggle
+                          id="owner-can-update-progress"
+                          :is-checked="ownerCanUpdateProgressByOwner[owners[0].id] ?? true"
+                          @update:is-checked="(checked) => (ownerCanUpdateProgressByOwner[owners[0].id] = checked)"
+                        />
+                      </MpFlex>
+                    </MpTooltip>
+                  </div>
+
+                  <MpFlex direction="column" gap="2">
+                    <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All {{ contributorPoolWord }}</MpRadio>
+                    <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
+                  </MpFlex>
+                  <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
+                    <!-- Team/Org: inline checklist scoped to the (small) member pool -->
+                    <template v-if="isNeedMember">
+                      <MpCheckbox
+                        v-for="id in contributorPool"
+                        :key="id"
+                        :id="`contributor-${owners[0].id}-${id}`"
+                        :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
+                        @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
+                      >
+                        {{ employeeById(id)?.name }}
+                      </MpCheckbox>
+                    </template>
+                    <!-- Company/Individual: pool is ALL employees — pick via drawer -->
+                    <template v-else>
+                      <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
+                        <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                        <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                          <span :class="personName">{{ employeeById(id)?.name }}</span>
+                          <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                        </MpFlex>
+                        <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owners[0].id, id, false)">
+                          <MpIcon name="minus-circular" size="sm" />
+                        </button>
+                      </MpFlex>
+                      <button type="button" :class="addLink" @click="openContribDrawer(owners[0].id)">
+                        <MpIcon name="add" size="sm" />
+                        Select employees
                       </button>
-                    </MpFlex>
-                    <button type="button" :class="addLink" @click="openContribDrawer(owners[0].id)">
-                      <MpIcon name="add" size="sm" />
-                      Select employees
-                    </button>
-                  </template>
+                    </template>
+                  </div>
                 </div>
               </template>
 
               <!-- Multiple owners: one card per owner, mode picked per owner -->
               <template v-else>
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
-                  <div :class="personRow">
-                    <MpAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
-                    <MpFlex direction="column" gap="0">
-                      <span :class="personName">{{ owner.name }}</span>
-                      <span :class="personMeta">{{ employeeMeta(owner) }}</span>
-                    </MpFlex>
+                  <div :class="personRowBetween">
+                    <div :class="personRow">
+                      <MpAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
+                      <MpFlex direction="column" gap="0">
+                        <span :class="personName">{{ owner.name }}</span>
+                        <span :class="personMeta">{{ employeeMeta(owner) }}</span>
+                      </MpFlex>
+                    </div>
+                    <!-- Contributors are the ones updating progress; this decides
+                         whether THIS owner keeps that ability for their own copy
+                         of the goal — independent per owner, e.g. on for one and
+                         off for another. -->
+                    <MpTooltip :label="(ownerCanUpdateProgressByOwner[owner.id] ?? true) ? ownerCanUpdateProgressHint : ownerCanUpdateProgressActivateHint" :show-delay="0" use-portal>
+                      <MpFlex as="span" align="center" gap="2">
+                        <span>Allow self-update</span>
+                        <MpToggle
+                          :id="`owner-can-update-progress-${owner.id}`"
+                          :is-checked="ownerCanUpdateProgressByOwner[owner.id] ?? true"
+                          @update:is-checked="(checked) => (ownerCanUpdateProgressByOwner[owner.id] = checked)"
+                        />
+                      </MpFlex>
+                    </MpTooltip>
                   </div>
 
                   <MpFlex direction="column" gap="2">
@@ -1224,6 +1329,30 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
     @continue="(ids) => setContributorIds(contribDrawerOwnerId, ids)"
   />
 
+  <!-- Every goal owner — opened from the "N more" link in the Goal owner field -->
+  <ClientOnly>
+    <MpModal :is-open="allOwnersModalOpen" class="drawer-owner-list-modal" @close="allOwnersModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Goal owners ({{ owners.length }})
+          <MpModalCloseButton @click="allOwnersModalOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <div :class="ownerList">
+            <div v-for="(o, idx) in owners" :key="o.id" :class="[ownerListRow, idx < owners.length - 1 && ownerListRowDivider]">
+              <MpAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+              <MpFlex direction="column" gap="0">
+                <span :class="ownerListName">{{ o.name }}</span>
+                <span :class="ownerListMeta">{{ employeeMeta(o) }}</span>
+              </MpFlex>
+            </div>
+          </div>
+        </MpModalBody>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
+
   <!-- Add / edit key result — sub-drawer opened on top of this drawer -->
   <AddKeyResultDrawer v-model:is-open="krDrawerOpen" :editing="editingKr" @save="onKrSave" />
 
@@ -1311,5 +1440,14 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
   right: 36px !important;
   inset-inline-start: auto !important;
   inset-inline-end: 36px !important;
+}
+
+/* MpModal's own root (where the `class` we pass lands) never gets this
+   file's scope id — its manual mergeProps()/Teleport render skips Vue's
+   usual scope-id injection — so a plain scoped selector never matches at
+   runtime. Wrap the whole selector in :global() instead. Every MpModal in
+   this app aligns top-center at 80px (see docs/patterns/modal.md). */
+:global(.drawer-owner-list-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
 }
 </style>

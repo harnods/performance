@@ -19,13 +19,28 @@ const statusBadgeType: Record<GoalCycleStatus, 'completed' | 'announcement'> = {
 |---|---|
 | `completed` | Active / done / positive |
 | `announcement` | Inactive / Draft / neutral tag (Draft pills use `type="announcement" size="sm"`) |
-| `warning` | "Extended" pills |
+| `warning` | "Extended" pills; **"Awaiting approval"** (a pending decision is neither settled-good nor settled-bad) |
 | `success` | 9-box / positive extended tag |
 | `critical` | "New" feature flags — always `size="sm"` |
 
 ## API 2 — `variant="tableStatus"` + `:variantColor=` + `size="md"`
 
 Used only in `pages/reviews/review-cycles/[id]/index.vue` with colour maps like `{ Completed: 'completed', 'In progress': 'information', Upcoming: 'announcement', Expired: 'warning' }`. Don't spread this API to new pages.
+
+## Goal lifecycle badges (goal tables)
+
+A goal row carries at most one lifecycle badge, in this precedence:
+
+```vue
+<MpBadge v-if="row.isAwaitingApproval" for="tableStatus" type="warning" size="sm">Awaiting approval</MpBadge>
+<MpBadge v-else-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+<MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
+```
+
+`isAwaitingApproval` wins over `isDraft` because a submitted draft is still a draft
+underneath (rejection sends it straight back to plain Draft) — but it must not read as
+one, since it offers no draft actions while the decision is pending. Applied identically
+across all five goal tables (`goal-cycles/[id]/{index,company,organization,team,individual}-goals.vue`).
 
 ## Rules
 

@@ -54,6 +54,7 @@ Sequence for any UI work:
 | [`patterns/badges.md`](patterns/badges.md) | Status badges/pills. |
 | [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
+| [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, and gate/confirmation modals (validate on the triggering action, share logic via a composable). |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |
 

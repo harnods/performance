@@ -76,8 +76,8 @@ function seed(): StoredGoalCycle[] {
     {
       // Goals from the old UI (no cycle concept) grouped here on upgrade.
       id: 'archive-legacy',
-      name: 'Goal cycle archived',
-      period: 'Archived (2020 - 2025)',
+      name: 'Other goals',
+      period: 'Range (2020 - 2025)',
       startDate: '2020-01-01',
       endDate: '2025-12-31',
       progressUpdateMethod: 'manual',

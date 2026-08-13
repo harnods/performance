@@ -396,7 +396,10 @@ const fab = css({
                 <MpText size="label" :class="valueText">{{ cycle.period }}</MpText>
               </MpTableCell>
               <MpTableCell as="td" :class="tightCell">
-                <MpBadge for="tableStatus" :type="statusBadgeType[cycle.status]">{{ cycle.status }}</MpBadge>
+                <!-- The archive cycle is a historical bucket, not a real cycle — Active/Inactive
+                     says nothing useful about it, so it shows no status at all. -->
+                <span v-if="cycle.isArchive" :class="captionText">—</span>
+                <MpBadge v-else for="tableStatus" :type="statusBadgeType[cycle.status]">{{ cycle.status }}</MpBadge>
               </MpTableCell>
               <MpTableCell as="td" :class="actionCell" @click.stop>
                 <MpPopover is-close-on-select use-portal placement="bottom-end">

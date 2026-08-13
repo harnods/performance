@@ -743,6 +743,12 @@ export function useGoalApprovalsStore(cycleId?: string) {
     const submission = submissionById(submissionId)
     submissionsData.value = submissionsData.value.map(s => (s.id !== submissionId ? s : { ...s, status: 'rejected' as const, rejectReason: reason }))
     persist()
+    // A rejected draft goes back to being an editable draft — otherwise it
+    // would sit on "Awaiting approval" forever with no way to act on it.
+    const { updateGoal } = useGoalsStore()
+    for (const item of submission?.items ?? []) {
+      if (item.goalId && item.before?.isDraft) updateGoal(item.goalId, { isAwaitingApproval: false })
+    }
     if (submission) notifyOwner(submission, 'rejected', reason)
   }
 

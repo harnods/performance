@@ -52,6 +52,7 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import { computeRepeatPeriods } from '~/utils/goalSchedule'
 
 definePageMeta({
   layout: 'default',
@@ -78,8 +79,10 @@ const isSelectEmployeeOpen = ref(false)
 function openSelectEmployee() {
   isSelectEmployeeOpen.value = true
 }
-function continueToNewGoals(employeeIds: string[]) {
-  router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
+const { importSuggestionOpen, pendingEmployeeIds, continueToNewGoals, goToImport } = useBulkOwnerGate(() => route.params.id as string)
+function cancelBulkOwnerModal() {
+  importSuggestionOpen.value = false
+  isSelectEmployeeOpen.value = true
 }
 
 type Tab = 'all' | 'hierarchy' | 'requests' | 'awaiting' | 'info'
@@ -210,6 +213,11 @@ function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
 }
+const { submitDraftForApproval } = useGoalDraftSubmitter()
+function submitRowForApproval(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) submitDraftForApproval(g)
+}
 
 // Align goal — any non-company goal can align (company is top, so no align).
 // The exact allowed parent level(s) per goal level + member gating live in
@@ -298,6 +306,80 @@ function toggleAligned(id: string) {
   expandedAligned[id] = !expandedAligned[id]
 }
 
+// ─── Repeating goals ─────────────────────────────────────────────────────────
+// A repeating goal is ONE record whose period cascades across the cycle (see
+// utils/goalSchedule). The row shows the period running now; the earlier
+// occurrences expand into real rows right below it — each one carries its own
+// progress (a period that already finished isn't stuck showing the live
+// goal's current number), same as "View aligned goals" inserts real rows
+// rather than an in-cell list, because each occurrence needs its own values
+// in the Progress/Status columns too.
+const expandedRepeat = reactive<Record<string, boolean>>({})
+function toggleRepeat(id: string) {
+  expandedRepeat[id] = !expandedRepeat[id]
+}
+// "dd Mon yyyy", shown next to the goal code so a past occurrence reads as
+// "AP-01 (01 Jan 2026 - 31 Jan 2026)" rather than needing its own date column.
+function repeatDate(iso: string) {
+  return new Date(iso).toLocaleDateString('en-GB', { day: '2-digit', month: 'short', year: 'numeric' })
+}
+function repeatDateRange(p: { startDate?: string, endDate?: string }) {
+  if (!p.startDate || !p.endDate) return ''
+  return `${repeatDate(p.startDate)} - ${repeatDate(p.endDate)}`
+}
+// Occurrences that have already finished, newest-first (matches the table's
+// own newest-first default order).
+function previousRepeatPeriods(row: { repeat?: boolean, startDate?: string, endDate?: string }) {
+  if (!row.repeat || !row.startDate || !row.endDate || !cycle.value?.endDate) return []
+  const today = new Date()
+  const todayISO = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, '0')}-${String(today.getDate()).padStart(2, '0')}`
+  return computeRepeatPeriods(row.startDate, row.endDate, cycle.value.endDate)
+    .filter(p => p.endDate < todayISO)
+    .reverse()
+}
+// A finished occurrence has its own achievement — it isn't the live goal's
+// current number, which reflects the period running NOW. There's no backing
+// history in this mock (a Goal is one record, not one per period), so this
+// derives a plausible-but-stable number per period: hashed off the goal id +
+// period start so it never shifts on re-render, trending up in small steps
+// toward the live value the closer a period is to the present.
+function periodHash(seed: string): number {
+  let h = 0
+  for (let i = 0; i < seed.length; i++) h = (h * 31 + seed.charCodeAt(i)) >>> 0
+  return h
+}
+function periodProgress(row: { id: string, min?: number, max?: number, pill?: number }, period: { startDate: string }, indexFromOldest: number, totalPeriods: number) {
+  const min = row.min ?? 0
+  const max = row.max ?? 100
+  // Jitter of ±6 points, deterministic per period so it never shifts on re-render.
+  const jitter = (periodHash(`${row.id}|${period.startDate}`) % 13) - 6
+  let pct: number
+  if (totalPeriods <= 2) {
+    // Too few points for a ramp to read as one — a quarterly goal with only
+    // 2 finished occurrences anchors explicitly instead: the oldest lands
+    // off track, the most recent lands on track, so the pair actually
+    // demonstrates that progress differs per period rather than landing two
+    // near-identical numbers next to each other.
+    const isNewest = indexFromOldest === totalPeriods - 1
+    pct = Math.max(0, Math.min(100, (isNewest ? 90 : 62) + jitter))
+  }
+  else {
+    // 3+ occurrences: a straight-line ramp from ~35% (oldest) up to the live
+    // goal's own current % (most recent finished period) — earlier
+    // occurrences read as less complete without a sharp jump on the last one.
+    const livePct = row.pill ?? 0
+    const rampFraction = indexFromOldest / (totalPeriods - 1)
+    const ramp = 35 + (livePct - 35) * rampFraction
+    pct = Math.max(0, Math.min(100, Math.round(ramp + jitter)))
+  }
+  const value = Math.round(min + ((max - min) * pct) / 100)
+  // Never 'gray' ("Not updated") — a past occurrence always HAS a recorded
+  // value, it just performed well or poorly, unlike the live goal which can
+  // genuinely be untouched.
+  const status: 'green' | 'orange' = pct >= 80 ? 'green' : 'orange'
+  return { value, pill: pct, status }
+}
+
 // Progressive pagination — same pattern as
 // pages/reviews/review-cycles/[id]/index.vue's "Load more" bars, but the
 // PAGE_SIZE unit is OWNERS, not raw goal rows — "Load more" reveals the next
@@ -334,11 +416,18 @@ watch(distinctOwnerIds, (ids) => {
 // progressive pagination: PAGE_SIZE owners at a time (some tenants have ~1000
 // employees), and PER_OWNER_PAGE goals at a time inside each owner.
 type FlatRow = {
-  kind: 'main' | 'aligned', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>,
+  kind: 'main' | 'aligned' | 'repeat' | 'aligned-trigger', id: string, ownerId: string, owner: ReturnType<typeof ownerOf>,
   category: string, subCategory: string, categoryWeight: number, code: string, title: string,
   weight: number, goalType: string, level?: string, alignedGoals: ReturnType<typeof alignedGoalsOf>,
   status: (typeof rows.value)[number]['status'], unit?: (typeof rows.value)[number]['unit'],
-  value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean
+  value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean, isAwaitingApproval?: boolean,
+  repeat?: boolean, startDate?: string, endDate?: string,
+  // Set on 'repeat' rows only — the main row id they're occurrences of, so
+  // consecutive repeat rows for the SAME goal can merge their Category/
+  // Sub-category/Goal type cells (they're all identical — same goal, just a
+  // different finished period) the same way two 'main' rows sharing a
+  // category merge theirs.
+  parentGoalId?: string
 }
 
 // owner id → that owner's main goal rows (in the already-sorted `rows` order).
@@ -382,35 +471,114 @@ function ownerRows(id: string) {
   const flat: FlatRow[] = []
   for (const row of sliced) {
     flat.push({ kind: 'main', ...row })
-    if (expandedAligned[row.id]) {
-      for (const ag of row.alignedGoals) {
+    if (expandedRepeat[row.id]) {
+      const periods = previousRepeatPeriods(row)
+      const total = periods.length
+      // periods is newest-first; index it from the OLDEST occurrence so the
+      // ramp in periodProgress climbs toward the live value as periods get
+      // more recent, then flip back to newest-first for display.
+      periods.forEach((p, i) => {
+        const indexFromOldest = total - 1 - i
+        const prog = periodProgress(row, p, indexFromOldest, total)
         flat.push({
-          kind: 'aligned', id: `${row.id}::${ag.id}`, ownerId: ag.ownerId, owner: ownerOf(ag.ownerId),
-          category: ag.category, subCategory: ag.subCategory, categoryWeight: 0, code: ag.code, title: ag.title,
-          weight: ag.weight, goalType: GOAL_TYPE_LABEL[ag.level], alignedGoals: [], status: ag.status,
-          unit: ag.unit, value: ag.value, pill: ag.pill, min: ag.min, max: ag.max,
+          kind: 'repeat', id: `${row.id}::repeat::${p.startDate}`, ownerId: row.ownerId, owner: row.owner,
+          category: row.category, subCategory: row.subCategory, categoryWeight: 0, code: row.code, title: row.title,
+          weight: row.weight, goalType: row.goalType, alignedGoals: [], status: prog.status,
+          unit: row.unit, value: prog.value, pill: prog.pill, min: row.min, max: row.max,
+          startDate: p.startDate, endDate: p.endDate, parentGoalId: row.id,
         })
+      })
+    }
+    if (row.alignedGoals.length) {
+      // The trigger only needs to become its own row when there ARE
+      // past-occurrence rows above it to stay below — with nothing expanded
+      // above it, it stays put as the main row's own last line (the common
+      // case for every goal that only has aligned children, no repeat).
+      if (expandedRepeat[row.id]) {
+        flat.push({
+          kind: 'aligned-trigger', id: `${row.id}::aligned-trigger`, ownerId: row.ownerId, owner: row.owner,
+          category: row.category, subCategory: row.subCategory, categoryWeight: 0, code: '', title: '',
+          weight: 0, goalType: '', alignedGoals: row.alignedGoals, status: 'gray', parentGoalId: row.id,
+        })
+      }
+      if (expandedAligned[row.id]) {
+        for (const ag of row.alignedGoals) {
+          flat.push({
+            kind: 'aligned', id: `${row.id}::${ag.id}`, ownerId: ag.ownerId, owner: ownerOf(ag.ownerId),
+            category: ag.category, subCategory: ag.subCategory, categoryWeight: 0, code: ag.code, title: ag.title,
+            weight: ag.weight, goalType: GOAL_TYPE_LABEL[ag.level], alignedGoals: [], status: ag.status,
+            unit: ag.unit, value: ag.value, pill: ag.pill, min: ag.min, max: ag.max,
+          })
+        }
       }
     }
   }
+  // A 'main' row's repeat children AND its "View aligned goals" trigger row
+  // are all still part of that SAME goal's block — they belong in its
+  // Category/Sub-category/Goal type cells rather than repeating identical
+  // text, so a "unit" is 1 (the main row) + however many repeat/trigger rows
+  // follow it. Only the actual expanded 'aligned' rows break continuity (own
+  // cell, never merged — a genuinely different goal, possibly a different owner).
+  function unitSize(startIdx: number): number {
+    let n = 1
+    let j = startIdx + 1
+    while (j < flat.length && (flat[j].kind === 'repeat' || flat[j].kind === 'aligned-trigger') && flat[j].parentGoalId === flat[startIdx].id) { n++; j++ }
+    return n
+  }
   return flat.map((row, i) => {
-    if (row.kind === 'aligned') return { ...row, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1 }
+    if (row.kind === 'aligned') return { ...row, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1, showGoalType: true, goalTypeRowspan: 1 }
+    if (row.kind === 'repeat' || row.kind === 'aligned-trigger') return { ...row, showCategory: false, categoryRowspan: 0, showSubCategory: false, subCategoryRowspan: 0, showGoalType: false, goalTypeRowspan: 0 }
+    // row.kind === 'main'
     const prev = flat[i - 1]
     const newCategory = i === 0 || prev.kind !== 'main' || prev.category !== row.category
     const newSub = newCategory || prev.subCategory !== row.subCategory
-    const sameCatBlock = (r: FlatRow) => r.kind === 'main' && r.category === row.category
+    // Sibling 'main' rows sharing a category merge into one cell — but ONLY
+    // when they're genuinely adjacent, nothing of their own in between. The
+    // moment a row has repeat/trigger children (its own unitSize > 1), its
+    // merge chain stops right there: reaching past its expanded content into
+    // a FOLLOWING sibling would double-claim that sibling's Category cell —
+    // the sibling's own `prev` is a repeat/trigger row (not 'main'), so it
+    // independently starts its own fresh cell right after, regardless of
+    // what an earlier row's rowspan claims. Two conflicting rowspans over the
+    // same physical row silently breaks column alignment for the rest of the
+    // table (the browser has no way to reconcile it) — this is exactly why
+    // repeat rows must be excluded from the *sibling* merge, even though
+    // they still each get folded into their OWN parent's cell via unitSize().
+    function mergeSpan(matches: (r: FlatRow) => boolean): number {
+      let span = 0
+      let j = i
+      while (j < flat.length && flat[j].kind === 'main' && matches(flat[j])) {
+        const size = unitSize(j)
+        span += size
+        j += size
+        if (size > 1) break
+      }
+      return span
+    }
     let categoryWeight = row.categoryWeight
     if (newCategory) {
       categoryWeight = 0
-      for (let j = i; j < flat.length && sameCatBlock(flat[j]); j++) categoryWeight += flat[j].weight || 0
+      let j = i
+      while (j < flat.length && flat[j].kind === 'main' && flat[j].category === row.category) {
+        const size = unitSize(j)
+        categoryWeight += flat[j].weight || 0
+        j += size
+        if (size > 1) break
+      }
     }
+    const categoryRowspan = newCategory ? mergeSpan(r => r.category === row.category) : 0
+    const subCategoryRowspan = newSub ? mergeSpan(r => r.category === row.category && r.subCategory === row.subCategory) : 0
     return {
       ...row,
       showCategory: newCategory,
-      categoryRowspan: newCategory ? countWhile(flat, i, sameCatBlock) : 0,
+      categoryRowspan,
       categoryWeight,
       showSubCategory: newSub,
-      subCategoryRowspan: newSub ? countWhile(flat, i, r => r.kind === 'main' && r.category === row.category && r.subCategory === row.subCategory) : 0,
+      subCategoryRowspan,
+      // Goal type merges ONLY with this row's own repeat children (not with
+      // sibling 'main' rows sharing a category — that was never a pattern
+      // for this column, unlike Category/Sub-category above).
+      showGoalType: true, goalTypeRowspan: unitSize(i),
     }
   })
 }
@@ -435,9 +603,11 @@ function formatNumber(n: number): string {
 
 // Clicking a goal name (or Actions → View details) opens its detail page.
 // Aligned child rows carry a composite `parent::child` id — the real goal id
-// is the child half. cycleName rides along for the detail breadcrumb.
+// is the child half. A repeat row carries `goalId::repeat::startDate` — it's
+// a past period of the SAME goal, so the real id is the first half.
+// cycleName rides along for the detail breadcrumb.
 function goToGoal(row: { kind: string, id: string }) {
-  const id = row.kind === 'aligned' ? row.id.split('::')[1] : row.id
+  const id = row.kind === 'aligned' ? row.id.split('::')[1] : row.kind === 'repeat' ? row.id.split('::')[0] : row.id
   router.push({ path: `/goals/goal-cycles/${route.params.id}/goals/${id}`, query: { cycleName: cycle.value?.name } })
 }
 const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'pointer', textAlign: 'left', minWidth: '0', whiteSpace: 'normal', overflowWrap: 'break-word', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
@@ -514,13 +684,22 @@ const alignedLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.default', fontSize: '14px', lineHeight: '20px',
 })
-// A real inserted row for one aligned child goal — no background tint (stays
-// white), just a blue left border on the Goal cell to mark it as a child row.
+// A real inserted row for one aligned child goal (or a repeating goal's past
+// occurrence) — no background tint (stays white), just a blue left border on
+// the Goal cell to mark it as a child row. Same treatment for both: they're
+// both "extra rows expanded from the one above them."
 const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
-// Indent = the "View aligned goals" icon (size sm = 1.25rem) + its gap
-// (spacing.1 = 0.25rem) — lines the child row's code/title/weight up with
-// that button's text, not its icon.
+// Indent = the "View aligned goals" / repeat-caret icon (size sm = 1.25rem) +
+// its gap (spacing.1 = 0.25rem) — lines the child row's code/title/weight up
+// with that button's text, not its icon. Shared by both child-row kinds.
 const alignedGoalIndent = css({ paddingLeft: '1.5rem' })
+// The repeat caret sits inline with the goal name itself (not a separate
+// "View previous goals" line below) — same reset-button treatment as
+// alignedLink, just icon-only and no marginTop since it's on the name's line.
+const repeatCaretBtn = css({
+  display: 'inline-flex', alignItems: 'center', flexShrink: '0',
+  background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', color: 'text.secondary',
+})
 
 const progressCellWidth = css({ width: '100%' })
 const progressTrack = css({ width: '100%', height: '6px', borderRadius: 'full', background: 'gray.50', overflow: 'hidden' })
@@ -737,30 +916,65 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </MpTableCell>
 
             <!-- Goal -->
-            <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider, row.kind === 'aligned' && alignedGoalCell]">
-              <MpFlex direction="column" gap="0.5" :class="[cellContent, row.kind === 'aligned' && alignedGoalIndent]">
+            <MpTableCell v-if="visibleColumns.goal" as="td" :class="[tightCell, colDivider, (row.kind === 'aligned' || row.kind === 'repeat') && alignedGoalCell]">
+              <!-- Main row: the usual 3-line stack (code, name, weight) — the
+                   repeat caret (when there is one) sits on the name line only. -->
+              <MpFlex v-if="row.kind === 'main'" direction="column" gap="0.5" :class="cellContent">
                 <span v-if="visibleColumns.goalId" :class="goalCode">{{ row.code }}</span>
                 <MpFlex align="center" gap="2">
+                  <!-- Repeating goal: the caret sits right on the goal name — expanding
+                       inserts real rows for each finished occurrence below it (own
+                       Progress/Status per row), same as "View aligned goals" does. -->
+                  <button
+                    v-if="previousRepeatPeriods(row).length"
+                    type="button"
+                    :class="repeatCaretBtn"
+                    :aria-label="expandedRepeat[row.id] ? 'Hide previous goals' : `View previous goals (${previousRepeatPeriods(row).length})`"
+                    @click="toggleRepeat(row.id)"
+                  >
+                    <MpIcon :name="expandedRepeat[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+                  </button>
                   <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
-                  <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                  <MpBadge v-if="row.isAwaitingApproval" for="tableStatus" type="warning" size="sm">Awaiting approval</MpBadge>
+                  <MpBadge v-else-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
                   <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
                   <!-- Carried-over badge hidden for now (flag retained in the store):
                   <MpBadge v-if="row.carriedOver" for="tableStatus" type="announcement" size="sm">Carried over</MpBadge> -->
-
                 </MpFlex>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
-                <MpText v-if="row.kind === 'aligned'" size="label-small" :class="[captionText, css({ marginTop: '1' })]">
-                  Goal owner: {{ row.owner.name }} - {{ row.owner.id }} | {{ row.owner.title }} | {{ row.owner.department }}
-                </MpText>
-                <button v-if="visibleColumns.alignedGoals && row.kind === 'main' && row.alignedGoals.length" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+                <!-- Stays right here, as the main row's own last line, UNLESS
+                     past-occurrence rows are expanded below it — then it moves
+                     to its own row (below) so it doesn't end up sitting above
+                     content that gets inserted between it and the main row. -->
+                <button v-if="visibleColumns.alignedGoals && row.alignedGoals.length && !expandedRepeat[row.id]" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
                   <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
                   View aligned goals ({{ row.alignedGoals.length }})
                 </button>
               </MpFlex>
+              <!-- "View aligned goals" trigger, moved to its own row only when
+                   past-occurrence rows pushed it out of the main row above (see
+                   the button there) — same trigger, just relocated. -->
+              <button v-else-if="row.kind === 'aligned-trigger'" type="button" :class="alignedLink" @click="toggleAligned(row.parentGoalId!)">
+                <MpIcon :name="expandedAligned[row.parentGoalId!] ? 'caret-down' : 'caret-right'" size="sm" />
+                View aligned goals ({{ row.alignedGoals.length }})
+              </button>
+              <!-- Aligned child / past occurrence: 3-line stack (code, name,
+                   weight) — a past occurrence has nothing else to show, an
+                   aligned child additionally carries its owner line below. -->
+              <MpFlex v-else direction="column" gap="0.5" :class="[cellContent, alignedGoalIndent]">
+                <span v-if="visibleColumns.goalId" :class="goalCode">
+                  {{ row.code }}<template v-if="row.kind === 'repeat'"> ({{ repeatDateRange(row) }})</template>
+                </span>
+                <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
+                <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
+                <MpText v-if="row.kind === 'aligned'" size="label-small" :class="[captionText, css({ marginTop: '1' })]">
+                  Goal owner: {{ row.owner.name }} - {{ row.owner.id }} | {{ row.owner.title }} | {{ row.owner.department }}
+                </MpText>
+              </MpFlex>
             </MpTableCell>
 
-            <!-- Goal type -->
-            <MpTableCell v-if="visibleColumns.goalType" as="td" :class="[tightCell, colDivider, colGoalType]">
+            <!-- Goal type — merged across a repeat block (same goal, same type every occurrence). -->
+            <MpTableCell v-if="visibleColumns.goalType && row.showGoalType" as="td" :rowspan="row.goalTypeRowspan" :class="[tightCell, colDivider, colGoalType]">
               <MpText size="label" :class="[valueText, cellContent]">{{ row.goalType }}</MpText>
             </MpTableCell>
 
@@ -790,7 +1004,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
             <!-- Status -->
             <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]">
-              <span :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
+              <span v-if="row.kind !== 'aligned-trigger'" :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
+              <span v-else :class="captionText">—</span>
             </MpTableCell>
 
             <MpTableCell v-if="visibleColumns.lastUpdated" as="td" :class="[tightCell, colDivider, colLastUpdated]">
@@ -801,23 +1016,43 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <span v-else :class="css({ color: 'text.secondary' })">—</span>
             </MpTableCell>
 
-            <!-- Actions -->
+            <!-- Actions — none for the "View aligned goals" trigger row, it's a
+                 section header, not a goal. -->
             <MpTableCell as="td" :class="actionCell">
-              <MpPopover is-close-on-select use-portal placement="bottom-end">
+              <MpPopover v-if="row.kind !== 'aligned-trigger'" is-close-on-select use-portal placement="bottom-end">
                 <MpPopoverTrigger>
                   <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Row actions" />
                 </MpPopoverTrigger>
                 <MpPopoverContent :class="css({ minWidth: '160px' })">
                   <MpPopoverList>
-                    <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                    <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
-                    <MpPopoverListItem v-if="!row.isClosed && row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
-                    <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
-                    <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
-                    <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
-                    <MpPopoverListItem @click="deleteRow(row)">
-                      <span :class="css({ color: 'text.danger' })">Delete</span>
-                    </MpPopoverListItem>
+                    <!-- A repeat row is a synthetic snapshot of a past period, not its own
+                         goal record — every other action resolves by id against the real
+                         store and would silently no-op, so only offer the one action that
+                         actually does something: opening the (live) goal it belongs to. -->
+                    <template v-if="row.kind === 'repeat'">
+                      <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
+                    </template>
+                    <!-- A draft isn't live yet, so progress/align/close make no sense on it —
+                         its only forward move is going up for approval. -->
+                    <template v-else-if="row.isDraft">
+                      <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="submitRowForApproval(row)">Submit for approval</MpPopoverListItem>
+                      <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+                      <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
+                      <MpPopoverListItem @click="deleteRow(row)">
+                        <span :class="css({ color: 'text.danger' })">Delete</span>
+                      </MpPopoverListItem>
+                    </template>
+                    <template v-else>
+                      <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
+                      <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                      <MpPopoverListItem v-if="!row.isClosed && row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
+                      <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+                      <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
+                      <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
+                      <MpPopoverListItem @click="deleteRow(row)">
+                        <span :class="css({ color: 'text.danger' })">Delete</span>
+                      </MpPopoverListItem>
+                    </template>
                   </MpPopoverList>
                 </MpPopoverContent>
               </MpPopover>
@@ -855,8 +1090,14 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <SelectEmployeesDrawer
     v-model:is-open="isSelectEmployeeOpen"
     :exclude-ids="[...fullOwnerIds]"
+    :initial-selected="pendingEmployeeIds"
     exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
     @continue="continueToNewGoals"
+  />
+  <TooManyEmployeesModal
+    :is-open="importSuggestionOpen"
+    @cancel="cancelBulkOwnerModal"
+    @import="goToImport"
   />
 
   <!-- Edit an existing goal -->

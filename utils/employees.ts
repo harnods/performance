@@ -43,6 +43,7 @@ export const EMPLOYEES: Employee[] = [
   { id: 'santi', name: 'Santi Marlina', code: 'CP043', title: 'Recruiter', department: 'HR' },
   { id: 'wisnu', name: 'Wisnu Aditya', code: 'CP068', title: 'Line Cook', department: 'Kitchen' },
   { id: 'yoga', name: 'Yoga Pratama', code: 'CP051', title: 'Marketing Specialist', department: 'Marketing' },
+  { id: 'zainal', name: 'Zainal Abidin', code: 'CP079', title: 'Cashier', department: 'Front of House' },
 ]
 
 // Display string used under each employee name: "CODE | Title | Department".
