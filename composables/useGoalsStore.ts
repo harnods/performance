@@ -412,13 +412,6 @@ function g(partial: Omit<Goal, 'cycleId'>): Goal {
   return withKrProgress(base)
 }
 
-// "Mixed cycle" simulation: some goals were created in the OLD Goals UI and
-// carried over when the company enabled the new version. HR (rio, alfian) is a
-// team that fully carried over; Evelyn is a MIXED owner — her original 9 goals
-// (eb-01…eb-09) are legacy, while eb-10…eb-12 were authored in the new UI.
-const LEGACY_OWNERS = new Set(['rio', 'alfian'])
-const EVELYN_LEGACY = new Set(['eb-01', 'eb-02', 'eb-03', 'eb-04', 'eb-05', 'eb-06', 'eb-07', 'eb-08', 'eb-09'])
-
 function seed(): Goal[] {
   return [
   g({
@@ -1144,7 +1137,63 @@ function seed(): Goal[] {
     code: 'CA-12', title: 'Beverage attachment rate (≥ 60%)',
     weight: 5, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 54, min: 0, max: 60,
   }),
-  ].map(x => (LEGACY_OWNERS.has(x.ownerId) || EVELYN_LEGACY.has(x.id) ? { ...x, carriedOver: true } : x))
+  ]
+}
+
+// ─── Archived legacy goals (from the OLD Goals UI) ────────────────────────────
+// The old UI had NO goal-cycle concept. On upgrade, every legacy goal is grouped
+// under one synthetic cycle "Goal cycle archived" (see useGoalCyclesStore). Here
+// we pre-seed historical goals spanning 2020–2025. Legacy goals carry no
+// structured key results and no alignment — just a final achievement value.
+const ARCHIVE_CYCLE_ID = 'archive-legacy'
+function seedArchive(): Goal[] {
+  const owners: [string, string][] = [
+    ['rizal', 'Management'], ['evelyn', 'Accounting'], ['ali', 'Sales'],
+    ['rio', 'HR'], ['bayu', 'Marketing'], ['andi', 'Kitchen'], ['cinta', 'Front of House'],
+  ]
+  const themes: [GoalCategory, string][] = [
+    ['Financial', 'Revenue'], ['Customer', 'Satisfaction'],
+    ['Internal Process', 'Efficiency'], ['Learning & Growth', 'Development'],
+  ]
+  const out: Goal[] = []
+  let n = 0
+  for (let year = 2020; year <= 2025; year++) {
+    const count = 3 + (year % 2) // 3 or 4 goals per year
+    for (let i = 0; i < count; i++) {
+      const [ownerId, department] = owners[n % owners.length]
+      const [category, subCategory] = themes[i % themes.length]
+      const pct = 60 + ((year * 7 + i * 13) % 41) // 60–100% final achievement
+      out.push({
+        cycleId: ARCHIVE_CYCLE_ID,
+        id: `arc-${year}-${i + 1}`,
+        level: 'individual',
+        ownerId,
+        department,
+        category,
+        subCategory,
+        code: `ARC-${year}-${i + 1}`,
+        title: `${subCategory} target ${year}`,
+        weight: 0, // legacy goals had no weight
+        contributorIds: [],
+        viewerIds: [],
+        status: pct >= 80 ? 'green' : 'orange',
+        unit: 'percent',
+        value: pct,
+        pill: pct,
+        min: 0,
+        max: 100,
+        startDate: `${year}-01-01`,
+        endDate: `${year}-12-31`,
+        direction: 'higher',
+        carriedOver: true,
+        keyResults: [], // old UI had no structured key results
+        description: '',
+        updatedAt: `31 Dec ${year}, 17:00`,
+      })
+      n++
+    }
+  }
+  return out
 }
 
 // Module-scope singleton — shared reactive "mini DB" for this demo prototype.
@@ -1153,7 +1202,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 21
+const SEED_VERSION = 22
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress
@@ -1229,7 +1278,7 @@ function resolveCompanyRollup(list: Goal[]): Goal[] {
   })
 }
 function buildSeededGoals(): Goal[] {
-  return resolveCompanyRollup([...seed(), ...seed26H2()])
+  return resolveCompanyRollup([...seed(), ...seed26H2(), ...seedArchive()])
 }
 const goals = ref<Goal[]>(buildSeededGoals())
 let loadedFromStorage = false

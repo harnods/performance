@@ -28,6 +28,9 @@ export interface GoalCycle {
   // treated as carried over from the old UI (flag absent) — those don't block
   // reverting to the old interface; a new-UI-created cycle does.
   createdInNewUi?: boolean
+  // The synthetic cycle that groups goals migrated from the OLD Goals UI (which
+  // had no goal-cycle concept). Read-only historical bucket.
+  isArchive?: boolean
 }
 
 // What we actually store — status is computed on read, so it's never persisted.
@@ -70,6 +73,19 @@ function seed(): StoredGoalCycle[] {
       updatedAt: '2026-07-30T09:00:00',
       updatedBy: 'Rizal Candra',
     },
+    {
+      // Goals from the old UI (no cycle concept) grouped here on upgrade.
+      id: 'archive-legacy',
+      name: 'Goal cycle archived',
+      period: 'Archived (2020 - 2025)',
+      startDate: '2020-01-01',
+      endDate: '2025-12-31',
+      progressUpdateMethod: 'manual',
+      weightMandatory: false,
+      updatedAt: '2025-12-31T17:00:00',
+      updatedBy: 'System',
+      isArchive: true,
+    },
   ]
 }
 
@@ -77,7 +93,7 @@ function seed(): StoredGoalCycle[] {
 // Bump whenever seed()/GoalCycle's shape changes in a way stale localStorage
 // would contradict (e.g. adding startDate/endDate) — same guard pattern as
 // useGoalsStore's SEED_VERSION.
-const SEED_VERSION = 5
+const SEED_VERSION = 6
 const rawCycles = ref<StoredGoalCycle[]>(seed())
 // Public list with status derived from each period. Sorted latest-period-first
 // (by start date, descending) — a future cycle sits above the current one even
