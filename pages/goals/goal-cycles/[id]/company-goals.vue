@@ -689,6 +689,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :owners="editingOwners"
     :already-used-weight="alreadyUsedWeightForEdit"
     :cycle-start-date="cycle?.startDate ?? ''"
+    :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
     @save="saveEdit"

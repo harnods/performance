@@ -28,6 +28,8 @@ import {
   MpFormControl,
   MpFormLabel,
   MpFormErrorMessage,
+  MpFormHelpText,
+  MpTextlink,
   MpCheckbox,
   MpRadio,
   MpToggle,
@@ -80,6 +82,9 @@ const props = defineProps<{
   alreadyUsedWeightByOwner?: { id: string, name: string, weight: number }[]
   cycleStartDate: string
   cycleEndDate: string
+  // The cycle these goals belong to — scopes the "Align to a goal" parent
+  // options to goals in the same cycle. Omit to hide the alignment field.
+  cycleId?: string
   editingDraft?: DraftGoal | null
 }>()
 const resolvedDrawerId = computed(() => props.drawerId ?? 'drawer-add-goal')
@@ -114,6 +119,41 @@ const description = ref('')
 // time the drawer (re)opens to force a remount that picks up the loaded value.
 const rteKey = ref(0)
 const goalType = ref('')
+
+// ─── Align to a goal (entry point inside create & edit) ───────────────────────
+// Opens the same GoalAlignDrawer used from the goal lists, so the align
+// experience is identical everywhere. We feed it a synthetic "goal" built from
+// the current form state + all goals in the cycle as candidates.
+const { goals: allGoalsForAlign } = useGoalsStore()
+const alignTo = ref('')
+const alignToKrId = ref('')
+const alignDrawerOpen = ref(false)
+const alignCandidates = computed(() => (props.cycleId ? allGoalsForAlign.value.filter(g => g.cycleId === props.cycleId) : []))
+const alignedLabel = computed(() => {
+  const p = allGoalsForAlign.value.find(g => g.id === alignTo.value)
+  return p ? `${p.code} · ${p.title}` : ''
+})
+// A Goal-shaped stand-in so GoalAlignDrawer can resolve allowed parent levels
+// + member gating from the in-progress form (no real goal exists yet on create).
+const alignSyntheticGoal = computed<any>(() => ({
+  id: props.editingDraft?.id ?? 'new-goal',
+  ownerId: props.owners[0]?.id ?? '',
+  level: goalType.value || 'individual',
+  cycleId: props.cycleId ?? '',
+  title: name.value,
+  viewerIds: [],
+  alignedToId: alignTo.value || undefined,
+  alignedToKrId: alignToKrId.value || undefined,
+}))
+function openAlignDrawer() { alignDrawerOpen.value = true }
+function onFormAligned(parentId: string, krId?: string) {
+  alignTo.value = parentId
+  alignToKrId.value = krId ?? ''
+  alignDrawerOpen.value = false
+}
+function clearAlign() { alignTo.value = ''; alignToKrId.value = '' }
+// Changing the goal type invalidates a parent chosen under the old level.
+watch(goalType, () => { if (alignTo.value && !alignCandidates.value.some(g => g.id === alignTo.value)) clearAlign() })
 const category = ref('')
 const subCategory = ref('')
 const weight = ref<number | ''>('')
@@ -219,6 +259,8 @@ function resetForm() {
     restrictedVisibility.value = d.restrictedVisibility ?? false
     keyResults.value = d.keyResults.map(kr => ({ ...kr }))
     savedKrIds.value = new Set(d.keyResults.map(kr => kr.id))
+    alignTo.value = d.alignedToId ?? ''
+    alignToKrId.value = d.alignedToKrId ?? ''
     // subCategory depends on category — the watcher below resets it to ''
     // the moment `category.value` changes, so it must be set *after* that
     // watcher has flushed, not in the same synchronous pass.
@@ -253,7 +295,10 @@ function resetForm() {
     restrictedVisibility.value = false
     keyResults.value = []
     savedKrIds.value = new Set()
+    alignTo.value = ''
+    alignToKrId.value = ''
   }
+  alignDrawerOpen.value = false
   rteKey.value++ // remount the rich-text editor so it shows the loaded description
   deadlineRuleErrors.value = []
   viewerDrawerOpen.value = false
@@ -630,6 +675,8 @@ function save() {
     // Whoever this drawer instance is scoped to via `owners` — the full page
     // selection when adding, or just one owner when detach-editing their row.
     ownerIds: props.owners.map(o => o.id),
+    alignedToId: alignTo.value || undefined,
+    alignedToKrId: alignToKrId.value || undefined,
   }
   emit('save', draft)
   emit('update:isOpen', false)
@@ -637,6 +684,7 @@ function save() {
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '5', width: '100%' })
+const alignedValue = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 const section = css({ display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '5' })
 const sectionLast = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1' })
@@ -753,6 +801,18 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 </MpFlex>
                 <PxSelectPopover v-model="goalType" :options="GOAL_TYPE_OPTIONS" placeholder="Select goal type" width="100%" />
                 <MpFormErrorMessage>Goal type is required.</MpFormErrorMessage>
+              </MpFormControl>
+
+              <!-- Align to a goal — opens the same GoalAlignDrawer as the goal lists -->
+              <MpFormControl v-if="goalType && goalType !== 'company' && cycleId" id="align-to">
+                <MpFormLabel>Align to parent goal</MpFormLabel>
+                <MpFlex v-if="alignTo" align="center" gap="3">
+                  <span :class="alignedValue">{{ alignedLabel }}</span>
+                  <MpTextlink as="button" @click="openAlignDrawer">Change</MpTextlink>
+                  <MpTextlink as="button" @click="clearAlign">Remove</MpTextlink>
+                </MpFlex>
+                <MpButton v-else variant="secondary" @click="openAlignDrawer">Select parent goal</MpButton>
+                <MpFormHelpText>Link this goal to a higher-level goal it contributes to. Optional.</MpFormHelpText>
               </MpFormControl>
 
               <MpFormControl id="goal-category" :is-invalid="errors.category">
@@ -1210,6 +1270,15 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
       </MpModalContent>
     </MpModal>
   </ClientOnly>
+
+  <!-- Align to a goal — same drawer used from the goal lists -->
+  <GoalAlignDrawer
+    :is-open="alignDrawerOpen"
+    :goal="alignSyntheticGoal"
+    :candidates="alignCandidates"
+    @close="alignDrawerOpen = false"
+    @aligned="onFormAligned"
+  />
 </template>
 
 <style scoped>
@@ -1235,5 +1304,12 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
   display: inline-flex;
   align-items: center;
   justify-content: center;
+}
+/* Date picker clear (×) must sit on the RIGHT (before the calendar icon), not the left. */
+:deep(.mp-datepicker__root .mp-input__clear) {
+  left: auto !important;
+  right: 36px !important;
+  inset-inline-start: auto !important;
+  inset-inline-end: 36px !important;
 }
 </style>

@@ -84,6 +84,10 @@ export interface Goal {
   deadlineRules?: DeadlineRule[]
   isDraft?: boolean // saved via "Save as draft" on the "New goals" page rather than "Save"
   isClosed?: boolean // a closed goal is read-only: no progress update / edit / align (prod goal_status === 2)
+  // True when this goal was created in the OLD Goals UI and carried over when the
+  // company upgraded to the new version — a "mixed" cycle contains both these
+  // legacy goals and goals authored in the new UI. Purely a display marker here.
+  carriedOver?: boolean
   description?: string
   useBaseline?: boolean
   direction?: 'higher' | 'lower'
@@ -407,6 +411,13 @@ function g(partial: Omit<Goal, 'cycleId'>): Goal {
   // achievement (company goals are skipped; withKrProgress no-ops on them).
   return withKrProgress(base)
 }
+
+// "Mixed cycle" simulation: some goals were created in the OLD Goals UI and
+// carried over when the company enabled the new version. HR (rio, alfian) is a
+// team that fully carried over; Evelyn is a MIXED owner — her original 9 goals
+// (eb-01…eb-09) are legacy, while eb-10…eb-12 were authored in the new UI.
+const LEGACY_OWNERS = new Set(['rio', 'alfian'])
+const EVELYN_LEGACY = new Set(['eb-01', 'eb-02', 'eb-03', 'eb-04', 'eb-05', 'eb-06', 'eb-07', 'eb-08', 'eb-09'])
 
 function seed(): Goal[] {
   return [
@@ -1070,7 +1081,70 @@ function seed(): Goal[] {
     code: 'ES-09', title: 'New menu mastery assessment (100%)',
    weight: 5, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 98.3, pill: 98, min: 0, max: 100,
   }),
-  ]
+  // ── Extra goals so several owners exceed the 10-per-owner Load-more
+  // threshold (evelyn→12, ali→12, cinta→12; rizal already 13). Demo of the
+  // per-owner "Load more goals" control on the All-goals index. ──
+  g({
+    id: 'eb-10', level: 'individual', ownerId: 'evelyn', department: 'Accounting',
+    category: 'Internal Process', subCategory: 'Automation',
+    code: 'EB-10', title: 'Accounting process automation coverage (≥ 70%)',
+    weight: 6, contributorIds: ['agung'], viewerIds: [], status: 'green', unit: 'percent', value: 62, min: 0, max: 70,
+  }),
+  g({
+    id: 'eb-11', level: 'individual', ownerId: 'evelyn', department: 'Accounting',
+    category: 'Learning & Growth', subCategory: 'Team Development',
+    code: 'EB-11', title: 'Finance team certification completion (100%)',
+    weight: 5, contributorIds: [], viewerIds: [], status: 'orange', unit: 'percent', value: 40, min: 0, max: 100,
+  }),
+  g({
+    id: 'eb-12', level: 'individual', ownerId: 'evelyn', department: 'Accounting',
+    category: 'Internal Process', subCategory: 'Compliance',
+    code: 'EB-12', title: 'Tax filing on-time rate (100%)',
+    weight: 6, contributorIds: ['linda'], viewerIds: ['rio'], status: 'green', unit: 'percent', value: 95, min: 0, max: 100,
+  }),
+  g({
+    id: 'ai-10', level: 'individual', ownerId: 'ali', department: 'Sales',
+    category: 'Customer', subCategory: 'Retention',
+    code: 'AI-10', title: 'Key account retention rate (≥ 92%)',
+    weight: 6, contributorIds: ['daud'], viewerIds: [], status: 'green', unit: 'percent', value: 88, min: 0, max: 92,
+  }),
+  g({
+    id: 'ai-11', level: 'individual', ownerId: 'ali', department: 'Sales',
+    category: 'Internal Process', subCategory: 'Pipeline',
+    code: 'AI-11', title: 'CRM data hygiene compliance (≥ 95%)',
+    weight: 5, contributorIds: ['jessie'], viewerIds: [], status: 'orange', unit: 'percent', value: 60, min: 0, max: 95,
+  }),
+  g({
+    id: 'ai-12', level: 'individual', ownerId: 'ali', department: 'Sales',
+    category: 'Learning & Growth', subCategory: 'Enablement',
+    code: 'AI-12', title: 'Sales enablement session attendance (100%)',
+    weight: 5, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 90, min: 0, max: 100,
+  }),
+  g({
+    id: 'ca-09', level: 'individual', ownerId: 'cinta', department: 'Front of House',
+    category: 'Customer', subCategory: 'Guest Experience',
+    code: 'CA-09', title: 'Guest satisfaction score (≥ 4.5 / 5)',
+    weight: 6, contributorIds: ['eka'], viewerIds: [], status: 'green', unit: 'count', value: 4.2, min: 0, max: 4.5,
+  }),
+  g({
+    id: 'ca-10', level: 'individual', ownerId: 'cinta', department: 'Front of House',
+    category: 'Internal Process', subCategory: 'Service Speed',
+    code: 'CA-10', title: 'Average table wait time (≤ 8 min)',
+    weight: 5, contributorIds: [], viewerIds: [], status: 'orange', unit: 'count', value: 11, min: 0, max: 8,
+  }),
+  g({
+    id: 'ca-11', level: 'individual', ownerId: 'cinta', department: 'Front of House',
+    category: 'Learning & Growth', subCategory: 'Staff Training',
+    code: 'CA-11', title: 'Front-of-house staff training completion (100%)',
+    weight: 5, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 85, min: 0, max: 100,
+  }),
+  g({
+    id: 'ca-12', level: 'individual', ownerId: 'cinta', department: 'Front of House',
+    category: 'Financial', subCategory: 'Upselling',
+    code: 'CA-12', title: 'Beverage attachment rate (≥ 60%)',
+    weight: 5, contributorIds: [], viewerIds: [], status: 'green', unit: 'percent', value: 54, min: 0, max: 60,
+  }),
+  ].map(x => (LEGACY_OWNERS.has(x.ownerId) || EVELYN_LEGACY.has(x.id) ? { ...x, carriedOver: true } : x))
 }
 
 // Module-scope singleton — shared reactive "mini DB" for this demo prototype.
@@ -1079,7 +1153,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 20
+const SEED_VERSION = 21
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress

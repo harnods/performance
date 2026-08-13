@@ -78,6 +78,8 @@ export function goalFromDraft(draft: DraftGoal, owner: Employee, isDraft: boolea
     direction: draft.direction,
     keyResults: draft.keyResults.map(kr => ({ ...kr })),
     restrictedVisibility: draft.restrictedVisibility,
+    alignedToId: draft.alignedToId,
+    alignedToKrId: draft.alignedToKrId,
   }
 }
 
@@ -112,6 +114,8 @@ export function draftFromGoal(goal: Goal, owner: Employee): DraftGoal {
     keyResults: goal.keyResults ? goal.keyResults.map(kr => ({ ...kr })) : [],
     restrictedVisibility: goal.restrictedVisibility ?? false,
     ownerIds: [owner.id],
+    alignedToId: goal.alignedToId,
+    alignedToKrId: goal.alignedToKrId,
     // Prod parity: once a goal has any achievement, its measurement unit &
     // direction are locked on edit (prod keys this off an API flag, not the
     // numeric value; our mock proxy is "achievement > 0").

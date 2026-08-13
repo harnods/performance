@@ -648,6 +648,8 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         <MpFlex align="center" gap="2" wrap="wrap">
           <span :class="nameText">{{ goal.title }}</span>
           <span :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
+          <!-- Carried-over badge hidden for now (flag retained in the store):
+          <MpBadge v-if="goal.carriedOver" for="tableStatus" type="announcement" size="sm">Carried over</MpBadge> -->
         </MpFlex>
 
         <!-- Description (+ View more) -->
@@ -1172,6 +1174,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
     :owners="editingOwners"
     :already-used-weight="alreadyUsedWeightForEdit"
     :cycle-start-date="cycle?.startDate ?? ''"
+    :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
     @save="saveEdit"

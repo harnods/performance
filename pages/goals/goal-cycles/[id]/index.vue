@@ -744,6 +744,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <span :class="goalNameLink" @click="goToGoal(row)">{{ row.title }}</span>
                   <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
                   <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
+                  <!-- Carried-over badge hidden for now (flag retained in the store):
+                  <MpBadge v-if="row.carriedOver" for="tableStatus" type="announcement" size="sm">Carried over</MpBadge> -->
+
                 </MpFlex>
                 <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
                 <MpText v-if="row.kind === 'aligned'" size="label-small" :class="[captionText, css({ marginTop: '1' })]">
@@ -863,6 +866,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :owners="editingOwners"
     :already-used-weight="alreadyUsedWeightForEdit"
     :cycle-start-date="cycle?.startDate ?? ''"
+    :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
     @save="saveEdit"

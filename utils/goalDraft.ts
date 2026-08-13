@@ -63,6 +63,10 @@ export interface DraftGoal {
   // True when the goal being edited already has achievement — locks the
   // measurement unit & direction on edit (prod parity). Absent for new goals.
   hasProgress?: boolean
+  // Alignment set from inside the create/edit form: the parent goal (and
+  // optionally a specific parent key result) this goal aligns to.
+  alignedToId?: string
+  alignedToKrId?: string
 }
 
 let seq = 0
