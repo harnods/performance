@@ -15,7 +15,7 @@ import {
   MpModal, MpModalOverlay, MpModalContent, MpModalHeader, MpModalBody, MpModalFooter, MpModalCloseButton,
   MpButton, MpButtonGroup, MpFlex, MpText, MpBadge, MpIcon,
   MpBanner, MpBannerIcon, MpBannerDescription,
-  MpFormControl, MpFormLabel, MpFormHelpText, MpInput, MpInputGroup, MpInputLeftAddon, MpInputRightAddon,
+  MpFormControl, MpFormLabel, MpInput, MpInputGroup, MpInputLeftAddon, MpInputRightAddon,
   MpTextarea, MpDatePicker, MpUpload,
   toast, css,
 } from '@mekari/pixel3'
@@ -100,6 +100,10 @@ const rollupKrIds = computed(() => {
   )
 })
 function krIsRollup(id: string) { return rollupKrIds.value.has(id) }
+// Single banner above the whole KR list (matching the goal-level `children`
+// banner) rather than repeating it per row — only shown when at least one KR
+// in THIS list is actually a roll-up target.
+const hasRollupKr = computed(() => keyResults.value.some(kr => krIsRollup(kr.id)))
 function krMeta(id: string) { return keyResults.value.find(k => k.id === id) }
 function krDraftPct(d: { id: string, currentValue: number | '' }) {
   const kr = krMeta(d.id)
@@ -314,6 +318,10 @@ const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: '
 
             <!-- KR-driven -->
             <template v-if="updateMode === 'kr'">
+              <MpBanner v-if="hasRollupKr" variant="info" is-inline>
+                <MpBannerIcon />
+                <MpBannerDescription>Progress cannot be updated manually if they have goal aligned and the progress will be taken from the child goal.</MpBannerDescription>
+              </MpBanner>
               <MpText :class="sectionH2">Key results<template v-if="krDraft.length"> ({{ krDraft.length }})</template></MpText>
               <div v-for="d in krDraft" :key="d.id" :class="krProgRow">
                 <MpFlex direction="column" gap="0">
@@ -339,15 +347,14 @@ const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: '
                       <span :class="rangeMax">{{ krFmt(krMeta(d.id)!, krMeta(d.id)?.targetValue) }}</span>
                     </div>
                   </div>
-                  <div :class="upItemInput">
+                  <div v-if="!krIsRollup(d.id)" :class="upItemInput">
                     <MpFormControl :id="`up-kr-${d.id}`">
                       <MpFormLabel>Progress</MpFormLabel>
                       <MpInputGroup>
                         <MpInputLeftAddon v-if="krMeta(d.id)?.measurementUnit === 'amount'">Rp</MpInputLeftAddon>
-                        <MpInput v-model="d.currentValue" type="number" placeholder="0" :is-disabled="krIsRollup(d.id)" />
+                        <MpInput v-model="d.currentValue" type="number" placeholder="0" />
                         <MpInputRightAddon v-if="krMeta(d.id)?.measurementUnit === 'percentage'">%</MpInputRightAddon>
                       </MpInputGroup>
-                      <MpFormHelpText v-if="krIsRollup(d.id)">Taken from the aligned goal — can’t be updated here.</MpFormHelpText>
                     </MpFormControl>
                   </div>
                 </div>
