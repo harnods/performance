@@ -527,6 +527,15 @@ const ownerGoals = computed(() => {
 // and it also exercises the "owner with only pending goals still gets
 // their own accordion group" case (see distinctOwnerIds/ownerGoals above).
 const scenarioOwnerId = computed(() => EMPLOYEES.find(e => !distinctOwnerIds.value.includes(e.id))?.id)
+// Rest of the batch (11 more) — same "owns no goal yet" pool as
+// scenarioOwnerId, so the banner's employee count is backed by real people
+// throughout, not placeholder ids that don't exist in EMPLOYEES.
+const scenarioBatchOwnerIds = computed(() => (
+  EMPLOYEES
+    .filter(e => !distinctOwnerIds.value.includes(e.id) && e.id !== scenarioOwnerId.value)
+    .slice(0, 11)
+    .map(e => e.id)
+))
 // The preview goal is findable by its id prefix regardless of whether its
 // background job is still running or already finished — the simulated
 // delay is short (0.8-3.2s), so by the time anyone actually looks the job
@@ -534,49 +543,66 @@ const scenarioOwnerId = computed(() => EMPLOYEES.find(e => !distinctOwnerIds.val
 // not yet reset," not literally "a job is in flight this instant" —
 // otherwise clicking Default after the job settles would silently do
 // nothing and leave the preview goal behind permanently.
-const scenarioGoal = computed(() => goals.value.find(g => g.id.startsWith('dev-scenario-goal-')))
-const currentScenario = computed(() => (activeRequestBatch.value || scenarioGoal.value ? 'async' : 'default'))
+const scenarioGoals = computed(() => goals.value.filter(g => g.id.startsWith('dev-scenario-goal-')))
+const currentScenario = computed(() => (activeRequestBatch.value || scenarioGoals.value.length ? 'async' : 'default'))
+// Preview goals per owner: the primary owner (scenarioOwnerId) gets 3, split
+// non-uniformly like every other seeded "create" bundle in this file, so
+// their accordion group shows a realistic multi-row spread rather than a
+// single 100%-weight line. The other 11 batch owners get 1 each — enough to
+// prove every owner in a real bulk batch gets its own creating→created row,
+// without ballooning this dev-only tool into a second seed file.
+function previewGoalDefs(isPrimary: boolean) {
+  return isPrimary
+    ? [
+        { code: 'DEV-01', title: 'Scenario preview goal', weight: 50 },
+        { code: 'DEV-02', title: 'Scenario preview goal (secondary)', weight: 30 },
+        { code: 'DEV-03', title: 'Scenario preview goal (tertiary)', weight: 20 },
+      ]
+    : [{ code: 'DEV-01', title: 'Scenario preview goal', weight: 100 }]
+}
 function activateAsyncScenario() {
   if (currentScenario.value === 'async') return
   const cycleId = route.params.id as string
-  const ownerId = scenarioOwnerId.value
-  if (!ownerId) return
-  const owner = ownerOf(ownerId)
-  const batch = createBatch(cycleId, currentUserId.value, [ownerId, ...Array.from({ length: 11 }, (_, i) => `dev-scenario-owner-${i}`)])
-  const sub = createSubmission(
-    [{
-      type: 'create',
+  const primaryOwnerId = scenarioOwnerId.value
+  if (!primaryOwnerId) return
+  const ownerIds = [primaryOwnerId, ...scenarioBatchOwnerIds.value]
+  const batch = createBatch(cycleId, currentUserId.value, ownerIds)
+  for (const ownerId of ownerIds) {
+    const owner = ownerOf(ownerId)
+    const sub = createSubmission(
+      previewGoalDefs(ownerId === primaryOwnerId).map((g, i) => ({
+        type: 'create' as const,
+        ownerId,
+        cycleId,
+        after: {
+          id: `dev-scenario-goal-${ownerId}-${Date.now()}-${i}`,
+          level: 'individual',
+          ownerId,
+          department: owner.department,
+          category: 'Financial',
+          subCategory: 'Scenario Preview',
+          code: g.code,
+          title: g.title,
+          weight: g.weight,
+          contributorIds: [],
+          viewerIds: [],
+          status: 'gray',
+          unit: 'percent',
+          value: 0,
+          pill: 0,
+          min: 0,
+          max: 100,
+        },
+      })),
       ownerId,
       cycleId,
-      after: {
-        id: `dev-scenario-goal-${Date.now()}`,
-        level: 'individual',
-        ownerId,
-        department: owner.department,
-        category: 'Financial',
-        subCategory: 'Scenario Preview',
-        code: 'DEV-01',
-        title: 'Scenario preview goal',
-        weight: 100,
-        contributorIds: [],
-        viewerIds: [],
-        status: 'gray',
-        unit: 'percent',
-        value: 0,
-        pill: 0,
-        min: 0,
-        max: 100,
-      },
-    }],
-    ownerId,
-    cycleId,
-    batch.id,
-  )
-  approveSubmission(sub.id)
+      batch.id,
+    )
+    approveSubmission(sub.id)
+  }
 }
 function deactivateScenario() {
-  const goal = scenarioGoal.value
-  if (goal) {
+  for (const goal of scenarioGoals.value) {
     const sub = submissions.value.find(s => s.items.some(i => i.after?.id === goal.id))
     if (sub) removeSubmission(sub.id)
     deleteGoal(goal.id)

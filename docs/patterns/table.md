@@ -348,8 +348,11 @@ this floating-button treatment for a real feature. It exists purely so the
 async-creation behavior can be inspected without manually seeding
 `localStorage`; see the "Dev scenario control" comment block in that file for
 what it does (`createSubmission` + `approveSubmission` through the real code
-path, targeting an employee with zero goals in the cycle so the preview
-weight never conflicts with anyone's real 100% budget).
+path, run for all 12 batch owners — not just one — each targeting an
+employee with zero goals in the cycle so the preview weight never conflicts
+with anyone's real 100% budget; the primary owner gets 3 non-uniform-weight
+preview goals, the other 11 get 1 each, so every owner in the batch shows a
+real creating→created row instead of just padding the banner's employee count).
 
 ## Row selection & bulk actions
 
