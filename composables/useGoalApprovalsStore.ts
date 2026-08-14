@@ -11,6 +11,7 @@
 import type { Goal } from './useGoalsStore'
 import { EMPLOYEE_MANAGER } from './useGoalsStore'
 import { employeeById } from '~/utils/employees'
+import { BULK_ASYNC_THRESHOLD, useGoalRequestBatchStore } from './useGoalRequestBatchStore'
 
 export type SubmissionItemType = 'create' | 'edit' | 'delete'
 
@@ -47,6 +48,11 @@ export interface Submission {
   rejectReason?: string
   wasEdited?: boolean // true once corrected & resubmitted after a rejection
   items: SubmissionItem[]
+  // Set only when this submission was one of a group queued together by one
+  // bulk "New goals" save (see useGoalRequestBatchStore) — lets approving it
+  // check whether that group is large enough to create its goals as a
+  // background job instead of synchronously.
+  batchId?: string
 }
 
 const CYCLE_ID = 'seed-26-h1'
@@ -682,9 +688,17 @@ export function useGoalApprovalsStore(cycleId?: string) {
     return submissionsData.value.find(s => s.id === submissionId)
   }
 
+  // Used only by the dev "Scenario" control (goal-cycles/[id]/index.vue) to
+  // cleanly undo a preview submission — real submissions otherwise only
+  // ever grow (rejected ones stay visible for resubmission, not deleted).
+  function removeSubmission(submissionId: string) {
+    submissionsData.value = submissionsData.value.filter(s => s.id !== submissionId)
+    persist()
+  }
+
   // Used by the gated create/edit/delete call sites — queues one batch of
   // proposed changes instead of touching useGoalsStore directly.
-  function createSubmission(items: Omit<SubmissionItem, 'id'>[], ownerId: string, targetCycleId: string) {
+  function createSubmission(items: Omit<SubmissionItem, 'id'>[], ownerId: string, targetCycleId: string, batchId?: string) {
     const submissionId = `sub-${ownerId}-${Date.now()}-${seq++}`
     const submission: Submission = {
       id: submissionId,
@@ -692,6 +706,7 @@ export function useGoalApprovalsStore(cycleId?: string) {
       ownerId,
       submittedAt: new Date().toISOString(),
       status: 'pending',
+      ...(batchId ? { batchId } : {}),
       items: items.map((item, i) => ({ ...item, id: `${submissionId}-item-${i}` })),
     }
     submissionsData.value = [...submissionsData.value, submission]
@@ -721,19 +736,47 @@ export function useGoalApprovalsStore(cycleId?: string) {
     return submission
   }
 
-  // The "Approve" decision — commits every item in the batch into the
-  // real goals store in one go, then marks the whole submission approved.
-  function approveSubmission(submissionId: string) {
-    const submission = submissionById(submissionId)
-    if (!submission) return
+  // Commits every item in a submission into the real goals store in one go —
+  // shared by both the synchronous and background-job approval paths below.
+  function commitSubmissionGoals(submission: Submission) {
     const { addGoals, updateGoal, deleteGoal } = useGoalsStore()
     for (const item of submission.items) {
       if (item.type === 'create' && item.after) addGoals([item.after], item.cycleId)
       else if (item.type === 'edit' && item.goalId && item.after) updateGoal(item.goalId, item.after)
       else if (item.type === 'delete' && item.goalId) deleteGoal(item.goalId)
     }
+  }
+
+  // The "Approve" decision. Usually commits the batch into the real goals
+  // store right away, then marks the whole submission approved. But when
+  // this submission was queued as part of a large bulk "New goals" save
+  // (batchId set, and that batch has more than BULK_ASYNC_THRESHOLD owners),
+  // the decision is still recorded immediately — the approver isn't blocked
+  // — while the actual goal records are written by a simulated background
+  // job, same "fire the job, don't wait for it" shape as a real per-owner
+  // queue job would use server-side. Each owner's job is independent: one
+  // owner's approval never waits on another's.
+  function approveSubmission(submissionId: string) {
+    const submission = submissionById(submissionId)
+    if (!submission) return
+
     submissionsData.value = submissionsData.value.map(s => (s.id !== submissionId ? s : { ...s, status: 'approved' as const }))
     persist()
+
+    const batchStore = useGoalRequestBatchStore()
+    const batch = submission.batchId ? batchStore.batches.value.find(b => b.id === submission.batchId) : undefined
+    if (batch && batch.ownerIds.length > BULK_ASYNC_THRESHOLD) {
+      batchStore.markOwnerCreating(batch.id, submission.ownerId)
+      const simulatedLatency = 800 + Math.random() * 2400
+      setTimeout(() => {
+        commitSubmissionGoals(submission)
+        batchStore.markOwnerCreated(batch.id, submission.ownerId)
+        notifyOwner(submission, 'approved')
+      }, simulatedLatency)
+      return
+    }
+
+    commitSubmissionGoals(submission)
     notifyOwner(submission, 'approved')
   }
 
@@ -807,5 +850,6 @@ export function useGoalApprovalsStore(cycleId?: string) {
     rejectSubmission,
     updateItem,
     resubmitSubmission,
+    removeSubmission,
   }
 }

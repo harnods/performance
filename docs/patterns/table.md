@@ -279,6 +279,78 @@ Reference: `goal-cycles/[id]/index.vue` — `ownerRows()`'s `unitSize()` + `merg
 helpers, and the `'main' | 'aligned' | 'repeat' | 'aligned-trigger'` `FlatRow.kind`
 union.
 
+## Pending (not-yet-created) rows from a background job
+
+When a record is being created asynchronously (e.g. goals approved in bulk,
+materialized by a background job rather than immediately — see
+`useGoalRequestBatchStore`), **do not render a separate lookalike table for
+the pending rows.** Merge them into the SAME per-owner row list that
+produces the real table, so they go through the exact same
+sort/Category/Sub-category rowspan-grouping as real rows — a pending row
+with the same Category as a real row merges into that same cell, just like
+any other row would (`goal-cycles/[id]/index.vue`'s `pendingSourceRows` →
+`sourceGoals` → `rows` → `ownerGoals` → `ownerRows()`).
+
+- Shape pending rows exactly like the real row type (same fields the sort/
+  group functions read: `category`, `subCategory`, `ownerId`, `weight`,
+  `categoryWeight`, …) plus one marker flag (`isPending?: boolean`) threaded
+  through the row type (`FlatRow`) and into the `v-for`.
+- Only the columns whose value the job hasn't written yet render
+  `MpSkeleton` (e.g. Progress/Status) — everything already known (Category,
+  Sub-category, Goal, Goal type, Weight) renders normally, same styling as
+  a real row. The skeleton pieces mirror the shape of what they'll become:
+  ```vue
+  <MpFlex v-if="row.isPending" direction="column" gap="1">
+    <MpSkeleton :class="css({ width: '96px', height: '14px', borderRadius: '4px' })" />
+    <MpSkeleton :class="css({ width: '100%', height: '6px', borderRadius: 'full' })" />
+  </MpFlex>
+  ```
+- `categoryWeight` for a pending row must be computed the same way the real
+  aggregate is (sum of `weight` for every goal — real **and** pending —
+  sharing that owner+category), so whichever row ends up as the merged
+  cell's anchor shows the true combined total, not just its own weight.
+- A pending row is **not a real record yet** — exclude it from any "N
+  goals"/"N records" count shown in a group header, even though it's
+  visible in the table. Filter `!row.isPending` when computing that count.
+
+### ⚠️ SSR/hydration gotcha specific to this pattern
+
+If the pending-row source depends on client-only state (e.g. `localStorage`,
+as `useGoalRequestBatchStore` does), **gate it behind an `isMounted` flag**:
+
+```ts
+const isMounted = ref(false)
+onMounted(() => { isMounted.value = true })
+const creatingOwnerIds = computed(() => (isMounted.value ? creatingOwnerIdsFor(cycleId) : new Set<string>()))
+```
+
+Without this, SSR renders the real row's Category/Sub-category `rowspan`
+without knowing a pending sibling is coming (server has no `localStorage`),
+while the client's very first computed pass already sees it and wants a
+bigger rowspan — a genuine content mismatch between server and client
+render. Vue logs "Hydration completed but contains mismatches" for this but
+does **not** repair the stale `rowspan` attribute, silently corrupting
+column alignment for every row after it (the exact same failure mode as
+the rowspan-disagreement bug documented above, just triggered by SSR/CSR
+divergence instead of two rowspan computations disagreeing with each
+other). Gating on `isMounted` makes the SSR pass and the client's first
+pass agree (both render "no pending rows"), and the pending rows are then
+added by a normal **post-mount reactive patch**, not a hydration attempt —
+so `rowspan` updates correctly.
+
+### Dev-only scenario toggle (not a product pattern)
+
+`goal-cycles/[id]/index.vue` has a floating circular button, fixed bottom-right
+(24px margin), that switches between "Default" and "Async (goals being
+submitted)" to preview the pending-rows state above without running a real
+bulk-approval flow. It's explicitly **not** a product UI pattern — don't reuse
+this floating-button treatment for a real feature. It exists purely so the
+async-creation behavior can be inspected without manually seeding
+`localStorage`; see the "Dev scenario control" comment block in that file for
+what it does (`createSubmission` + `approveSubmission` through the real code
+path, targeting an employee with zero goals in the cycle so the preview
+weight never conflicts with anyone's real 100% budget).
+
 ## Row selection & bulk actions
 
 - The row-select checkbox goes **inside the first content cell**, not a separate checkbox
@@ -350,3 +422,4 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 - [ ] numeric cols right-aligned + `tabular-nums`
 - [ ] Default table = no outer border; Custom table = `tableOuterBorder` + `useTableHorizontalScroll`
 - [ ] empty state: full replacement (no data) vs in-table row (filtered-to-zero)
+- [ ] pending/background-job rows merge into the real row list (never a separate table), skeleton only the not-yet-known columns, excluded from any "N goals" count, and gated behind `isMounted` if their source is client-only
