@@ -55,6 +55,12 @@ export interface DraftGoal {
   viewerIds: string[]
   keyResults: DraftKeyResult[]
   restrictedVisibility: boolean // organization goal type only
+  // ownerId -> whether that owner can update their own copy's progress.
+  // False hands progress updates to the goal contributors alone. Defaults to
+  // true (owners can always update their own goal unless told otherwise).
+  // Per-owner like contributorsByOwner — one bulk-created goal can have it
+  // on for one owner and off for another.
+  ownerCanUpdateProgressByOwner: Record<string, boolean>
   // Which of the page's selected owners this drafted entry still applies to.
   // Starts as every owner selected for the page; editing one owner's row
   // detaches them into their own DraftGoal, shrinking this list on the

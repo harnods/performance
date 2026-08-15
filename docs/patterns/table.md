@@ -154,6 +154,206 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
   ```
 - **Accordion / expand:** clicking anywhere on the row (or a group header bar) toggles; caret-right → caret-down; kebab/controls inside use `@click.stop`.
 
+## Row action menu (kebab) — branch on row state with `<template>`
+
+The trailing action cell is a `MpPopover` + `MpPopoverList` of `MpPopoverListItem`s.
+When a row's **lifecycle state** changes which actions make sense, split the list into
+`<template v-if="…">` / `<template v-else>` blocks rather than hanging a `v-if` on every
+single item — the reader should be able to see each state's whole menu at a glance.
+
+```vue
+<MpPopoverList>
+  <template v-if="row.isDraft">
+    <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="submitRowForApproval(row)">Submit for approval</MpPopoverListItem>
+    <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+    <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
+    <MpPopoverListItem @click="deleteRow(row)"><span :class="css({ color: 'text.danger' })">Delete</span></MpPopoverListItem>
+  </template>
+  <template v-else> … the live-goal menu … </template>
+</MpPopoverList>
+```
+
+- Destructive item last, wrapped in `<span :class="css({ color: 'text.danger' })">`.
+- Never offer an action the row's state can't honour (no "Update progress"/"Close goal"
+  on a draft — it isn't live yet).
+- Keep the branches identical across sibling tables. The goal tables carry the same
+  draft branch in all five files.
+
+## In-cell accordion (expand within a cell, not a new row)
+
+Secondary detail that belongs to one cell expands **inside that cell**, under a caret
+toggle — no extra `MpTableRow`, so rowspan/merged cells are unaffected (the cell just
+grows taller). Use this only for detail with no values of its own in the *other*
+columns. The moment an expanded entry needs its own Progress/Status/etc., switch to
+**real inserted rows** instead (below) — a repeating goal's past occurrences look like
+an in-cell list at first glance but each one has its own achievement, so they don't
+qualify.
+
+```vue
+<MpFlex v-if="expanded[row.id]" direction="column" gap="1">…plain text per entry, same values as the row above…</MpFlex>
+```
+
+## Real inserted rows that stay "attached" to their parent
+
+Two goal-table accordions insert real `MpTableRow`s below the row that owns them —
+**"View aligned goals"** (a different goal, e.g. built for `alignedToId`) and
+**"View previous goals"** (the SAME goal, an earlier finished period). Both merge
+their rows into the parent's Category/Sub-category/Goal type cells (`rowspan` spans
+parent + all its inserted rows) instead of repeating identical text on every row —
+only Progress/Status differ per row. The actual **expanded aligned goals** are the one
+exception: each is a genuinely different goal (can even have a different owner), so
+it always gets its **own**, un-merged Category/Sub-category/Goal type cell.
+
+```ts
+// blue left border marks a real inserted row as a child of the one above it
+const alignedGoalCell = css({ borderLeftWidth: '2px', borderLeftStyle: 'solid', borderLeftColor: 'border.brand' })
+```
+
+**The "View aligned goals" trigger's position depends on whether the OTHER
+accordion is expanded** — it is normally just the parent row's own last line
+(simplest, most common case: nothing else on the row). But once past-occurrence
+rows are inserted below the parent, the trigger moves to become its own row,
+placed *after* them, so the reading order stays fixed: parent → past occurrences →
+aligned-goals trigger → aligned goals. Leaving it fixed inside the parent row would
+make it look like it sits "above" content inserted below it, even though its own
+expand state never changed.
+
+```vue
+<!-- Parent row's own last line — ONLY when there's nothing expanded below to push it out. -->
+<button v-if="visibleColumns.alignedGoals && row.alignedGoals.length && !expandedRepeat[row.id]" type="button" :class="alignedLink" @click="toggleAligned(row.id)">
+  <MpIcon :name="expandedAligned[row.id] ? 'caret-down' : 'caret-right'" size="sm" />
+  View aligned goals ({{ row.alignedGoals.length }})
+</button>
+```
+
+```js
+// ownerRows(): the trigger becomes its own 'aligned-trigger' row ONLY when
+// repeat is expanded — otherwise it stays inline in the main row above.
+if (row.alignedGoals.length && expandedRepeat[row.id]) {
+  flat.push({ kind: 'aligned-trigger', /* … */ parentGoalId: row.id })
+}
+```
+
+### ⚠️ The #1 way to break column alignment for the REST of the table
+
+Every `rowspan` on a merged cell (Category/Sub-category/Goal type) MUST agree on
+exactly how many physical rows it covers — **Category, Sub-category, and Goal type
+rowspans must never disagree**, or two cells end up claiming the same physical row,
+and the browser silently shifts every `<td>` after that point into the wrong column
+for the rest of the table (invisible in a plain text dump — you only see it by
+inspecting rendered `rowspan` attributes or looking at the actual pixels).
+
+This bit us for real: the pre-existing "two sibling `'main'` rows sharing a category
+merge their cell" behavior (via a plain consecutive-scan) doesn't know about a
+`'main'` row's OWN repeat/trigger children. A goal with an expanded repeat block
+followed by a sibling `'main'` goal in the same category produced Category
+`rowspan=10` (reaching through the repeat block into the sibling) while Sub-category/
+Goal type stopped at `rowspan=9` (correctly not reaching the sibling, since its
+subcategory/type differ) — a real, live bug, not hypothetical.
+
+**The fix:** a `'main'` row's sibling-merge chain must stop dead the moment ANY row
+in the chain has its own repeat/trigger children (`unitSize() > 1`) — never reach
+*past* an expanded block into a following sibling, even when categories match:
+
+```js
+function mergeSpan(matches) {
+  let span = 0, j = i
+  while (j < flat.length && flat[j].kind === 'main' && matches(flat[j])) {
+    const size = unitSize(j)
+    span += size
+    j += size
+    if (size > 1) break // this row had its own repeat/trigger children — stop here
+  }
+  return span
+}
+const categoryRowspan = newCategory ? mergeSpan(r => r.category === row.category) : 0
+const subCategoryRowspan = newSub ? mergeSpan(r => r.category === row.category && r.subCategory === row.subCategory) : 0
+```
+
+Whenever you add a new row-merging concept to a Custom table, **grep for every place
+that computes a `rowspan` on the same column set and verify they can never diverge**
+for the same physical span — that's the actual invariant, not "does this look right
+in one screenshot."
+
+Reference: `goal-cycles/[id]/index.vue` — `ownerRows()`'s `unitSize()` + `mergeSpan()`
+helpers, and the `'main' | 'aligned' | 'repeat' | 'aligned-trigger'` `FlatRow.kind`
+union.
+
+## Pending (not-yet-created) rows from a background job
+
+When a record is being created asynchronously (e.g. goals approved in bulk,
+materialized by a background job rather than immediately — see
+`useGoalRequestBatchStore`), **do not render a separate lookalike table for
+the pending rows.** Merge them into the SAME per-owner row list that
+produces the real table, so they go through the exact same
+sort/Category/Sub-category rowspan-grouping as real rows — a pending row
+with the same Category as a real row merges into that same cell, just like
+any other row would (`goal-cycles/[id]/index.vue`'s `pendingSourceRows` →
+`sourceGoals` → `rows` → `ownerGoals` → `ownerRows()`).
+
+- Shape pending rows exactly like the real row type (same fields the sort/
+  group functions read: `category`, `subCategory`, `ownerId`, `weight`,
+  `categoryWeight`, …) plus one marker flag (`isPending?: boolean`) threaded
+  through the row type (`FlatRow`) and into the `v-for`.
+- Only the columns whose value the job hasn't written yet render
+  `MpSkeleton` (e.g. Progress/Status) — everything already known (Category,
+  Sub-category, Goal, Goal type, Weight) renders normally, same styling as
+  a real row. The skeleton pieces mirror the shape of what they'll become:
+  ```vue
+  <MpFlex v-if="row.isPending" direction="column" gap="1">
+    <MpSkeleton :class="css({ width: '96px', height: '14px', borderRadius: '4px' })" />
+    <MpSkeleton :class="css({ width: '100%', height: '6px', borderRadius: 'full' })" />
+  </MpFlex>
+  ```
+- `categoryWeight` for a pending row must be computed the same way the real
+  aggregate is (sum of `weight` for every goal — real **and** pending —
+  sharing that owner+category), so whichever row ends up as the merged
+  cell's anchor shows the true combined total, not just its own weight.
+- A pending row is **not a real record yet** — exclude it from any "N
+  goals"/"N records" count shown in a group header, even though it's
+  visible in the table. Filter `!row.isPending` when computing that count.
+
+### ⚠️ SSR/hydration gotcha specific to this pattern
+
+If the pending-row source depends on client-only state (e.g. `localStorage`,
+as `useGoalRequestBatchStore` does), **gate it behind an `isMounted` flag**:
+
+```ts
+const isMounted = ref(false)
+onMounted(() => { isMounted.value = true })
+const creatingOwnerIds = computed(() => (isMounted.value ? creatingOwnerIdsFor(cycleId) : new Set<string>()))
+```
+
+Without this, SSR renders the real row's Category/Sub-category `rowspan`
+without knowing a pending sibling is coming (server has no `localStorage`),
+while the client's very first computed pass already sees it and wants a
+bigger rowspan — a genuine content mismatch between server and client
+render. Vue logs "Hydration completed but contains mismatches" for this but
+does **not** repair the stale `rowspan` attribute, silently corrupting
+column alignment for every row after it (the exact same failure mode as
+the rowspan-disagreement bug documented above, just triggered by SSR/CSR
+divergence instead of two rowspan computations disagreeing with each
+other). Gating on `isMounted` makes the SSR pass and the client's first
+pass agree (both render "no pending rows"), and the pending rows are then
+added by a normal **post-mount reactive patch**, not a hydration attempt —
+so `rowspan` updates correctly.
+
+### Dev-only scenario toggle (not a product pattern)
+
+`goal-cycles/[id]/index.vue` has a floating circular button, fixed bottom-right
+(24px margin), that switches between "Default" and "Async (goals being
+submitted)" to preview the pending-rows state above without running a real
+bulk-approval flow. It's explicitly **not** a product UI pattern — don't reuse
+this floating-button treatment for a real feature. It exists purely so the
+async-creation behavior can be inspected without manually seeding
+`localStorage`; see the "Dev scenario control" comment block in that file for
+what it does (`createSubmission` + `approveSubmission` through the real code
+path, run for all 12 batch owners — not just one — each targeting an
+employee with zero goals in the cycle so the preview weight never conflicts
+with anyone's real 100% budget; the primary owner gets 3 non-uniform-weight
+preview goals, the other 11 get 1 each, so every owner in the batch shows a
+real creating→created row instead of just padding the banner's employee count).
+
 ## Row selection & bulk actions
 
 - The row-select checkbox goes **inside the first content cell**, not a separate checkbox
@@ -225,3 +425,4 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 - [ ] numeric cols right-aligned + `tabular-nums`
 - [ ] Default table = no outer border; Custom table = `tableOuterBorder` + `useTableHorizontalScroll`
 - [ ] empty state: full replacement (no data) vs in-table row (filtered-to-zero)
+- [ ] pending/background-job rows merge into the real row list (never a separate table), skeleton only the not-yet-known columns, excluded from any "N goals" count, and gated behind `isMounted` if their source is client-only

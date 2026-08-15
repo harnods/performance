@@ -46,6 +46,7 @@ import { type Employee, EMPLOYEES, employeeMeta } from '~/utils/employees'
 import type { DraftGoal } from '~/utils/goalDraft'
 import { goalFromDraft, LEVEL_TO_GOAL_TYPE_LABEL } from '~/utils/goalMapping'
 import { ownerOf } from '~/utils/goalRows'
+import { BULK_ASYNC_THRESHOLD } from '~/composables/useGoalRequestBatchStore'
 
 definePageMeta({
   layout: 'default',
@@ -58,6 +59,8 @@ const router = useRouter()
 const { cycles } = useGoalCyclesStore()
 const { goals: allGoals, addGoals } = useGoalsStore()
 const { createSubmission } = useGoalApprovalsStore()
+const { currentUserId } = useCurrentUser()
+const { createBatch } = useGoalRequestBatchStore()
 
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 const weightMandatory = computed(() => cycle.value?.weightMandatory ?? false)
@@ -75,6 +78,22 @@ const ownerIds = computed(() => {
   return (list ?? '').split(',').filter(Boolean)
 })
 const owners = computed(() => EMPLOYEES.filter(e => ownerIds.value.includes(e.id)))
+
+// ─── Owner avatars: cap the stack at 6 slots — 5 avatars + a "+N" overflow ────
+// A bulk goal can target dozens of people; past 5 the stack stops being
+// readable, so the 6th slot collapses the rest into one "+N" circle that
+// opens the full list in a modal.
+const OWNER_AVATAR_CAP = 5
+const visibleOwners = computed(() => owners.value.slice(0, OWNER_AVATAR_CAP))
+const hiddenOwnerCount = computed(() => Math.max(0, owners.value.length - OWNER_AVATAR_CAP))
+const allOwnersModalOpen = ref(false)
+
+// ─── Too many owners for one goal ────────────────────────────────────────────
+// Past this many people the one-goal-at-a-time drawer is the wrong tool —
+// point them at the import flow instead, and warn that saving runs in the
+// background since it fans out to one goal record per owner.
+const BULK_OWNER_LIMIT = 25
+const isBulkOwnerCount = computed(() => owners.value.length > BULK_OWNER_LIMIT)
 
 const goals = ref<DraftGoal[]>([])
 const isDrawerOpen = ref(false)
@@ -151,6 +170,10 @@ const existingGoalsFlat = computed(() => existingGoalsByOwner.value.flatMap(
   entry => entry.goals.map(g => ({ ...g, ownerName: entry.owner.name })),
 ))
 
+// The bulk-owner warning is shown earlier now, right when "Continue" is
+// clicked in the select-employees drawer (useBulkOwnerGate) — by the time
+// someone lands here with >BULK_OWNER_LIMIT owners they've already chosen
+// to proceed, so "Add goal" just opens the drawer as normal.
 function openAddGoal() {
   isDrawerOpen.value = true
 }
@@ -251,6 +274,20 @@ function persistAndLeave(isDraft: boolean) {
   // Each drafted goal only goes to the owners it currently still applies to
   // (goal.ownerIds) — detach-editing one owner's row means it no longer
   // shares the same fate as the goal's other owners.
+  //
+  // When this Save queues approval for a big group (> BULK_ASYNC_THRESHOLD
+  // owners), every one of their submissions is tagged with one shared batch
+  // — not to bundle them into a single submission (each owner still gets
+  // their own, approved individually as always), just so useGoalApprovalsStore
+  // can tell, at approval time, that this owner's submission belongs to a
+  // group large enough to create goals as a background job, and so this
+  // requestor can be shown "your approved goals are being created" while
+  // that's happening (see useGoalRequestBatchStore).
+  const approvalOwners = isDraft ? [] : owners.value.filter(owner => needsApproval(owner.id))
+  const batch = approvalOwners.length > BULK_ASYNC_THRESHOLD
+    ? createBatch(cycleId, currentUserId.value, approvalOwners.map(owner => owner.id))
+    : undefined
+
   let anyQueued = false
   let anyDirect = false
   for (const draft of goals.value) {
@@ -263,20 +300,28 @@ function persistAndLeave(isDraft: boolean) {
     }
     for (const owner of queuedOwners) {
       anyQueued = true
-      createSubmission([{ type: 'create' as const, ownerId: owner.id, cycleId, after: goalFromDraft(draft, owner, isDraft) }], owner.id, cycleId)
+      createSubmission([{ type: 'create' as const, ownerId: owner.id, cycleId, after: goalFromDraft(draft, owner, isDraft) }], owner.id, cycleId, batch?.id)
     }
   }
 
-  const title = !anyQueued
-    ? 'Goals saved'
-    : !anyDirect
-      ? 'Goals submitted for approval'
-      : 'Goals saved — some submitted for approval'
+  // Past the bulk limit this fans out to hundreds of goal records, which the
+  // real backend processes asynchronously — say so rather than implying every
+  // goal is already live by the time the index loads.
+  const title = isBulkOwnerCount.value
+    ? 'Goals are being created in the background'
+    : !anyQueued
+        ? 'Goals saved'
+        : !anyDirect
+            ? 'Goals submitted for approval'
+            : 'Goals saved — some submitted for approval'
   toast.notify({
     id: 'new-goals-saved',
     position: 'top-center',
     variant: 'success',
     title,
+    ...(isBulkOwnerCount.value
+      ? { description: `Creating goals for ${owners.value.length} employees. This can take a few minutes — you can keep working.` }
+      : {}),
   })
   // Everything above is already persisted (or queued) by this point, so
   // there's nothing left for the "unsaved changes" leave guard to protect —
@@ -385,6 +430,34 @@ const stickyActionBar = css({
   borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default',
 })
 const ownersBar = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBottom: '5' })
+// Overlapping owner avatars — mirrors GoalSubmissionReview.vue's stack.
+const avatarStack = css({ display: 'flex', alignItems: 'center' })
+const avatarStackItem = css({ position: 'relative', display: 'flex', _notFirst: { marginLeft: '-8px' } })
+const avatarRing = css({ display: 'flex', borderRadius: 'full', borderWidth: '2px', borderStyle: 'solid', borderColor: 'background.surface' })
+const overflowAvatarBtn = css({ background: 'none', border: 'none', padding: '0', cursor: 'pointer' })
+// MpAvatar derives initials from `name` by splitting on a space and taking the
+// first letter of each word — passing it "+9" collapses to just "+" (no digit).
+// Hand-roll the counter circle instead, matching MpAvatar size="md"'s ACTUAL
+// rendered footprint in this build (24px / 14px font, verified via computed
+// style — the token recipe's on-paper 32px doesn't hold here) so it's the
+// same size as the avatars beside it, not visibly larger.
+const avatarCountCircle = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: '24px', height: '24px', borderRadius: 'full',
+  background: 'gray.50', color: 'gray.600',
+  fontSize: '14px', fontWeight: '600', userSelect: 'none',
+})
+const hoverCard = css({ display: 'flex', alignItems: 'center', gap: '3', padding: '3' })
+const hoverCardName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const hoverCardMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+// "View all owners" modal list
+const ownerList = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
+const ownerListRow = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
+// 16px gap to the next row, with the divider line sitting at the bottom edge
+// of that gap — not applied after the last row.
+const ownerListRowDivider = css({ paddingBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
+const ownerListName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const ownerListMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -439,9 +512,44 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </MpFlex>
       </template>
       <template v-else>
-        <MpAvatarGroup id="owners-summary-avatars" size="md" :max="owners.length">
-          <MpAvatar v-for="o in owners" :key="o.id" :id="o.id" :name="o.name" :src="o.photo" variant-color="gray" />
-        </MpAvatarGroup>
+        <!-- Hand-rolled stack, not MpAvatarGroup: tried it — it clones slot
+             children to apply size/spacing/border/cap, and that cloning
+             breaks once each child is wrapped in its own MpPopover hover
+             trigger (the cap stops being enforced and the excess bubble never
+             renders — confirmed live, not just a styling guess). This stack
+             hand-imitates MpAvatarGroup's own look instead: `avatarRing` is
+             its 2px white border ring, `avatarStackItem`'s -8px marginLeft is
+             its default `spacing: -2` overlap. -->
+        <div :class="avatarStack">
+          <div v-for="o in visibleOwners" :key="o.id" :class="avatarStackItem">
+            <MpPopover trigger="hover" use-portal placement="top">
+              <MpPopoverTrigger>
+                <div :class="avatarRing"><MpAvatar :id="o.id" size="md" :name="o.name" :src="o.photo" variant-color="gray" /></div>
+              </MpPopoverTrigger>
+              <MpPopoverContent>
+                <div :class="hoverCard">
+                  <MpAvatar size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+                  <MpFlex direction="column" gap="0">
+                    <span :class="hoverCardName">{{ o.name }}</span>
+                    <span :class="hoverCardMeta">{{ employeeMeta(o) }}</span>
+                  </MpFlex>
+                </div>
+              </MpPopoverContent>
+            </MpPopover>
+          </div>
+          <!-- Overflow: a counter circle that opens the full list. Hand-rolled,
+               not MpAvatar's name prop — getInitial() splits on a space and
+               keeps only the first character, so "+9" would render as "+". -->
+          <button
+            v-if="hiddenOwnerCount"
+            type="button"
+            :class="[avatarStackItem, overflowAvatarBtn]"
+            :aria-label="`View all ${owners.length} goal owners`"
+            @click="allOwnersModalOpen = true"
+          >
+            <div :class="avatarRing"><span :class="avatarCountCircle">+{{ hiddenOwnerCount }}</span></div>
+          </button>
+        </div>
         <MpFlex direction="column" gap="1">
           <MpText size="label" weight="semiBold" :class="valueText">{{ owners.length }} goal owners</MpText>
           <MpText size="label-small" :class="captionText">
@@ -555,6 +663,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   </MpPopoverTrigger>
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
+                      <!-- Same editor as the multi-owner rows below; with one owner
+                           onDraftEditSaved just replaces the entry in place. -->
+                      <MpPopoverListItem @click="openDraftEditForOwner(goal, owners[0].id)">Edit</MpPopoverListItem>
                       <MpPopoverListItem @click="removeGoal(goal.id)">
                         <span :class="css({ color: 'text.danger' })">Remove</span>
                       </MpPopoverListItem>
@@ -748,4 +859,41 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpModalContent>
   </MpModal>
   </ClientOnly>
+
+  <!-- Every goal owner — opened from the "+N" avatar -->
+  <ClientOnly>
+  <MpModal :is-open="allOwnersModalOpen" class="owner-list-modal" @close="allOwnersModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent>
+      <MpModalHeader>
+        Goal owners ({{ owners.length }})
+        <MpModalCloseButton @click="allOwnersModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <div :class="ownerList">
+          <div v-for="(o, idx) in owners" :key="o.id" :class="[ownerListRow, idx < owners.length - 1 && ownerListRowDivider]">
+            <MpAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+            <MpFlex direction="column" gap="0">
+              <span :class="ownerListName">{{ o.name }}</span>
+              <span :class="ownerListMeta">{{ employeeMeta(o) }}</span>
+            </MpFlex>
+          </div>
+        </div>
+      </MpModalBody>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
 </template>
+
+<style scoped>
+/* MpModal's own root (where the `class` we pass lands) never gets this
+   file's scope id — its manual mergeProps()/Teleport render skips Vue's
+   usual scope-id injection — so a plain scoped selector on `.owner-list-modal`
+   never matches at runtime. Wrap the whole selector in :global() instead.
+   !important beats the component's own inline `margin-top: 3.75rem` (60px,
+   its default/outside scroll-behavior offset — position is `relative`, so
+   `top` has no effect). */
+:global(.owner-list-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
+}
+</style>

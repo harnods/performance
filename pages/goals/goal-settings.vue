@@ -17,6 +17,8 @@ import {
   MpToggle,
   MpBadge,
   MpButton,
+  MpRadio,
+  MpTextarea,
   MpTextlink,
   MpBanner,
   MpBannerIcon,
@@ -44,18 +46,49 @@ const router = useRouter()
 // interface, so the toggle reads ON until the user switches back.
 const useNewInterface = useCookie('goals-new-interface', { default: () => true })
 
-// Reverting to the old UI is blocked once a goal cycle has been CREATED in the
-// new UI (pre-seeded cycles are carryover from the old UI and don't count).
+// Reverting to the old UI is never blocked — a goal cycle created in the new
+// UI can coexist with the old interface; the banner below just flags that
+// draft goals still live only in the new UI.
 const { cycles } = useGoalCyclesStore()
 const hasNewUiCycle = computed(() => cycles.value.some(c => c.createdInNewUi))
-const revertBlockedOpen = ref(false)
+
+// ─── Switch-back reason (asked once) ─────────────────────────────────────────
+// The FIRST time someone leaves the new interface we ask why, then remember
+// that we asked — subsequent switches flip the toggle straight away.
+const askedSwitchReason = useCookie<boolean>('goals-switch-reason-asked', { default: () => false })
+const switchReasonOpen = ref(false)
+const switchReason = ref('')
+const switchReasonOther = ref('')
+const SWITCH_REASONS = [
+  { value: 'missing-feature', label: 'A feature I need is missing' },
+  { value: 'hard-to-find', label: 'I can’t find what I’m looking for' },
+  { value: 'prefer-old', label: 'I prefer how the old interface works' },
+  { value: 'too-slow', label: 'The new interface feels slow' },
+  { value: 'other', label: 'Other' },
+]
+
 function onToggleNewInterface(val: boolean) {
-  // Turning it OFF (back to old UI) is blocked while a new-UI cycle exists.
-  if (!val && hasNewUiCycle.value) {
-    revertBlockedOpen.value = true
+  // First switch back to the old UI — ask why before actually switching.
+  if (!val && !askedSwitchReason.value) {
+    switchReason.value = ''
+    switchReasonOther.value = ''
+    switchReasonOpen.value = true
     return
   }
   useNewInterface.value = val
+}
+
+// Both paths out of the reason modal still switch the user — the answer is
+// feedback, not a gate.
+function confirmSwitchReason() {
+  askedSwitchReason.value = true
+  switchReasonOpen.value = false
+  useNewInterface.value = false
+}
+function skipSwitchReason() {
+  askedSwitchReason.value = true
+  switchReasonOpen.value = false
+  useNewInterface.value = false
 }
 const restrictGoalCreator = ref(false)
 const enableGoalCategories = ref(true)
@@ -92,6 +125,8 @@ const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const toggleGroup = css({ display: 'flex', flexDirection: 'column', gap: '2' })
 const toggleWithLink = css({ display: 'flex', flexDirection: 'column', gap: '2' })
 const linkRow = css({ paddingLeft: '10' })
+const reasonList = css({ display: 'flex', flexDirection: 'column', gap: '3', marginTop: '4' })
+const otherInput = css({ paddingLeft: '7', marginTop: '2' })
 </script>
 
 <template>
@@ -113,10 +148,10 @@ const linkRow = css({ paddingLeft: '10' })
         </div>
         <!-- Locked once a goal cycle has been created in the new UI. -->
         <div v-if="hasNewUiCycle" :class="linkRow">
-          <MpBanner variant="warning">
+          <MpBanner variant="info">
             <MpBannerIcon />
-            <MpBannerTitle>Can’t switch back to the old interface</MpBannerTitle>
-            <MpBannerDescription>You’ve created one or more goal cycles in the new Goals interface. Delete those goal cycles first if you need to switch back.</MpBannerDescription>
+            <MpBannerTitle>Draft goals won’t show in the old interface</MpBannerTitle>
+            <MpBannerDescription>Goals saved as drafts are only visible in the new interface. Switch back to the new interface anytime to see them again.</MpBannerDescription>
           </MpBanner>
         </div>
       </div>
@@ -236,22 +271,38 @@ const linkRow = css({ paddingLeft: '10' })
     </div>
   </div>
 
-  <!-- Blocked-revert alert: a goal cycle exists that was created in the new UI -->
+  <!-- Asked once, the first time someone switches back to the old interface -->
   <ClientOnly>
-  <MpModal :is-open="revertBlockedOpen" @close="revertBlockedOpen = false">
+  <MpModal :is-open="switchReasonOpen" is-centered @close="skipSwitchReason">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>
-        Can’t switch back to the old interface
-        <MpModalCloseButton @click="revertBlockedOpen = false" />
+        Why are you switching back?
+        <MpModalCloseButton @click="skipSwitchReason" />
       </MpModalHeader>
       <MpModalBody>
-        <MpText color="text.default">
-          You’ve created one or more goal cycles in the new Goals interface, so you can’t switch back to the old one. Delete those goal cycles first if you really need to revert.
+        <MpText size="label" color="text.default">
+          Your answer helps us improve the new Goals interface. You can switch back to it anytime.
         </MpText>
+        <div :class="reasonList">
+          <div v-for="reason in SWITCH_REASONS" :key="reason.value">
+            <MpRadio
+              name="switch-reason"
+              :value="reason.value"
+              :is-checked="switchReason === reason.value"
+              @update:is-checked="switchReason = reason.value"
+            >
+              {{ reason.label }}
+            </MpRadio>
+            <div v-if="reason.value === 'other' && switchReason === 'other'" :class="otherInput">
+              <MpTextarea v-model="switchReasonOther" :rows="3" placeholder="Tell us more" />
+            </div>
+          </div>
+        </div>
       </MpModalBody>
       <MpModalFooter>
-        <MpButton variant="primary" @click="revertBlockedOpen = false">Got it</MpButton>
+        <MpButton variant="ghost" @click="skipSwitchReason">Skip</MpButton>
+        <MpButton variant="primary" @click="confirmSwitchReason">Switch back</MpButton>
       </MpModalFooter>
     </MpModalContent>
   </MpModal>

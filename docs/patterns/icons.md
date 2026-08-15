@@ -15,6 +15,8 @@ Icon names are kebab-case string literals (`add`, `chevrons-right`, `arrows-righ
 
 `PxIcon` takes semantic colour tokens: `icon.default`, `icon.secondary`, `icon.brand`. Active sidebar icons = `icon.brand` + `variant="fill"`; inactive = default + `variant="outline"` (see [`sidebar-menu.md`](sidebar-menu.md)).
 
+**`MpIcon` colour must be set via its own `color` prop** (`<MpIcon name="..." color="icon.inverse" />`), never via a wrapping `:class`/CSS `color`. `MpIcon` renders `--mp-icon-color` as an **inline style** computed from its `color` prop — a Panda `css({ color: 'icon.inverse' })` class on the icon (or its parent) does not override that inline style, so the icon silently stays its default gray (`icon.secondary`-ish `#626B79`) no matter what CSS you throw at it. `goal-cycles/[id]/index.vue`'s scenario-control FAB hit this exactly: `color: 'icon.inverse'` on the wrapping `<button>` had no effect until moved to `MpIcon`'s own `color` prop.
+
 ## Rules
 
 - Sidebar/precise-box icons → `PxIcon` with `:size`. Inline/button icons → `MpIcon`.

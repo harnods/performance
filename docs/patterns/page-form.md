@@ -10,6 +10,28 @@ When is a create/edit a full page, a drawer, or a modal? Established split:
 
 Load-bearing rule (`CycleGeneralForm.vue:201-205` comment): a toggle only flips `is_active`; the drawer opens from the Manage button handler. Opening is deferred to `nextTick` so the triggering click isn't treated as an outside-click close.
 
+## Single-value picker field (opens a nested drawer)
+
+A form field whose value is chosen via a nested drawer (e.g. "align to a parent goal") has two states — don't invent a different shape:
+
+- **Empty**: `<MpButton variant="secondary" @click="openDrawer">Select …</MpButton>` (same Manage/Select rule as above).
+- **Filled**: the picked value as plain text + two `MpTextlink as="button"` actions, `Change` (reopen the drawer) and `Remove` (clear it), all in one `MpFlex align="center" gap="3"`. No chip/badge wrapper — just text + links.
+
+```vue
+<MpFormControl v-if="condition" id="field-id">
+  <MpFormLabel>Field label</MpFormLabel>
+  <MpFlex v-if="value" align="center" gap="3">
+    <span :class="valueText">{{ valueLabel }}</span>
+    <MpTextlink as="button" @click="openDrawer">Change</MpTextlink>
+    <MpTextlink as="button" @click="clearValue">Remove</MpTextlink>
+  </MpFlex>
+  <MpButton v-else variant="secondary" @click="openDrawer">Select …</MpButton>
+  <MpFormHelpText>Optional helper copy.</MpFormHelpText>
+</MpFormControl>
+```
+
+Reference: `AddGoalDrawer.vue:806-816` ("Align to a goal" field, opens `GoalAlignDrawer`).
+
 ## Drawer skeleton
 
 ```vue
@@ -66,6 +88,51 @@ Conventions:
 - Confirm verb is context-specific ("Update", "Confirm", "Create", "Continue").
 - Reset-on-open watcher, same as drawers.
 - **Save-cascade pattern**: a drawer's submit validates, and if a cascade is detected opens a confirm modal instead of saving; the modal's confirm calls the real `doSave()`.
+
+## Read-only list modal (view-all, no footer action)
+
+A modal that only *displays* a list (e.g. "every goal owner") has no footer at
+all — the header's `MpModalCloseButton` (×) is the only dismiss action, don't
+add a redundant "Close" `MpButton` in `MpModalFooter`. Rows get a 16px gap and
+a 1px bottom border between them (not after the last row):
+
+```ts
+const list = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
+const row = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
+const rowDivider = css({ paddingBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
+```
+```vue
+<div :class="list">
+  <div v-for="(item, idx) in items" :key="item.id" :class="[row, idx < items.length - 1 && rowDivider]">…</div>
+</div>
+```
+
+Reference: `goal-cycles/[id]/new.vue` — "Goal owners (N)" modal opened from the
+avatar stack's "+N" overflow (see [`avatar.md`](avatar.md)).
+
+## Overriding a modal's default top offset
+
+`MpModal` positions `MpModalContent` with an inline `margin-top: 3.75rem`
+(60px) by default (its `outside` scroll-behavior branch) — `position` is
+`relative`, so a `top` override does nothing; you must override `margin-top`.
+The class passed to `<MpModal class="…">` lands on `MpModal`'s own root node,
+which — because it renders through a `Teleport` with a hand-rolled
+`mergeProps()` — never receives this SFC's scoped-CSS id. A normal scoped
+selector on that class therefore never matches at runtime; wrap the **whole**
+selector in `:global(...)` and use `!important` to beat the inline style:
+
+```vue
+<MpModal :is-open="isOpen" class="my-modal" @close="close">…</MpModal>
+```
+```html
+<style scoped>
+:global(.my-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
+}
+</style>
+```
+
+Reference: `goal-cycles/[id]/new.vue` — the "Goal owners" modal above.
 
 ## Rules
 

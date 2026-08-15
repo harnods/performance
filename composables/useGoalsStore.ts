@@ -83,6 +83,10 @@ export interface Goal {
   deadlineDate?: string // ISO yyyy-mm-dd — only meaningful when unit === 'deadline'
   deadlineRules?: DeadlineRule[]
   isDraft?: boolean // saved via "Save as draft" on the "New goals" page rather than "Save"
+  // A draft that's been sent up for approval and is waiting on a decision. Still
+  // isDraft (approval can be rejected, sending it straight back to Draft), but it
+  // reads as "Awaiting approval" and offers no actions until the decision lands.
+  isAwaitingApproval?: boolean
   isClosed?: boolean // a closed goal is read-only: no progress update / edit / align (prod goal_status === 2)
   // True when this goal was created in the OLD Goals UI and carried over when the
   // company upgraded to the new version — a "mixed" cycle contains both these
@@ -93,6 +97,9 @@ export interface Goal {
   direction?: 'higher' | 'lower'
   keyResults?: DraftKeyResult[]
   restrictedVisibility?: boolean // organization-level goals only — true limits viewing to the goal owner + members
+  // False means only the goal contributors can update progress — the owner
+  // can't update their own goal. Absent/true = owner can (the default).
+  ownerCanUpdateProgress?: boolean
   // Last progress update — shown in the "Last updated by … on …" footer of the
   // Alignment card on the goal detail page. `updatedBy` is a display name;
   // `updatedAt` a preformatted "15 Mar 2026, 15:00" timestamp. Optional: goals
@@ -779,7 +786,7 @@ function seed(): Goal[] {
     id: 'ap-01', level: 'organization', ownerId: 'andi', department: 'Kitchen',
     category: 'Financial', subCategory: 'Food Cost',
     code: 'AP-01', title: 'Department food cost ratio (≤ 30%)',
-    alignedToId: 'rc-02',
+    alignedToId: 'rc-02', repeat: true, startDate: '2026-01-01', endDate: '2026-01-31',
     weight: 13, contributorIds: ['indah'], viewerIds: ['indah'], status: 'orange', unit: 'percent', value: 35.1, pill: 117, min: 0, max: 30,
   }),
   g({
@@ -819,6 +826,7 @@ function seed(): Goal[] {
     id: 'ap-07', level: 'individual', ownerId: 'andi', department: 'Kitchen',
     category: 'Internal Process', subCategory: 'Menu Innovation',
     code: 'AP-07', title: 'New menu items introduced per quarter (≥ 2 items)',
+    repeat: true, startDate: '2026-01-01', endDate: '2026-03-31',
    weight: 11, contributorIds: [], viewerIds: [], status: 'green', unit: 'count', value: 2.4, pill: 120, min: 0, max: 2,
   }),
   g({
@@ -1202,7 +1210,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 22
+const SEED_VERSION = 24
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress

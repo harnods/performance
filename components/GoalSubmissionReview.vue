@@ -687,10 +687,6 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
           <template v-else-if="submission.status === 'rejected'">
             <MpText size="label-small" :class="[dangerText, css({ display: 'block' })]">Revision requested — reason: {{ submission.rejectReason }}</MpText>
           </template>
-
-          <template v-else>
-            <MpText size="label" :class="captionText">This submission has already been approved.</MpText>
-          </template>
         </div>
       </div>
     </template>

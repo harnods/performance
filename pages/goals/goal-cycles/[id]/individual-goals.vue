@@ -74,8 +74,10 @@ const isSelectEmployeeOpen = ref(false)
 function openSelectEmployee() {
   isSelectEmployeeOpen.value = true
 }
-function continueToNewGoals(employeeIds: string[]) {
-  router.push({ path: `/goals/goal-cycles/${route.params.id}/new`, query: { employees: employeeIds.join(',') } })
+const { importSuggestionOpen, pendingEmployeeIds, continueToNewGoals, goToImport: goToImportBulkOwners } = useBulkOwnerGate(() => route.params.id as string)
+function cancelBulkOwnerModal() {
+  importSuggestionOpen.value = false
+  isSelectEmployeeOpen.value = true
 }
 
 type Tab = 'all' | 'requests' | 'awaiting' | 'info'
@@ -182,6 +184,11 @@ function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
+}
+const { submitDraftForApproval } = useGoalDraftSubmitter()
+function submitRowForApproval(row: { id: string }) {
+  const g = goals.value.find(x => x.id === row.id)
+  if (g) submitDraftForApproval(g)
 }
 
 // Align goal — pick a higher-level parent goal for this individual goal.
@@ -308,6 +315,7 @@ const departments = computed(() => DEPARTMENTS
       min: g.min,
       max: g.max,
       isDraft: g.isDraft,
+      isAwaitingApproval: g.isAwaitingApproval,
     }))
     return { key: emp.id, name: emp.name, code: emp.code, title: emp.title, department: emp.department, rows }
   }).filter(owner => owner.rows.length > 0)
@@ -704,7 +712,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                             <span :class="goalCode">{{ row.code }}</span>
                             <MpFlex align="center" gap="2">
                               <span :class="goalNameLink" @click="goToGoal(row.id)">{{ row.title }}</span>
-                              <MpBadge v-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
+                              <MpBadge v-if="row.isAwaitingApproval" for="tableStatus" type="warning" size="sm">Awaiting approval</MpBadge>
+                              <MpBadge v-else-if="row.isDraft" for="tableStatus" type="announcement" size="sm">Draft</MpBadge>
                               <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
                             </MpFlex>
                             <MpText size="label-small" :class="captionText">Weight: {{ row.weight }}%</MpText>
@@ -775,15 +784,27 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                           </MpPopoverTrigger>
                           <MpPopoverContent :class="css({ minWidth: '160px' })">
                             <MpPopoverList>
-                              <MpPopoverListItem @click="goToGoal(row.id)">View details</MpPopoverListItem>
-                              <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
-                              <MpPopoverListItem v-if="!row.isClosed" @click="openAlign(row)">Align goal</MpPopoverListItem>
-                              <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
-                              <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
-                              <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
-                              <MpPopoverListItem @click="deleteRow(row)">
-                                <span :class="css({ color: 'text.danger' })">Delete</span>
-                              </MpPopoverListItem>
+                              <!-- A draft isn't live yet, so progress/align/close make no sense on it —
+                                   its only forward move is going up for approval. -->
+                              <template v-if="row.isDraft">
+                                <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="submitRowForApproval(row)">Submit for approval</MpPopoverListItem>
+                                <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+                                <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
+                                <MpPopoverListItem @click="deleteRow(row)">
+                                  <span :class="css({ color: 'text.danger' })">Delete</span>
+                                </MpPopoverListItem>
+                              </template>
+                              <template v-else>
+                                <MpPopoverListItem @click="goToGoal(row.id)">View details</MpPopoverListItem>
+                                <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                                <MpPopoverListItem v-if="!row.isClosed" @click="openAlign(row)">Align goal</MpPopoverListItem>
+                                <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
+                                <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
+                                <MpPopoverListItem v-if="!row.isClosed" @click="closeRow(row)">Close goal</MpPopoverListItem>
+                                <MpPopoverListItem @click="deleteRow(row)">
+                                  <span :class="css({ color: 'text.danger' })">Delete</span>
+                                </MpPopoverListItem>
+                              </template>
                             </MpPopoverList>
                           </MpPopoverContent>
                         </MpPopover>
@@ -807,8 +828,14 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <SelectEmployeesDrawer
     v-model:is-open="isSelectEmployeeOpen"
     :exclude-ids="[...fullOwnerIds]"
+    :initial-selected="pendingEmployeeIds"
     exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
     @continue="continueToNewGoals"
+  />
+  <TooManyEmployeesModal
+    :is-open="importSuggestionOpen"
+    @cancel="cancelBulkOwnerModal"
+    @import="goToImportBulkOwners"
   />
 
   <!-- Edit an existing goal -->

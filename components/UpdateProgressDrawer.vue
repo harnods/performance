@@ -84,6 +84,26 @@ const isConfirmUpdateOpen = ref(false)
 
 const updateMode = computed<'kr' | 'children' | 'goal'>(() =>
   (keyResults.value.length ? 'kr' : (alignedChildren.value.length ? 'children' : 'goal')))
+
+// Same roll-up rule as `children` mode, but scoped to a single key result:
+// when another goal aligns to THIS goal's key result, that key result is a
+// roll-up target — its progress comes from the child, so the parent can't type
+// into it. Only the parent side is locked; the child updates as normal.
+// alignedGoalsOf() drops alignedToKrId, so this reads the raw goals instead.
+const rollupKrIds = computed(() => {
+  const g = props.goal
+  if (!g) return new Set<string>()
+  return new Set(
+    goals.value
+      .filter(child => child.alignedToId === g.id && child.alignedToKrId)
+      .map(child => child.alignedToKrId as string),
+  )
+})
+function krIsRollup(id: string) { return rollupKrIds.value.has(id) }
+// Single banner above the whole KR list (matching the goal-level `children`
+// banner) rather than repeating it per row — only shown when at least one KR
+// in THIS list is actually a roll-up target.
+const hasRollupKr = computed(() => keyResults.value.some(kr => krIsRollup(kr.id)))
 function krMeta(id: string) { return keyResults.value.find(k => k.id === id) }
 function krDraftPct(d: { id: string, currentValue: number | '' }) {
   const kr = krMeta(d.id)
@@ -141,7 +161,11 @@ function saveUpdate() {
   if (updateMode.value === 'kr') {
     const list = keyResults.value.map((kr) => {
       const d = krDraft.value.find(x => x.id === kr.id)
-      const cur = d ? (d.currentValue === '' ? 0 : Number(d.currentValue)) : (kr.currentValue ?? 0)
+      // A roll-up key result is owned by its aligned child — never write this
+      // drawer's value over it, even though its input is already disabled.
+      const cur = krIsRollup(kr.id)
+        ? (kr.currentValue ?? 0)
+        : d ? (d.currentValue === '' ? 0 : Number(d.currentValue)) : (kr.currentValue ?? 0)
       const start = typeof kr.startValue === 'number' ? kr.startValue : 0
       const target = Number(kr.targetValue)
       const pct = (!Number.isFinite(target) || target === start)
@@ -294,6 +318,10 @@ const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: '
 
             <!-- KR-driven -->
             <template v-if="updateMode === 'kr'">
+              <MpBanner v-if="hasRollupKr" variant="info" is-inline>
+                <MpBannerIcon />
+                <MpBannerDescription>Progress cannot be updated manually if they have goal aligned and the progress will be taken from the child goal.</MpBannerDescription>
+              </MpBanner>
               <MpText :class="sectionH2">Key results<template v-if="krDraft.length"> ({{ krDraft.length }})</template></MpText>
               <div v-for="d in krDraft" :key="d.id" :class="krProgRow">
                 <MpFlex direction="column" gap="0">
@@ -319,7 +347,7 @@ const upFileRow = css({ display: 'flex', alignItems: 'center', justifyContent: '
                       <span :class="rangeMax">{{ krFmt(krMeta(d.id)!, krMeta(d.id)?.targetValue) }}</span>
                     </div>
                   </div>
-                  <div :class="upItemInput">
+                  <div v-if="!krIsRollup(d.id)" :class="upItemInput">
                     <MpFormControl :id="`up-kr-${d.id}`">
                       <MpFormLabel>Progress</MpFormLabel>
                       <MpInputGroup>

@@ -78,6 +78,7 @@ export function goalFromDraft(draft: DraftGoal, owner: Employee, isDraft: boolea
     direction: draft.direction,
     keyResults: draft.keyResults.map(kr => ({ ...kr })),
     restrictedVisibility: draft.restrictedVisibility,
+    ownerCanUpdateProgress: draft.ownerCanUpdateProgressByOwner[owner.id] ?? true,
     alignedToId: draft.alignedToId,
     alignedToKrId: draft.alignedToKrId,
   }
@@ -113,6 +114,7 @@ export function draftFromGoal(goal: Goal, owner: Employee): DraftGoal {
     viewerIds: [...(goal.viewerIds ?? [])],
     keyResults: goal.keyResults ? goal.keyResults.map(kr => ({ ...kr })) : [],
     restrictedVisibility: goal.restrictedVisibility ?? false,
+    ownerCanUpdateProgressByOwner: { [owner.id]: goal.ownerCanUpdateProgress ?? true },
     ownerIds: [owner.id],
     alignedToId: goal.alignedToId,
     alignedToKrId: goal.alignedToKrId,

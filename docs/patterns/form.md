@@ -73,6 +73,21 @@ Use the built-in default slot for the label + `#description` slot for the captio
 - Binding: prefer `:is-checked` + `@update:is-checked`; `v-model:is-checked` shorthand also exists.
 - Exception to "no external MpFlex": when a `MpBadge` sits inline with the label, wrap just the label content in an `MpFlex align="center" gap="2"`.
 - **Multiline label → align top**: rows with a toggle+description + a Manage button use `alignItems: 'flex-start'` (`toggleRowPlain`). Same for checkbox labels >1 line.
+- **Explanation as a tooltip instead of `#description`**: when the caption only matters to someone unsure why a toggle is disabled/relevant (not everyone, every time), drop the `#description` slot and put an info icon + `MpTooltip` inline with the label instead — same `MpFlex as="span"` exception as the badge case, and the same icon+tooltip pairing already used for section headers ([`table.md`](table.md) has no equivalent; see `CycleGeneralForm.vue:456-459` for the section-header form):
+
+```vue
+<!-- AddGoalDrawer.vue — "Let the goal owner update their own progress" -->
+<MpToggle :id="id" :is-checked="checked" @update:is-checked="onChange">
+  <MpFlex as="span" align="center" gap="1">
+    Let {{ owner.name.split(' ')[0] }} update their own progress
+    <MpTooltip :label="hintText" use-portal>
+      <MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary' })" />
+    </MpTooltip>
+  </MpFlex>
+</MpToggle>
+```
+
+  Use this instead of `#description` when the row already reads as busy (e.g. one toggle per person in a per-owner list) and the explanation is genuinely secondary — don't reach for it as a default over `#description`, which stays the norm for a caption everyone should read.
 
 ## Rich text (long descriptions)
 
