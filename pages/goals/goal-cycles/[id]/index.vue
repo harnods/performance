@@ -456,7 +456,7 @@ function periodProgress(row: { id: string, min?: number, max?: number, pill?: nu
     pct = Math.max(0, Math.min(100, Math.round(ramp + jitter)))
   }
   const value = Math.round(min + ((max - min) * pct) / 100)
-  // Never 'gray' ("Not updated") — a past occurrence always HAS a recorded
+  // Never 'gray' ("Not started") — a past occurrence always HAS a recorded
   // value, it just performed well or poorly, unlike the live goal which can
   // genuinely be untouched.
   const status: 'green' | 'orange' = pct >= 80 ? 'green' : 'orange'
@@ -907,7 +907,7 @@ const progressTrack = css({ width: '100%', height: '6px', borderRadius: 'full', 
 const progressFill = css({ height: '100%', borderRadius: 'full' })
 const fillGreen = css({ background: 'teal.400' })
 const fillOrange = css({ background: 'rose.400' })
-// Not updated (but has progress) — dark gray, mirroring prod's progressColor
+// Not started (but has progress) — dark gray, mirroring prod's progressColor
 // ('gray' → gray.400). Distinct from the light gray.50 track.
 const fillGray = css({ background: 'gray.400' })
 
@@ -922,7 +922,9 @@ const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRad
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
 const statusPillOrange = css({ ...statusPillBase, background: 'orange.50', color: 'orange.700' })
 const statusPillGray = css({ ...statusPillBase, background: 'background.neutral.subtle', color: 'text.default' })
-const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+// "Not started" — matches the Goals dashboard's summary card wording
+// (components/GoalsDashSummaryCards.vue) for the same gray status.
+const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 
 const awaitingBadge = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
