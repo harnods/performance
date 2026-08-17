@@ -125,7 +125,14 @@ function cancelBulkOwnerModal() {
 }
 
 type Tab = 'all' | 'hierarchy' | 'requests' | 'awaiting' | 'info'
-const activeTab = ref<Tab>('all')
+// Deep-linkable via ?tab= so other surfaces can land on a specific tab (the
+// Goals dashboard's "Goals aligned" donut links straight to the hierarchy).
+// Unknown/absent values fall back to All goals; permission-gated tabs are still
+// policed by the watcher below.
+const TABS: Tab[] = ['all', 'hierarchy', 'requests', 'awaiting', 'info']
+const activeTab = ref<Tab>(
+  TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'all',
+)
 
 // Switching "View as" persona can make the active tab invisible (e.g. an
 // admin on "Awaiting approval" switches to a non-admin persona) — fall back
@@ -200,7 +207,13 @@ const visibleColumns = reactive<Record<ColumnKey, boolean>>({
 // Goal name is the anchor column — always on, shown disabled (can't uncheck).
 const toggleableColumns = computed(() => columnOptions.filter(c => c.key !== 'goal'))
 
-const statusFilter = ref('')
+// Pre-applied from ?status= so the Goals dashboard's summary cards can land here
+// already filtered to the status that was clicked. Unknown values are ignored
+// rather than silently filtering everything out.
+const STATUS_FILTER_KEYS = ['ontrack', 'atrisk', 'notstarted']
+const statusFilter = ref(
+  STATUS_FILTER_KEYS.includes(route.query.status as string) ? (route.query.status as string) : '',
+)
 const search = ref('')
 
 // "All filters" drawer — owner-attribute filters (branch/org/job position/level/
@@ -314,7 +327,10 @@ function openActivityLog(row: { id: string }) {
   if (activityGoal.value) isActivityLogOpen.value = true
 }
 
-const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange' }
+// `notstarted` exists so the Goals dashboard's "Not started" summary card can
+// deep-link here with its own status pre-applied (?status=notstarted) — every
+// card must land on a filter that actually exists.
+const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange', notstarted: 'gray' }
 
 const sourceGoals = computed(() => {
   const base = goalsView.value === 'my'
@@ -1042,6 +1058,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <MpSelect v-model="statusFilter" placeholder="Status" is-clearable tabindex="-1" aria-hidden="true">
                 <option value="ontrack">On track</option>
                 <option value="atrisk">Off track</option>
+                <option value="notstarted">{{ statusLabel.gray }}</option>
               </MpSelect>
             </MpFlex>
           </MpPopoverTrigger>
@@ -1049,6 +1066,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpPopoverList>
               <MpPopoverListItem :is-active="statusFilter === 'ontrack'" @click="statusFilter = 'ontrack'">On track</MpPopoverListItem>
               <MpPopoverListItem :is-active="statusFilter === 'atrisk'" @click="statusFilter = 'atrisk'">Off track</MpPopoverListItem>
+              <MpPopoverListItem :is-active="statusFilter === 'notstarted'" @click="statusFilter = 'notstarted'">{{ statusLabel.gray }}</MpPopoverListItem>
             </MpPopoverList>
           </MpPopoverContent>
         </MpPopover>
