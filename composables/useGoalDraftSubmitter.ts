@@ -17,17 +17,21 @@
 // same way from here.
 
 import { toast } from '@mekari/pixel3'
+import { employeeById } from '~/utils/employees'
 import type { Goal } from './useGoalsStore'
 
 export function useGoalDraftSubmitter() {
-  const { updateGoal } = useGoalsStore()
+  const { updateGoal, goals } = useGoalsStore()
+  const { cycles } = useGoalCyclesStore()
   const { logActivity } = useGoalActivityStore()
   const { createSubmission } = useGoalApprovalsStore()
 
   // Publishes one or more draft goals at once — used both for a single row
   // and for an owner's whole "Publish N goals" batch. Every goal is expected
   // to already be isDraft; goals are grouped by owner because the
-  // needs-approval decision is per OWNER, not per goal.
+  // needs-approval decision is per OWNER, not per goal — and so is the
+  // weight-budget check below (one 100% pot per owner per cycle, mixing
+  // every goal level together — see useGoalsStore.ts's seed comment).
   function publishDrafts(draftGoals: Goal[]) {
     if (draftGoals.length === 0) return
     const byOwner = new Map<string, Goal[]>()
@@ -36,6 +40,37 @@ export function useGoalDraftSubmitter() {
       if (arr) arr.push(goal)
       else byOwner.set(goal.ownerId, [goal])
     }
+
+    // A draft can be saved well under 100% (new.vue's own "Save as draft"
+    // skips the weight check entirely — see onSaveAsDraft there) — so
+    // publishing is where it finally has to be caught, same "must equal
+    // exactly 100%" rule new.vue enforces at its own Save. Checked per
+    // owner against ALL of their goals in the cycle (draft + already
+    // committed), not just the batch being published — a half-published
+    // owner could otherwise slip through one owner at a time.
+    const blockedOwners: string[] = []
+    for (const [ownerId, ownerGoals] of byOwner) {
+      const cycleId = ownerGoals[0].cycleId
+      const cycle = cycles.value.find(c => c.id === cycleId)
+      if (!cycle?.weightMandatory) continue
+      const total = goals.value
+        .filter(g => g.ownerId === ownerId && g.cycleId === cycleId)
+        .reduce((sum, g) => sum + g.weight, 0)
+      if (total !== 100) blockedOwners.push(ownerId)
+    }
+    for (const ownerId of blockedOwners) byOwner.delete(ownerId)
+    if (blockedOwners.length > 0) {
+      const names = blockedOwners.map(id => employeeById(id)?.name ?? id)
+      toast.notify({
+        id: 'goal-draft-publish-weight-error',
+        position: 'top-center',
+        variant: 'error',
+        title: names.length === 1
+          ? `${names[0]}'s total goal weight isn't 100% yet — it must equal exactly 100% before publishing.`
+          : `${names.join(', ')}'s total goal weight isn't 100% yet — it must equal exactly 100% before publishing.`,
+      })
+    }
+    if (byOwner.size === 0) return
 
     let anyQueued = false
     let anyDirect = false
