@@ -89,7 +89,7 @@ const listWrap = css({ maxHeight: '300px', overflowY: 'auto', display: 'flex', f
             <div>
               <div :class="label">Employee</div>
               <div v-if="mode === 'single' && employee" :class="ownerRow">
-                <MpAvatar :id="`email-${employee.id}`" :name="employee.name" :src="employee.photo" size="md" variant-color="gray" />
+                <PxAvatar :id="`email-${employee.id}`" :name="employee.name" :src="employee.photo" size="md" variant-color="gray" />
                 <MpFlex direction="column" gap="0">
                   <span :class="nameText">{{ employee.name }}</span>
                   <span :class="idText">{{ employee.employeeId }}</span>

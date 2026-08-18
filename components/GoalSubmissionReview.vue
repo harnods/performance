@@ -566,11 +566,11 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                                 <div v-for="(id, idx) in row.viewerIds" :key="id" :class="avatarStackItem" :style="{ marginLeft: idx === 0 ? '0' : '-8px', zIndex: row.viewerIds.length - idx }">
                                   <MpPopover trigger="hover" use-portal placement="top">
                                     <MpPopoverTrigger>
-                                      <div :class="avatarRing"><MpAvatar size="md" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" /></div>
+                                      <div :class="avatarRing"><PxAvatar size="md" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" /></div>
                                     </MpPopoverTrigger>
                                     <MpPopoverContent>
                                       <div :class="hoverCard">
-                                        <MpAvatar size="lg" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" />
+                                        <PxAvatar size="lg" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" />
                                         <MpFlex direction="column" gap="0">
                                           <span :class="hoverCardName">{{ employeeById(id)?.name }}</span>
                                           <span :class="hoverCardMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
@@ -588,11 +588,11 @@ function submissionStatusType(status: SubmissionStatus): 'completed' | 'critical
                                 <div v-for="(id, idx) in row.contributorIds" :key="id" :class="avatarStackItem" :style="{ marginLeft: idx === 0 ? '0' : '-8px', zIndex: row.contributorIds.length - idx }">
                                   <MpPopover trigger="hover" use-portal placement="top">
                                     <MpPopoverTrigger>
-                                      <div :class="avatarRing"><MpAvatar size="md" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" /></div>
+                                      <div :class="avatarRing"><PxAvatar size="md" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" /></div>
                                     </MpPopoverTrigger>
                                     <MpPopoverContent>
                                       <div :class="hoverCard">
-                                        <MpAvatar size="lg" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" />
+                                        <PxAvatar size="lg" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" variant-color="gray" />
                                         <MpFlex direction="column" gap="0">
                                           <span :class="hoverCardName">{{ employeeById(id)?.name }}</span>
                                           <span :class="hoverCardMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>

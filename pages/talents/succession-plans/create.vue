@@ -309,7 +309,7 @@ const captionText = css({ color: 'text.secondary' })
             <MpTableRow v-for="t in selectedTalents" :key="t.employeeId">
               <MpTableCell as="td" :class="cellB">
                 <MpFlex align="center" gap="2">
-                  <MpAvatar :id="`t-${t.employeeId}`" :name="employeeById(t.employeeId)?.name" :src="employeeById(t.employeeId)?.photo" size="md" variant-color="gray" />
+                  <PxAvatar :id="`t-${t.employeeId}`" :name="employeeById(t.employeeId)?.name" :src="employeeById(t.employeeId)?.photo" size="md" variant-color="gray" />
                   <MpFlex direction="column" gap="0">
                     <span :class="nameText">{{ employeeById(t.employeeId)?.name }}</span>
                     <span :class="subText">{{ employeeById(t.employeeId)?.title }}</span>

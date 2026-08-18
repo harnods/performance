@@ -1343,7 +1343,7 @@ function confirmRemoveEmployee() {
                   <MpTableRow v-for="(period, pi) in row.emp.periods" :key="`search-${row.emp.id}-${period.label}`" :class="noHoverRow">
                     <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                       <MpFlex align="start" gap="3">
-                        <MpAvatar :name="row.emp.name" size="lg" />
+                        <PxAvatar :name="row.emp.name" size="lg" />
                         <MpFlex direction="column" gap="1">
                           <MpText size="label" weight="semiBold" :class="valueText">{{ row.emp.name }}</MpText>
                           <MpText size="label-small" :class="captionText">{{ row.emp.id }} | {{ row.emp.jobTitle }}</MpText>
@@ -1446,7 +1446,7 @@ function confirmRemoveEmployee() {
                       <!-- Employee (merged across periods) -->
                       <MpTableCell v-if="pi === 0" as="td" :rowspan="row.emp.periods.length" :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]">
                         <MpFlex align="start" gap="3">
-                          <MpAvatar :name="row.emp.name" size="lg" />
+                          <PxAvatar :name="row.emp.name" size="lg" />
                           <MpFlex direction="column" gap="1">
                             <MpText size="label" weight="semiBold" :class="valueText">{{ row.emp.name }}</MpText>
                             <MpText size="label-small" :class="captionText">{{ row.emp.id }} | {{ row.emp.jobTitle }}</MpText>
@@ -1640,7 +1640,7 @@ function confirmRemoveEmployee() {
                           :class="[tightCell, isSinglePeriod ? empCellPlain : empCellBorder]"
                         >
                           <MpFlex align="start" gap="3">
-                            <MpAvatar :name="emp.name" size="lg" />
+                            <PxAvatar :name="emp.name" size="lg" />
                             <MpFlex direction="column" gap="1">
                               <MpText size="label" weight="semiBold" :class="valueText">{{ emp.name }}</MpText>
                               <MpText size="label-small" :class="captionText">{{ emp.id }} | {{ emp.jobTitle }}</MpText>
@@ -1826,7 +1826,7 @@ function confirmRemoveEmployee() {
               <MpTableRow v-for="emp in sortedModalEmployees" :key="emp.id">
                 <MpTableCell as="td" :class="tightCellMid">
                   <MpFlex align="center" gap="3">
-                    <MpAvatar :name="emp.name" size="lg" />
+                    <PxAvatar :name="emp.name" size="lg" />
                     <MpFlex direction="column" gap="0">
                       <MpText size="label" weight="semiBold" :class="valueText">{{ emp.name }}</MpText>
                       <MpText size="label-small" :class="captionText">

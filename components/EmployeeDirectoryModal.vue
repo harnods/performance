@@ -341,7 +341,7 @@ const gapCellClass = (g: number) => (g < 0 ? gapNeg : g > 0 ? gapPos : numCell)
             :class="[empItem, e.i === localSelected && empItemActive]"
             @click="pick(e.i)"
           >
-            <MpAvatar :id="`dir-${e.i}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`dir-${e.i}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
             <div :class="empText">
               <span :class="empName">{{ e.name }}</span>
               <span :class="empMeta">{{ employeeMeta(e) }}</span>

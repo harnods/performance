@@ -417,7 +417,7 @@ const dotClass = (color: string) => css({ width: '8px', height: '8px', borderRad
             @click="openDirectory(i)"
             @keydown.enter="openDirectory(i)"
           >
-            <MpAvatar :id="`emp-${i}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`emp-${i}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
             <div :class="empContent">
               <span :class="bodyStrong">{{ e.name }}</span>
               <span :class="metaText">{{ employeeMeta(e) }}</span>

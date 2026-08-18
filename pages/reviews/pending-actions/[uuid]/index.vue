@@ -281,7 +281,7 @@ function dotColor(status: string) { return css({ color: STATUS_COLOR[status] }) 
             </MpTableCell>
             <MpTableCell as="td" :class="cell">
               <span :class="nameCell">
-                <MpAvatar :id="`rev-${m.id}`" :name="m.name" :src="m.photo" size="md" variant-color="gray" />
+                <PxAvatar :id="`rev-${m.id}`" :name="m.name" :src="m.photo" size="md" variant-color="gray" />
                 <span :class="nameText">{{ m.name }}</span>
               </span>
             </MpTableCell>

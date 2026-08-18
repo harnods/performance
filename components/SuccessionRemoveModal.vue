@@ -46,7 +46,7 @@ const job = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' 
         <MpModalBody>
           <MpText :class="bodyText">You are about to remove the following employee from this succession pool:</MpText>
           <div v-if="employee" :class="card">
-            <MpAvatar :id="`remove-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`remove-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <span :class="name">{{ employee.name }}</span>
               <span :class="job">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>

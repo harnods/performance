@@ -98,7 +98,7 @@ const emptyCaption = css({ fontSize: '14px', color: 'text.secondary' })
             <MpText :class="goalName">{{ goal.title }}<span v-if="goal.weight" :class="weightText"> ({{ goal.weight }}%)</span></MpText>
             <div v-if="descriptionText" :class="descText">{{ descriptionText }}</div>
             <div v-if="owner" :class="ownerRow">
-              <MpAvatar :id="`log-owner-${owner.id}`" :name="owner.name" :src="owner.photo" size="md" variant-color="gray" />
+              <PxAvatar :id="`log-owner-${owner.id}`" :name="owner.name" :src="owner.photo" size="md" variant-color="gray" />
               <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                 <span :class="ownerName">{{ owner.name }}</span>
                 <span :class="ownerMeta">{{ owner.code }} | {{ owner.title }} | {{ owner.department }}</span>

@@ -75,7 +75,7 @@ const errText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.danger'
         <MpModalHeader>Update assessment<MpModalCloseButton @click="close" /></MpModalHeader>
         <MpModalBody>
           <div v-if="employee" :class="card">
-            <MpAvatar :id="`assess-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`assess-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <span :class="nameC">{{ employee.name }}</span>
               <span :class="jobC">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>

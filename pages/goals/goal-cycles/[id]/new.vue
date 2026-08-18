@@ -431,21 +431,23 @@ const stickyActionBar = css({
 })
 const ownersBar = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBottom: '5' })
 // Overlapping owner avatars — mirrors GoalSubmissionReview.vue's stack.
-const avatarStack = css({ display: 'flex', alignItems: 'center' })
-const avatarStackItem = css({ position: 'relative', display: 'flex', _notFirst: { marginLeft: '-8px' } })
-const avatarRing = css({ display: 'flex', borderRadius: 'full', borderWidth: '2px', borderStyle: 'solid', borderColor: 'background.surface' })
+// -12px overlap: Pixel's runtime css() ignores the `_notFirst` pseudo (it emits
+// a dead class with no rule), so the negative margin goes on EVERY item as a
+// flat prop and the container's paddingLeft cancels the first item's pull-back.
+const avatarStack = css({ display: 'flex', alignItems: 'center', paddingLeft: '12px' })
+const avatarStackItem = css({ position: 'relative', display: 'flex', marginLeft: '-12px' })
+const avatarRing = css({ display: 'flex', borderRadius: 'full' })
 const overflowAvatarBtn = css({ background: 'none', border: 'none', padding: '0', cursor: 'pointer' })
 // MpAvatar derives initials from `name` by splitting on a space and taking the
 // first letter of each word — passing it "+9" collapses to just "+" (no digit).
-// Hand-roll the counter circle instead, matching MpAvatar size="md"'s ACTUAL
-// rendered footprint in this build (24px / 14px font, verified via computed
-// style — the token recipe's on-paper 32px doesn't hold here) so it's the
-// same size as the avatars beside it, not visibly larger.
+// Hand-roll the counter circle instead, matching MpAvatar size="lg"'s rendered
+// footprint (36px / 16px font) so it's the same size as the avatars beside it,
+// not visibly larger.
 const avatarCountCircle = css({
   display: 'flex', alignItems: 'center', justifyContent: 'center',
-  width: '24px', height: '24px', borderRadius: 'full',
+  width: '36px', height: '36px', borderRadius: 'full',
   background: 'gray.50', color: 'gray.600',
-  fontSize: '14px', fontWeight: '600', userSelect: 'none',
+  fontSize: '16px', fontWeight: '600', userSelect: 'none',
 })
 const hoverCard = css({ display: 'flex', alignItems: 'center', gap: '3', padding: '3' })
 const hoverCardName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
@@ -504,7 +506,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Owner summary -->
     <div :class="ownersBar">
       <template v-if="owners.length === 1">
-        <MpAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
+        <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
         <MpFlex direction="column" align="flex-start" gap="1">
           <MpText size="label" weight="semiBold" :class="valueText">{{ owners[0].name }}</MpText>
           <MpText size="label-small" :class="captionText">{{ employeeMeta(owners[0]) }}</MpText>
@@ -522,13 +524,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
              its default `spacing: -2` overlap. -->
         <div :class="avatarStack">
           <div v-for="o in visibleOwners" :key="o.id" :class="avatarStackItem">
-            <MpPopover trigger="hover" use-portal placement="top">
+            <MpPopover trigger="hover" use-portal is-keep-alive placement="top">
               <MpPopoverTrigger>
-                <div :class="avatarRing"><MpAvatar :id="o.id" size="md" :name="o.name" :src="o.photo" variant-color="gray" /></div>
+                <div :class="avatarRing"><PxAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" /></div>
               </MpPopoverTrigger>
               <MpPopoverContent>
                 <div :class="hoverCard">
-                  <MpAvatar size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+                  <PxAvatar size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
                   <MpFlex direction="column" gap="0">
                     <span :class="hoverCardName">{{ o.name }}</span>
                     <span :class="hoverCardMeta">{{ employeeMeta(o) }}</span>
@@ -696,7 +698,20 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   <MpFlex direction="column" gap="0">
                     <span :class="detailLabel">Goal contributor</span>
                     <MpFlex v-if="contributorsFor(row.goal, row.owner.id).length" gap="1">
-                      <MpAvatar v-for="c in contributorsFor(row.goal, row.owner.id)" :key="c!.id" :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
+                      <MpPopover v-for="c in contributorsFor(row.goal, row.owner.id)" :key="c!.id" trigger="hover" use-portal is-keep-alive placement="top">
+                        <MpPopoverTrigger>
+                          <PxAvatar :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
+                        </MpPopoverTrigger>
+                        <MpPopoverContent>
+                          <div :class="hoverCard">
+                            <PxAvatar :id="c!.id" size="lg" :name="c!.name" :src="c!.photo" variant-color="gray" />
+                            <MpFlex direction="column" gap="0">
+                              <span :class="hoverCardName">{{ c!.name }}</span>
+                              <span :class="hoverCardMeta">{{ employeeMeta(c!) }}</span>
+                            </MpFlex>
+                          </div>
+                        </MpPopoverContent>
+                      </MpPopover>
                     </MpFlex>
                     <span v-else :class="captionText">—</span>
                   </MpFlex>
@@ -872,7 +887,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpModalBody>
         <div :class="ownerList">
           <div v-for="(o, idx) in owners" :key="o.id" :class="[ownerListRow, idx < owners.length - 1 && ownerListRowDivider]">
-            <MpAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+            <PxAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <span :class="ownerListName">{{ o.name }}</span>
               <span :class="ownerListMeta">{{ employeeMeta(o) }}</span>

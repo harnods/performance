@@ -200,7 +200,7 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.40
           <MpTableRow v-for="m in sortedMemberRows" :key="m.emp.id">
             <MpTableCell as="td" :class="cell">
               <MpFlex align="center" gap="3">
-                <MpAvatar :name="m.emp.name" :src="m.emp.photo" size="lg" />
+                <PxAvatar :name="m.emp.name" :src="m.emp.photo" size="lg" />
                 <MpFlex direction="column" gap="0">
                   <MpText size="label" :class="valueText">{{ m.emp.name }}</MpText>
                   <MpText size="label-small" :class="labelText">{{ employeeMeta(m.emp) }}</MpText>
@@ -250,7 +250,7 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.40
           <MpModalBody>
             <MpFlex v-if="resultMember" direction="column" gap="4" :class="css({ paddingBottom: '2' })">
               <MpFlex align="center" gap="3">
-                <MpAvatar :name="resultMember.emp.name" :src="resultMember.emp.photo" size="lg" />
+                <PxAvatar :name="resultMember.emp.name" :src="resultMember.emp.photo" size="lg" />
                 <MpFlex direction="column" gap="0">
                   <MpText :class="css({ fontWeight: '600', color: 'text.default' })">{{ resultMember.emp.name }}</MpText>
                   <MpText size="label-small" :class="labelText">{{ employeeMeta(resultMember.emp) }}</MpText>
@@ -300,7 +300,7 @@ const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.40
             <MpFlex v-if="reviewerMember" direction="column" gap="0" :class="css({ paddingBottom: '2' })">
               <MpFlex v-for="r in reviewerRoster" :key="r.id" align="center" justify="space-between" :class="css({ paddingBlock: '3', borderBottom: '1px solid', borderBottomColor: 'border.default' })">
                 <MpFlex align="center" gap="3">
-                  <MpAvatar :name="r.name" :src="r.photo" size="lg" />
+                  <PxAvatar :name="r.name" :src="r.photo" size="lg" />
                   <MpFlex direction="column" gap="0">
                     <MpText size="label" :class="valueText">{{ r.name }}</MpText>
                     <MpText size="label-small" :class="labelText">{{ employeeMeta(r) }}</MpText>

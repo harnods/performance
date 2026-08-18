@@ -470,7 +470,7 @@ const legendRow = css({ display: 'grid', gridTemplateColumns: '1fr 1fr 2fr auto'
         <div v-if="selectedMembers.length" :class="css({ marginTop: '2' })">
           <div v-for="m in selectedMembers" :key="m.id" :class="memberRow">
             <MpFlex align="center" gap="3">
-              <MpAvatar :name="m.name" :src="m.photo" size="lg" />
+              <PxAvatar :name="m.name" :src="m.photo" size="lg" />
               <MpFlex direction="column" gap="0">
                 <MpText size="label" color="text.default">{{ m.name }}</MpText>
                 <MpText size="label-small" color="text.secondary">{{ employeeMeta(m) }}</MpText>

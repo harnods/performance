@@ -58,7 +58,7 @@ const req = css({ color: 'text.danger' })
         <MpModalHeader>Update readiness<MpModalCloseButton @click="close" /></MpModalHeader>
         <MpModalBody>
           <div v-if="employee" :class="card">
-            <MpAvatar :id="`readiness-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`readiness-${employee.id}`" :name="employee.name" :src="employee.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <span :class="name">{{ employee.name }}</span>
               <span :class="job">{{ employee.code }} | {{ employee.title }} | {{ employee.department }}</span>

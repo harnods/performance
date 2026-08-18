@@ -113,7 +113,7 @@ const emptyNote = css({ paddingBlock: '6', color: 'text.secondary', fontSize: '1
   <div v-if="reviewee">
     <!-- Header -->
     <div :class="headerRow">
-      <MpAvatar :id="`reviewee-${revieweeId}`" :name="reviewee.name" :src="reviewee.photo" size="lg" variant-color="gray" />
+      <PxAvatar :id="`reviewee-${revieweeId}`" :name="reviewee.name" :src="reviewee.photo" size="lg" variant-color="gray" />
       <MpFlex direction="column" gap="0">
         <span :class="nameText">{{ reviewee.name }}</span>
         <span :class="metaText">{{ employeeMeta(reviewee) }}</span>

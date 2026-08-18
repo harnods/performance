@@ -722,7 +722,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                   <MpTableCell as="td" :class="cell">{{ c.weight }}%</MpTableCell>
                   <MpTableCell as="td" :class="cell">
                     <MpFlex align="flex-start" gap="2">
-                      <MpAvatar :id="`al-${c.id}`" :name="ownerOf(c.ownerId).name" :src="ownerOf(c.ownerId).photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
+                      <PxAvatar :id="`al-${c.id}`" :name="ownerOf(c.ownerId).name" :src="ownerOf(c.ownerId).photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
                       <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                         <MpText size="label" :class="css({ color: 'text.default' })">{{ ownerOf(c.ownerId).name }}</MpText>
                         <MpText size="label-small" :class="css({ color: 'text.secondary' })">{{ ownerOf(c.ownerId).id }} · {{ ownerOf(c.ownerId).title }} · {{ ownerOf(c.ownerId).department }}</MpText>
@@ -832,7 +832,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
 
         <!-- Composer -->
         <div :class="composerRow">
-          <MpAvatar v-if="currentUser" :id="`me-${currentUser.id}`" :name="currentUser.name" :src="currentUser.photo" size="lg" variant-color="gray" />
+          <PxAvatar v-if="currentUser" :id="`me-${currentUser.id}`" :name="currentUser.name" :src="currentUser.photo" size="lg" variant-color="gray" />
           <div :class="composerCol">
             <div :class="composerBox">
               <textarea
@@ -861,7 +861,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                   @mousedown.prevent="selectMention(emp)"
                   @mouseenter="mentionIndex = i"
                 >
-                  <MpAvatar :id="`mention-${emp.id}`" :name="emp.name" :src="emp.photo" size="sm" variant-color="gray" />
+                  <PxAvatar :id="`mention-${emp.id}`" :name="emp.name" :src="emp.photo" size="sm" variant-color="gray" />
                   <div :class="mentionText">
                     <span :class="mentionName">{{ emp.name }}</span>
                     <span :class="mentionMeta">{{ emp.code }} | {{ emp.title }} | {{ emp.department }}</span>
@@ -877,7 +877,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
 
         <!-- Thread -->
         <div v-for="c in comments" :key="c.id" :class="commentRow">
-          <MpAvatar :id="`c-${c.id}`" :name="employeeById(c.authorId)?.name" :src="employeeById(c.authorId)?.photo" size="lg" variant-color="gray" />
+          <PxAvatar :id="`c-${c.id}`" :name="employeeById(c.authorId)?.name" :src="employeeById(c.authorId)?.photo" size="lg" variant-color="gray" />
           <div :class="commentCol">
             <div :class="commentHead">
               <span :class="commentAuthor">{{ employeeById(c.authorId)?.name }}</span>
@@ -904,7 +904,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           <div :class="kvRow">
             <span :class="cardLabel">Goal owner</span>
             <div :class="[ownerRow, css({ marginTop: '1' })]">
-              <MpAvatar v-if="owner" :id="`goal-owner-${owner.id}`" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
+              <PxAvatar v-if="owner" :id="`goal-owner-${owner.id}`" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
               <MpFlex direction="column" gap="0">
                 <MpText size="label" :class="valueText">{{ owner?.name }}</MpText>
                 <MpText size="label-small" :class="captionText">{{ owner?.code }} | {{ owner?.title }} | {{ owner?.department }}</MpText>
@@ -948,10 +948,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
             <div :class="[contribRow, css({ marginTop: '1' })]">
               <div v-for="m in members" :key="m.id" class="contrib-item" :class="contribItem">
                 <span :class="contribAvatar">
-                  <MpAvatar :id="`member-${m.id}`" :name="m.name" :src="m.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`member-${m.id}`" :name="m.name" :src="m.photo" size="lg" variant-color="gray" />
                 </span>
                 <div class="coach-card" :class="coachCard">
-                  <MpAvatar :id="`member-coach-${m.id}`" :name="m.name" :src="m.photo" size="md" variant-color="gray" />
+                  <PxAvatar :id="`member-coach-${m.id}`" :name="m.name" :src="m.photo" size="md" variant-color="gray" />
                   <div :class="coachText">
                     <span :class="coachName">{{ m.name }}</span>
                     <span :class="coachMeta">{{ m.code }} | {{ m.title }} | {{ m.department }}</span>
@@ -966,10 +966,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
             <div v-if="contributors.length" :class="[contribRow, css({ marginTop: '1' })]">
               <div v-for="c in contributors" :key="c.id" class="contrib-item" :class="contribItem">
                 <span :class="contribAvatar">
-                  <MpAvatar :id="`contributor-${c.id}`" :name="c.name" :src="c.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`contributor-${c.id}`" :name="c.name" :src="c.photo" size="lg" variant-color="gray" />
                 </span>
                 <div class="coach-card" :class="coachCard">
-                  <MpAvatar :id="`contrib-coach-${c.id}`" :name="c.name" :src="c.photo" size="md" variant-color="gray" />
+                  <PxAvatar :id="`contrib-coach-${c.id}`" :name="c.name" :src="c.photo" size="md" variant-color="gray" />
                   <div :class="coachText">
                     <span :class="coachName">{{ c.name }}</span>
                     <span :class="coachMeta">{{ c.code }} | {{ c.title }} | {{ c.department }}</span>
@@ -1038,10 +1038,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
               </div>
               <div v-if="parentOwner" class="contrib-item" :class="contribItem">
                 <span :class="contribAvatar">
-                  <MpAvatar :id="`parent-owner-${parentOwner.id}`" :name="parentOwner.name" :src="parentOwner.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`parent-owner-${parentOwner.id}`" :name="parentOwner.name" :src="parentOwner.photo" size="lg" variant-color="gray" />
                 </span>
                 <div class="coach-card" :class="coachCardEnd">
-                  <MpAvatar :id="`parent-owner-coach-${parentOwner.id}`" :name="parentOwner.name" :src="parentOwner.photo" size="md" variant-color="gray" />
+                  <PxAvatar :id="`parent-owner-coach-${parentOwner.id}`" :name="parentOwner.name" :src="parentOwner.photo" size="md" variant-color="gray" />
                   <div :class="coachText">
                     <span :class="coachName">{{ parentOwner.name }}</span>
                     <span :class="coachMeta">{{ parentOwner.code }} | {{ parentOwner.title }} | {{ parentOwner.department }}</span>

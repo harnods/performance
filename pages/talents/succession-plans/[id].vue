@@ -216,7 +216,7 @@ const emptyBlock = css({ display: 'flex', flexDirection: 'column', alignItems: '
             <MpTableRow v-for="r in paged" :key="r.id">
               <MpTableCell as="td" :class="cell">
                 <MpFlex align="center" gap="2">
-                  <MpAvatar :id="`succ-${r.id}`" :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`succ-${r.id}`" :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                   <MpFlex direction="column" gap="0">
                     <span :class="nameText">{{ r.name }}</span>
                     <span :class="subText">{{ r.code }} | {{ r.title }}</span>

@@ -231,7 +231,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
       <MpModalBody :class="scrollBody">
         <div :class="scrollWrap" @scroll.capture="onReviewerScroll">
           <MpFlex v-if="viewMember" align="center" gap="3" :class="memberHeader">
-            <MpAvatar :name="viewMember.name" size="lg" variant-color="gray" />
+            <PxAvatar :name="viewMember.name" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <MpText size="label" weight="semiBold" :class="valueText">{{ viewMember.name }}</MpText>
               <MpText size="label-small" :class="captionText">{{ memberSub(viewMember) }}</MpText>
@@ -243,7 +243,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
               <MpFlex direction="column" gap="3">
                 <MpFlex v-for="(r, i) in g.reviewers" :key="`${g.name}-${i}`" align="center" justify="space-between" gap="4">
                   <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                    <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                    <PxAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                       <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                       <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
@@ -274,7 +274,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
       <MpModalBody :class="scrollBody">
         <div :class="scrollWrap" @scroll.capture="onReviewerScroll">
           <MpFlex v-if="weightMember" align="center" gap="3" :class="memberHeader">
-            <MpAvatar :name="weightMember.name" size="lg" variant-color="gray" />
+            <PxAvatar :name="weightMember.name" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <MpText size="label" weight="semiBold" :class="valueText">{{ weightMember.name }}</MpText>
               <MpText size="label-small" :class="captionText">{{ memberSub(weightMember) }}</MpText>
@@ -295,7 +295,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
               <MpFlex direction="column" gap="3">
                 <MpFlex v-for="(r, i) in g.reviewers" :key="`${g.name}-${i}`" align="center" justify="space-between" gap="4">
                   <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                    <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                    <PxAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                       <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                       <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>
@@ -336,7 +336,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
       <MpModalBody :class="scrollBody">
         <div :class="scrollWrap">
           <MpFlex v-if="manageMember" align="center" gap="3" :class="memberHeader">
-            <MpAvatar :name="manageMember.name" size="lg" variant-color="gray" />
+            <PxAvatar :name="manageMember.name" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <MpText size="label" weight="semiBold" :class="valueText">{{ manageMember.name }}</MpText>
               <MpText size="label-small" :class="captionText">{{ memberSub(manageMember) }}</MpText>
@@ -360,7 +360,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
                 <div :class="css({ maxHeight: '300px', overflowY: 'auto', position: 'relative' })">
                   <MpFlex v-for="emp in shownReviewers(g)" :key="emp.code" align="center" justify="space-between" gap="3" :class="pickerRow">
                     <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                      <MpAvatar :name="emp.name" :src="emp.photo" size="lg" variant-color="gray" />
+                      <PxAvatar :name="emp.name" :src="emp.photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
                         <MpText size="label" :class="valueText">{{ emp.name }}</MpText>
                         <MpText size="label-small" :class="captionText">{{ emp.code }} · {{ emp.jobPosition }} · {{ emp.organization }}</MpText>
@@ -389,7 +389,7 @@ const rowFlex = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
               <MpFlex direction="column" gap="3">
                 <MpFlex v-for="(r, i) in g.reviewers" :key="r.code" align="center" justify="space-between" gap="4">
                   <MpFlex align="center" gap="3" :class="css({ minWidth: '0' })">
-                    <MpAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
+                    <PxAvatar :name="r.name" :src="r.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0" :class="css({ minWidth: '0' })">
                       <MpText size="label" weight="semiBold" :class="valueText">{{ r.name }}</MpText>
                       <MpText size="label-small" :class="captionText">{{ r.sub }}</MpText>

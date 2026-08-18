@@ -222,7 +222,7 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
         <MpPopoverTrigger>
           <button type="button" :class="profileTrigger" aria-label="Open user menu">
             <ClientOnly>
-              <MpAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
+              <PxAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
             </ClientOnly>
             <MpFlex direction="column" align="flex-start">
               <span :class="profileName">{{ activeEmployee?.name }}</span>
@@ -235,7 +235,7 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
           <div :class="popoverInner">
             <div :class="popoverHeader">
               <ClientOnly>
-                <MpAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
+                <PxAvatar :name="activeEmployee?.name ?? ''" :src="activeEmployee?.photo" size="lg" variant="circle" variantColor="sky" />
               </ClientOnly>
               <MpFlex direction="column" align="center" gap="0.5">
                 <MpText size="label" weight="semiBold" color="text.default">{{ activeEmployee?.name }}</MpText>

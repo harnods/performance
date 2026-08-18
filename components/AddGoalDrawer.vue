@@ -751,15 +751,19 @@ const deadlineRuleError = css({ fontSize: '12px', lineHeight: '16px', color: 'te
 
 const ownerBox = css({
   display: 'flex', alignItems: 'center', gap: '2',
-  padding: '3', borderRadius: '6px', border: '1px solid', borderColor: 'border.default',
-  background: 'background.neutral.subtle',
 })
 
 // Hand-rolled cap for the owner avatar stack (see ownerNamesSummary above) —
 // imitates MpAvatarGroup's own look: 2px white ring + spacing:-2 overlap.
-const ownerAvatarStack = css({ display: 'flex', alignItems: 'center' })
-const ownerAvatarStackItem = css({ display: 'flex', _notFirst: { marginLeft: '-8px' } })
-const ownerAvatarRing = css({ display: 'flex', borderRadius: 'full', borderWidth: '2px', borderStyle: 'solid', borderColor: 'background.surface' })
+// -12px overlap via flat marginLeft on every item (Pixel's runtime css() drops
+// the `_notFirst` pseudo); container paddingLeft cancels the first item's pull.
+const ownerAvatarStack = css({ display: 'flex', alignItems: 'center', paddingLeft: '12px' })
+const ownerAvatarStackItem = css({ display: 'flex', marginLeft: '-12px' })
+const ownerAvatarRing = css({ display: 'flex', borderRadius: 'full' })
+// Hover coachmark for each owner avatar — mirrors the new-goals summary bar.
+const ownerHoverCard = css({ display: 'flex', alignItems: 'center', gap: '3', padding: '3' })
+const ownerHoverCardName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const ownerHoverCardMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const ownerMoreLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.link', fontSize: '14px', lineHeight: '20px', textDecoration: 'underline',
@@ -812,10 +816,23 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <div :class="ownerBox">
                   <div v-if="owners.length > 1" id="goal-owner-avatars" :class="ownerAvatarStack">
                     <div v-for="o in visibleOwners" :key="o.id" :class="ownerAvatarStackItem">
-                      <MpAvatar :id="o.id" :name="o.name" :src="o.photo" size="lg" variant-color="gray" :class="ownerAvatarRing" />
+                      <MpPopover trigger="hover" use-portal is-keep-alive placement="top">
+                        <MpPopoverTrigger>
+                          <PxAvatar :id="o.id" :name="o.name" :src="o.photo" size="lg" variant-color="gray" :class="ownerAvatarRing" />
+                        </MpPopoverTrigger>
+                        <MpPopoverContent>
+                          <div :class="ownerHoverCard">
+                            <PxAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+                            <MpFlex direction="column" gap="0">
+                              <span :class="ownerHoverCardName">{{ o.name }}</span>
+                              <span :class="ownerHoverCardMeta">{{ employeeMeta(o) }}</span>
+                            </MpFlex>
+                          </div>
+                        </MpPopoverContent>
+                      </MpPopover>
                     </div>
                   </div>
-                  <MpAvatar v-else-if="owners[0]" :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="sm" variant-color="gray" />
+                  <PxAvatar v-else-if="owners[0]" :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="sm" variant-color="gray" />
                   <MpText size="label" :class="css({ color: owners.length ? 'text.default' : 'text.secondary' })">
                     <template v-if="owners.length === 0">No owner selected</template>
                     <template v-else-if="owners.length === 1">{{ owners[0].name }} ({{ owners[0].code }})</template>
@@ -1092,7 +1109,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
               </div>
               <MpFlex v-for="id in viewerIds" :key="id" :class="personRow">
-                <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
                 <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                   <span :class="personName">{{ employeeById(id)?.name }}</span>
                   <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
@@ -1129,7 +1146,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <div :class="personCard">
                   <div :class="personRowBetween">
                     <div :class="personRow">
-                      <MpAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
+                      <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owners[0].name }}</span>
                         <span :class="personMeta">{{ employeeMeta(owners[0]) }}</span>
@@ -1140,7 +1157,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                          copy of the goal. -->
                     <MpTooltip :label="(ownerCanUpdateProgressByOwner[owners[0].id] ?? true) ? ownerCanUpdateProgressHint : ownerCanUpdateProgressActivateHint" :show-delay="0" use-portal>
                       <MpFlex as="span" align="center" gap="2">
-                        <span>Allow self-update</span>
+                        <span>Allow self-update of goal progress</span>
                         <MpToggle
                           id="owner-can-update-progress"
                           :is-checked="ownerCanUpdateProgressByOwner[owners[0].id] ?? true"
@@ -1170,7 +1187,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <!-- Company/Individual: pool is ALL employees — pick via drawer -->
                     <template v-else>
                       <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
-                        <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                        <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
                         <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                           <span :class="personName">{{ employeeById(id)?.name }}</span>
                           <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
@@ -1193,7 +1210,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
                   <div :class="personRowBetween">
                     <div :class="personRow">
-                      <MpAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
+                      <PxAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owner.name }}</span>
                         <span :class="personMeta">{{ employeeMeta(owner) }}</span>
@@ -1205,7 +1222,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                          off for another. -->
                     <MpTooltip :label="(ownerCanUpdateProgressByOwner[owner.id] ?? true) ? ownerCanUpdateProgressHint : ownerCanUpdateProgressActivateHint" :show-delay="0" use-portal>
                       <MpFlex as="span" align="center" gap="2">
-                        <span>Allow self-update</span>
+                        <span>Allow self-update of goal progress</span>
                         <MpToggle
                           :id="`owner-can-update-progress-${owner.id}`"
                           :is-checked="ownerCanUpdateProgressByOwner[owner.id] ?? true"
@@ -1235,7 +1252,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <!-- Company/Individual: pool is ALL employees — pick via drawer -->
                     <template v-else>
                       <MpFlex v-for="id in (contributorsByOwner[owner.id] ?? [])" :key="id" :class="personRow">
-                        <MpAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                        <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
                         <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                           <span :class="personName">{{ employeeById(id)?.name }}</span>
                           <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
@@ -1341,7 +1358,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
         <MpModalBody>
           <div :class="ownerList">
             <div v-for="(o, idx) in owners" :key="o.id" :class="[ownerListRow, idx < owners.length - 1 && ownerListRowDivider]">
-              <MpAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
+              <PxAvatar :id="o.id" size="lg" :name="o.name" :src="o.photo" variant-color="gray" />
               <MpFlex direction="column" gap="0">
                 <span :class="ownerListName">{{ o.name }}</span>
                 <span :class="ownerListMeta">{{ employeeMeta(o) }}</span>

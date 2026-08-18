@@ -1105,7 +1105,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <button v-if="!singleOwnerView" type="button" :class="accordionHeader" @click="toggleOwner(grp.id)">
         <span :class="accordionLeft">
           <MpIcon :name="isOwnerOpen(grp.id) ? 'caret-down' : 'caret-right'" size="sm" />
-          <MpAvatar :name="grp.owner.name" :src="grp.owner.photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
+          <PxAvatar :name="grp.owner.name" :src="grp.owner.photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
           <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
             <MpText size="label" weight="semiBold" :class="valueText">{{ grp.owner.name }}</MpText>
             <MpText size="label-small" :class="captionText">{{ grp.owner.id }} · {{ grp.owner.title }} · {{ grp.owner.department }}</MpText>

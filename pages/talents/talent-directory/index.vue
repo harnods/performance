@@ -374,7 +374,7 @@ const filterSelectWidth = '200px'
               <!-- Employee name (sticky) -->
               <MpTableCell as="td" :class="stickyNameCell">
                 <MpFlex align="center" gap="3">
-                  <MpAvatar :id="`talent-${t.id}`" :name="t.name" :src="t.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`talent-${t.id}`" :name="t.name" :src="t.photo" size="lg" variant-color="gray" />
                   <div :class="nameWrap">
                     <span :class="nameText">{{ t.name }}</span>
                     <span :class="codeText">{{ t.code }}</span>

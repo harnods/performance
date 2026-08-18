@@ -226,7 +226,7 @@ const coachMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
             <MpTableCell as="td" :class="cell">
               <div :class="avatarGroup">
                 <span v-for="s in p.successors.slice(0, 5)" :key="s.employeeId" :class="avatarWrap" @mouseenter="showCoach($event, s.employeeId)" @mouseleave="hideCoach">
-                  <MpAvatar :id="`pool-${p.id}-${s.employeeId}`" :name="employeeById(s.employeeId)?.name" :src="employeeById(s.employeeId)?.photo" size="lg" variant-color="gray" />
+                  <PxAvatar :id="`pool-${p.id}-${s.employeeId}`" :name="employeeById(s.employeeId)?.name" :src="employeeById(s.employeeId)?.photo" size="lg" variant-color="gray" />
                 </span>
                 <span v-if="p.successors.length > 5" :class="moreAvatar">+{{ p.successors.length - 5 }}</span>
               </div>
@@ -259,7 +259,7 @@ const coachMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
           <MpTableRow v-for="(r, i) in pagedEmpRows" :key="`${r.poolId}-${r.employee.id}-${i}`">
             <MpTableCell as="td" :class="cell">
               <MpFlex align="center" gap="2">
-                <MpAvatar :id="`emp-${r.poolId}-${r.employee.id}`" :name="r.employee.name" :src="r.employee.photo" size="lg" variant-color="gray" />
+                <PxAvatar :id="`emp-${r.poolId}-${r.employee.id}`" :name="r.employee.name" :src="r.employee.photo" size="lg" variant-color="gray" />
                 <MpFlex direction="column" gap="0">
                   <span :class="nameText">{{ r.employee.name }}</span>
                   <span :class="subText">{{ r.employee.code }} | {{ r.employee.title }} | {{ r.employee.department }}</span>
@@ -358,7 +358,7 @@ const coachMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
   <ClientOnly>
     <Teleport to="body">
       <div v-if="hoverCoach" :class="coachFloat" :style="{ left: `${hoverCoach.x}px`, top: `${hoverCoach.y}px` }">
-        <MpAvatar :id="`coach-${hoverCoach.id}`" :name="hoverCoach.name" :src="hoverCoach.photo" size="md" variant-color="gray" />
+        <PxAvatar :id="`coach-${hoverCoach.id}`" :name="hoverCoach.name" :src="hoverCoach.photo" size="md" variant-color="gray" />
         <div :class="coachText">
           <span :class="coachName">{{ hoverCoach.name }}</span>
           <span :class="coachMeta">{{ hoverCoach.meta }}</span>

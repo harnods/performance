@@ -273,7 +273,7 @@ const dangerNone = css({ color: 'text.secondary' })
             <MpTableCell as="td" :class="[cell, firstColPad]">
               <div :class="ownerCell">
                 <MpCheckbox :is-checked="isSelected(row.id)" @update:is-checked="toggleSelect(row.id)" :aria-label="`Select ${row.name}`" />
-                <MpAvatar :id="`rl-${variant}-${row.id}`" :name="row.name" :src="row.photo" size="md" variant-color="gray" />
+                <PxAvatar :id="`rl-${variant}-${row.id}`" :name="row.name" :src="row.photo" size="md" variant-color="gray" />
                 <MpFlex direction="column" gap="0">
                   <span :class="nameText">{{ row.name }}</span>
                   <span :class="idText">{{ row.employeeId }}</span>

@@ -203,7 +203,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                     :class="employeeRowClickable"
                     @click="selectEmployee(e.id)"
                   >
-                    <MpAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+                    <PxAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0">
                       <span :class="employeeName">{{ e.name }}</span>
                       <span :class="employeeMetaText">{{ employeeMeta(e) }}</span>
@@ -231,7 +231,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                 </div>
                 <div :class="listScroll">
                   <MpFlex v-for="e in selectedEmployees" :key="e.id" :class="employeeRow">
-                    <MpAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+                    <PxAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                       <span :class="employeeName">{{ e.name }}</span>
                       <span :class="employeeMetaText">{{ employeeMeta(e) }}</span>

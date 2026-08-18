@@ -299,7 +299,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <span :class="accordionLeft">
             <MpIcon :name="isOpen(g.key) ? 'caret-down' : 'caret-right'" size="sm" />
             <template v-if="groupMode === 'owner'">
-              <MpAvatar :name="g.owner.name" :src="g.owner.photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
+              <PxAvatar :name="g.owner.name" :src="g.owner.photo" size="lg" variant-color="gray" :class="css({ flexShrink: '0' })" />
               <MpFlex direction="column" gap="0" align="start" :class="css({ minWidth: '0' })">
                 <MpText size="label" weight="semiBold" :class="valueText">{{ g.owner.name }}</MpText>
                 <MpText size="label-small" :class="captionText">{{ g.owner.id }} · {{ g.owner.title }} · {{ g.owner.department }}</MpText>

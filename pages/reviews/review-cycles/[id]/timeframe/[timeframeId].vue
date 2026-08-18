@@ -574,7 +574,7 @@ function confirmRemoveEmployee() {
             <MpTableRow v-if="emp.periods.length === 0">
               <MpTableCell as="td" :class="[tightCell, empCell]">
                 <MpFlex align="start" gap="3">
-                  <MpAvatar :name="emp.name" size="lg" />
+                  <PxAvatar :name="emp.name" size="lg" />
                   <MpFlex direction="column" gap="0">
                     <MpText size="label" weight="semiBold" :class="valueText">{{ emp.name }}</MpText>
                     <MpText size="label-small" :class="captionText">{{ emp.id }} | {{ emp.jobTitle }} | {{ emp.organization }}</MpText>
@@ -601,7 +601,7 @@ function confirmRemoveEmployee() {
                 :class="[tightCell, isSinglePeriod ? '' : empCell]"
               >
                 <MpFlex align="start" gap="3">
-                  <MpAvatar :name="emp.name" size="lg" />
+                  <PxAvatar :name="emp.name" size="lg" />
                   <MpFlex direction="column" gap="1">
                     <MpText size="label" weight="semiBold" :class="valueText">{{ emp.name }}</MpText>
                     <MpText size="label-small" :class="captionText">{{ emp.id }} | {{ emp.jobTitle }} | {{ emp.organization }}</MpText>

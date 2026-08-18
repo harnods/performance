@@ -291,7 +291,7 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
   <div v-if="profile">
     <!-- ═════ Profile header ═════ -->
     <div :class="headerRow">
-      <MpAvatar :id="`profile-${profile.base.id}`" :name="profile.base.name" :src="profile.base.photo" size="xl" variant-color="gray" />
+      <PxAvatar :id="`profile-${profile.base.id}`" :name="profile.base.name" :src="profile.base.photo" size="xl" variant-color="gray" />
       <div :class="nameCol">
         <span :class="nameText">{{ profile.base.name }}</span>
         <span :class="metaText">{{ profile.base.code }} | {{ profile.base.jobPosition }} | {{ profile.base.organization }}</span>

@@ -46,7 +46,7 @@ const metaText = css({ fontSize: '12px', color: 'text.secondary' })
         </MpModalHeader>
         <MpModalBody>
           <div v-for="e in coworkers" :key="e.id" :class="row">
-            <MpAvatar :id="`cw-${e.id}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+            <PxAvatar :id="`cw-${e.id}`" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
               <span :class="nameText">{{ e.name }}</span>
               <span :class="metaText">{{ employeeMeta(e) }}</span>
