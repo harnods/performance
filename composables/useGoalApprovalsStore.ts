@@ -41,6 +41,34 @@ function actionLabelFor(items: { type: string, before?: Record<string, unknown>,
 }
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
 
+// The ONE classification of "what kind of request is this", shared by the
+// goal-cycle "Awaiting approval" tab (GoalApprovalQueue.vue) and the Goals
+// dashboard's two approval cards (useGoalsDashboard.ts). Both surfaces read the
+// same submissions, so they must bucket them identically — keep this the single
+// source of truth rather than re-deriving the rule per component.
+//
+// Detection mirrors actionLabelFor above: any create item makes it a creation
+// batch; a batch whose edits only move value/pill is a progress update;
+// everything else (plain edits, closes, deletes) is a generic goal update.
+export type SubmissionTypeLabel = 'Goal creation' | 'Goal progress update' | 'Goal update'
+
+export function submissionTypeLabel(submission: Pick<Submission, 'items'>): SubmissionTypeLabel {
+  if (submission.items.some(i => i.type === 'create')) return 'Goal creation'
+  const edits = submission.items.filter(i => i.type === 'edit')
+  if (edits.length && edits.every((i) => {
+    const before = i.before, after = i.after
+    return !!before && !!after && (before.value !== after.value || before.pill !== after.pill)
+  })) return 'Goal progress update'
+  return 'Goal update'
+}
+
+// A submission is still "awaiting approval" until it has been approved — a
+// rejected batch stays visible so it can be reopened/resubmitted. Shared so the
+// dashboard cards and the queue can never disagree about what is outstanding.
+export function isAwaitingApproval(submission: Pick<Submission, 'status'>): boolean {
+  return submission.status !== 'approved'
+}
+
 export interface SubmissionItem {
   id: string
   type: SubmissionItemType

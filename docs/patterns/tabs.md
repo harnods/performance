@@ -10,7 +10,7 @@ The layout provides a tabs zone below the title bar, **outside the white stage**
 <div id="page-tabs" :class="css({ display:'flex', alignItems:'flex-end', paddingInline:'6', flexShrink:'0', background:'background.surface' })" />
 ```
 
-Pages teleport an underline tab bar into it. These flip an `activeTab` ref (in-page state switch), **not routes**. Used by ~8 pages (goal-cycle detail sub-pages, `pending-actions/index.vue`, timeframe detail).
+Pages teleport an underline tab bar into it. These flip an `activeTab` ref (in-page state switch) — the tab is **not its own route**, though it can be made deep-linkable via a query param (below). Used by ~8 pages (goal-cycle detail sub-pages, `pending-actions/index.vue`, timeframe detail).
 
 Canonical (`pages/goals/goal-cycles/[id]/index.vue:437-471`, styles `:315-325`):
 
@@ -43,6 +43,55 @@ const tabItemActive = css({ ...tabItemBase, color: 'text.link', fontWeight: '600
 Active tab = **`color: text.link`, `fontWeight: 600`, `borderBottomColor: border.brand`**; the `-1px` bottom margin overlaps the zone edge. Badges (`awaitingBadge`) can sit inside a tab.
 
 > **Canonical naming**: use `tabItem` / `tabItemActive` with `text.link`. `pages/reviews/review-cycles/[id]/timeframe/[timeframeId].vue:328-335` diverges (`tabActive` + `text.brand`) — **do not copy that variant**; use `text.link`.
+
+### Deep-linkable tabs (`?tab=`)
+
+A Type A tab is in-page state, so nothing links to it by default. When another surface
+needs to land on a specific tab (the Goals dashboard's "Goals aligned" donut opens the
+goal hierarchy), seed `activeTab` from a query param — **whitelist the value** so a typo
+or stale link falls back to the default tab instead of rendering nothing:
+
+```ts
+type Tab = 'all' | 'hierarchy' | 'requests' | 'awaiting' | 'info'
+const TABS: Tab[] = ['all', 'hierarchy', 'requests', 'awaiting', 'info']
+const activeTab = ref<Tab>(TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'all')
+```
+
+Seed it **once** (`ref(...)`, not a `watch`) — the tab stays user-controlled afterwards,
+so clicking another tab shouldn't fight the URL. Permission-gated tabs keep their own
+guard (the existing `watch(currentUserId, …)` still bounces a non-admin off `awaiting`),
+so a query param can't grant access to a tab the persona isn't allowed to see.
+
+Reference: `pages/goals/goal-cycles/[id]/index.vue:127-134`. The same param convention
+covers filters — see [`stat-card.md`](stat-card.md)'s drill-down contract.
+
+### Tabs that also swap the header actions
+
+`pages/dashboard.vue` puts **two whole dashboards** (Performance review · Goals) under
+one page title — the title stays `Dashboard` on both; only the tab changes. When tabs
+switch the entire page body like this, the `#page-header-actions` teleport must switch
+with them, in the **same** teleport, branched by the same `activeTab`:
+
+```vue
+<Teleport to="#page-header-actions" defer>
+  <template v-if="activeTab === 'review'">
+    <MpButton variant="ghost" left-icon="newtab" @click="viewInsight">View insight</MpButton>
+    <MpButton variant="primary" @click="createCycle">Create new cycle</MpButton>
+  </template>
+  <template v-else>
+    <MpButton variant="ghost" left-icon="newtab" @click="viewGoalsInsight">View insights</MpButton>
+    <MpButton v-if="goalsNewInterface" variant="primary" @click="createGoalCycle">Create goal cycle</MpButton>
+    <MpButton v-else variant="primary" @click="createGoal">Create goal</MpButton>
+  </template>
+</Teleport>
+```
+
+Do **not** open a second `<Teleport to="#page-header-actions">` per tab — two teleports
+targeting one container append both sets. One teleport, branched inside.
+
+> Note the primary CTA also branches on the `goals-new-interface` cookie. A tab's
+> actions can depend on more than the tab; keep every branch in this one block so the
+> whole header is readable at a glance.
 
 ## Type B — In-page detail navigation (scroll-spy, NOT tabs)
 

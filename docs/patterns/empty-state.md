@@ -27,6 +27,14 @@ Reference: `pages/goals/goal-cycles/index.vue:296-301` (textbook).
 - **No data at all** → full empty state (above); show the action button.
 - **Filter/search yields zero** → keep the table shell + a single centered `colspan` row, OR the empty state with `hasFilter`-aware copy and NO action button. See [`table.md`](table.md) §empty.
 
+## Dashboard sections are the exception
+
+Everything above describes a **page** whose collection is empty. Inside a **dashboard
+section card**, an empty panel renders a centered **title + caption only** — no
+illustration, no action button — because an empty section is often good news and four
+stacked 240px illustrations would bury the sections that do have data. See
+[`dashboard-section.md`](dashboard-section.md) for the exact markup and the reasoning.
+
 ## Inline notice (different construct)
 
 `PxNoAssignmentNotice` is an inline `MpBanner variant="info"` (title + description) — used for "nothing assigned yet" contexts (`succession-plans/create.vue`), not the centered illustration state.

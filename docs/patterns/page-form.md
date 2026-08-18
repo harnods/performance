@@ -1,5 +1,25 @@
 # Page form vs drawer vs modal
 
+## Drawer width comes from `size` — CSS cannot override it
+
+`MpModalContent` (which `MpDrawerContent` renders) writes `maxWidth: baseSizes[size]` as
+an **inline style**, so no class — not even a higher-specificity descendant selector —
+can widen a drawer. Pick the right step instead:
+
+| `size` | width |
+|--------|-------|
+| `sm` | 330px |
+| `md` | 448px (default) |
+| `lg` | 684px |
+| `xl` | 920px |
+| `2xl` | 1152px |
+| `full` | 100% |
+
+A drawer holding a wide table should be sized so the table never scrolls horizontally —
+e.g. an 816px table needs `xl`, not `lg` + a width hack.
+
+> Also note the DOM id: `<MpDrawer id="drawer-x">` renders as **`#modal-drawer-x`**.
+
 When is a create/edit a full page, a drawer, or a modal? Established split:
 
 - **Full page** (`pages/.../create.vue`, default layout + breadcrumb + page title): top-level create/edit of a **primary entity** — Review cycle, Competency assignment, Succession plan. Uses `definePageMeta({ title, layout: 'default', breadcrumb })`, the 12-col grid ([`form.md`](form.md)), and an in-form footer bar for the primary CTA.

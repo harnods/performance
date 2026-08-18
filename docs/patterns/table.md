@@ -72,6 +72,11 @@ const tableOuterBorder = css({ borderWidth: '1px', borderStyle: 'solid', borderC
 
 > The rounded outer border is a **deliberate exception** to the "no outer border" golden rule — it frames the horizontal scroll region. Use it ONLY for Custom table. Default table stays flat.
 
+> **Not an exception:** a Default table sitting inside a dashboard **section card** (the
+> Goals dashboard's Needs update / Awaiting approval panels). The border there belongs to
+> the card, not the table — the table is still bare and borderless. Don't reach for
+> `tableOuterBorder`. See [`dashboard-section.md`](dashboard-section.md).
+
 ## Cell styles (GOLDEN RULES)
 
 Define styles once per file (module-level `const`s) and reuse on every cell. The recurring names are `tightCell` (body), `headCell` (header), `actionCell`/`actionHead` (trailing action col) — not literally `cell`.
@@ -275,6 +280,30 @@ that computes a `rowspan` on the same column set and verify they can never diver
 for the same physical span — that's the actual invariant, not "does this look right
 in one screenshot."
 
+### Grouping rows under a shared owner: all-or-per-row, never partial
+
+When rows are grouped by one entity (e.g. every unassigned employee under the same
+direct report, `GoalsDashUnassignedDrawer.vue`), the grouping column spans the whole
+group. A **secondary** column that often — but not always — repeats within that group
+(Organization) must merge over **exactly the same span or not at all**:
+
+```ts
+const sameOrg = members.every(m => m.department === members[0].department)
+members.forEach((employee, i) => out.push({
+  employee,
+  showManager: i === 0,     managerRowspan: members.length,
+  showOrg: sameOrg ? i === 0 : true,
+  orgRowspan: sameOrg ? members.length : 1,
+}))
+```
+
+Both spans derive from the same group boundary, so they can only ever be `n`/`n` or
+`1`/`1` — never a partial overlap that would shift later `<td>`s into the wrong column.
+Resist "merge consecutive runs within the group": that's precisely how the spans diverge.
+
+Rows must also be **ordered so each group is contiguous** — `rowspan` can only merge
+adjacent rows, so a scattered group silently renders as separate one-row cells.
+
 Reference: `goal-cycles/[id]/index.vue` — `ownerRows()`'s `unitSize()` + `mergeSpan()`
 helpers, and the `'main' | 'aligned' | 'repeat' | 'aligned-trigger'` `FlatRow.kind`
 union.
@@ -330,6 +359,10 @@ real state is then applied by a normal **post-mount reactive patch**, not a
 hydration attempt.
 
 ### Dev-only scenario toggle (not a product pattern)
+
+> Full pattern (FAB styling, panel shape, state, and the rules for fabricating rows)
+> now lives in [`dev-scenario-control.md`](dev-scenario-control.md) — there are two of
+> these controls in the repo. What follows is what this particular one does.
 
 `goal-cycles/[id]/index.vue` has a floating circular button, fixed bottom-right
 (24px margin), that switches between "Default" and "Async (goals being
