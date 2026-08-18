@@ -40,12 +40,12 @@ const bodyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.defaul
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
-          Too many employees selected
+          Bulk add limit reached
           <MpModalCloseButton @click="emit('cancel')" />
         </MpModalHeader>
         <MpModalBody>
           <MpText :class="bodyText">
-            You can add goals for up to {{ BULK_OWNER_LIMIT }} employees at once. For more employees, import goals using a template file instead.
+            You can bulk add goals for up to {{ BULK_OWNER_LIMIT }} employees at once. For more, use import goals instead.
           </MpText>
         </MpModalBody>
         <MpModalFooter>
