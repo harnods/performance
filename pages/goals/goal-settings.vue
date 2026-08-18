@@ -125,6 +125,7 @@ const toggleWithLink = css({ display: 'flex', flexDirection: 'column', gap: '2' 
 const linkRow = css({ paddingLeft: '10' })
 const reasonList = css({ display: 'flex', flexDirection: 'column', gap: '3', marginTop: '4' })
 const otherInput = css({ paddingLeft: '7', marginTop: '2' })
+const bannerList = css({ display: 'flex', flexDirection: 'column', gap: '1', paddingLeft: '5', listStyleType: 'disc' })
 </script>
 
 <template>
@@ -147,8 +148,13 @@ const otherInput = css({ paddingLeft: '7', marginTop: '2' })
         <div :class="linkRow">
           <MpBanner variant="info">
             <MpBannerIcon />
-            <MpBannerTitle>Draft goals won’t show in the old interface</MpBannerTitle>
-            <MpBannerDescription>Goals saved as drafts are only visible in the new interface. Switch back to the new interface anytime to see them again.</MpBannerDescription>
+            <MpBannerTitle>Switching versions may affect some goals</MpBannerTitle>
+            <MpBannerDescription>
+              <ul :class="bannerList">
+                <li>Goals that were saved as drafts will be hidden in the old UI until you switch back to new UI.</li>
+                <li>Goals created or edited in the old UI won't move into a matching cycle you already created in the new UI even if the dates fall within that cycle's period.</li>
+              </ul>
+            </MpBannerDescription>
           </MpBanner>
         </div>
       </div>

@@ -409,10 +409,13 @@ const fab = css({
                   <MpPopoverContent>
                     <MpPopoverList>
                       <MpPopoverListItem @click="router.push({ path: `/goals/goal-cycles/${cycle.id}`, query: { name: cycle.name } })">View details</MpPopoverListItem>
-                      <MpPopoverListItem @click="openEditDrawer(cycle)">Edit</MpPopoverListItem>
-                      <MpPopoverListItem @click="askDelete(cycle)">
-                        <span :class="css({ color: 'text.danger' })">Delete</span>
-                      </MpPopoverListItem>
+                      <!-- The archive cycle is a historical bucket, not a real cycle — it can't be edited or deleted. -->
+                      <template v-if="!cycle.isArchive">
+                        <MpPopoverListItem @click="openEditDrawer(cycle)">Edit</MpPopoverListItem>
+                        <MpPopoverListItem @click="askDelete(cycle)">
+                          <span :class="css({ color: 'text.danger' })">Delete</span>
+                        </MpPopoverListItem>
+                      </template>
                     </MpPopoverList>
                   </MpPopoverContent>
                 </MpPopover>

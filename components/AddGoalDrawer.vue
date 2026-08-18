@@ -31,6 +31,7 @@ import {
   MpTextlink,
   MpCheckbox,
   MpRadio,
+  MpInputTag,
   MpToggle,
   MpTooltip,
   MpDrawer,
@@ -170,10 +171,20 @@ const deadlineRulesEnabled = ref(false)
 const deadlineRules = ref<DeadlineRule[]>([])
 const contributorsByOwner = reactive<Record<string, string[]>>({})
 // How each owner's contributor list is chosen — 'all' keeps it in sync with
-// viewerIds, 'selected' lets the owner's card pick a subset via the inline
-// checklist. Not persisted itself; inferred from contributorsByOwner vs
+// viewerIds, 'selected' lets the owner's card pick a subset via the tag
+// input below. Not persisted itself; inferred from contributorsByOwner vs
 // viewerIds when editing (see resetForm below).
 const contributorMode = reactive<Record<string, 'all' | 'selected' | undefined>>({})
+// Required only when this owner's "Allow self-update" is off — with no one
+// else able to update progress, they must explicitly pick who can. Cleared
+// as soon as a mode is chosen or self-update is turned back on (see
+// setContributorMode / the toggle's own handler below).
+const contributorModeErrors = reactive<Record<string, boolean>>({})
+// Each owner's card defaults open (see the task's "open by default"); only
+// tracks owners a user has explicitly collapsed.
+const contribCardOpen = reactive<Record<string, boolean>>({})
+function isContribCardOpen(ownerId: string) { return contribCardOpen[ownerId] ?? true }
+function toggleContribCard(ownerId: string) { contribCardOpen[ownerId] = !isContribCardOpen(ownerId) }
 const viewerIds = ref<string[]>([])
 const restrictedVisibility = ref(false)
 // Owners can update their own goal's progress by default; turning this off
@@ -186,8 +197,43 @@ const ownerCanUpdateProgressActivateHint = "When activated, goal owner can also 
 // team/org). Company & Individual goals have NO member field — their
 // contributors are picked from ALL employees instead of from members.
 const isNeedMember = computed(() => goalType.value === 'team' || goalType.value === 'organization')
+// Individual goals skip the "All employees / Selected employees" choice —
+// there's no sensible "all employees" bulk contributor for a single-owner
+// goal. Self-update ON means the owner already covers progress updates;
+// turning it OFF goes straight to picking specific employees (see the
+// contrib-mode-single/contrib-mode-<id> template blocks below).
+const isIndividual = computed(() => goalType.value === 'individual')
 const contributorPool = computed(() => (isNeedMember.value ? viewerIds.value : EMPLOYEES.map(e => e.id)))
 const contributorPoolWord = computed(() => (isNeedMember.value ? 'members' : 'employees'))
+// MpInputTag suggestion options — `label` matches the component's own
+// default `suggestionKey`, so it doesn't need to be passed explicitly.
+const contributorSuggestions = computed(() => contributorPool.value.map(id => ({ id, label: employeeById(id)?.name ?? id })))
+// MpInputTag only reads its `data` prop once at mount (see its own
+// useInputTag composable — currentData is a plain ref(data.value), never
+// re-synced from later prop changes), so this only needs to produce the
+// right snapshot at the moment the card's "Selected" section becomes
+// visible (v-if remounts it fresh) — not stay reactively wired after that.
+// Each tag's `value` carries the same {id, label} shape a picked suggestion
+// resolves to (see onContributorTagsChange), so both preset and newly-added
+// tags round-trip through the same extraction logic.
+function contributorTagData(ownerId: string) {
+  return (contributorsByOwner[ownerId] ?? []).map((id) => {
+    const label = employeeById(id)?.name ?? id
+    return { id, text: label, value: { id, label }, isInvalid: false, isReadOnly: false }
+  })
+}
+// MpInputTag emits `change` with its full current tag list on every add/
+// remove — always resync the whole array rather than diffing. A tag's
+// `value` is the matched suggestion object (see findSuggestion in the
+// component itself); isEnableCreateNewTag is off so every tag the user adds
+// resolved from a real suggestion and always carries one.
+function onContributorTagsChange(ownerId: string, items: unknown) {
+  const list = Array.isArray(items) ? items as { value?: unknown }[] : []
+  const ids = list
+    .map(i => (i.value && typeof i.value === 'object' ? (i.value as { id?: string }).id : undefined))
+    .filter((id): id is string => !!id)
+  setContributorIds(ownerId, ids)
+}
 const keyResults = ref<DraftKeyResult[]>([])
 
 const krDrawerOpen = ref(false)
@@ -308,11 +354,12 @@ function resetForm() {
     alignTo.value = ''
     alignToKrId.value = ''
   }
+  for (const key of Object.keys(contributorModeErrors)) delete contributorModeErrors[key]
+  for (const key of Object.keys(contribCardOpen)) delete contribCardOpen[key]
   alignDrawerOpen.value = false
   rteKey.value++ // remount the rich-text editor so it shows the loaded description
   deadlineRuleErrors.value = []
   viewerDrawerOpen.value = false
-  contribDrawerOpen.value = false
   krDrawerOpen.value = false
   editingKr.value = null
   krToDelete.value = null
@@ -501,31 +548,22 @@ function removeViewer(employeeId: string) {
   viewerIds.value = viewerIds.value.filter(id => id !== employeeId)
 }
 
-// Company & Individual goals draw contributors from ALL employees — far too
-// many to list inline — so "Selected employees" opens the same employee-picker
-// drawer as Goal members, scoped to one owner at a time. Team & Organization
-// goals keep the inline checklist: their pool is just the handful of goal
-// members, so a drawer would be overkill there.
-const contribDrawerOpen = ref(false)
-const contribDrawerOwnerId = ref('')
-function openContribDrawer(ownerId: string) {
-  contribDrawerOwnerId.value = ownerId
-  contribDrawerOpen.value = true
-}
 function setContributorIds(ownerId: string, ids: string[]) {
   contributorsByOwner[ownerId] = [...ids]
 }
 
 // A contributor can never be someone who isn't also a goal member — picking
 // "All members" locks the owner's contributor list to the current member
-// list; picking "Selected members" reveals a checklist scoped to members only.
+// list; picking "Selected members" reveals a tag input scoped to members only.
 function setContributorMode(ownerId: string, mode: 'all' | 'selected') {
   contributorMode[ownerId] = mode
+  contributorModeErrors[ownerId] = false
   if (mode === 'all') contributorsByOwner[ownerId] = [...contributorPool.value]
-}
-function toggleContributor(ownerId: string, employeeId: string, checked: boolean) {
-  const current = contributorsByOwner[ownerId] ?? []
-  contributorsByOwner[ownerId] = checked ? [...current, employeeId] : current.filter(id => id !== employeeId)
+  // "Selected" starts pre-filled with the current goal member list — the
+  // tag input is meant for trimming down from members, not building up from
+  // an empty list. Only prefills the first time; once the owner has edited
+  // their own selection, switching modes and back must not stomp on it.
+  else if (!contributorsByOwner[ownerId]?.length) contributorsByOwner[ownerId] = [...contributorPool.value]
 }
 // Keeps the invariant true even if members change after contributors were
 // picked: "all"-mode owners stay synced to the current member list, and any
@@ -549,6 +587,10 @@ watch(goalType, (type) => {
   // Company & Individual goals have no members — drop any carried over from a
   // previous team/org selection so they aren't saved.
   if (type !== 'team' && type !== 'organization') viewerIds.value = []
+  // Self-update always starts ON regardless of goal type — don't let an OFF
+  // picked under a previous type (with its own contributor picks) silently
+  // carry over into the newly selected type.
+  for (const owner of props.owners) ownerCanUpdateProgressByOwner[owner.id] = true
 })
 
 function openAddKr() {
@@ -670,7 +712,25 @@ function save() {
     }
   }
 
-  if (errors.name || errors.goalType || errors.category || errors.weight || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length) return
+  // With self-update off, contributors are the ONLY way this goal's progress
+  // can ever be updated — an owner can't leave that unset. Also re-opens the
+  // card (accordion may be collapsed) so the error is actually visible.
+  let hasContributorModeError = false
+  for (const owner of props.owners) {
+    const selfUpdateOff = (ownerCanUpdateProgressByOwner[owner.id] ?? true) === false
+    // Individual has no All/Selected radio (see isIndividual) — its
+    // "picked a mode" equivalent is having actually picked employees.
+    const modeMissing = isIndividual.value
+      ? (contributorsByOwner[owner.id]?.length ?? 0) === 0
+      : !contributorMode[owner.id]
+    contributorModeErrors[owner.id] = selfUpdateOff && modeMissing
+    if (contributorModeErrors[owner.id]) {
+      hasContributorModeError = true
+      contribCardOpen[owner.id] = true
+    }
+  }
+
+  if (errors.name || errors.goalType || errors.category || errors.weight || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length || hasContributorModeError) return
   const categoryLabel = GOAL_CATEGORIES.find(c => c.value === category.value)?.label ?? category.value
   const subCategoryLabel = subCategoryOptions.value.find(s => s.value === subCategory.value)?.label ?? ''
   const goalTypeLabel = GOAL_TYPE_OPTIONS.find(t => t.value === goalType.value)?.label ?? goalType.value
@@ -718,6 +778,10 @@ function save() {
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '5', width: '100%' })
 const alignedValue = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
+// Matches Start/End date's width — those sit two-up in a gap-4 MpFlex, each
+// flex:1, so each is 50% of the form column minus half the 16px gap.
+const goalWeightWidth = css({ width: 'calc(50% - 8px)' })
+const alignedRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3' })
 const section = css({ display: 'flex', flexDirection: 'column', gap: '4', paddingBottom: '5' })
 const sectionLast = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1' })
@@ -726,6 +790,16 @@ const sectionDesc = css({ fontSize: '14px', lineHeight: '20px', color: 'text.sec
 const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const requiredMark = css({ color: 'text.danger' })
 const radioIndent = css({ display: 'flex', flexDirection: 'column', gap: '3', paddingLeft: '8' })
+// Left-aligns the contributor radio group (and, via radioIndent below it)
+// the tag input, with the avatar above — 32px, same offset as radioIndent,
+// just applied to MpFormControl instead of a plain div so it doesn't fight
+// that component's own internal layout.
+const contribRadioPad = css({ paddingLeft: '8' })
+// Individual's contributor tag input is a boxed field (border + its own
+// internal padding), not a radio bullet sitting flush left — needs 16px more
+// than contribRadioPad's 32px to make the box's left edge, not just its
+// text, line up with the avatar name above.
+const contribTagIndent = css({ paddingLeft: '12' })
 const noSpinner = css({
   appearance: 'none',
   '&::-webkit-outer-spin-button, &::-webkit-inner-spin-button': { display: 'none', margin: '0' },
@@ -779,8 +853,32 @@ const addLink = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.link', fontSize: '14px', lineHeight: '20px',
 })
-const personCard = css({ display: 'flex', flexDirection: 'column', gap: '3', padding: '3', borderRadius: '6px', border: '1px solid', borderColor: 'border.default' })
+// Row-with-bottom-border, not a boxed card — no left/right padding, no
+// top-side border/radius. paddingBottom stays on every card (including the
+// last) so its own content always keeps 12px from its own border — that's a
+// different concern from the space AFTER the whole group, which comes from
+// `section`'s own paddingBottom, not this. Only the top padding drops for
+// the first card, since `section`'s gap already spaces it from the header.
+const personCard = css({
+  display: 'flex', flexDirection: 'column', gap: '3',
+  paddingTop: '3', paddingBottom: '3',
+  borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
+  _first: { paddingTop: '0' },
+})
+// Wraps the owner card(s); spacing between cards comes from each card's own
+// top padding, not a wrap-level gap — avoids a double gap above the border.
+const contribCardsWrap = css({ display: 'flex', flexDirection: 'column' })
 const personRow = css({ display: 'flex', alignItems: 'center', gap: '3' })
+// Same look as personRow, but a real <button> so it can toggle the card's
+// accordion — a sibling of the self-update MpToggle on the right, never
+// wrapping it (nesting a real interactive control inside a <button> is
+// invalid HTML, same constraint documented in table.md's accordion-header
+// pattern). Button-chrome reset since it's still just a row visually.
+const personRowToggle = css({
+  display: 'flex', alignItems: 'center', gap: '3',
+  background: 'transparent', border: 'none', padding: '0', margin: '0',
+  font: 'inherit', textAlign: 'left', cursor: 'pointer', color: 'inherit',
+})
 // Owner identity (left) + their self-update-progress toggle (right), same row.
 const personRowBetween = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3' })
 const personName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
@@ -792,7 +890,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
 
 <template>
   <ClientOnly>
-    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="lg" is-keep-alive :is-close-on-overlay-click="false" :is-close-on-esc="false" @close="doClose">
+    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="xl" is-keep-alive :is-close-on-overlay-click="false" :is-close-on-esc="false" @close="doClose">
       <MpDrawerContent>
         <MpDrawerHeader>
           {{ drawerTitle }}
@@ -878,17 +976,19 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
                 <PxSelectPopover v-model="goalType" :options="GOAL_TYPE_OPTIONS" placeholder="Select goal type" width="100%" />
-                <MpFormErrorMessage>Goal type is required.</MpFormErrorMessage>
+                <MpFormErrorMessage>You must select goal type</MpFormErrorMessage>
               </MpFormControl>
 
               <!-- Align to a goal — opens the same GoalAlignDrawer as the goal lists -->
               <MpFormControl v-if="goalType && goalType !== 'company' && cycleId" id="align-to">
                 <MpFormLabel>Align to parent goal</MpFormLabel>
-                <MpFlex v-if="alignTo" align="center" gap="3">
+                <div v-if="alignTo" :class="alignedRow">
                   <span :class="alignedValue">{{ alignedLabel }}</span>
-                  <MpTextlink as="button" @click="openAlignDrawer">Change</MpTextlink>
-                  <MpTextlink as="button" @click="clearAlign">Remove</MpTextlink>
-                </MpFlex>
+                  <MpFlex align="center" gap="3">
+                    <MpTextlink as="button" @click="openAlignDrawer">Change</MpTextlink>
+                    <MpTextlink as="button" @click="clearAlign">Remove</MpTextlink>
+                  </MpFlex>
+                </div>
                 <MpButton v-else variant="secondary" @click="openAlignDrawer">Select parent goal</MpButton>
                 <MpFormHelpText>Link this goal to a higher-level goal it contributes to. Optional.</MpFormHelpText>
               </MpFormControl>
@@ -899,7 +999,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
                 <PxSelectPopover v-model="category" :options="categoryOptions" placeholder="Select goal category" width="100%" />
-                <MpFormErrorMessage>Goal category is required.</MpFormErrorMessage>
+                <MpFormErrorMessage>You must select goal category</MpFormErrorMessage>
               </MpFormControl>
 
               <MpFormControl v-if="category" id="goal-sub-category">
@@ -907,7 +1007,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <PxSelectPopover v-model="subCategory" :options="subCategoryOptions" placeholder="Select goal sub-category" width="100%" />
               </MpFormControl>
 
-              <MpFormControl id="goal-weight" :is-invalid="errors.weight">
+              <MpFormControl id="goal-weight" :is-invalid="errors.weight" :class="goalWeightWidth">
                 <MpFlex align="center" gap="1">
                   <MpFormLabel>Goal weight</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
@@ -1141,17 +1241,30 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
 
               <MpText v-if="isNeedMember && viewerIds.length === 0" size="label" :class="helperText">Add goal members first to choose contributors from them.</MpText>
 
+              <!-- Wraps the card(s); spacing between cards comes from each
+                   card's own top padding, not a gap on this wrapper. -->
+              <div v-else :class="contribCardsWrap">
               <!-- Single owner: same card + inline toggle as the multi-owner case below -->
-              <template v-else-if="owners.length === 1">
+              <template v-if="owners.length === 1">
                 <div :class="personCard">
                   <div :class="personRowBetween">
-                    <div :class="personRow">
+                    <!-- Individual: not collapsible — a static identity row,
+                         no caret/toggle button (there's nothing to hide). -->
+                    <MpFlex v-if="isIndividual" :class="personRow">
                       <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owners[0].name }}</span>
                         <span :class="personMeta">{{ employeeMeta(owners[0]) }}</span>
                       </MpFlex>
-                    </div>
+                    </MpFlex>
+                    <button v-else type="button" :class="personRowToggle" :aria-expanded="isContribCardOpen(owners[0].id)" aria-label="Show or hide contributor options" @click="toggleContribCard(owners[0].id)">
+                      <MpIcon :name="isContribCardOpen(owners[0].id) ? 'caret-down' : 'caret-right'" size="sm" />
+                      <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
+                      <MpFlex direction="column" gap="0">
+                        <span :class="personName">{{ owners[0].name }}</span>
+                        <span :class="personMeta">{{ employeeMeta(owners[0]) }}</span>
+                      </MpFlex>
+                    </button>
                     <!-- Contributors are the ones updating progress; this decides
                          whether the goal owner keeps that ability for their own
                          copy of the goal. -->
@@ -1161,47 +1274,58 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                         <MpToggle
                           id="owner-can-update-progress"
                           :is-checked="ownerCanUpdateProgressByOwner[owners[0].id] ?? true"
-                          @update:is-checked="(checked) => (ownerCanUpdateProgressByOwner[owners[0].id] = checked)"
+                          @update:is-checked="(checked) => { ownerCanUpdateProgressByOwner[owners[0].id] = checked; if (checked) contributorModeErrors[owners[0].id] = false }"
                         />
                       </MpFlex>
                     </MpTooltip>
                   </div>
 
-                  <MpFlex direction="column" gap="2">
-                    <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All {{ contributorPoolWord }}</MpRadio>
-                    <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
-                  </MpFlex>
-                  <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
-                    <!-- Team/Org: inline checklist scoped to the (small) member pool -->
-                    <template v-if="isNeedMember">
-                      <MpCheckbox
-                        v-for="id in contributorPool"
-                        :key="id"
-                        :id="`contributor-${owners[0].id}-${id}`"
-                        :is-checked="(contributorsByOwner[owners[0].id] ?? []).includes(id)"
-                        @update:is-checked="(checked) => toggleContributor(owners[0].id, id, checked)"
-                      >
-                        {{ employeeById(id)?.name }}
-                      </MpCheckbox>
-                    </template>
-                    <!-- Company/Individual: pool is ALL employees — pick via drawer -->
-                    <template v-else>
-                      <MpFlex v-for="id in (contributorsByOwner[owners[0].id] ?? [])" :key="id" :class="personRow">
-                        <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
-                        <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                          <span :class="personName">{{ employeeById(id)?.name }}</span>
-                          <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                  <!-- Individual: no "All employees" bulk option — self-update ON
+                       already covers progress updates via the owner, so nothing
+                       more to pick. OFF goes straight to choosing employees. Not
+                       gated by isContribCardOpen — this card has no accordion. -->
+                  <template v-if="isIndividual">
+                    <div v-if="!(ownerCanUpdateProgressByOwner[owners[0].id] ?? true)" :class="contribTagIndent">
+                      <MpFormControl id="contrib-tags-single" :is-invalid="contributorModeErrors[owners[0].id]">
+                        <MpFlex align="center" gap="1">
+                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
-                        <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owners[0].id, id, false)">
-                          <MpIcon name="minus-circular" size="sm" />
-                        </button>
+                        <MpInputTag
+                          id="contributor-tags-single"
+                          placeholder="Select employee"
+                          :data="contributorTagData(owners[0].id)"
+                          :suggestions="contributorSuggestions"
+                          :is-show-suggestions="true"
+                          :is-enable-create-new-tag="false"
+                          use-portal
+                          @change="(items) => onContributorTagsChange(owners[0].id, items)"
+                        />
+                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                      </MpFormControl>
+                    </div>
+                  </template>
+                  <template v-else-if="isContribCardOpen(owners[0].id)">
+                    <MpFormControl id="contrib-mode-single" :class="contribRadioPad" :is-invalid="contributorModeErrors[owners[0].id]">
+                      <MpFlex direction="column" gap="2">
+                        <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'all'" @update:is-checked="setContributorMode(owners[0].id, 'all')">All {{ contributorPoolWord }}</MpRadio>
+                        <MpRadio name="contrib-mode-single" :is-checked="contributorMode[owners[0].id] === 'selected'" @update:is-checked="setContributorMode(owners[0].id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                       </MpFlex>
-                      <button type="button" :class="addLink" @click="openContribDrawer(owners[0].id)">
-                        <MpIcon name="add" size="sm" />
-                        Select employees
-                      </button>
-                    </template>
-                  </div>
+                      <MpFormErrorMessage>Required when self-update is off — choose who can update this goal's progress.</MpFormErrorMessage>
+                    </MpFormControl>
+                    <div v-if="contributorMode[owners[0].id] === 'selected'" :class="radioIndent">
+                      <MpInputTag
+                        :id="`contributor-tags-${owners[0].id}`"
+                        :placeholder="`Search ${contributorPoolWord}…`"
+                        :data="contributorTagData(owners[0].id)"
+                        :suggestions="contributorSuggestions"
+                        :is-show-suggestions="true"
+                        :is-enable-create-new-tag="false"
+                        use-portal
+                        @change="(items) => onContributorTagsChange(owners[0].id, items)"
+                      />
+                    </div>
+                  </template>
                 </div>
               </template>
 
@@ -1209,13 +1333,23 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               <template v-else>
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
                   <div :class="personRowBetween">
-                    <div :class="personRow">
+                    <!-- Individual: not collapsible — a static identity row,
+                         no caret/toggle button (there's nothing to hide). -->
+                    <MpFlex v-if="isIndividual" :class="personRow">
                       <PxAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owner.name }}</span>
                         <span :class="personMeta">{{ employeeMeta(owner) }}</span>
                       </MpFlex>
-                    </div>
+                    </MpFlex>
+                    <button v-else type="button" :class="personRowToggle" :aria-expanded="isContribCardOpen(owner.id)" aria-label="Show or hide contributor options" @click="toggleContribCard(owner.id)">
+                      <MpIcon :name="isContribCardOpen(owner.id) ? 'caret-down' : 'caret-right'" size="sm" />
+                      <PxAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
+                      <MpFlex direction="column" gap="0">
+                        <span :class="personName">{{ owner.name }}</span>
+                        <span :class="personMeta">{{ employeeMeta(owner) }}</span>
+                      </MpFlex>
+                    </button>
                     <!-- Contributors are the ones updating progress; this decides
                          whether THIS owner keeps that ability for their own copy
                          of the goal — independent per owner, e.g. on for one and
@@ -1226,49 +1360,60 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                         <MpToggle
                           :id="`owner-can-update-progress-${owner.id}`"
                           :is-checked="ownerCanUpdateProgressByOwner[owner.id] ?? true"
-                          @update:is-checked="(checked) => (ownerCanUpdateProgressByOwner[owner.id] = checked)"
+                          @update:is-checked="(checked) => { ownerCanUpdateProgressByOwner[owner.id] = checked; if (checked) contributorModeErrors[owner.id] = false }"
                         />
                       </MpFlex>
                     </MpTooltip>
                   </div>
 
-                  <MpFlex direction="column" gap="2">
-                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'all'" @update:is-checked="setContributorMode(owner.id, 'all')">All {{ contributorPoolWord }}</MpRadio>
-                    <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
-                  </MpFlex>
-                  <div v-if="contributorMode[owner.id] === 'selected'" :class="radioIndent">
-                    <!-- Team/Org: inline checklist scoped to the (small) member pool -->
-                    <template v-if="isNeedMember">
-                      <MpCheckbox
-                        v-for="id in contributorPool"
-                        :key="id"
-                        :id="`contributor-${owner.id}-${id}`"
-                        :is-checked="(contributorsByOwner[owner.id] ?? []).includes(id)"
-                        @update:is-checked="(checked) => toggleContributor(owner.id, id, checked)"
-                      >
-                        {{ employeeById(id)?.name }}
-                      </MpCheckbox>
-                    </template>
-                    <!-- Company/Individual: pool is ALL employees — pick via drawer -->
-                    <template v-else>
-                      <MpFlex v-for="id in (contributorsByOwner[owner.id] ?? [])" :key="id" :class="personRow">
-                        <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
-                        <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                          <span :class="personName">{{ employeeById(id)?.name }}</span>
-                          <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                  <!-- Individual: no "All employees" bulk option — see the
+                       single-owner card's own comment above for why. Not
+                       gated by isContribCardOpen — this card has no accordion. -->
+                  <template v-if="isIndividual">
+                    <div v-if="!(ownerCanUpdateProgressByOwner[owner.id] ?? true)" :class="contribTagIndent">
+                      <MpFormControl :id="`contrib-tags-${owner.id}`" :is-invalid="contributorModeErrors[owner.id]">
+                        <MpFlex align="center" gap="1">
+                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
-                        <button type="button" :class="removeBtn" aria-label="Remove contributor" @click="toggleContributor(owner.id, id, false)">
-                          <MpIcon name="minus-circular" size="sm" />
-                        </button>
+                        <MpInputTag
+                          :id="`contributor-tags-${owner.id}`"
+                          placeholder="Select employee"
+                          :data="contributorTagData(owner.id)"
+                          :suggestions="contributorSuggestions"
+                          :is-show-suggestions="true"
+                          :is-enable-create-new-tag="false"
+                          use-portal
+                          @change="(items) => onContributorTagsChange(owner.id, items)"
+                        />
+                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                      </MpFormControl>
+                    </div>
+                  </template>
+                  <template v-else-if="isContribCardOpen(owner.id)">
+                    <MpFormControl :id="`contrib-mode-${owner.id}`" :class="contribRadioPad" :is-invalid="contributorModeErrors[owner.id]">
+                      <MpFlex direction="column" gap="2">
+                        <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'all'" @update:is-checked="setContributorMode(owner.id, 'all')">All {{ contributorPoolWord }}</MpRadio>
+                        <MpRadio :name="`contrib-mode-${owner.id}`" :is-checked="contributorMode[owner.id] === 'selected'" @update:is-checked="setContributorMode(owner.id, 'selected')">Selected {{ contributorPoolWord }}</MpRadio>
                       </MpFlex>
-                      <button type="button" :class="addLink" @click="openContribDrawer(owner.id)">
-                        <MpIcon name="add" size="sm" />
-                        Select employees
-                      </button>
-                    </template>
-                  </div>
+                      <MpFormErrorMessage>Required when self-update is off — choose who can update this goal's progress.</MpFormErrorMessage>
+                    </MpFormControl>
+                    <div v-if="contributorMode[owner.id] === 'selected'" :class="radioIndent">
+                      <MpInputTag
+                        :id="`contributor-tags-${owner.id}`"
+                        :placeholder="`Search ${contributorPoolWord}…`"
+                        :data="contributorTagData(owner.id)"
+                        :suggestions="contributorSuggestions"
+                        :is-show-suggestions="true"
+                        :is-enable-create-new-tag="false"
+                        use-portal
+                        @change="(items) => onContributorTagsChange(owner.id, items)"
+                      />
+                    </div>
+                  </template>
                 </div>
               </template>
+              </div>
             </div>
 
             <!-- Key results -->
@@ -1331,19 +1476,6 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
     :is-required="false"
     @update:is-open="viewerDrawerOpen = $event"
     @continue="(ids) => { viewerIds = ids }"
-  />
-
-  <!-- Contributor picker (Company / Individual goals) — scoped to one owner -->
-  <SelectEmployeesDrawer
-    drawer-id="drawer-select-contributors"
-    :is-open="contribDrawerOpen"
-    title="Select goal contributors"
-    description="People who can update this goal's progress."
-    :initial-selected="contributorsByOwner[contribDrawerOwnerId] ?? []"
-    :exclude-ids="[contribDrawerOwnerId]"
-    :is-required="false"
-    @update:is-open="contribDrawerOpen = $event"
-    @continue="(ids) => setContributorIds(contribDrawerOwnerId, ids)"
   />
 
   <!-- Every goal owner — opened from the "N more" link in the Goal owner field -->
