@@ -30,7 +30,7 @@ import {
   MpTableCell,
   css,
 } from '@mekari/pixel3'
-import type { Submission } from '~/composables/useGoalApprovalsStore'
+import { isCreateLikeItem, type Submission } from '~/composables/useGoalApprovalsStore'
 
 const props = defineProps<{ cycleId: string }>()
 const router = useRouter()
@@ -62,8 +62,10 @@ function isProgressOnly(item: Submission['items'][number]): boolean {
   return defSame && progressChanged
 }
 function typeLabelFor(submission: Submission): string {
+  // A published draft (an `edit` that just clears isDraft) counts as a
+  // creation, same as a literal `create` item — see isCreateLikeItem.
+  if (submission.items.some(isCreateLikeItem)) return TYPE_LABEL.create
   const types = submission.items.map(i => i.type)
-  if (types.includes('create')) return TYPE_LABEL.create
   const edits = submission.items.filter(i => i.type === 'edit')
   if (edits.length && edits.every(isCloseOnly)) return TYPE_LABEL.close
   if (edits.length && edits.every(isProgressOnly)) return TYPE_LABEL.progress

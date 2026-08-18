@@ -275,14 +275,23 @@ function persistAndLeave(isDraft: boolean) {
   // (goal.ownerIds) — detach-editing one owner's row means it no longer
   // shares the same fate as the goal's other owners.
   //
+  // Every owner's queued goals go up as ONE submission, not one per goal —
+  // same "batch of 1+ goal actions ... whose weights only sum to 100%
+  // together" shape the review UI already expects (GoalApprovalQueue.vue's
+  // own header comment), same pattern as an Inbox request bundling several
+  // items under one approval. Splitting them into separate submissions
+  // would let a reviewer approve some of an owner's new goals but not
+  // others, silently breaking the "must total 100%" rule this whole flow
+  // exists to enforce.
+  //
   // When this Save queues approval for a big group (> BULK_ASYNC_THRESHOLD
   // owners), every one of their submissions is tagged with one shared batch
-  // — not to bundle them into a single submission (each owner still gets
-  // their own, approved individually as always), just so useGoalApprovalsStore
-  // can tell, at approval time, that this owner's submission belongs to a
-  // group large enough to create goals as a background job, and so this
-  // requestor can be shown "your approved goals are being created" while
-  // that's happening (see useGoalRequestBatchStore).
+  // — not to merge different OWNERS into one submission (each owner still
+  // gets their own, approved individually as always), just so
+  // useGoalApprovalsStore can tell, at approval time, that this owner's
+  // submission belongs to a group large enough to create goals as a
+  // background job, and so this requestor can be shown "your approved goals
+  // are being created" while that's happening (see useGoalRequestBatchStore).
   const approvalOwners = isDraft ? [] : owners.value.filter(owner => needsApproval(owner.id))
   const batch = approvalOwners.length > BULK_ASYNC_THRESHOLD
     ? createBatch(cycleId, currentUserId.value, approvalOwners.map(owner => owner.id))
@@ -290,6 +299,7 @@ function persistAndLeave(isDraft: boolean) {
 
   let anyQueued = false
   let anyDirect = false
+  const queuedItemsByOwner = new Map<string, { type: 'create', ownerId: string, cycleId: string, after: ReturnType<typeof goalFromDraft> }[]>()
   for (const draft of goals.value) {
     const draftOwners = owners.value.filter(owner => draft.ownerIds.includes(owner.id))
     const queuedOwners = isDraft ? [] : draftOwners.filter(owner => needsApproval(owner.id))
@@ -300,8 +310,13 @@ function persistAndLeave(isDraft: boolean) {
     }
     for (const owner of queuedOwners) {
       anyQueued = true
-      createSubmission([{ type: 'create' as const, ownerId: owner.id, cycleId, after: goalFromDraft(draft, owner, isDraft) }], owner.id, cycleId, batch?.id)
+      const items = queuedItemsByOwner.get(owner.id) ?? []
+      items.push({ type: 'create', ownerId: owner.id, cycleId, after: goalFromDraft(draft, owner, isDraft) })
+      queuedItemsByOwner.set(owner.id, items)
     }
+  }
+  for (const [ownerId, items] of queuedItemsByOwner) {
+    createSubmission(items, ownerId, cycleId, batch?.id)
   }
 
   // Past the bulk limit this fans out to hundreds of goal records, which the

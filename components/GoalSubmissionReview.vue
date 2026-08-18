@@ -50,7 +50,7 @@ import { LEVEL_TO_GOAL_TYPE_LABEL } from '~/utils/goalMapping'
 import { sortByCategory, withRowSpans } from '~/utils/goalRows'
 import { CURRENCY_OPTIONS } from '~/utils/goalTaxonomy'
 import type { GoalLevel, GoalUnit } from '~/composables/useGoalsStore'
-import type { SubmissionItem, SubmissionStatus } from '~/composables/useGoalApprovalsStore'
+import { isCreateLikeItem, type SubmissionItem, type SubmissionStatus } from '~/composables/useGoalApprovalsStore'
 
 // `padded` is false for the standalone review page — its own (non-boxed)
 // layout already wraps every page in a 24px-padded white stage, so this
@@ -248,8 +248,9 @@ const totalCount = computed(() => submission.value?.items.length ?? 0)
 // A "Goal creation" bundle (many goals authored at once) uses the per-goal
 // accept checklist + Request revision flow. A "Goal update"/"Goal progress"
 // submission is a single simple change — a straight Approve/Reject decision,
-// no per-row accept and no revision loop.
-const isCreateSubmission = computed(() => !!submission.value && submission.value.items.some(i => i.type === 'create'))
+// no per-row accept and no revision loop. A published draft (an `edit` that
+// just clears isDraft) counts as a creation too — see isCreateLikeItem.
+const isCreateSubmission = computed(() => !!submission.value && submission.value.items.some(isCreateLikeItem))
 const requestTitle = computed(() => (isCreateSubmission.value ? 'Goal creation' : 'Goal update'))
 
 // Reject reason is typed inline before it's confirmed — rejectSubmission

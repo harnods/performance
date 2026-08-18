@@ -31,6 +31,16 @@ Reference: `pages/goals/goal-cycles/index.vue:296-301` (textbook).
 
 `PxNoAssignmentNotice` is an inline `MpBanner variant="info"` (title + description) — used for "nothing assigned yet" contexts (`succession-plans/create.vue`), not the centered illustration state.
 
+## Paired with a banner (async background creation)
+
+When records are being created asynchronously and none exist to show yet
+(see [`table.md`](table.md) §"Records being created asynchronously"), the
+info banner sits ABOVE the empty state, not nested inside its `v-else`
+branch — otherwise the banner never renders on a cycle whose only records
+are the ones currently being created. Widen the empty-state trigger to
+`totalRecords === 0 || activeBatch`, and hide the empty state's own action
+button while the batch is active. Reference: `goal-cycles/[id]/index.vue`.
+
 ## Rules
 
 - Empty-state action button = **secondary**, not primary (the one deviation to fix: `goal-categories/index.vue:241` uses primary).

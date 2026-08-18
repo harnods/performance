@@ -38,7 +38,6 @@ import {
   MpTableBody,
   MpTableRow,
   MpTableCell,
-  MpSkeleton,
   MpTextlink,
   MpBadge,
   MpModal,
@@ -57,7 +56,6 @@ import {
   css,
 } from '@mekari/pixel3'
 import { computeRepeatPeriods } from '~/utils/goalSchedule'
-import type { GoalWithCategoryWeight } from '~/composables/useGoalsStore'
 import { EMPLOYEES } from '~/utils/employees'
 
 definePageMeta({
@@ -77,33 +75,21 @@ const myPendingRequestsCount = computed(() => submissions.value.filter(s => s.ow
 // THRESHOLD owners), approving each owner's submission kicks off their goal
 // creation as a background job instead of committing synchronously (see
 // useGoalApprovalsStore's approveSubmission / useGoalRequestBatchStore).
-// This page is where both the requestor's banner and each pending owner's
-// skeleton rows surface that while it's running.
+// This page is where the requestor's banner surfaces that while it's
+// running — a still-creating owner's goals simply aren't in the table yet
+// (see the empty-state block below), rather than appearing as placeholder
+// rows mixed in with committed ones.
 // Batch state lives in localStorage (client-only), so it must never differ
 // between the server-rendered HTML and the client's first render pass — an
-// isMounted gate keeps both "empty" through hydration. Without this, the
-// Financial-category rowspan bug reproduces: SSR renders a real goal's
-// Category/Sub-category cell with rowspan=1 (no pending sibling exists yet,
-// server-side); the client's OWN first computed pass already sees the
-// pending row and wants rowspan=2, but Vue's hydration reconciliation
-// doesn't repair a mismatched rowspan attribute — it just logs the
-// mismatch and leaves the SSR value stuck, corrupting the column grid for
-// every row after it. Gating on isMounted means the client's first render
-// also legitimately computes "no pending rows" (matching SSR), and the
-// pending rows are added by a NORMAL reactive update right after mount —
-// a real patch, not a hydration attempt, so rowspan updates correctly.
+// isMounted gate keeps activeRequestBatch "empty" through hydration.
 const isMounted = ref(false)
 onMounted(() => { isMounted.value = true })
 
-const { activeBatchFor, creatingOwnerIdsFor, createBatch, removeBatch } = useGoalRequestBatchStore()
+const { activeBatchFor, createBatch, removeBatch } = useGoalRequestBatchStore()
 const activeRequestBatch = computed(() => (isMounted.value ? activeBatchFor(route.params.id as string, currentUserId.value) : undefined))
 function refreshPage() {
   location.reload()
 }
-
-// Owners (anywhere in this cycle, not just the requestor's own batch) whose
-// approved goals are still being written by their background job.
-const creatingOwnerIds = computed(() => (isMounted.value ? creatingOwnerIdsFor(route.params.id as string) : new Set<string>()))
 
 // The Select and Actions columns only pin themselves (sticky + boundary
 // shadow) once the table actually needs to scroll horizontally —
@@ -231,30 +217,6 @@ const { goals, myGoals, myDirectReportsGoals, updateGoal, deleteGoal } = useGoal
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
-// Pending rows, shaped exactly like a real Goal (see useGoalsStore's own
-// Goal interface) plus `isPending` — merged into sourceGoals below so they
-// flow through the SAME sort/category-grouping pipeline as real goals
-// (rows → ownerGoals → ownerRows) instead of a separate lookalike table.
-// Category/Sub-category/Goal/Goal type/Weight are already known from the
-// approved submission; only Progress/Status render as a skeleton in the
-// template, since the job hasn't written a real value/pill/status yet.
-// categoryWeight mirrors useGoalsStore's own derivation (sum of weight for
-// every goal — real or pending — sharing this owner+category), so whichever
-// row ends up as the merged category cell's anchor shows the true combined
-// total, not just its own goal's weight.
-const pendingSourceRows = computed(() => {
-  if (creatingOwnerIds.value.size === 0) return []
-  const pendingGoals = submissions.value
-    .filter(s => s.status === 'approved' && creatingOwnerIds.value.has(s.ownerId))
-    .flatMap(s => s.items.filter(i => i.type === 'create' && i.after))
-    .map(i => ({ ...i.after!, cycleId: i.cycleId }))
-  return pendingGoals.map((g): GoalWithCategoryWeight & { isPending: true } => {
-    const realWeight = goals.value.filter(r => r.category === g.category && r.ownerId === g.ownerId).reduce((sum, r) => sum + r.weight, 0)
-    const pendingWeight = pendingGoals.filter(p => p.category === g.category && p.ownerId === g.ownerId).reduce((sum, p) => sum + p.weight, 0)
-    return { ...g, categoryWeight: Math.round((realWeight + pendingWeight) * 10) / 10, isPending: true }
-  })
-})
-
 // Someone whose committed goals already total 100% has no weight left to
 // give a new one — keep them out of the "New goals" picker entirely rather
 // than letting them through only to hit the "must equal 100%" block at Save.
@@ -276,10 +238,16 @@ function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
 }
-const { submitDraftForApproval } = useGoalDraftSubmitter()
-function submitRowForApproval(row: { id: string }) {
-  const g = goals.value.find(x => x.id === row.id)
-  if (g) submitDraftForApproval(g)
+// A draft isn't live yet, so per-row "Submit for approval" no longer exists
+// on the kebab — its only forward move is the owner-group "Publish N goals"
+// textlink (in the accordion header), which submits every one of the owner's
+// unsubmitted drafts in one go.
+const { publishDrafts } = useGoalDraftSubmitter()
+function ownerDraftGoals(ownerId: string) {
+  return goals.value.filter(g => g.ownerId === ownerId && g.isDraft && !g.isAwaitingApproval)
+}
+function publishOwnerDrafts(ownerId: string) {
+  publishDrafts(ownerDraftGoals(ownerId))
 }
 
 // Align goal — any non-company goal can align (company is top, so no align).
@@ -320,11 +288,7 @@ const sourceGoals = computed(() => {
   const base = goalsView.value === 'my'
     ? myGoals.value
     : goalsView.value === 'direct-reports' ? myDirectReportsGoals.value : goals.value
-  // Pending rows only surface on the unscoped "All goals" view, same as
-  // the requestor's banner — they aren't real Goal records yet, so they
-  // can't be resolved against "my goals" / "my direct reports" ownership.
-  const withPending: (GoalWithCategoryWeight & { isPending?: boolean })[] = goalsView.value === 'all' ? [...base, ...pendingSourceRows.value] : base
-  return withPending.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && ownerMatchesAllFilters(g.ownerId, appliedFilters.value))
+  return base.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && ownerMatchesAllFilters(g.ownerId, appliedFilters.value))
 })
 
 // ─── Column sort (sorts WITHIN each owner rowspan group; owner is the only
@@ -489,9 +453,6 @@ type FlatRow = {
   status: (typeof rows.value)[number]['status'], unit?: (typeof rows.value)[number]['unit'],
   value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean, isAwaitingApproval?: boolean,
   repeat?: boolean, startDate?: string, endDate?: string,
-  // Approved but not yet committed — the background job hasn't written this
-  // goal's real value/pill/status yet, so Progress/Status render a skeleton.
-  isPending?: boolean,
   // Set on 'repeat' rows only — the main row id they're occurrences of, so
   // consecutive repeat rows for the SAME goal can merge their Category/
   // Sub-category/Goal type cells (they're all identical — same goal, just a
@@ -538,8 +499,8 @@ const scenarioBatchOwnerIds = computed(() => (
 ))
 // The preview goal is findable by its id prefix regardless of whether its
 // background job is still running or already finished — the simulated
-// delay is short (0.8-3.2s), so by the time anyone actually looks the job
-// has often already committed. "Async" means "the scenario is active and
+// delay is 3-5s, so by the time anyone actually looks the job may or may
+// not have committed yet. "Async" means "the scenario is active and
 // not yet reset," not literally "a job is in flight this instant" —
 // otherwise clicking Default after the job settles would silently do
 // nothing and leave the preview goal behind permanently.
@@ -611,14 +572,13 @@ function deactivateScenario() {
   if (batch) removeBatch(batch.id)
 }
 
-// Owner-level pagination: the first N owners (accordion groups). `total`
-// only counts real goals — a pending row shows up in the table (merged into
-// its Category below) but isn't a goal yet, so it doesn't count toward "N
-// goals" in the accordion header.
+// Owner-level pagination: the first N owners (accordion groups). `draftCount`
+// powers the "Publish N goals" bulk textlink next to the goal count — shown
+// only for owners who still have unsubmitted drafts.
 const visibleOwners = computed(() =>
   distinctOwnerIds.value.slice(0, visibleOwnerCount.value).map((id) => {
     const g = ownerGoals.value.get(id) ?? []
-    return { id, owner: ownerOf(id), total: g.filter(r => !r.isPending).length }
+    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length }
   }),
 )
 
@@ -784,6 +744,11 @@ function goToGoal(row: { kind: string, id: string }) {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/goals/${id}`, query: { cycleName: cycle.value?.name } })
 }
 const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'pointer', textAlign: 'left', minWidth: '0', whiteSpace: 'normal', overflowWrap: 'break-word', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
+// Publish-drafts textlink in the accordion header — a <span> with @click.stop,
+// not MpTextlink, because the header itself is a <button> (see
+// organization-goals.vue's collapseAllBtn for the same nested-interactive
+// constraint — a real link/button can't nest inside another button).
+const publishDraftsLink = css({ display: 'inline-flex', color: 'text.link', cursor: 'pointer', fontSize: '12px', lineHeight: '16px', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
@@ -1006,23 +971,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Goal hierarchy — placeholder for now, page intentionally left empty -->
     <div v-else-if="activeTab === 'hierarchy'" :class="hierarchyPlaceholder" />
     <template v-else>
-    <!-- Empty state: brand-new goal cycle, no goals at all yet -->
-    <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
-      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
-      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
-        <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
-        <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
-      </MpFlex>
-      <MpButton variant="secondary" @click="openSelectEmployee">New goals</MpButton>
-    </MpFlex>
-
-    <template v-else>
     <!-- Bulk-approved goal creation banner — only for the requestor of a
-         still-creating batch (see activeRequestBatch above). Sits above the
-         filter bar, not inside the table area it's reporting on. No close
-         button — this is reporting real in-progress state, not a dismissible
-         notice, and it already goes away on its own once every owner in the
-         batch resolves. -->
+         still-creating batch (see activeRequestBatch above). Sits above
+         BOTH the empty state and the table branch below (not nested inside
+         either), so it still shows on a cycle whose only goals so far are
+         the ones this very batch is creating. No close button — this is
+         reporting real in-progress state, not a dismissible notice, and it
+         already goes away on its own once every owner in the batch resolves. -->
     <MpBanner v-if="activeRequestBatch" variant="info">
       <MpBannerIcon name="info" />
       <MpBannerTitle>Your approved goals are being created</MpBannerTitle>
@@ -1032,6 +987,21 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpBannerDescription>
     </MpBanner>
 
+    <!-- Empty state: no goals to show yet — a brand-new cycle, or a batch's
+         goals are still being created in the background (the banner above
+         already explains that; the table itself has nothing of its own to
+         show while creation is in flight, so it stays hidden rather than
+         mixing placeholder rows in with committed ones). -->
+    <MpFlex v-if="goals.length === 0 || activeRequestBatch" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+      <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+      <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+        <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
+        <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
+      </MpFlex>
+      <MpButton v-if="!activeRequestBatch" variant="secondary" @click="openSelectEmployee">New goals</MpButton>
+    </MpFlex>
+
+    <template v-else>
     <!-- Filter bar — always visible; the bulk-action summary replaces the
          table's own header row instead (see MpTableHead below), not this bar. -->
     <MpFlex align="center" justify="space-between" gap="4" wrap="wrap">
@@ -1081,11 +1051,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
     <!-- One accordion table per goal owner (owner is the group header, so there
          is no owner column inside). Owner-level and per-owner goal pagination.
-         Pending (approved-but-not-yet-created) goals are merged into this same
-         per-owner row list via pendingSourceRows/sourceGoals above — they group
-         into their real Category/Sub-category alongside real goals rather than
-         a separate lookalike section; only their Progress/Status cells render
-         as a skeleton (see the Progress/Status cells below).
+         An owner whose goals are still being created in the background (see
+         activeRequestBatch above) simply has none of that batch's goals in
+         this list yet — the banner explains why, rather than a placeholder
+         row mixed in with committed ones.
 
          ClientOnly, not just isMounted, because this isn't only about pending
          rows — ALL of this table's data (useGoalsStore's `goals`) is seeded
@@ -1111,7 +1080,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpText size="label-small" :class="captionText">{{ grp.owner.id }} · {{ grp.owner.title }} · {{ grp.owner.department }}</MpText>
           </MpFlex>
         </span>
-        <MpText size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+        <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
+          Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
+        </span>
+        <MpText v-else size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
       </button>
 
       <template v-if="singleOwnerView || isOwnerOpen(grp.id)">
@@ -1218,18 +1190,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <MpText size="label" :class="[valueText, cellContent]">{{ row.goalType }}</MpText>
             </MpTableCell>
 
-            <!-- Progress — skeleton while pending: the background job hasn't
-                 written a real value/pill yet (see isPending on FlatRow). -->
+            <!-- Progress -->
             <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]">
-              <MpFlex v-if="row.isPending" direction="column" gap="1" :class="progressCellWidth">
-                <MpSkeleton :class="css({ width: '96px', height: '14px', borderRadius: '4px' })" />
-                <MpSkeleton :class="css({ width: '100%', height: '6px', borderRadius: 'full' })" />
-                <MpFlex justify="space-between">
-                  <MpSkeleton :class="css({ width: '32px', height: '12px', borderRadius: '4px' })" />
-                  <MpSkeleton :class="css({ width: '56px', height: '12px', borderRadius: '4px' })" />
-                </MpFlex>
-              </MpFlex>
-              <MpFlex v-else-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
+              <MpFlex v-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
                 <MpFlex align="center" gap="1">
                   <MpText size="label" :class="valueText">
                     {{ row.unit === 'currency' ? `Rp${formatNumber(row.value ?? 0)}` : `${row.value}${row.unit === 'percent' ? '%' : ''}` }}
@@ -1251,10 +1214,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <span v-else :class="captionText">—</span>
             </MpTableCell>
 
-            <!-- Status — skeleton while pending, same reasoning as Progress. -->
+            <!-- Status -->
             <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]">
-              <MpSkeleton v-if="row.isPending" :class="css({ width: '72px', height: '22px', borderRadius: '4px' })" />
-              <span v-else-if="row.kind !== 'aligned-trigger'" :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
+              <span v-if="row.kind !== 'aligned-trigger'" :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
               <span v-else :class="captionText">—</span>
             </MpTableCell>
 
@@ -1283,9 +1245,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                       <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
                     </template>
                     <!-- A draft isn't live yet, so progress/align/close make no sense on it —
-                         its only forward move is going up for approval. -->
+                         and its forward move (going up for approval) is now the owner-group
+                         "Publish N goals" textlink, not a per-row action. -->
                     <template v-else-if="row.isDraft">
-                      <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="submitRowForApproval(row)">Submit for approval</MpPopoverListItem>
                       <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                       <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
                       <MpPopoverListItem @click="deleteRow(row)">

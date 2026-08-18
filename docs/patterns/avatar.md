@@ -1,5 +1,32 @@
 # Avatar
 
+## Use `PxAvatar` instead of `MpAvatar` for initials-only avatars
+
+`PxAvatar` is a thin wrapper that gives initials-only avatars (no photo) a deterministic
+pastel background with a darker same-hue initial text — so every no-photo avatar is
+colorful yet always readable. Photo avatars pass through to `MpAvatar` untouched. Use
+it **everywhere `MpAvatar` appears**, as a drop-in replacement.
+
+```vue
+<!-- ✓ Do this -->
+<PxAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+
+<!-- ✗ Don't use MpAvatar directly anymore -->
+<MpAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
+```
+
+`PxAvatar` forwards all props, attributes, and the caller's `:class` directly to
+`MpAvatar` — it's fully compatible. When a person has a photo (`:src` is set), the
+avatar renders at its normal color; when `:src` is absent or falsy, the component
+hashes the person's `:id` (or `:name` as fallback) to pick one of 6 pastel palettes
+(teal, violet, lime, indigo, orange, blue), ensuring the same person always gets
+the same hue.
+
+Canonical examples: `AddGoalDrawer.vue`, `ReviewerModals.vue`, `GoalSubmissionReview.vue`,
+`pages/goals/goal-cycles/[id]/new.vue`, `pages/goals/goal-cycles/[id]/index.vue`.
+
+---
+
 ## Size beside an employee identity block → `size="lg"`
 
 Whenever an `MpAvatar` sits next to a person's **full identity block** — their

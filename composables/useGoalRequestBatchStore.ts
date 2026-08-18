@@ -115,12 +115,5 @@ export function useGoalRequestBatchStore() {
     return batchesData.value.find(b => b.cycleId === cycleId && b.requestedBy === requestedBy && b.creatingOwnerIds.length > 0)
   }
 
-  // Owner ids anywhere in this cycle whose goals are currently being created
-  // in the background, across any requestor's batch — drives the per-owner
-  // skeleton rows in the goals table regardless of who requested the batch.
-  function creatingOwnerIdsFor(cycleId: string) {
-    return new Set(batchesData.value.filter(b => b.cycleId === cycleId).flatMap(b => b.creatingOwnerIds))
-  }
-
-  return { batches, createBatch, markOwnerCreating, markOwnerCreated, removeBatch, activeBatchFor, creatingOwnerIdsFor }
+  return { batches, createBatch, markOwnerCreating, markOwnerCreated, removeBatch, activeBatchFor }
 }

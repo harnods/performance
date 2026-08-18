@@ -35,7 +35,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import { employeeById } from '~/utils/employees'
-import type { Submission } from '~/composables/useGoalApprovalsStore'
+import { isCreateLikeItem, type Submission } from '~/composables/useGoalApprovalsStore'
 
 const props = defineProps<{ cycleId: string }>()
 const router = useRouter()
@@ -49,8 +49,10 @@ const { submissions } = useGoalApprovalsStore(props.cycleId)
 // accounts for it so nothing here needs to change once it exists.
 const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal update'] as const
 
+// A published draft (an `edit` that just clears isDraft) counts as a
+// creation, same as a literal `create` item — see isCreateLikeItem.
 function typeLabelFor(submission: Submission): string {
-  return submission.items.some(i => i.type === 'create') ? 'Goal creation' : 'Goal update'
+  return submission.items.some(isCreateLikeItem) ? 'Goal creation' : 'Goal update'
 }
 
 // Only once a submission is approved (and committed) does it drop off this
