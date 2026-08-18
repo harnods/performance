@@ -273,7 +273,7 @@ const otherInput = css({ paddingLeft: '7', marginTop: '2' })
 
   <!-- Asked once, the first time someone switches back to the old interface -->
   <ClientOnly>
-  <MpModal :is-open="switchReasonOpen" is-centered @close="skipSwitchReason">
+  <MpModal :is-open="switchReasonOpen" class="switch-reason-modal" @close="skipSwitchReason">
     <MpModalOverlay />
     <MpModalContent>
       <MpModalHeader>
@@ -308,3 +308,14 @@ const otherInput = css({ paddingLeft: '7', marginTop: '2' })
   </MpModal>
   </ClientOnly>
 </template>
+
+<style scoped>
+/* Alert/confirm modal: top-aligned 80px from the top (not vertically centered).
+   MpModal's root never receives this file's scope id (manual mergeProps/Teleport
+   render), so the selector must be :global(). !important beats the component's
+   own inline margin-top: 3.75rem (60px) default offset. Mirrors .owner-list-modal
+   in new.vue. */
+:global(.switch-reason-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
+}
+</style>
