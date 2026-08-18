@@ -17,7 +17,6 @@
 // same way from here.
 
 import { toast } from '@mekari/pixel3'
-import { employeeById } from '~/utils/employees'
 import type { Goal } from './useGoalsStore'
 
 export function useGoalDraftSubmitter() {
@@ -60,14 +59,11 @@ export function useGoalDraftSubmitter() {
     }
     for (const ownerId of blockedOwners) byOwner.delete(ownerId)
     if (blockedOwners.length > 0) {
-      const names = blockedOwners.map(id => employeeById(id)?.name ?? id)
       toast.notify({
         id: 'goal-draft-publish-weight-error',
         position: 'top-center',
         variant: 'error',
-        title: names.length === 1
-          ? `${names[0]}'s total goal weight isn't 100% yet — it must equal exactly 100% before publishing.`
-          : `${names.join(', ')}'s total goal weight isn't 100% yet — it must equal exactly 100% before publishing.`,
+        title: 'Total goal weight must be 100% before publishing.',
       })
     }
     if (byOwner.size === 0) return

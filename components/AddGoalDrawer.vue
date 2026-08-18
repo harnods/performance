@@ -1298,7 +1298,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <div v-if="!(ownerCanUpdateProgressByOwner[owners[0].id] ?? true)" :class="contribTagIndent">
                       <MpFormControl id="contrib-tags-single" :is-invalid="contributorModeErrors[owners[0].id]">
                         <MpFlex align="center" gap="1">
-                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpFormLabel>Contributors</MpFormLabel>
                           <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
                         <MpInputTag
@@ -1321,7 +1321,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <template v-else-if="isCompanyType">
                     <div :class="contribTagIndent">
                       <MpFormControl id="contrib-tags-single">
-                        <MpFormLabel>Selected employee</MpFormLabel>
+                        <MpFormLabel>Contributors</MpFormLabel>
                         <MpInputTag
                           id="contributor-tags-single"
                           placeholder="Select employee"
@@ -1403,7 +1403,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <div v-if="!(ownerCanUpdateProgressByOwner[owner.id] ?? true)" :class="contribTagIndent">
                       <MpFormControl :id="`contrib-tags-${owner.id}`" :is-invalid="contributorModeErrors[owner.id]">
                         <MpFlex align="center" gap="1">
-                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpFormLabel>Contributors</MpFormLabel>
                           <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
                         <MpInputTag
@@ -1424,7 +1424,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <template v-else-if="isCompanyType">
                     <div :class="contribTagIndent">
                       <MpFormControl :id="`contrib-tags-${owner.id}`">
-                        <MpFormLabel>Selected employee</MpFormLabel>
+                        <MpFormLabel>Contributors</MpFormLabel>
                         <MpInputTag
                           :id="`contributor-tags-${owner.id}`"
                           placeholder="Select employee"
