@@ -79,6 +79,12 @@ const ownerIds = computed(() => {
 })
 const owners = computed(() => EMPLOYEES.filter(e => ownerIds.value.includes(e.id)))
 
+// Table can outgrow the viewport (many columns, a wide per-row contributor
+// stack, etc.) — wrapperRef goes on the outer border div so it scrolls
+// horizontally instead of clipping. No sticky columns here, so hasOverflow
+// isn't needed.
+const { wrapperRef } = useTableHorizontalScroll()
+
 // ─── Owner avatars: cap the stack at 6 slots — 5 avatars + a "+N" overflow ────
 // A bulk goal can target dozens of people; past 5 the stack stops being
 // readable, so the 6th slot collapses the rest into one "+N" circle that
@@ -618,8 +624,14 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
     <!-- Goals table — goals already saved for the selected owner(s) from an
          earlier visit to this page (still a draft until finalized) come
-         first, then whatever's being drafted right now this session. -->
-    <MpTableContainer v-else :class="tableOuterBorder">
+         first, then whatever's being drafted right now this session.
+         Outer border lives on its own wrapper div, not on MpTableContainer
+         itself — the component already sets overflow-x:auto, and stacking
+         tableOuterBorder's overflow:hidden on the same element kills the
+         horizontal scroll it needs once a row's contributor stack, name, etc.
+         push the table past the viewport width (see table.md). -->
+    <div v-else :class="tableOuterBorder" ref="wrapperRef">
+    <MpTableContainer>
       <MpTable :is-hoverable="false">
         <MpTableHead>
           <MpTableRow>
@@ -807,6 +819,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </template>
         </MpTableBody>
       </MpTable>
+    </MpTableContainer>
 
       <!-- Single owner: one running total. Multiple owners each carry their
            own existing weight, so this is a per-owner breakdown instead of
@@ -831,7 +844,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpIcon name="add" size="sm" />
         Add goal
       </button>
-    </MpTableContainer>
+    </div>
 
     <MpFlex align="center" justify="space-between" :class="stickyActionBar">
       <MpText v-if="hasWeightError" size="label" :class="css({ color: 'text.danger' })">
