@@ -15,9 +15,21 @@ import { BULK_ASYNC_THRESHOLD, useGoalRequestBatchStore } from './useGoalRequest
 
 export type SubmissionItemType = 'create' | 'edit' | 'delete'
 
+// A published draft is submitted as an `edit` that just flips `isDraft`
+// true → false (see useGoalDraftSubmitter — the draft row already exists,
+// so a `create` would publish a second copy on approve). But the goal has
+// never been live before, so from the reviewer's and the owner's own
+// perspective this reads as a CREATION, not a modification — every "what
+// kind of request is this" label below must treat it that way, not just
+// the literal `type` field.
+export function isCreateLikeItem(item: { type: string, before?: Record<string, unknown>, after?: Record<string, unknown> }): boolean {
+  if (item.type === 'create') return true
+  return item.type === 'edit' && item.before?.isDraft === true && item.after?.isDraft === false
+}
+
 // Human label for what a submission does — drives inbox copy + traceability.
 function actionLabelFor(items: { type: string, before?: Record<string, unknown>, after?: Record<string, unknown> }[]): string {
-  if (items.some(i => i.type === 'create')) return 'create goals'
+  if (items.some(isCreateLikeItem)) return 'create goals'
   if (items.some(i => i.type === 'delete')) return 'delete a goal'
   const edits = items.filter(i => i.type === 'edit')
   if (edits.length && edits.every(i => !!i.after && !i.before?.isClosed && !!i.after.isClosed)) return 'close a goal'
@@ -28,6 +40,34 @@ function actionLabelFor(items: { type: string, before?: Record<string, unknown>,
   return 'edit a goal'
 }
 export type SubmissionStatus = 'pending' | 'approved' | 'rejected'
+
+// The ONE classification of "what kind of request is this", shared by the
+// goal-cycle "Awaiting approval" tab (GoalApprovalQueue.vue) and the Goals
+// dashboard's two approval cards (useGoalsDashboard.ts). Both surfaces read the
+// same submissions, so they must bucket them identically — keep this the single
+// source of truth rather than re-deriving the rule per component.
+//
+// Detection mirrors actionLabelFor above: any create item makes it a creation
+// batch; a batch whose edits only move value/pill is a progress update;
+// everything else (plain edits, closes, deletes) is a generic goal update.
+export type SubmissionTypeLabel = 'Goal creation' | 'Goal progress update' | 'Goal update'
+
+export function submissionTypeLabel(submission: Pick<Submission, 'items'>): SubmissionTypeLabel {
+  if (submission.items.some(i => i.type === 'create')) return 'Goal creation'
+  const edits = submission.items.filter(i => i.type === 'edit')
+  if (edits.length && edits.every((i) => {
+    const before = i.before, after = i.after
+    return !!before && !!after && (before.value !== after.value || before.pill !== after.pill)
+  })) return 'Goal progress update'
+  return 'Goal update'
+}
+
+// A submission is still "awaiting approval" until it has been approved — a
+// rejected batch stays visible so it can be reopened/resubmitted. Shared so the
+// dashboard cards and the queue can never disagree about what is outstanding.
+export function isAwaitingApproval(submission: Pick<Submission, 'status'>): boolean {
+  return submission.status !== 'approved'
+}
 
 export interface SubmissionItem {
   id: string
@@ -767,7 +807,9 @@ export function useGoalApprovalsStore(cycleId?: string) {
     const batch = submission.batchId ? batchStore.batches.value.find(b => b.id === submission.batchId) : undefined
     if (batch && batch.ownerIds.length > BULK_ASYNC_THRESHOLD) {
       batchStore.markOwnerCreating(batch.id, submission.ownerId)
-      const simulatedLatency = 800 + Math.random() * 2400
+      // At least 3s per owner so the "being created" state reads as a real
+      // background job on screen, not a flicker.
+      const simulatedLatency = 3000 + Math.random() * 2000
       setTimeout(() => {
         commitSubmissionGoals(submission)
         batchStore.markOwnerCreated(batch.id, submission.ownerId)

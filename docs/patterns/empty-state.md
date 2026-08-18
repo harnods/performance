@@ -27,9 +27,27 @@ Reference: `pages/goals/goal-cycles/index.vue:296-301` (textbook).
 - **No data at all** → full empty state (above); show the action button.
 - **Filter/search yields zero** → keep the table shell + a single centered `colspan` row, OR the empty state with `hasFilter`-aware copy and NO action button. See [`table.md`](table.md) §empty.
 
+## Dashboard sections are the exception
+
+Everything above describes a **page** whose collection is empty. Inside a **dashboard
+section card**, an empty panel renders a centered **title + caption only** — no
+illustration, no action button — because an empty section is often good news and four
+stacked 240px illustrations would bury the sections that do have data. See
+[`dashboard-section.md`](dashboard-section.md) for the exact markup and the reasoning.
+
 ## Inline notice (different construct)
 
 `PxNoAssignmentNotice` is an inline `MpBanner variant="info"` (title + description) — used for "nothing assigned yet" contexts (`succession-plans/create.vue`), not the centered illustration state.
+
+## Paired with a banner (async background creation)
+
+When records are being created asynchronously and none exist to show yet
+(see [`table.md`](table.md) §"Records being created asynchronously"), the
+info banner sits ABOVE the empty state, not nested inside its `v-else`
+branch — otherwise the banner never renders on a cycle whose only records
+are the ones currently being created. Widen the empty-state trigger to
+`totalRecords === 0 || activeBatch`, and hide the empty state's own action
+button while the batch is active. Reference: `goal-cycles/[id]/index.vue`.
 
 ## Rules
 

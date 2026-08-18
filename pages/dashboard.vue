@@ -29,13 +29,43 @@ import {
 import type { PeriodValue } from '~/utils/periodPicker'
 import type { ReviewRow, FilterDimension } from '~/utils/dashboardTypes'
 
+// NOT boxed: both tabs render inside the layout's single white stage panel,
+// which supplies the 24px padding on all sides (layouts/default.vue).
 definePageMeta({
   title: 'Dashboard',
   layout: 'default',
-  boxed: true,
 })
 
 const router = useRouter()
+
+// ─── Tabs ─────────────────────────────────────────────────────────────────────
+// Two dashboards under one page title (which stays "Dashboard" on both).
+// Type A tabs — see docs/patterns/tabs.md.
+type Tab = 'review' | 'goals'
+const activeTab = ref<Tab>('review')
+
+// The Goals tab has two shapes depending on which Goals experience the company
+// is on — the same cookie AppSidebar.vue and Goal settings read. It changes the
+// filter control and the primary CTA; see components/GoalsDashboard.vue.
+const goalsNewInterface = useCookie('goals-new-interface', { default: () => true })
+
+const { cycles: goalCycles } = useGoalCyclesStore()
+const activeGoalCycle = computed(() =>
+  goalCycles.value.find(c => c.status === 'Active') ?? goalCycles.value[0],
+)
+
+function viewGoalsInsight() {
+  toast.notify({ id: 'goals-dash-insight', position: 'top-center', variant: 'success', title: 'Opening goals insight…' })
+}
+// Goal cycles are created from a drawer on the goal-cycles list; goals are
+// created on a cycle's "New goals" page. Neither has a standalone create route,
+// so the CTA navigates to where that flow actually lives.
+function createGoalCycle() { router.push('/goals/goal-cycles') }
+function createGoal() {
+  const cycle = activeGoalCycle.value
+  if (cycle) router.push({ path: `/goals/goal-cycles/${cycle.id}/new`, query: { cycleName: cycle.name } })
+  else router.push('/goals/goal-cycles')
+}
 const { stats, chartByOrg, notSubmitList, pickedList } = useReviewSubmissionsStore()
 
 // ─── Filter bar ───────────────────────────────────────────────────────────────
@@ -99,8 +129,9 @@ const pickedDims = computed(() => buildDims(pickedRows.value, true))
 
 function goToCycleList() { router.push('/reviews/review-cycles') }
 
-// ─── Styles (DT 2.4) — boxed dashboard, mirrors pages/index.vue ─────────────────
-const outer = css({ display: 'flex', flexDirection: 'column', gap: '6', width: '100%', paddingRight: '6', paddingBottom: '6' })
+// ─── Styles (DT 2.4) ───────────────────────────────────────────────────────────
+// No own padding — the stage already supplies 24px on all sides.
+const outer = css({ display: 'flex', flexDirection: 'column', gap: '6', width: '100%' })
 const card = css({ background: 'white', border: '1px solid', borderColor: 'border.default', borderRadius: 'md', padding: '6', overflow: 'hidden' })
 const filterCard = css({ background: 'white', border: '1px solid', borderColor: 'border.default', borderRadius: 'md', padding: '4' })
 const filterRow = css({ display: 'flex', alignItems: 'flex-end', gap: '3', flexWrap: 'wrap' })
@@ -117,17 +148,54 @@ const kpiLabel = css({ fontSize: '12px', lineHeight: '16px', color: 'text.second
 const kpiValue = css({ fontSize: '20px', fontWeight: '600', lineHeight: '28px', color: 'text.default', fontVariantNumeric: 'tabular-nums' })
 const seeAll = css({ display: 'inline-flex', alignItems: 'center', gap: '1' })
 const tablesRow = css({ display: 'grid', gridTemplateColumns: { base: '1fr', xl: '1fr 1fr' }, gap: '6' })
+
+// Tab bar — canonical Type A styles (docs/patterns/tabs.md).
+const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
+const tabItemBase = {
+  display: 'inline-flex', alignItems: 'center', gap: '2',
+  paddingBlock: '3', paddingInline: '1',
+  fontSize: '14px', lineHeight: '20px', fontWeight: '400',
+  color: 'text.secondary', background: 'transparent', border: 'none', cursor: 'pointer',
+  borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
+  marginBottom: '-1px', transition: 'color 0.12s ease, border-color 0.12s ease',
+} as const
+const tabItem = css({ ...tabItemBase, _hover: { color: 'text.default' } })
+const tabItemActive = css({ ...tabItemBase, color: 'text.link', fontWeight: '600', borderBottomColor: 'border.brand' })
 </script>
 
 <template>
   <div :class="outer">
-    <!-- Header actions -->
-    <Teleport to="#page-header-actions" defer>
-      <MpButton variant="ghost" left-icon="newtab" @click="viewInsight">View insight</MpButton>
-      <MpButton variant="primary" @click="createCycle">Create new cycle</MpButton>
+    <!-- Tabs: two dashboards, one page title -->
+    <Teleport to="#page-tabs" defer>
+      <div :class="tabBar">
+        <button type="button" :class="activeTab === 'review' ? tabItemActive : tabItem" @click="activeTab = 'review'">
+          Reviews
+        </button>
+        <button type="button" :class="activeTab === 'goals' ? tabItemActive : tabItem" @click="activeTab = 'goals'">
+          Goals
+        </button>
+      </div>
     </Teleport>
 
-    <!-- Filter bar (not boxed — sits on the page canvas) -->
+    <!-- Header actions — each tab owns its own pair -->
+    <Teleport to="#page-header-actions" defer>
+      <template v-if="activeTab === 'review'">
+        <MpButton variant="ghost" left-icon="newtab" @click="viewInsight">View insight</MpButton>
+        <MpButton variant="primary" @click="createCycle">Create new cycle</MpButton>
+      </template>
+      <template v-else>
+        <MpButton variant="ghost" left-icon="newtab" @click="viewGoalsInsight">View insights</MpButton>
+        <MpButton v-if="goalsNewInterface" variant="primary" @click="createGoalCycle">Create goal cycle</MpButton>
+        <MpButton v-else variant="primary" @click="createGoal">Create goal</MpButton>
+      </template>
+    </Teleport>
+
+    <!-- ── Goals tab ─────────────────────────────────────────────────────── -->
+    <GoalsDashboard v-if="activeTab === 'goals'" :is-new-interface="goalsNewInterface" />
+
+    <!-- ── Performance review tab ────────────────────────────────────────── -->
+    <template v-else>
+    <!-- Filter bar -->
     <div :class="filterRow">
       <div :class="dateWidth">
         <PxAdvancedDatePicker v-model="dateRange" placeholder="Start date - End date" :width="'260px'" />
@@ -171,5 +239,6 @@ const tablesRow = css({ display: 'grid', gridTemplateColumns: { base: '1fr', xl:
 
     <!-- Create cycle purpose modal -->
     <DashCyclePurposeModal v-model:is-open="isPurposeOpen" />
+    </template>
   </div>
 </template>

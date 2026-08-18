@@ -46,11 +46,9 @@ const router = useRouter()
 // interface, so the toggle reads ON until the user switches back.
 const useNewInterface = useCookie('goals-new-interface', { default: () => true })
 
-// Reverting to the old UI is never blocked — a goal cycle created in the new
-// UI can coexist with the old interface; the banner below just flags that
-// draft goals still live only in the new UI.
-const { cycles } = useGoalCyclesStore()
-const hasNewUiCycle = computed(() => cycles.value.some(c => c.createdInNewUi))
+// Reverting to the old UI is never blocked. The banner below is a standing
+// disclaimer, not conditioned on whether a new-UI cycle actually exists yet —
+// it always warns that draft goals only live in the new interface.
 
 // ─── Switch-back reason (asked once) ─────────────────────────────────────────
 // The FIRST time someone leaves the new interface we ask why, then remember
@@ -127,6 +125,7 @@ const toggleWithLink = css({ display: 'flex', flexDirection: 'column', gap: '2' 
 const linkRow = css({ paddingLeft: '10' })
 const reasonList = css({ display: 'flex', flexDirection: 'column', gap: '3', marginTop: '4' })
 const otherInput = css({ paddingLeft: '7', marginTop: '2' })
+const bannerList = css({ display: 'flex', flexDirection: 'column', gap: '1', paddingLeft: '5', listStyleType: 'disc' })
 </script>
 
 <template>
@@ -146,12 +145,16 @@ const otherInput = css({ paddingLeft: '7', marginTop: '2' })
         <div :class="linkRow">
           <MpTextlink>Learn what's new</MpTextlink>
         </div>
-        <!-- Locked once a goal cycle has been created in the new UI. -->
-        <div v-if="hasNewUiCycle" :class="linkRow">
+        <div :class="linkRow">
           <MpBanner variant="info">
             <MpBannerIcon />
-            <MpBannerTitle>Draft goals won’t show in the old interface</MpBannerTitle>
-            <MpBannerDescription>Goals saved as drafts are only visible in the new interface. Switch back to the new interface anytime to see them again.</MpBannerDescription>
+            <MpBannerTitle>Switching versions may affect some goals</MpBannerTitle>
+            <MpBannerDescription>
+              <ul :class="bannerList">
+                <li>Goals that were saved as drafts will be hidden in the old UI until you switch back to new UI.</li>
+                <li>Goals created or edited in the old UI won't move into a matching cycle you already created in the new UI even if the dates fall within that cycle's period.</li>
+              </ul>
+            </MpBannerDescription>
           </MpBanner>
         </div>
       </div>

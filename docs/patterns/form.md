@@ -89,6 +89,72 @@ Use the built-in default slot for the label + `#description` slot for the captio
 
   Use this instead of `#description` when the row already reads as busy (e.g. one toggle per person in a per-owner list) and the explanation is genuinely secondary — don't reach for it as a default over `#description`, which stays the norm for a caption everyone should read.
 
+## Multi-select rendered as removable tags — `MpInputTag`
+
+When a field picks several items from a pool and each pick should show as a removable chip inline (not a checklist + separate "selected" list below), use **`MpInputTag`** (`@mekari/pixel3`) — not a hand-rolled checkbox list with manual remove buttons.
+
+No official docs exist for it in this repo — these gotchas came from reading its compiled source directly:
+
+- **`:is-show-suggestions="true"` is required** — defaults to `false` (no dropdown at all without it).
+- **`:is-enable-create-new-tag="false"`** if every tag must resolve to a real record — defaults to `true` (otherwise users can free-type arbitrary tags that don't match anything).
+- `suggestions` is a list of `{ [key]: unknown }` objects (or plain strings); the searched/displayed text comes from `item[suggestionKey]` — default `suggestionKey` is `'label'`, so shape suggestions as `{ id, label }` to skip passing that prop.
+- **A tag's own `id` is auto-generated as `` `tag-${text}` `` when added — never trust it to carry your real record id.** Carry the id inside the matched suggestion object instead, and read it back off `tag.value` (the *whole* matched suggestion), not `tag.id`.
+- `@change` fires on every add/remove with the FULL current tag array — always resync your own state from the whole array; don't try to diff adds vs. removes.
+- `data` (the initial tags) is read **once at mount** (no reactive re-sync from later prop changes) — fine as long as the component remounts (e.g. behind a `v-if`) whenever the initial selection should change from outside its own UI.
+
+```vue
+<MpInputTag
+  placeholder="Search employees…"
+  :data="contributorTagData(ownerId)"
+  :suggestions="contributorSuggestions"
+  :is-show-suggestions="true"
+  :is-enable-create-new-tag="false"
+  use-portal
+  @change="(items) => onContributorTagsChange(ownerId, items)"
+/>
+```
+```ts
+const contributorSuggestions = computed(() => pool.value.map(id => ({ id, label: employeeById(id)?.name ?? id })))
+function contributorTagData(ownerId: string) {
+  return (selected[ownerId] ?? []).map((id) => {
+    const label = employeeById(id)?.name ?? id
+    return { id, text: label, value: { id, label }, isInvalid: false, isReadOnly: false }
+  })
+}
+function onContributorTagsChange(ownerId: string, items: unknown) {
+  const ids = (Array.isArray(items) ? items as { value?: unknown }[] : [])
+    .map(i => (i.value && typeof i.value === 'object' ? (i.value as { id?: string }).id : undefined))
+    .filter((id): id is string => !!id)
+  selected[ownerId] = ids
+}
+```
+
+Reference: `AddGoalDrawer.vue` — "Goal contributor" → Selected members/employees.
+
+## Per-card accordion inside a form (collapse one repeated card's own body)
+
+When a repeated per-person card (one per goal owner, etc.) carries enough content that several stacked get long, make the card's OWN body collapsible — open by default — rather than collapsing the whole page section. The card's identity row (avatar + name) becomes the toggle button; any OTHER real interactive control already in that row (a switch, etc.) must stay a **sibling** of that button, never nested inside it — nesting a real interactive control inside a `<button>` is invalid HTML (same constraint as [`table.md`](table.md)'s accordion-header bulk action).
+
+```vue
+<div :class="personRowBetween">
+  <button type="button" :class="personRowToggle" :aria-expanded="isOpen(id)" @click="toggle(id)">
+    <MpIcon :name="isOpen(id) ? 'caret-down' : 'caret-right'" size="sm" />
+    <PxAvatar ... /><span>{{ name }}</span>
+  </button>
+  <MpToggle ... /> <!-- sibling of the button, not nested inside it -->
+</div>
+<template v-if="isOpen(id)">
+  <!-- the card's collapsible body -->
+</template>
+```
+
+- Default-open: `isOpen(id) => state[id] ?? true` — an unset entry reads as open, so nothing needs seeding.
+- If a save-time validation error targets a field inside a collapsed card, force that card back open in the same validation pass so the error is actually visible.
+- `personRowToggle` = `personRow`'s flex layout + button-chrome reset (`background: transparent, border: none, padding: 0, font: inherit, textAlign: left, cursor: pointer`).
+- **Skip the accordion entirely when a card variant never has more than one thing to show.** AddGoalDrawer's Individual-goal contributor card has only a single optional field below the identity row (an employee tag picker, shown only once self-update is off) — not enough content to justify collapsing. That variant renders the identity row as a plain `personRow` div (no button, no caret, no `isContribCardOpen` gating) while every other goal type keeps the full toggle-button accordion above.
+
+Reference: `AddGoalDrawer.vue` — "Goal contributor" cards (`personRowToggle`, `isContribCardOpen`/`toggleContribCard`; the Individual-only non-accordion variant is gated on `isIndividual`).
+
 ## Rich text (long descriptions)
 
 A long free-text field that needs formatting uses **`MpRichTextEditor`** (not `MpTextarea`). Bind with `:value` + `@change` (it is NOT `v-model`), set `has-border` and `:maxlength`, and pass a **limited `:options`** toolbar — the house set is bold / italic / underline / strike, bullet & numbered lists, alignment, and clear-formatting (so pasted styled text can be stripped):

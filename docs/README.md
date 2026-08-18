@@ -52,12 +52,16 @@ Sequence for any UI work:
 | [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |
 | [`patterns/date-format.md`](patterns/date-format.md) | Date & timestamp formatting (table vs non-table golden rule). |
 | [`patterns/badges.md`](patterns/badges.md) | Status badges/pills. |
+| [`patterns/dashboard-section.md`](patterns/dashboard-section.md) | **Any dashboard.** How sections compose — the section card shell (and why the table inside stays borderless), the compact no-illustration empty state, the "Last updated + Refresh" freshness row, and apply-on-demand filters. |
+| [`patterns/stat-card.md`](patterns/stat-card.md) | Tinted headline-figure cards (On track / Off track / Not started) — tone table, the delta's "is-this-good" colour rule, and why dashboard triage tables order most-stale-first. |
+| [`patterns/donut-chart.md`](patterns/donut-chart.md) | Single-proportion donut cards — `MpChart type="doughnut"`, legend/tooltip off, centre-label overlay, and the Chart.js hex exception. |
 | [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
 | [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. |
 | [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, and gate/confirmation modals (validate on the triggering action, share logic via a composable). |
 | [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon. |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
+| [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, and the rules for faking data safely. |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |
 
 Foundational stack rules (tokens, css(), Nuxt, dev server) live in [`../CLAUDE.md`](../CLAUDE.md)

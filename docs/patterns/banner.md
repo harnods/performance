@@ -52,6 +52,32 @@ with a genuine `click` emit and correct link styling (brand-blue,
 </MpBannerDescription>
 ```
 
+## Multiple points — bullet list inside `MpBannerDescription`
+
+`MpBannerDescription` has no built-in list affordance. When the banner needs
+to call out more than one distinct point (rather than one flowing sentence),
+put a plain `<ul>` directly inside it, styled via `css()` — not multiple
+`MpBannerDescription`s, and not `<br>`-separated lines:
+
+```vue
+<MpBanner variant="info">
+  <MpBannerIcon />
+  <MpBannerTitle>Switching versions may affect some goals</MpBannerTitle>
+  <MpBannerDescription>
+    <ul :class="bannerList">
+      <li>Goals that were saved as drafts will be hidden in the old UI until you switch back to new UI.</li>
+      <li>Goals created or edited in the old UI won't move into a matching cycle you already created in the new UI even if the dates fall within that cycle's period.</li>
+    </ul>
+  </MpBannerDescription>
+</MpBanner>
+```
+
+```ts
+const bannerList = css({ display: 'flex', flexDirection: 'column', gap: '1', paddingLeft: '5', listStyleType: 'disc' })
+```
+
+See `pages/goals/goal-settings.vue`.
+
 ## No built-in progress affordance
 
 `MpBanner` has no progress-bar prop or slot. Don't bolt an `MpProgress` bar

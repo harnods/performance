@@ -36,6 +36,7 @@ import {
 } from '@mekari/pixel3'
 import { employeeById } from '~/utils/employees'
 import type { Submission } from '~/composables/useGoalApprovalsStore'
+import { isAwaitingApproval, submissionTypeLabel } from '~/composables/useGoalApprovalsStore'
 
 const props = defineProps<{ cycleId: string }>()
 const router = useRouter()
@@ -44,19 +45,19 @@ const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === props.cycleId))
 const { submissions } = useGoalApprovalsStore(props.cycleId)
 
-// "Goal progress update" has no real submissions yet — that feature isn't
-// built anywhere in the app to produce one — but the filter/column already
-// accounts for it so nothing here needs to change once it exists.
 const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal update'] as const
 
+// Shared with the Goals dashboard's approval cards — see submissionTypeLabel in
+// useGoalApprovalsStore.ts. (The local version this replaced could never return
+// "Goal progress update", so that filter option matched nothing.)
 function typeLabelFor(submission: Submission): string {
-  return submission.items.some(i => i.type === 'create') ? 'Goal creation' : 'Goal update'
+  return submissionTypeLabel(submission)
 }
 
 // Only once a submission is approved (and committed) does it drop off this
 // list — a rejected-but-not-yet-resubmitted batch stays visible so the
 // manager can still reopen it.
-const openSubmissions = computed(() => submissions.value.filter(s => s.status !== 'approved'))
+const openSubmissions = computed(() => submissions.value.filter(isAwaitingApproval))
 
 const typeFilter = ref('')
 const search = ref('')
