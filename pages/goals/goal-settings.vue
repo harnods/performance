@@ -151,8 +151,8 @@ const bannerList = css({ display: 'flex', flexDirection: 'column', gap: '1', pad
             <MpBannerTitle>Switching versions may affect some goals</MpBannerTitle>
             <MpBannerDescription>
               <ul :class="bannerList">
-                <li>Goals that were saved as drafts will be hidden in the old UI until you switch back to new UI.</li>
-                <li>Goals created or edited in the old UI won't move into a matching cycle you already created in the new UI even if the dates fall within that cycle's period.</li>
+                <li>Goals that were saved as drafts will be hidden in the old interface until you switch back to new interface.</li>
+                <li>Goals created or edited in the old interface won't move into a matching cycle you already created in the new interface even if the dates fall within that cycle's period.</li>
               </ul>
             </MpBannerDescription>
           </MpBanner>

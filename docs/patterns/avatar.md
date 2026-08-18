@@ -148,11 +148,17 @@ appeared. The `v-for`'d slot children aren't capped the way the component's own
 `getChildren()`/`slice(0, max)` logic expects in this build. Always hand-roll the
 5-avatar-then-"+N" stack (as above) instead, even for the "plain" case.
 
-Reference: `goal-cycles/[id]/new.vue` (goal owners bar, hand-rolled),
+Reference: `goal-cycles/[id]/new.vue` (goal owners bar, hand-rolled — `OWNER_AVATAR_CAP`/
+`visibleOwners`/`hiddenOwnerCount`/`avatarStack`/`avatarCountCircle`; same page's per-row
+"Goal contributor" cell in the drafted-goals table mirrors it 1:1 at `size="sm"` —
+`CONTRIB_AVATAR_CAP`/`contribAvatarStack`/`contribAvatarCountCircle`, counter measured at
+20px/12px for that size, vs. the owner bar's 36px/16px at `size="lg"` — always
+re-measure per size, don't reuse another size's numbers),
 `AddGoalDrawer.vue` (`goal-owner-avatars`, now hand-rolled — `OWNER_AVATAR_CAP`,
 `visibleOwners`, `hiddenOwnerCount`, `ownerAvatarStack`/`ownerAvatarRing`/
 `ownerAvatarCountCircle`), `GoalSubmissionReview.vue`
-(members & contributors — hover stack, no overflow cap).
+(members & contributors — hover stack, still uncapped; unlike `new.vue`'s contributor
+cell, that one hasn't been fixed to cap yet — do that the same way if it comes up).
 
 ## Rule
 

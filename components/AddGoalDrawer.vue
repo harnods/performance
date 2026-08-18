@@ -203,6 +203,13 @@ const isNeedMember = computed(() => goalType.value === 'team' || goalType.value 
 // turning it OFF goes straight to picking specific employees (see the
 // contrib-mode-single/contrib-mode-<id> template blocks below).
 const isIndividual = computed(() => goalType.value === 'individual')
+// Company goals have no members to back an "All employees" bulk pick either
+// (prod parity: contributor is a flat, always-optional employee list — never
+// the All/Selected mode split Team/Org use). Shares Individual's flat
+// tag-picker UI, but unlike Individual it's never required: no owner-auto-
+// counts-as-contributor concept exists for Company, so there's nothing to
+// fall back on and nothing to enforce (see save()'s contributorModeErrors).
+const isCompanyType = computed(() => goalType.value === 'company')
 const contributorPool = computed(() => (isNeedMember.value ? viewerIds.value : EMPLOYEES.map(e => e.id)))
 const contributorPoolWord = computed(() => (isNeedMember.value ? 'members' : 'employees'))
 // MpInputTag suggestion options — `label` matches the component's own
@@ -723,7 +730,9 @@ function save() {
     const modeMissing = isIndividual.value
       ? (contributorsByOwner[owner.id]?.length ?? 0) === 0
       : !contributorMode[owner.id]
-    contributorModeErrors[owner.id] = selfUpdateOff && modeMissing
+    // Company contributor is always optional (prod parity) — never enforced,
+    // regardless of self-update.
+    contributorModeErrors[owner.id] = !isCompanyType.value && selfUpdateOff && modeMissing
     if (contributorModeErrors[owner.id]) {
       hasContributorModeError = true
       contribCardOpen[owner.id] = true
@@ -1248,9 +1257,10 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               <template v-if="owners.length === 1">
                 <div :class="personCard">
                   <div :class="personRowBetween">
-                    <!-- Individual: not collapsible — a static identity row,
-                         no caret/toggle button (there's nothing to hide). -->
-                    <MpFlex v-if="isIndividual" :class="personRow">
+                    <!-- Individual & Company: not collapsible — a static identity
+                         row, no caret/toggle button (there's nothing to hide,
+                         both use the same one-field flat picker below). -->
+                    <MpFlex v-if="isIndividual || isCompanyType" :class="personRow">
                       <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owners[0].name }}</span>
@@ -1288,7 +1298,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <div v-if="!(ownerCanUpdateProgressByOwner[owners[0].id] ?? true)" :class="contribTagIndent">
                       <MpFormControl id="contrib-tags-single" :is-invalid="contributorModeErrors[owners[0].id]">
                         <MpFlex align="center" gap="1">
-                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpFormLabel>Contributors</MpFormLabel>
                           <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
                         <MpInputTag
@@ -1301,7 +1311,27 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                           use-portal
                           @change="(items) => onContributorTagsChange(owners[0].id, items)"
                         />
-                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                        <MpFormErrorMessage>You must select contributors</MpFormErrorMessage>
+                      </MpFormControl>
+                    </div>
+                  </template>
+                  <!-- Company: same flat picker as Individual, but always visible
+                       (not gated by self-update) and always optional — no
+                       required mark, no error state, matches prod's "Opsional". -->
+                  <template v-else-if="isCompanyType">
+                    <div :class="contribTagIndent">
+                      <MpFormControl id="contrib-tags-single">
+                        <MpFormLabel>Contributors</MpFormLabel>
+                        <MpInputTag
+                          id="contributor-tags-single"
+                          placeholder="Select employee"
+                          :data="contributorTagData(owners[0].id)"
+                          :suggestions="contributorSuggestions"
+                          :is-show-suggestions="true"
+                          :is-enable-create-new-tag="false"
+                          use-portal
+                          @change="(items) => onContributorTagsChange(owners[0].id, items)"
+                        />
                       </MpFormControl>
                     </div>
                   </template>
@@ -1333,9 +1363,9 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               <template v-else>
                 <div v-for="owner in owners" :key="owner.id" :class="personCard">
                   <div :class="personRowBetween">
-                    <!-- Individual: not collapsible — a static identity row,
-                         no caret/toggle button (there's nothing to hide). -->
-                    <MpFlex v-if="isIndividual" :class="personRow">
+                    <!-- Individual & Company: not collapsible — see the
+                         single-owner card's own comment above for why. -->
+                    <MpFlex v-if="isIndividual || isCompanyType" :class="personRow">
                       <PxAvatar :id="owner.id" :name="owner.name" :src="owner.photo" size="lg" variant-color="gray" />
                       <MpFlex direction="column" gap="0">
                         <span :class="personName">{{ owner.name }}</span>
@@ -1373,7 +1403,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                     <div v-if="!(ownerCanUpdateProgressByOwner[owner.id] ?? true)" :class="contribTagIndent">
                       <MpFormControl :id="`contrib-tags-${owner.id}`" :is-invalid="contributorModeErrors[owner.id]">
                         <MpFlex align="center" gap="1">
-                          <MpFormLabel>Selected employee</MpFormLabel>
+                          <MpFormLabel>Contributors</MpFormLabel>
                           <MpText size="label" :class="requiredMark">*</MpText>
                         </MpFlex>
                         <MpInputTag
@@ -1386,7 +1416,25 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                           use-portal
                           @change="(items) => onContributorTagsChange(owner.id, items)"
                         />
-                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                        <MpFormErrorMessage>You must select contributors</MpFormErrorMessage>
+                      </MpFormControl>
+                    </div>
+                  </template>
+                  <!-- Company: see the single-owner card's own comment above for why. -->
+                  <template v-else-if="isCompanyType">
+                    <div :class="contribTagIndent">
+                      <MpFormControl :id="`contrib-tags-${owner.id}`">
+                        <MpFormLabel>Contributors</MpFormLabel>
+                        <MpInputTag
+                          :id="`contributor-tags-${owner.id}`"
+                          placeholder="Select employee"
+                          :data="contributorTagData(owner.id)"
+                          :suggestions="contributorSuggestions"
+                          :is-show-suggestions="true"
+                          :is-enable-create-new-tag="false"
+                          use-portal
+                          @change="(items) => onContributorTagsChange(owner.id, items)"
+                        />
                       </MpFormControl>
                     </div>
                   </template>
