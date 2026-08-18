@@ -1311,7 +1311,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                           use-portal
                           @change="(items) => onContributorTagsChange(owners[0].id, items)"
                         />
-                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                        <MpFormErrorMessage>You must select contributors</MpFormErrorMessage>
                       </MpFormControl>
                     </div>
                   </template>
@@ -1416,7 +1416,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                           use-portal
                           @change="(items) => onContributorTagsChange(owner.id, items)"
                         />
-                        <MpFormErrorMessage>You must select employee</MpFormErrorMessage>
+                        <MpFormErrorMessage>You must select contributors</MpFormErrorMessage>
                       </MpFormControl>
                     </div>
                   </template>
