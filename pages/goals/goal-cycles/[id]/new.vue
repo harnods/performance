@@ -88,6 +88,18 @@ const visibleOwners = computed(() => owners.value.slice(0, OWNER_AVATAR_CAP))
 const hiddenOwnerCount = computed(() => Math.max(0, owners.value.length - OWNER_AVATAR_CAP))
 const allOwnersModalOpen = ref(false)
 
+// ─── Contributor avatars (per table row): same cap-then-modal pattern as the
+// owner stack above — a "select all employees" contributor pick can also run
+// into the dozens. One shared modal, since only one row's "+N" can be open
+// at a time; contribModalList holds whichever row's full list was clicked.
+const CONTRIB_AVATAR_CAP = 5
+const contribModalOpen = ref(false)
+const contribModalList = ref<ReturnType<typeof contributorsFor>>([])
+function openContribModal(list: ReturnType<typeof contributorsFor>) {
+  contribModalList.value = list
+  contribModalOpen.value = true
+}
+
 // ─── Too many owners for one goal ────────────────────────────────────────────
 // Past this many people the one-goal-at-a-time drawer is the wrong tool —
 // point them at the import flow instead, and warn that saving runs in the
@@ -467,6 +479,22 @@ const avatarCountCircle = css({
 const hoverCard = css({ display: 'flex', alignItems: 'center', gap: '3', padding: '3' })
 const hoverCardName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const hoverCardMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+// Same overlapping-stack pattern as the owner bar above, sized down for the
+// table cell's PxAvatar size="sm" (measured 20px / 12px font in this build —
+// same "don't trust the token recipe on paper" caution as the owner stack;
+// verify with getComputedStyle() before changing).
+const contribAvatarStack = css({ display: 'flex', alignItems: 'center', paddingLeft: '6px' })
+const contribAvatarStackItem = css({ position: 'relative', display: 'flex', marginLeft: '-6px' })
+const contribAvatarCountCircle = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: '20px', height: '20px', borderRadius: 'full',
+  background: 'gray.50', color: 'gray.600',
+  fontSize: '12px', fontWeight: '600', userSelect: 'none',
+})
+// "View all contributors" modal list
+const contribList = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
+const contribListRow = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
+const contribListRowDivider = css({ paddingBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
 // "View all owners" modal list
 const ownerList = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
 const ownerListRow = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
@@ -712,22 +740,33 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   </MpFlex>
                   <MpFlex direction="column" gap="0">
                     <span :class="detailLabel">Goal contributor</span>
-                    <MpFlex v-if="contributorsFor(row.goal, row.owner.id).length" gap="1">
-                      <MpPopover v-for="c in contributorsFor(row.goal, row.owner.id)" :key="c!.id" trigger="hover" use-portal is-keep-alive placement="top">
-                        <MpPopoverTrigger>
-                          <PxAvatar :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
-                        </MpPopoverTrigger>
-                        <MpPopoverContent>
-                          <div :class="hoverCard">
-                            <PxAvatar :id="c!.id" size="lg" :name="c!.name" :src="c!.photo" variant-color="gray" />
-                            <MpFlex direction="column" gap="0">
-                              <span :class="hoverCardName">{{ c!.name }}</span>
-                              <span :class="hoverCardMeta">{{ employeeMeta(c!) }}</span>
-                            </MpFlex>
-                          </div>
-                        </MpPopoverContent>
-                      </MpPopover>
-                    </MpFlex>
+                    <div v-if="contributorsFor(row.goal, row.owner.id).length" :class="contribAvatarStack">
+                      <div v-for="c in contributorsFor(row.goal, row.owner.id).slice(0, CONTRIB_AVATAR_CAP)" :key="c!.id" :class="contribAvatarStackItem">
+                        <MpPopover trigger="hover" use-portal is-keep-alive placement="top">
+                          <MpPopoverTrigger>
+                            <PxAvatar :id="c!.id" :name="c!.name" :src="c!.photo" size="sm" variant-color="gray" />
+                          </MpPopoverTrigger>
+                          <MpPopoverContent>
+                            <div :class="hoverCard">
+                              <PxAvatar :id="c!.id" size="lg" :name="c!.name" :src="c!.photo" variant-color="gray" />
+                              <MpFlex direction="column" gap="0">
+                                <span :class="hoverCardName">{{ c!.name }}</span>
+                                <span :class="hoverCardMeta">{{ employeeMeta(c!) }}</span>
+                              </MpFlex>
+                            </div>
+                          </MpPopoverContent>
+                        </MpPopover>
+                      </div>
+                      <button
+                        v-if="contributorsFor(row.goal, row.owner.id).length > CONTRIB_AVATAR_CAP"
+                        type="button"
+                        :class="[contribAvatarStackItem, overflowAvatarBtn]"
+                        :aria-label="`View all ${contributorsFor(row.goal, row.owner.id).length} contributors`"
+                        @click="openContribModal(contributorsFor(row.goal, row.owner.id))"
+                      >
+                        <span :class="contribAvatarCountCircle">+{{ contributorsFor(row.goal, row.owner.id).length - CONTRIB_AVATAR_CAP }}</span>
+                      </button>
+                    </div>
                     <span v-else :class="captionText">—</span>
                   </MpFlex>
                 </div>
@@ -913,6 +952,30 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     </MpModalContent>
   </MpModal>
   </ClientOnly>
+
+  <!-- Every contributor for one row — opened from that row's "+N" avatar -->
+  <ClientOnly>
+  <MpModal :is-open="contribModalOpen" class="contrib-list-modal" @close="contribModalOpen = false">
+    <MpModalOverlay />
+    <MpModalContent>
+      <MpModalHeader>
+        Goal contributors ({{ contribModalList.length }})
+        <MpModalCloseButton @click="contribModalOpen = false" />
+      </MpModalHeader>
+      <MpModalBody>
+        <div :class="contribList">
+          <div v-for="(c, idx) in contribModalList" :key="c!.id" :class="[contribListRow, idx < contribModalList.length - 1 && contribListRowDivider]">
+            <PxAvatar :id="c!.id" size="lg" :name="c!.name" :src="c!.photo" variant-color="gray" />
+            <MpFlex direction="column" gap="0">
+              <span :class="ownerListName">{{ c!.name }}</span>
+              <span :class="ownerListMeta">{{ employeeMeta(c!) }}</span>
+            </MpFlex>
+          </div>
+        </div>
+      </MpModalBody>
+    </MpModalContent>
+  </MpModal>
+  </ClientOnly>
 </template>
 
 <style scoped>
@@ -924,6 +987,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
    its default/outside scroll-behavior offset — position is `relative`, so
    `top` has no effect). */
 :global(.owner-list-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
+}
+:global(.contrib-list-modal [data-pixel-component='MpModalContent']) {
   margin-top: 80px !important;
 }
 </style>
