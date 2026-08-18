@@ -1150,7 +1150,7 @@ function seed(): Goal[] {
 
 // ─── Archived legacy goals (from the OLD Goals UI) ────────────────────────────
 // The old UI had NO goal-cycle concept. On upgrade, every legacy goal is grouped
-// under one synthetic cycle "Goal cycle archived" (see useGoalCyclesStore). Here
+// under one synthetic cycle "All goals from 2020-2025" (see useGoalCyclesStore). Here
 // we pre-seed historical goals spanning 2020–2025. Legacy goals carry no
 // structured key results and no alignment — just a final achievement value.
 const ARCHIVE_CYCLE_ID = 'archive-legacy'

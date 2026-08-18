@@ -76,8 +76,8 @@ function seed(): StoredGoalCycle[] {
     {
       // Goals from the old UI (no cycle concept) grouped here on upgrade.
       id: 'archive-legacy',
-      name: 'Other goals',
-      period: 'Range (2020 - 2025)',
+      name: 'All goals from 2020-2025',
+      period: '2020 - 2025',
       startDate: '2020-01-01',
       endDate: '2025-12-31',
       progressUpdateMethod: 'manual',
@@ -93,7 +93,7 @@ function seed(): StoredGoalCycle[] {
 // Bump whenever seed()/GoalCycle's shape changes in a way stale localStorage
 // would contradict (e.g. adding startDate/endDate) — same guard pattern as
 // useGoalsStore's SEED_VERSION.
-const SEED_VERSION = 6
+const SEED_VERSION = 7
 const rawCycles = ref<StoredGoalCycle[]>(seed())
 // Public list with status derived from each period. Sorted latest-period-first
 // (by start date, descending) — a future cycle sits above the current one even
