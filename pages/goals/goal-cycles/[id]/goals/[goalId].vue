@@ -50,7 +50,7 @@ import {
 import type { Goal, GoalStatus } from '~/composables/useGoalsStore'
 import type { DraftKeyResult } from '~/utils/goalDraft'
 import { ownerOf, alignedGoalsOf } from '~/utils/goalRows'
-import { EMPLOYEES, employeeById } from '~/utils/employees'
+import { EMPLOYEES, employeeById, employeeMeta } from '~/utils/employees'
 
 definePageMeta({
   layout: 'default',
@@ -231,6 +231,18 @@ const contributors = computed(() =>
 const members = computed(() =>
   (goal.value?.viewerIds ?? []).map(id => employeeById(id)).filter(Boolean) as NonNullable<ReturnType<typeof employeeById>>[],
 )
+// Cap the members/contributors avatar stacks at 11 slots (10 real avatars +
+// a "+N" counter for the rest) — same hand-rolled cap+overflow mechanic as
+// `goal-cycles/[id]/new.vue`'s owner/contributor stacks (see docs/patterns/avatar.md).
+const SIDEBAR_AVATAR_CAP = 10
+const visibleMembers = computed(() => members.value.slice(0, SIDEBAR_AVATAR_CAP))
+const hiddenMemberCount = computed(() => Math.max(0, members.value.length - SIDEBAR_AVATAR_CAP))
+const visibleContributors = computed(() => contributors.value.slice(0, SIDEBAR_AVATAR_CAP))
+const hiddenContributorCount = computed(() => Math.max(0, contributors.value.length - SIDEBAR_AVATAR_CAP))
+// "+N" opens the full list — same view-all modal pattern as `new.vue`'s
+// `allOwnersModalOpen`/`contribModalOpen`.
+const membersModalOpen = ref(false)
+const contributorsModalOpen = ref(false)
 
 // Alignment — the parent goal this one cascades from, plus its own children
 // (every goal whose alignedToId points back at this one).
@@ -581,7 +593,23 @@ const iconBtn = css({ display: 'inline-flex', alignItems: 'center', justifyConte
 const contribRow = css({ display: 'flex', alignItems: 'center', flexWrap: 'wrap' })
 const contribItem = css({ position: 'relative', display: 'inline-flex', '&:not(:first-child)': { marginLeft: '-8px' } })
 const contribAvatar = css({ display: 'inline-flex', borderRadius: 'full', boxShadow: '0 0 0 2px #F9F9F9' })
-const coachCardBase = { position: 'absolute', top: 'calc(100% + 8px)', zIndex: '30', display: 'flex', alignItems: 'center', gap: '3', background: 'white', borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.default', borderRadius: 'md', boxShadow: '0px 4px 16px rgba(16, 24, 40, 0.12)', paddingInline: '3', paddingBlock: '2', whiteSpace: 'nowrap' } as const
+// Overflow counter — matches PxAvatar size="lg"'s rendered footprint (36px /
+// 16px font) so it doesn't read as visibly larger than the avatars beside it.
+const avatarCountCircle = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'center',
+  width: '36px', height: '36px', borderRadius: 'full',
+  background: 'gray.50', color: 'gray.600',
+  fontSize: '16px', fontWeight: '600', userSelect: 'none',
+})
+const overflowAvatarBtn = css({ background: 'none', border: 'none', padding: '0', cursor: 'pointer' })
+// View-all modal (members/contributors) — same list layout as `new.vue`'s
+// `ownerList`/`ownerListRow`/`ownerListName`/`ownerListMeta`.
+const peopleList = css({ display: 'flex', flexDirection: 'column', maxHeight: '420px', overflowY: 'auto' })
+const peopleListRow = css({ display: 'flex', alignItems: 'center', gap: '3', paddingTop: '4' })
+const peopleListRowDivider = css({ paddingBottom: '4', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
+const peopleListName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const peopleListMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+const coachCardBase ={ position: 'absolute', top: 'calc(100% + 8px)', zIndex: '30', display: 'flex', alignItems: 'center', gap: '3', background: 'white', borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.default', borderRadius: 'md', boxShadow: '0px 4px 16px rgba(16, 24, 40, 0.12)', paddingInline: '3', paddingBlock: '2', whiteSpace: 'nowrap' } as const
 // Left-anchored for the contributor row; right-anchored for the owner avatar
 // (which sits at the rail's right edge) so the card opens inward, not off-screen.
 const coachCard = css({ ...coachCardBase, left: '0' })
@@ -629,13 +657,23 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         </MpPopoverTrigger>
         <MpPopoverContent :class="css({ minWidth: '180px' })">
           <MpPopoverList>
-            <MpPopoverListItem v-if="!goal.isClosed" @click="openUpdate">Update progress</MpPopoverListItem>
-            <MpPopoverListItem @click="isActivityLogOpen = true">Activity log</MpPopoverListItem>
-            <MpPopoverListItem v-if="!goal.isClosed" @click="editGoal">Edit goal</MpPopoverListItem>
-            <MpPopoverListItem v-if="!goal.isClosed" @click="closeGoalAction">Close goal</MpPopoverListItem>
-            <MpPopoverListItem @click="deleteGoalAction">
-              <span :class="css({ color: 'text.danger' })">Delete goal</span>
-            </MpPopoverListItem>
+            <!-- A draft isn't live yet, so progress/activity-log/close make no
+                 sense on it — mirrors the goal-cycles index draft row kebab. -->
+            <template v-if="goal.isDraft">
+              <MpPopoverListItem @click="editGoal">Edit</MpPopoverListItem>
+              <MpPopoverListItem @click="deleteGoalAction">
+                <span :class="css({ color: 'text.danger' })">Delete</span>
+              </MpPopoverListItem>
+            </template>
+            <template v-else>
+              <MpPopoverListItem v-if="!goal.isClosed" @click="openUpdate">Update progress</MpPopoverListItem>
+              <MpPopoverListItem @click="isActivityLogOpen = true">Activity log</MpPopoverListItem>
+              <MpPopoverListItem v-if="!goal.isClosed" @click="editGoal">Edit goal</MpPopoverListItem>
+              <MpPopoverListItem v-if="!goal.isClosed" @click="closeGoalAction">Close goal</MpPopoverListItem>
+              <MpPopoverListItem @click="deleteGoalAction">
+                <span :class="css({ color: 'text.danger' })">Delete goal</span>
+              </MpPopoverListItem>
+            </template>
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
@@ -647,7 +685,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
         <!-- Title + status -->
         <MpFlex align="center" gap="2" wrap="wrap">
           <span :class="nameText">{{ goal.title }}</span>
-          <span :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
+          <!-- Normal size here, not the table row's size="sm" — this sits
+               beside a page title, not in a table cell. -->
+          <MpBadge v-if="goal.isDraft" for="tableStatus" type="announcement">Draft</MpBadge>
+          <span v-else :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
           <!-- Carried-over badge hidden for now (flag retained in the store):
           <MpBadge v-if="goal.carriedOver" for="tableStatus" type="announcement" size="sm">Carried over</MpBadge> -->
         </MpFlex>
@@ -827,7 +868,8 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           </MpFlex>
         </template>
 
-        <!-- ═════ Comments ═════ -->
+        <!-- ═════ Comments ═════ — a draft isn't live yet, nothing to discuss. -->
+        <template v-if="!goal.isDraft">
         <MpText :class="[sectionH2, css({ marginTop: '8' })]">Comments</MpText>
 
         <!-- Composer -->
@@ -895,6 +937,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
             </div>
           </div>
         </div>
+        </template>
       </div>
 
       <!-- ═════ Right info sidebar (two cards) ═════ -->
@@ -946,7 +989,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           <div v-if="members.length" :class="kvRow">
             <span :class="cardLabel">Goal members</span>
             <div :class="[contribRow, css({ marginTop: '1' })]">
-              <div v-for="m in members" :key="m.id" class="contrib-item" :class="contribItem">
+              <div v-for="m in visibleMembers" :key="m.id" class="contrib-item" :class="contribItem">
                 <span :class="contribAvatar">
                   <PxAvatar :id="`member-${m.id}`" :name="m.name" :src="m.photo" size="lg" variant-color="gray" />
                 </span>
@@ -958,13 +1001,20 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                   </div>
                 </div>
               </div>
+              <!-- 11th slot: the rest of the members collapse into a counter
+                   that opens the full list (see SIDEBAR_AVATAR_CAP above). -->
+              <div v-if="hiddenMemberCount" class="contrib-item" :class="contribItem">
+                <button type="button" :class="[contribAvatar, overflowAvatarBtn]" :aria-label="`View all ${members.length} goal members`" @click="membersModalOpen = true">
+                  <span :class="avatarCountCircle">+{{ hiddenMemberCount }}</span>
+                </button>
+              </div>
             </div>
           </div>
 
           <div :class="kvRow">
             <span :class="cardLabel">Contributors</span>
             <div v-if="contributors.length" :class="[contribRow, css({ marginTop: '1' })]">
-              <div v-for="c in contributors" :key="c.id" class="contrib-item" :class="contribItem">
+              <div v-for="c in visibleContributors" :key="c.id" class="contrib-item" :class="contribItem">
                 <span :class="contribAvatar">
                   <PxAvatar :id="`contributor-${c.id}`" :name="c.name" :src="c.photo" size="lg" variant-color="gray" />
                 </span>
@@ -975,6 +1025,13 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                     <span :class="coachMeta">{{ c.code }} | {{ c.title }} | {{ c.department }}</span>
                   </div>
                 </div>
+              </div>
+              <!-- 11th slot: the rest of the contributors collapse into a
+                   counter that opens the full list (see SIDEBAR_AVATAR_CAP above). -->
+              <div v-if="hiddenContributorCount" class="contrib-item" :class="contribItem">
+                <button type="button" :class="[contribAvatar, overflowAvatarBtn]" :aria-label="`View all ${contributors.length} contributors`" @click="contributorsModalOpen = true">
+                  <span :class="avatarCountCircle">+{{ hiddenContributorCount }}</span>
+                </button>
               </div>
             </div>
             <span v-else :class="emptyMuted">No contributors.</span>
@@ -1203,9 +1260,65 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
       </MpModalContent>
     </MpModal>
   </ClientOnly>
+
+  <!-- Every goal member — opened from the "+N" avatar (same pattern as
+       `new.vue`'s "Goal owners" view-all modal). -->
+  <ClientOnly>
+    <MpModal :is-open="membersModalOpen" class="goal-members-modal" @close="membersModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Goal members ({{ members.length }})
+          <MpModalCloseButton @click="membersModalOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <div :class="peopleList">
+            <div v-for="(m, idx) in members" :key="m.id" :class="[peopleListRow, idx < members.length - 1 && peopleListRowDivider]">
+              <PxAvatar :id="`member-list-${m.id}`" size="lg" :name="m.name" :src="m.photo" variant-color="gray" />
+              <MpFlex direction="column" gap="0">
+                <span :class="peopleListName">{{ m.name }}</span>
+                <span :class="peopleListMeta">{{ employeeMeta(m) }}</span>
+              </MpFlex>
+            </div>
+          </div>
+        </MpModalBody>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
+
+  <!-- Every contributor — opened from the "+N" avatar. -->
+  <ClientOnly>
+    <MpModal :is-open="contributorsModalOpen" class="goal-contributors-modal" @close="contributorsModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>
+          Contributors ({{ contributors.length }})
+          <MpModalCloseButton @click="contributorsModalOpen = false" />
+        </MpModalHeader>
+        <MpModalBody>
+          <div :class="peopleList">
+            <div v-for="(c, idx) in contributors" :key="c.id" :class="[peopleListRow, idx < contributors.length - 1 && peopleListRowDivider]">
+              <PxAvatar :id="`contributor-list-${c.id}`" size="lg" :name="c.name" :src="c.photo" variant-color="gray" />
+              <MpFlex direction="column" gap="0">
+                <span :class="peopleListName">{{ c.name }}</span>
+                <span :class="peopleListMeta">{{ employeeMeta(c) }}</span>
+              </MpFlex>
+            </div>
+          </div>
+        </MpModalBody>
+      </MpModalContent>
+    </MpModal>
+  </ClientOnly>
 </template>
 
 <style scoped>
+/* MpModal's own render skips Vue's scoped-style injection on its root, so a
+   plain scoped selector never matches — wrap in :global() (see docs/patterns/modal.md). */
+:global(.goal-members-modal [data-pixel-component='MpModalContent']),
+:global(.goal-contributors-modal [data-pixel-component='MpModalContent']) {
+  margin-top: 80px !important;
+}
+
 /* Reveal the column sort icon on header hover. UNLAYERED scoped rule (not a
    Panda css() @layer utility) so it beats PxColumnSortMenu's unlayered scoped
    `visibility: hidden` on specificity — see goal-cycles/index.vue. */

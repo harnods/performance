@@ -46,6 +46,52 @@ const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })   // 
 - Form column = 6/12 on `lg`, 12/12 below, capped 656px. `gap: '6'` between grid cells, `gap: '4'` between fields.
 - `competencies/create.vue` is the alternate model — the form column *is* the 12-col grid and each field carries `span6`/`span3`/`span12` so fields share rows.
 
+### Two-up inline fields (fields sharing a row)
+
+Two fields that belong together (e.g. a date range) run inline in an `MpFlex`, each
+`flex: '1'`, with the section's normal 16px field gap (`gap="4"`):
+
+```vue
+<!-- AddGoalDrawer.vue — Start date / End date -->
+<MpFlex gap="4">
+  <MpFormControl id="schedule-start" :class="css({ flex: '1' })">...</MpFormControl>
+  <MpFormControl id="schedule-end" :class="css({ flex: '1' })">...</MpFormControl>
+</MpFlex>
+```
+
+### Matching a stacked field's width to a sibling — reuse the width class, don't go inline
+
+Tried inlining Goal type / Goal category / Goal sub-category (with Align to parent
+goal nested under Goal type) in a 24px-gap row — reverted: the fields stay a normal
+vertical stack, they just needed to visually *match Goal weight's width*, not sit
+beside each other. The fix is narrower — reuse Goal weight's own width class on each
+field that should match it, no `MpFlex` row involved:
+
+```ts
+// Matches Start/End date's width — those sit two-up in a gap-4 MpFlex, each
+// flex:1, so each is 50% of the form column minus half the 16px gap.
+const goalWeightWidth = css({ width: 'calc(50% - 8px)' })
+```
+```vue
+<!-- AddGoalDrawer.vue — Goal type, Goal category, Goal sub-category, and the
+     Align-to-parent-goal "selected" row (once a parent is picked) all carry
+     goalWeightWidth, stacked normally, one per line — not two-up. -->
+<MpFormControl id="goal-type" :class="goalWeightWidth">...</MpFormControl>
+<MpFormControl id="align-to">
+  <!-- unselected state (a button) is left at its natural width; only the
+       selected-state row is width-matched, since a button isn't a field -->
+  <div v-if="alignTo" :class="[alignedRow, goalWeightWidth]">...</div>
+  <MpButton v-else variant="secondary">Select parent goal</MpButton>
+</MpFormControl>
+<MpFormControl id="goal-category" :class="goalWeightWidth">...</MpFormControl>
+<MpFormControl v-if="category" id="goal-sub-category" :class="goalWeightWidth">...</MpFormControl>
+<MpFormControl id="goal-weight" :class="goalWeightWidth">...</MpFormControl>
+```
+
+Multiple fields can share one width class like this even when they're not laid out
+side-by-side — it's a visual-alignment tool, not a row-layout tool. Don't reach for
+an inline `MpFlex` row just because two fields should look the same width.
+
 ### Section header / sub-header / description
 
 ```ts

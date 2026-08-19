@@ -156,9 +156,16 @@ Reference: `goal-cycles/[id]/new.vue` (goal owners bar, hand-rolled — `OWNER_A
 re-measure per size, don't reuse another size's numbers),
 `AddGoalDrawer.vue` (`goal-owner-avatars`, now hand-rolled — `OWNER_AVATAR_CAP`,
 `visibleOwners`, `hiddenOwnerCount`, `ownerAvatarStack`/`ownerAvatarRing`/
-`ownerAvatarCountCircle`), `GoalSubmissionReview.vue`
-(members & contributors — hover stack, still uncapped; unlike `new.vue`'s contributor
-cell, that one hasn't been fixed to cap yet — do that the same way if it comes up).
+`ownerAvatarCountCircle`), `goal-cycles/[id]/goals/[goalId].vue` (goal-detail sidebar's
+"Goal members"/"Contributors" — same hover-coachmark stack as below, capped at 11 slots
+(`SIDEBAR_AVATAR_CAP = 10`) since the sidebar has more width than a table cell;
+`visibleMembers`/`hiddenMemberCount`, `visibleContributors`/`hiddenContributorCount`,
+`avatarCountCircle` at 36px/16px for `size="lg"`; the "+N" is a real `<button>` —
+`overflowAvatarBtn` — that opens a view-all `MpModal` per list, same shape as `new.vue`'s
+`allOwnersModalOpen`/`contribModalOpen`: `peopleList`/`peopleListRow`/`peopleListName`/
+`peopleListMeta`, `employeeMeta()` for the meta line), `GoalSubmissionReview.vue`
+(members & contributors — hover stack, still uncapped; unlike the two references above,
+that one hasn't been fixed to cap yet — do that the same way if it comes up).
 
 ## Rule
 
