@@ -979,7 +979,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 />
               </MpFormControl>
 
-              <MpFormControl id="goal-type" :is-invalid="errors.goalType">
+              <MpFormControl id="goal-type" :is-invalid="errors.goalType" :class="goalWeightWidth">
                 <MpFlex align="center" gap="1">
                   <MpFormLabel>Goal type</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
@@ -991,7 +991,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               <!-- Align to a goal — opens the same GoalAlignDrawer as the goal lists -->
               <MpFormControl v-if="goalType && goalType !== 'company' && cycleId" id="align-to">
                 <MpFormLabel>Align to parent goal</MpFormLabel>
-                <div v-if="alignTo" :class="alignedRow">
+                <div v-if="alignTo" :class="[alignedRow, goalWeightWidth]">
                   <span :class="alignedValue">{{ alignedLabel }}</span>
                   <MpFlex align="center" gap="3">
                     <MpTextlink as="button" @click="openAlignDrawer">Change</MpTextlink>
@@ -1002,7 +1002,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <MpFormHelpText>Link this goal to a higher-level goal it contributes to. Optional.</MpFormHelpText>
               </MpFormControl>
 
-              <MpFormControl id="goal-category" :is-invalid="errors.category">
+              <MpFormControl id="goal-category" :is-invalid="errors.category" :class="goalWeightWidth">
                 <MpFlex align="center" gap="1">
                   <MpFormLabel>Goal category</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
@@ -1011,7 +1011,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <MpFormErrorMessage>You must select goal category</MpFormErrorMessage>
               </MpFormControl>
 
-              <MpFormControl v-if="category" id="goal-sub-category">
+              <MpFormControl v-if="category" id="goal-sub-category" :class="goalWeightWidth">
                 <MpFormLabel>Goal sub-category</MpFormLabel>
                 <PxSelectPopover v-model="subCategory" :options="subCategoryOptions" placeholder="Select goal sub-category" width="100%" />
               </MpFormControl>

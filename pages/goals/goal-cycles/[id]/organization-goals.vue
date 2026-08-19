@@ -499,8 +499,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 </script>
 
 <template>
-  <!-- Page header actions -->
-  <Teleport to="#page-header-actions" defer>
+  <!-- Page header actions — hidden on the archive cycle: it's a frozen,
+       computed container for goals migrated from the old Goals UI, so
+       nothing can be imported or newly created into it. -->
+  <Teleport v-if="!cycle?.isArchive" to="#page-header-actions" defer>
     <MpButton variant="secondary" @click="router.push({ path: `/goals/goal-cycles/${route.params.id}/import` })">Import goals</MpButton>
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
@@ -553,7 +555,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
         <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
       </MpFlex>
-      <MpButton variant="primary" left-icon="add" @click="openSelectEmployee">New goals</MpButton>
+      <MpButton v-if="!cycle?.isArchive" variant="primary" left-icon="add" @click="openSelectEmployee">New goals</MpButton>
     </MpFlex>
 
     <template v-else>

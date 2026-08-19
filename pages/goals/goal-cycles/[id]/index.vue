@@ -909,8 +909,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 </script>
 
 <template>
-  <!-- Page header actions -->
-  <Teleport to="#page-header-actions" defer>
+  <!-- Page header actions — hidden on the archive cycle: it's a frozen,
+       computed container for goals migrated from the old Goals UI, so
+       nothing can be imported or newly created into it. -->
+  <Teleport v-if="!cycle?.isArchive" to="#page-header-actions" defer>
     <MpButton variant="secondary" @click="router.push({ path: `/goals/goal-cycles/${route.params.id}/import` })">Import goals</MpButton>
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
@@ -919,8 +921,11 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
        product control). Previews the bulk-approved-goal-creation banner +
        pending-row skeleton merge without running a real >10-owner batch
        through Select employees → New goals → Approve. See the "Dev scenario
-       control" section above for what it actually does. -->
-  <div :class="scenarioFab">
+       control" section above for what it actually does. Hidden on the
+       archive cycle for the same reason as the header actions above — the
+       scenario it previews is a "New goals" batch-approval flow, which
+       doesn't apply here. -->
+  <div v-if="!cycle?.isArchive" :class="scenarioFab">
     <MpPopover is-close-on-select use-portal placement="top-end">
       <MpPopoverTrigger>
         <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
@@ -1016,7 +1021,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
         <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
       </MpFlex>
-      <MpButton v-if="!activeRequestBatch" variant="secondary" @click="openSelectEmployee">New goals</MpButton>
+      <MpButton v-if="!activeRequestBatch && !cycle?.isArchive" variant="secondary" @click="openSelectEmployee">New goals</MpButton>
     </MpFlex>
 
     <template v-else>
@@ -1268,6 +1273,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                          and its forward move (going up for approval) is now the owner-group
                          "Publish N goals" textlink, not a per-row action. -->
                     <template v-else-if="row.isDraft">
+                      <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
                       <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                       <MpPopoverListItem v-if="!row.isAwaitingApproval" @click="editRow(row)">Edit</MpPopoverListItem>
                       <MpPopoverListItem @click="deleteRow(row)">

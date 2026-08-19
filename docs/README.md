@@ -63,6 +63,7 @@ Sequence for any UI work:
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, and the rules for faking data safely. |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |
+| [`patterns/archive-cycle.md`](patterns/archive-cycle.md) | The "All goals from 2020-2025" archive cycle — what's allowed on its goals vs. the cycle itself, and hiding Import/New goals + dev tools on all 5 of its tabs. |
 
 Foundational stack rules (tokens, css(), Nuxt, dev server) live in [`../CLAUDE.md`](../CLAUDE.md)
 and [`../AGENTS.md`](../AGENTS.md). The pattern docs above go deeper per surface.

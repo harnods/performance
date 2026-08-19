@@ -42,8 +42,21 @@ underneath (rejection sends it straight back to plain Draft) — but it must not
 one, since it offers no draft actions while the decision is pending. Applied identically
 across all five goal tables (`goal-cycles/[id]/{index,company,organization,team,individual}-goals.vue`).
 
+## Goal-detail page title badge — default size, not `size="sm"`
+
+The one exception to "Draft badges use `size="sm"`" below: `goal-cycles/[id]/goals/[goalId].vue`'s
+own title row (`<span>{{ goal.title }}</span>` + badge) uses default size for its
+`Draft` badge — it sits beside a page title (`nameText`, large type), not in a dense
+table cell, so `sm` reads too small next to it. Table rows keep `size="sm"`.
+
+```vue
+<MpBadge v-if="goal.isDraft" for="tableStatus" type="announcement">Draft</MpBadge>
+<span v-else :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
+```
+
 ## Rules
 
-- Draft / "New" badges → `size="sm"`. Table-status badges → default (md).
+- Draft / "New" badges → `size="sm"` **in a table cell**; default size beside a page
+  title (see goal-detail exception above). Table-status badges → default (md).
 - Map status → type/colour in a `Record`, never inline per row.
 - Prefer API 1 (`for="tableStatus"` + `type`).
