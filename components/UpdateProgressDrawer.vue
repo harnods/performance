@@ -40,7 +40,7 @@ const alignedChildren = computed(() => (props.goal ? alignedGoalsOf(props.goal, 
 
 // ─── Labels / formatting ──────────────────────────────────────────────────
 const GOAL_TYPE_LABEL: Record<string, string> = { company: 'Company goal', organization: 'Organization goal', team: 'Team goal', individual: 'Individual goal' }
-const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 const STATUS_BADGE_TYPE: Record<GoalStatus, 'completed' | 'critical' | 'announcement'> = { green: 'completed', orange: 'critical', gray: 'announcement' }
 function statusBadgeType(s?: GoalStatus) { return STATUS_BADGE_TYPE[s ?? 'gray'] }
 function betterLabel(dir?: 'higher' | 'lower') { return dir === 'lower' ? 'Lower is better' : 'Higher is better' }
@@ -117,7 +117,7 @@ function krDraftPct(d: { id: string, currentValue: number | '' }) {
 }
 const statusOptions = computed(() => (props.goal?.unit === 'deadline'
   ? [{ value: 'green', label: 'Complete' }, { value: 'gray', label: 'Not started' }]
-  : [{ value: 'green', label: 'On track' }, { value: 'orange', label: 'Off track' }, { value: 'gray', label: 'Not updated' }]))
+  : [{ value: 'green', label: 'On track' }, { value: 'orange', label: 'Off track' }, { value: 'gray', label: 'Not started' }]))
 
 function bytesLabel(n: number) {
   if (n >= 1048576) return `${(n / 1048576).toFixed(1)} MB`

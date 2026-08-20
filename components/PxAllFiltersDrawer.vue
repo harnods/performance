@@ -18,18 +18,39 @@ import { BRANCHES, ORGANIZATIONS, JOB_LEVELS, EMPLOYMENT_TYPES } from '~/utils/t
 import { EMPLOYEES } from '~/utils/employees'
 
 interface ScopeItem { id: string, name: string }
-interface ScopeDef { key: string, label: string, items: ScopeItem[] }
+interface ScopeDef {
+  key: string
+  label: string
+  items: ScopeItem[]
+  // Overrides PxFilterScope's default "Select all {{ label.toLowerCase() }}"
+  // wording, and doubles as the noun used in its "Showing X of Y …" caption.
+  selectAllLabel?: string
+  // Show 10 items then "Load more" instead of the full list — for scopes
+  // whose item count can get long (currently just Goal owner: every employee).
+  paginated?: boolean
+}
 
 const toItems = (xs: string[]): ScopeItem[] => xs.map(x => ({ id: x, name: x }))
 const JOB_POSITIONS = Array.from(new Set(EMPLOYEES.map(e => e.title))).sort()
 
 // Default scope set = production goals filters (employee attributes of the owner).
+// Goal owner is the one scope keyed by employee id rather than an attribute
+// value — its item list is every employee, not just those who currently own
+// a goal, so the filter still works before any goals are assigned to them.
+// Listed last (not first) since it's the newest addition to this drawer.
 const DEFAULT_SCOPES: ScopeDef[] = [
   { key: 'branch', label: 'Branch', items: toItems(BRANCHES) },
   { key: 'organization', label: 'Organization', items: toItems(ORGANIZATIONS) },
   { key: 'job_position', label: 'Job position', items: toItems(JOB_POSITIONS) },
   { key: 'job_level', label: 'Job level', items: toItems(JOB_LEVELS) },
   { key: 'employment_status', label: 'Employment status', items: toItems(EMPLOYMENT_TYPES) },
+  {
+    key: 'goal_owner',
+    label: 'Goal owner',
+    items: EMPLOYEES.map(e => ({ id: e.id, name: e.name })),
+    selectAllLabel: 'employees',
+    paginated: true,
+  },
 ]
 
 const props = withDefaults(defineProps<{
@@ -126,6 +147,8 @@ const scopesList = css({ display: 'flex', flexDirection: 'column' })
             v-model="form[key]"
             :label="scopeByKey[key].label"
             :items="scopeByKey[key].items"
+            :select-all-label="scopeByKey[key].selectAllLabel"
+            :paginated="scopeByKey[key].paginated"
             @remove="removeScope(key)"
           />
         </div>

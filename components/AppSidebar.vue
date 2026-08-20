@@ -41,6 +41,7 @@ const goalsChildrenCurrent: PanelItem[] = [
 const goalsChildrenNew: PanelItem[] = [
   { label: 'Goal cycles', path: '/goals/goal-cycles' },
   { divider: true },
+  { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
   { label: 'Goal categories', path: '/goals/goal-categories' },
   { label: 'Goal settings', path: '/goals/goal-settings' },
 ]

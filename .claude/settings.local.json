@@ -78,7 +78,12 @@
       "Bash(sips -c 350 500 /tmp/figma_cycle_detail2.png --out /tmp/figma_crop.png)",
       "Bash(sips -Z 400 /tmp/figma_cycle_detail2.png --out /tmp/figma_crop2.png)",
       "mcp__mekari-pixel-web__get-icon-name",
-      "Bash(grep -v \"^$\")"
+      "Bash(grep -v \"^$\")",
+      "Bash(git pull *)",
+      "Bash(git merge *)",
+      "Bash(npx vue-tsc *)",
+      "Bash(git push *)",
+      "Bash(grep -o '.\\\\{0,3\\\\}:.\\\\{0,3\\\\}')"
     ]
   }
 }

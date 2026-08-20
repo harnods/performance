@@ -19,8 +19,14 @@ export function useGoalBulkSelect() {
   function isAllSelected(ids: string[]) {
     return ids.length > 0 && ids.every(id => selectedIds.value.has(id))
   }
+  // Merges into the existing selection rather than replacing it — each
+  // category/department group has its own "select all" checkbox, and picking
+  // one group's checkbox must not clear another group's already-selected rows.
   function toggleSelectAll(ids: string[]) {
-    selectedIds.value = isAllSelected(ids) ? new Set() : new Set(ids)
+    const next = new Set(selectedIds.value)
+    if (isAllSelected(ids)) for (const id of ids) next.delete(id)
+    else for (const id of ids) next.add(id)
+    selectedIds.value = next
   }
   function clearSelection() {
     selectedIds.value = new Set()

@@ -6,7 +6,7 @@
  * Flat only (the production SBU nested variant is out of scope for the mock).
  */
 import {
-  MpFlex, MpText, MpIcon, MpTooltip, MpInput, MpCheckbox, css,
+  MpFlex, MpText, MpIcon, MpTooltip, MpInput, MpCheckbox, MpTextlink, css,
 } from '@mekari/pixel3'
 
 interface ScopeItem { id: string, name: string }
@@ -17,7 +17,14 @@ const props = withDefaults(defineProps<{
   modelValue: string[]
   showRemove?: boolean
   defaultClosed?: boolean
-}>(), { showRemove: true, defaultClosed: false })
+  // Overrides the default "Select all {{ label.toLowerCase() }}" wording
+  // (and the noun in the "Showing X of Y …" pagination caption) — e.g. Goal
+  // owner reads "Select all employees", not "Select all goal owner".
+  selectAllLabel?: string
+  // Show PAGE_SIZE items then "Load more" instead of the full list, for
+  // scopes whose item count can get long (e.g. Goal owner: every employee).
+  paginated?: boolean
+}>(), { showRemove: true, defaultClosed: false, paginated: false })
 
 const emit = defineEmits<{ 'update:modelValue': [v: string[]], 'remove': [] }>()
 
@@ -28,8 +35,17 @@ const filteredItems = computed(() => {
   const q = search.value.trim().toLowerCase()
   return q ? props.items.filter(i => i.name.toLowerCase().includes(q)) : props.items
 })
+const PAGE_SIZE = 10
+const visibleCount = ref(PAGE_SIZE)
+// Reset back to the first page whenever the search narrows/changes the list
+// — a stale visibleCount from a longer, unfiltered list makes no sense here.
+watch(search, () => { visibleCount.value = PAGE_SIZE })
+const visibleItems = computed(() => (props.paginated ? filteredItems.value.slice(0, visibleCount.value) : filteredItems.value))
+function loadMore() { visibleCount.value += PAGE_SIZE }
+
 const allChecked = computed(() => props.items.length > 0 && props.modelValue.length === props.items.length)
 const someChecked = computed(() => props.modelValue.length > 0 && !allChecked.value)
+const itemWord = computed(() => props.selectAllLabel ?? props.label.toLowerCase())
 const selectedPreview = computed(() => {
   const n = props.modelValue.length
   const lower = props.label.toLowerCase()
@@ -57,6 +73,7 @@ const list = css({ maxHeight: '200px', overflowY: 'auto', display: 'flex', flexD
 const optionRow = css({ display: 'flex', alignItems: 'center', paddingBlock: '2', paddingInline: '1', borderRadius: 'sm', _hover: { background: 'background.neutral.subtle' } })
 const chevron = css({ transition: 'transform 150ms ease' })
 const chevronOpen = css({ transform: 'rotate(180deg)' })
+const loadMoreRow = css({ display: 'flex', alignItems: 'center', gap: '1', paddingTop: '2', paddingInline: '1' })
 </script>
 
 <template>
@@ -80,13 +97,19 @@ const chevronOpen = css({ transform: 'rotate(180deg)' })
         <MpInput v-model="search" placeholder="Search" />
       </div>
       <div :class="optionRow">
-        <MpCheckbox :id="`scope-all-${label}`" :is-checked="allChecked" :is-indeterminate="someChecked" @update:is-checked="toggleAll">Select all {{ label.toLowerCase() }}</MpCheckbox>
+        <MpCheckbox :id="`scope-all-${label}`" :is-checked="allChecked" :is-indeterminate="someChecked" @update:is-checked="toggleAll">Select all {{ itemWord }}</MpCheckbox>
       </div>
       <div :class="list">
-        <div v-for="item in filteredItems" :key="item.id" :class="optionRow">
+        <div v-for="item in visibleItems" :key="item.id" :class="optionRow">
           <MpCheckbox :id="`scope-${label}-${item.id}`" :is-checked="isChecked(item.id)" @update:is-checked="() => toggle(item.id)">{{ item.name }}</MpCheckbox>
         </div>
         <MpText v-if="!filteredItems.length" :class="[previewText, css({ paddingBlock: '4', textAlign: 'center' })]">No items found</MpText>
+        <!-- Inside the scrollable list (not a fixed row below it) — only
+             reachable by scrolling to the bottom, not visible up front. -->
+        <div v-if="paginated && filteredItems.length > visibleCount" :class="loadMoreRow">
+          <MpText size="label-small" :class="previewText">Showing {{ visibleCount }} of {{ filteredItems.length }} {{ itemWord }}.</MpText>
+          <MpTextlink as="button" size="label-small" @click="loadMore">Load {{ Math.min(PAGE_SIZE, filteredItems.length - visibleCount) }} more.</MpTextlink>
+        </div>
       </div>
     </div>
   </div>

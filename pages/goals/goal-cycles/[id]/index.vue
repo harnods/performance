@@ -110,12 +110,11 @@ function cancelBulkOwnerModal() {
   isSelectEmployeeOpen.value = true
 }
 
-type Tab = 'all' | 'hierarchy' | 'requests' | 'awaiting' | 'info'
-// Deep-linkable via ?tab= so other surfaces can land on a specific tab (the
-// Goals dashboard's "Goals aligned" donut links straight to the hierarchy).
+type Tab = 'all' | 'requests' | 'awaiting' | 'info'
+// Deep-linkable via ?tab= so other surfaces can land on a specific tab.
 // Unknown/absent values fall back to All goals; permission-gated tabs are still
 // policed by the watcher below.
-const TABS: Tab[] = ['all', 'hierarchy', 'requests', 'awaiting', 'info']
+const TABS: Tab[] = ['all', 'requests', 'awaiting', 'info']
 const activeTab = ref<Tab>(
   TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'all',
 )
@@ -901,8 +900,6 @@ const awaitingBadge = css({
 // the filter bar + table entirely (same pattern as
 // pages/reviews/review-cycles/[id]/index.vue's "No review timeframe yet").
 const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
-// Goal hierarchy tab — intentionally empty for now (page to be built later).
-const hierarchyPlaceholder = css({ minHeight: '240px' })
 const emptyIllustration = css({ height: '240px', width: 'auto' })
 const emptyTextWrap = css({ maxWidth: '420px' })
 const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
@@ -971,9 +968,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         {{ goalsViewLabel }}
         <MpIcon name="caret-down" size="sm" />
       </button>
-      <button type="button" :class="activeTab === 'hierarchy' ? tabItemActive : tabItem" @click="activeTab = 'hierarchy'">
-        Goal hierarchy
-      </button>
       <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
         My requests
         <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
@@ -991,8 +985,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   <MpFlex v-if="activeTab !== 'info'" direction="column" gap="6">
     <GoalMyRequestsList v-if="activeTab === 'requests'" :cycle-id="route.params.id as string" />
     <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
-    <!-- Goal hierarchy — placeholder for now, page intentionally left empty -->
-    <div v-else-if="activeTab === 'hierarchy'" :class="hierarchyPlaceholder" />
     <template v-else>
     <!-- Bulk-approved goal creation banner — only for the requestor of a
          still-creating batch (see activeRequestBatch above). Sits above

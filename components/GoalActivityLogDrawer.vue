@@ -46,7 +46,7 @@ function confirmDeleteFile() {
   fileToDelete.value = null
 }
 
-const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 
 // ─── Styles ───────────────────────────────────────────────────────────────
 const headerBlock = css({ display: 'flex', flexDirection: 'column', gap: '2', marginTop: '-6', marginInline: '-6', paddingInline: '6', paddingTop: '6', paddingBottom: '6', background: 'gray.25', borderBottom: '1px solid', borderBottomColor: 'border.default' })
