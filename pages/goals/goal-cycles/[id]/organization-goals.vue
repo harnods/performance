@@ -237,23 +237,22 @@ const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, tog
 function selectableIdsFor(rows: { kind: string, id: string }[]) {
   return rows.filter(r => r.kind === 'main').map(r => r.id)
 }
-// Bulk selection scoped per group — the bar + count only show where rows are selected.
+// Bulk selection scoped per group — its indeterminate/checked state only
+// looks at that department's own rows.
 function groupSelectedCount(rows: { kind: string, id: string }[]) {
   return selectableIdsFor(rows).filter(id => isSelected(id)).length
-}
-function clearGroupSelection(rows: { kind: string, id: string }[]) {
-  const remove = new Set(selectableIdsFor(rows))
-  selectedIds.value = new Set([...selectedIds.value].filter(id => !remove.has(id)))
 }
 function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
 }
 const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
-// Select + Goal + Actions are always rendered; the rest follow visibleColumns.
-// Used as the colspan for the single merged cell that replaces this header
-// row's columns while 1+ rows are selected.
-const headerColCount = computed(() => 2
-  + [visibleColumns.category, visibleColumns.subCategory, visibleColumns.owner, visibleColumns.progress, visibleColumns.status].filter(Boolean).length)
+// Where the Actions menu lives depends on how many departments currently
+// have 1+ selected rows: exactly one → inline in that department's own
+// accordion header (GoalBulkActionsMenu); two or more → a single floating
+// bar at the bottom of the page (GoalFloatingBulkBar).
+const selectedDeptKeys = computed(() => departments.value.filter(d => groupSelectedCount(d.rows) > 0).map(d => d.key))
+const soleSelectedDeptKey = computed(() => (selectedDeptKeys.value.length === 1 ? selectedDeptKeys.value[0] : null))
+const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
 
 // Status filter (single-select) and Organization filter (multi-select) both
 // narrow the same underlying rows — empty selection means "no filter, show
@@ -403,6 +402,10 @@ const accordionHeader = css({
   cursor: 'pointer', border: 'none', width: '100%',
 })
 const accordionLeft = css({ display: 'flex', alignItems: 'center', gap: '2' })
+// Wraps accordionLeft + the inline Actions button (when shown) — 24px gap
+// between the department name and Actions, independent of accordionLeft's
+// own 8px internal gap (caret/checkbox/name).
+const accordionLeftGroup = css({ display: 'flex', alignItems: 'center', gap: '6' })
 const collapseAllBtn = css({
   display: 'inline-flex', alignItems: 'center', gap: '1',
   background: 'transparent', border: 'none', cursor: 'pointer',
@@ -439,11 +442,6 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
 const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
-// Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
-// height/fill is exactly what renders — no extra cell padding stacking on top.
-// Bulk-action header cell: no horizontal padding (the bar owns its own inset so
-// its checkbox lines up with the body checkbox column), + 4px top/bottom.
-const noCellPadding = css({ paddingBlock: '1', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -483,7 +481,7 @@ const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRad
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
 const statusPillOrange = css({ ...statusPillBase, background: 'orange.50', color: 'orange.700' })
 const statusPillGray = css({ ...statusPillBase, background: 'background.neutral.subtle', color: 'text.default' })
-const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 
 const emptyState = css({ padding: '6', color: 'text.secondary', fontSize: '14px', lineHeight: '20px' })
 
@@ -641,10 +639,31 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Organization goals — one accordion group per department -->
     <div ref="wrapperRef" :class="tableOuterBorder">
       <div v-for="(dept, di) in departments" :key="dept.key">
-        <button type="button" :class="accordionHeader" @click="toggle(dept.key)">
-          <span :class="accordionLeft">
-            <MpIcon :name="expanded[dept.key] ? 'caret-down' : 'caret-right'" size="sm" />
-            <MpText size="label" weight="semiBold" :class="valueText">{{ dept.name }}</MpText>
+        <div :class="accordionHeader" role="button" tabindex="0" :aria-expanded="expanded[dept.key]" @click="toggle(dept.key)" @keydown.enter="toggle(dept.key)">
+          <span :class="accordionLeftGroup">
+            <span :class="accordionLeft">
+              <MpIcon :name="expanded[dept.key] ? 'caret-down' : 'caret-right'" size="sm" />
+              <span @click.stop>
+                <MpCheckbox
+                  :is-checked="isAllSelected(selectableIdsFor(dept.rows))"
+                  :is-indeterminate="groupSelectedCount(dept.rows) > 0 && !isAllSelected(selectableIdsFor(dept.rows))"
+                  @update:is-checked="toggleSelectAll(selectableIdsFor(dept.rows))"
+                  aria-label="Select all"
+                />
+              </span>
+              <MpText size="label" weight="semiBold" :class="valueText">{{ dept.name }}</MpText>
+            </span>
+            <!-- Actions only appears inline here while THIS department is the
+                 sole one with a selection — see soleSelectedDeptKey. 24px from
+                 the department name, not flush to the header's right edge. -->
+            <span v-if="soleSelectedDeptKey === dept.key" @click.stop>
+              <GoalBulkActionsMenu
+                @edit-goals="goToImport('edit-goals')"
+                @update-progress="goToImport('update-progress')"
+                @close-goals="onBulkClose"
+                @delete-goals="isBulkDeleteModalOpen = true"
+              />
+            </span>
           </span>
           <span v-if="di === 0" :class="collapseAllBtn" @click.stop="collapseAll">
             <svg width="16" height="16" viewBox="0 0 16 16" fill="none" xmlns="http://www.w3.org/2000/svg" aria-hidden="true">
@@ -653,7 +672,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             </svg>
             Collapse all
           </span>
-        </button>
+        </div>
 
         <template v-if="expanded[dept.key]">
           <MpFlex v-if="dept.rows.length === 0" :class="emptyState">No goals in this department yet.</MpFlex>
@@ -676,29 +695,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 <col :class="actionHead">
               </colgroup>
               <MpTableHead>
-                <!-- Selection summary replaces the column-header row entirely
-                     (not a bar above the table) while 1+ rows are selected. -->
-                <MpTableRow v-if="groupSelectedCount(dept.rows) > 0">
-                  <MpTableCell as="th" :colspan="headerColCount" :class="noCellPadding">
-                    <GoalBulkActionBar
-                      :selected-count="groupSelectedCount(dept.rows)"
-                      :is-all-selected="isAllSelected(selectableIdsFor(dept.rows))"
-                      @toggle-select-all="toggleSelectAll(selectableIdsFor(dept.rows))"
-                      @clear="clearGroupSelection(dept.rows)"
-                      @edit-goals="goToImport('edit-goals')"
-                      @update-progress="goToImport('update-progress')"
-                      @close-goals="onBulkClose"
-                      @delete-goals="isBulkDeleteModalOpen = true"
-                    />
-                  </MpTableCell>
-                </MpTableRow>
-                <MpTableRow v-else>
-                  <MpTableCell as="th" class="sort-th" :class="colDivider">
-                    <MpFlex align="center" gap="2">
-                      <MpCheckbox :is-checked="isAllSelected(selectableIdsFor(dept.rows))" @update:is-checked="toggleSelectAll(selectableIdsFor(dept.rows))" aria-label="Select all" />
-                      <span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
-                    </MpFlex>
-                  </MpTableCell>
+                <MpTableRow>
+                  <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                   <MpTableCell v-if="visibleColumns.owner" as="th" class="sort-th" :class="[colDivider, colOwner]"><span :class="thInner"><span>Owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -825,6 +823,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </template>
       </div>
     </div>
+
+    <!-- Selection spans 2+ departments — no single accordion header to
+         anchor Actions to, so it floats at the bottom instead. -->
+    <GoalFloatingBulkBar
+      v-if="isMultiDeptSelected"
+      :selected-count="selectedCount"
+      @edit-goals="goToImport('edit-goals')"
+      @update-progress="goToImport('update-progress')"
+      @close-goals="onBulkClose"
+      @delete-goals="isBulkDeleteModalOpen = true"
+    />
     </template>
     </template>
   </MpFlex>

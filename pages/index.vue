@@ -88,7 +88,7 @@ const stats = [
 // Goal status legend (donut + table). Dot colors map to Figma chart palette.
 const legend = [
   { dot: null, label: 'Total goals', count: '11', percent: '' },
-  { dot: 'gray.100', label: 'Not updated', count: '10', percent: '91%' },
+  { dot: 'gray.100', label: 'Not started', count: '10', percent: '91%' },
   { dot: 'green.500', label: 'On track', count: '1', percent: '9%' },
   { dot: 'orange.400', label: 'Off track', count: '0', percent: '0%' },
 ]

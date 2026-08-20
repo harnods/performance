@@ -252,7 +252,7 @@ const savedKrIds = ref<Set<string>>(new Set())
 const krToDelete = ref<DraftKeyResult | null>(null)
 const isKrDeleteOpen = ref(false)
 
-const errors = reactive({ name: false, goalType: false, category: false, weight: false, deadlineDate: false, startValue: false, targetValue: false })
+const errors = reactive({ name: false, goalType: false, category: false, weight: false, deadlineDate: false, startValue: false, targetValue: false, members: false })
 const startValueErrorMessage = ref('')
 const targetValueErrorMessage = ref('')
 const deadlineDateErrorMessage = ref('')
@@ -261,6 +261,11 @@ watch(goalType, () => { errors.goalType = false })
 watch(category, () => { errors.category = false })
 watch(weight, () => { errors.weight = false })
 watch(deadlineDate, () => { errors.deadlineDate = false })
+// Members are only required for Team/Organization goals — a type change away
+// from those (which also clears viewerIds, see the goalType watcher below)
+// must not leave a stale "required" error showing.
+watch(viewerIds, () => { if (viewerIds.value.length) errors.members = false }, { deep: true })
+watch(goalType, () => { if (!isNeedMember.value) errors.members = false })
 watch([startValue, useBaseline], () => { errors.startValue = false })
 watch([startValue, targetValue, direction, useBaseline], () => { errors.targetValue = false })
 
@@ -285,6 +290,7 @@ function resetForm() {
   errors.deadlineDate = false
   errors.startValue = false
   errors.targetValue = false
+  errors.members = false
   startValueErrorMessage.value = ''
   targetValueErrorMessage.value = ''
   deadlineDateErrorMessage.value = ''
@@ -363,6 +369,7 @@ function resetForm() {
   }
   for (const key of Object.keys(contributorModeErrors)) delete contributorModeErrors[key]
   for (const key of Object.keys(contribCardOpen)) delete contribCardOpen[key]
+  memberVisibleCount.value = MEMBER_PAGE
   alignDrawerOpen.value = false
   rteKey.value++ // remount the rich-text editor so it shows the loaded description
   deadlineRuleErrors.value = []
@@ -555,6 +562,12 @@ function removeViewer(employeeId: string) {
   viewerIds.value = viewerIds.value.filter(id => id !== employeeId)
 }
 
+// Goal members box — progressive pagination, 10 at a time.
+const MEMBER_PAGE = 10
+const memberVisibleCount = ref(MEMBER_PAGE)
+const visibleMemberIds = computed(() => viewerIds.value.slice(0, memberVisibleCount.value))
+function loadMoreMembers() { memberVisibleCount.value += MEMBER_PAGE }
+
 function setContributorIds(ownerId: string, ids: string[]) {
   contributorsByOwner[ownerId] = [...ids]
 }
@@ -673,6 +686,10 @@ function save() {
   errors.goalType = !goalType.value
   errors.category = !category.value
   errors.weight = weight.value === '' || Number(weight.value) <= 0 || Number(weight.value) > 100
+  // Team & Organization goals must have at least one member — a contributor
+  // can only ever be picked from this list (see isNeedMember), so an empty
+  // list would leave the goal with no one able to update its progress.
+  errors.members = isNeedMember.value && viewerIds.value.length === 0
   errors.deadlineDate = false
   errors.startValue = false
   errors.targetValue = false
@@ -739,7 +756,7 @@ function save() {
     }
   }
 
-  if (errors.name || errors.goalType || errors.category || errors.weight || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length || hasContributorModeError) return
+  if (errors.name || errors.goalType || errors.category || errors.weight || errors.members || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length || hasContributorModeError) return
   const categoryLabel = GOAL_CATEGORIES.find(c => c.value === category.value)?.label ?? category.value
   const subCategoryLabel = subCategoryOptions.value.find(s => s.value === subCategory.value)?.label ?? ''
   const goalTypeLabel = GOAL_TYPE_OPTIONS.find(t => t.value === goalType.value)?.label ?? goalType.value
@@ -873,10 +890,32 @@ const personCard = css({
   paddingTop: '3', paddingBottom: '3',
   borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
   _first: { paddingTop: '0' },
+  _last: { borderBottomWidth: '0' },
 })
-// Wraps the owner card(s); spacing between cards comes from each card's own
-// top padding, not a wrap-level gap — avoids a double gap above the border.
-const contribCardsWrap = css({ display: 'flex', flexDirection: 'column' })
+// Wraps the owner card(s) in a single bordered box (like a table) — spacing
+// between cards comes from each card's own top padding, not a wrap-level gap.
+const contribCardsWrap = css({
+  display: 'flex', flexDirection: 'column',
+  border: '1px solid', borderColor: 'border.default', borderRadius: '6px',
+  paddingLeft: '3', paddingRight: '3', paddingTop: '3',
+})
+
+// Goal members box (like a table): outer border, 6px rounded corners, each
+// row separated by a bottom border, last row's border clipped by the box.
+const memberBox = css({
+  display: 'flex', flexDirection: 'column',
+  border: '1px solid', borderColor: 'border.default', borderRadius: '6px',
+  overflow: 'hidden',
+})
+const memberBoxRow = css({
+  display: 'flex', alignItems: 'center', gap: '3',
+  paddingX: '4', paddingTop: '3', paddingBottom: '3',
+  borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default',
+  _last: { borderBottomWidth: '0' },
+})
+const memberLoadMoreBar = css({
+  paddingX: '4', paddingTop: '3', paddingBottom: '3',
+})
 const personRow = css({ display: 'flex', alignItems: 'center', gap: '3' })
 // Same look as personRow, but a real <button> so it can toggle the card's
 // accordion — a sibling of the self-update MpToggle on the right, never
@@ -993,9 +1032,9 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <MpFormLabel>Align to parent goal</MpFormLabel>
                 <div v-if="alignTo" :class="[alignedRow, goalWeightWidth]">
                   <span :class="alignedValue">{{ alignedLabel }}</span>
-                  <MpFlex align="center" gap="3">
-                    <MpTextlink as="button" @click="openAlignDrawer">Change</MpTextlink>
-                    <MpTextlink as="button" @click="clearAlign">Remove</MpTextlink>
+                  <MpFlex align="center" gap="1">
+                    <MpButton variant="ghost" left-icon="edit" aria-label="Change parent goal" @click="openAlignDrawer" />
+                    <MpButton variant="ghost" left-icon="minus-circular" aria-label="Remove parent goal" @click="clearAlign" />
                   </MpFlex>
                 </div>
                 <MpButton v-else variant="secondary" @click="openAlignDrawer">Select parent goal</MpButton>
@@ -1214,23 +1253,32 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                  section is hidden for them. -->
             <div v-if="isNeedMember" :class="section">
               <div :class="sectionHeader">
-                <span :class="sectionTitle">Goal members <MpText size="label" :class="css({ color: 'text.secondary', fontWeight: '400' })">Optional</MpText></span>
+                <span :class="sectionTitle">Goal members <MpText size="label" :class="requiredMark">*</MpText></span>
                 <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
               </div>
-              <MpFlex v-for="id in viewerIds" :key="id" :class="personRow">
-                <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
-                <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
-                  <span :class="personName">{{ employeeById(id)?.name }}</span>
-                  <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
-                </MpFlex>
-                <button type="button" :class="removeBtn" aria-label="Remove member" @click="removeViewer(id)">
-                  <MpIcon name="minus-circular" size="sm" />
+              <MpFormControl id="goal-members" :is-invalid="errors.members">
+                <div v-if="viewerIds.length" :class="memberBox">
+                  <MpFlex v-for="id in visibleMemberIds" :key="id" :class="memberBoxRow">
+                    <PxAvatar :id="id" :name="employeeById(id)?.name" :src="employeeById(id)?.photo" size="lg" variant-color="gray" />
+                    <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
+                      <span :class="personName">{{ employeeById(id)?.name }}</span>
+                      <span :class="personMeta">{{ employeeById(id) ? employeeMeta(employeeById(id)!) : '' }}</span>
+                    </MpFlex>
+                    <button type="button" :class="removeBtn" aria-label="Remove member" @click="removeViewer(id)">
+                      <MpIcon name="minus-circular" size="sm" />
+                    </button>
+                  </MpFlex>
+                  <MpFlex v-if="viewerIds.length > memberVisibleCount" align="center" gap="1" :class="memberLoadMoreBar">
+                    <MpText size="label" :class="helperText">Showing {{ Math.min(memberVisibleCount, viewerIds.length) }} of {{ viewerIds.length }} members.</MpText>
+                    <MpTextlink as="button" size="label" @click="loadMoreMembers">Load {{ Math.min(MEMBER_PAGE, viewerIds.length - memberVisibleCount) }} more.</MpTextlink>
+                  </MpFlex>
+                </div>
+                <button type="button" :class="addLink" @click="viewerDrawerOpen = true">
+                  <MpIcon name="add" size="sm" />
+                  Add goal members
                 </button>
-              </MpFlex>
-              <button type="button" :class="addLink" @click="viewerDrawerOpen = true">
-                <MpIcon name="add" size="sm" />
-                Add goal members
-              </button>
+                <MpFormErrorMessage>You must add at least one goal member.</MpFormErrorMessage>
+              </MpFormControl>
 
               <!-- Organization goals only: restrict viewing to owner + members -->
               <MpToggle v-if="goalType === 'organization'" id="restrict-visibility" v-model:is-checked="restrictedVisibility">

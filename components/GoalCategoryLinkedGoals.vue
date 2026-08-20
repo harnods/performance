@@ -81,7 +81,7 @@ const GOAL_TYPE_LABEL: Record<string, string> = {
   individual: 'Individual goal',
 }
 const TYPE_ORDER: Record<string, number> = { company: 0, organization: 1, team: 2, individual: 3 }
-const statusLabel: Record<string, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const statusLabel: Record<string, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 
 const typeFilter = ref('')
 const search = ref('')

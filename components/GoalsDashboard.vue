@@ -252,14 +252,9 @@ function goToGoalsIndex(status?: string) {
     query: { name: cycle.name, ...(status ? { status } : {}) },
   })
 }
-// The cycle detail page's "Goal hierarchy" tab is in-page state, reachable via
-// ?tab= (see pages/goals/goal-cycles/[id]/index.vue).
-function goToGoalHierarchy() {
-  if (!props.isNewInterface) return router.push('/goals/goal-hierarchy')
-  const cycle = appliedCycle.value
-  if (!cycle) return
-  router.push({ path: `/goals/goal-cycles/${cycle.id}`, query: { name: cycle.name, tab: 'hierarchy' } })
-}
+// Goal hierarchy now lives in the Goals sidebar submenu (global, not
+// cycle-scoped) rather than as a tab on the cycle detail page.
+function goToGoalHierarchy() { router.push('/goals/goal-hierarchy') }
 // Each summary card opens the goals index already filtered to its own status.
 // Keys match STATUS_FILTER_TO_GOAL_STATUS on the goal-cycle detail page.
 const STATUS_TO_FILTER_KEY: Record<GoalStatus, string> = {

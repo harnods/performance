@@ -13,19 +13,18 @@
 <script setup lang="ts">
 import {
   MpFlex,
-  MpButton,
   MpText,
   MpCheckbox,
-  MpPopover,
-  MpPopoverTrigger,
-  MpPopoverContent,
-  MpPopoverList,
-  MpPopoverListItem,
-  MpDivider,
   css,
 } from '@mekari/pixel3'
 
-defineProps<{ selectedCount: number, isAllSelected: boolean }>()
+// Company goals hide Update/Close — bulk progress updates and closing don't
+// apply to that level (prod parity); every other goal-listing page keeps all
+// four actions, so these default to shown rather than opting each page in.
+withDefaults(defineProps<{ selectedCount: number, isAllSelected: boolean, hideUpdateProgress?: boolean, hideCloseGoals?: boolean }>(), {
+  hideUpdateProgress: false,
+  hideCloseGoals: false,
+})
 const emit = defineEmits<{ clear: [], 'edit-goals': [], 'update-progress': [], 'close-goals': [], 'delete-goals': [], 'toggle-select-all': [] }>()
 
 function onKeydown(e: KeyboardEvent) {
@@ -44,7 +43,6 @@ const bar = css({
 })
 const valueText = css({ color: 'text.default' })
 const hintText = css({ color: 'text.secondary' })
-const dangerText = css({ color: 'text.danger' })
 </script>
 
 <template>
@@ -63,22 +61,14 @@ const dangerText = css({ color: 'text.danger' })
         />
         <MpText size="label" weight="semiBold" :class="valueText">{{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }} selected</MpText>
       </MpFlex>
-      <MpPopover is-close-on-select use-portal placement="bottom-start">
-        <MpPopoverTrigger>
-          <MpButton variant="primary" right-icon="caret-down">Actions</MpButton>
-        </MpPopoverTrigger>
-        <MpPopoverContent>
-          <MpPopoverList>
-            <MpPopoverListItem @click="$emit('update-progress')">Update selected goals</MpPopoverListItem>
-            <MpPopoverListItem @click="$emit('edit-goals')">Edit selected goals</MpPopoverListItem>
-            <MpPopoverListItem @click="$emit('close-goals')">Close selected goals</MpPopoverListItem>
-            <MpDivider />
-            <MpPopoverListItem @click="$emit('delete-goals')">
-              <span :class="dangerText">Delete selected goals</span>
-            </MpPopoverListItem>
-          </MpPopoverList>
-        </MpPopoverContent>
-      </MpPopover>
+      <GoalBulkActionsMenu
+        :hide-update-progress="hideUpdateProgress"
+        :hide-close-goals="hideCloseGoals"
+        @update-progress="$emit('update-progress')"
+        @edit-goals="$emit('edit-goals')"
+        @close-goals="$emit('close-goals')"
+        @delete-goals="$emit('delete-goals')"
+      />
     </MpFlex>
     <MpText size="label" :class="hintText">Press esc to deselect</MpText>
   </MpFlex>

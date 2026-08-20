@@ -195,8 +195,9 @@ function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
-const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose } = useGoalCloser()
-function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.has(g.id))) }
+// Company goals don't offer bulk close (see GoalBulkActionBar's
+// hide-close-goals) — only the per-row close stays wired up here.
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
@@ -211,7 +212,7 @@ function submitRowForApproval(row: { id: string }) {
 // are selectable (aligned rows are a nested reference to a goal already
 // listed under its own owner elsewhere).
 const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
-function goToImport(mode: 'edit-goals' | 'update-progress' | 'close-goals') {
+function goToImport(mode: 'edit-goals') {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
 }
 const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
@@ -329,6 +330,7 @@ const accordionHeader = css({
   display: 'flex', alignItems: 'center', height: '44px', paddingInline: '2', paddingBlock: '3',
   background: 'gray.50', borderBottom: '1px solid', borderBottomColor: 'border.default',
 })
+const accordionLeft = css({ display: 'flex', alignItems: 'center', gap: '2' })
 
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 // Header label + column-sort menu inline (mirrors goal-cycles/index.vue's thInner).
@@ -401,7 +403,7 @@ const statusPillBase = { display: 'inline-flex', alignItems: 'center', borderRad
 const statusPillGreen = css({ ...statusPillBase, background: 'green.50', color: 'green.700' })
 const statusPillOrange = css({ ...statusPillBase, background: 'orange.50', color: 'orange.700' })
 const statusPillGray = css({ ...statusPillBase, background: 'background.neutral.subtle', color: 'text.default' })
-const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const statusLabel: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 
 // Empty state — a brand-new goal cycle has no goals at all yet, so replace
 // the filter bar + table entirely (same pattern as
@@ -523,7 +525,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Company goals table -->
     <div ref="wrapperRef" :class="tableOuterBorder">
       <div :class="accordionHeader">
-        <MpText size="label" weight="semiBold" :class="valueText">Company-wide goals</MpText>
+        <span :class="accordionLeft">
+          <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
+          <MpText size="label" weight="semiBold" :class="valueText">Company-wide goals</MpText>
+        </span>
       </div>
       <MpTableContainer>
         <MpTable :is-hoverable="false" :class="fixedTable">
@@ -550,22 +555,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                 <GoalBulkActionBar
                   :selected-count="selectedCount"
                   :is-all-selected="isAllSelected(selectableIds)"
+                  hide-update-progress
+                  hide-close-goals
                   @toggle-select-all="toggleSelectAll(selectableIds)"
                   @clear="clearSelection"
                   @edit-goals="goToImport('edit-goals')"
-                  @update-progress="goToImport('update-progress')"
-                  @close-goals="onBulkClose"
                   @delete-goals="isBulkDeleteModalOpen = true"
                 />
               </MpTableCell>
             </MpTableRow>
             <MpTableRow v-else>
-              <MpTableCell as="th" class="sort-th" :class="colDivider">
-                <MpFlex align="center" gap="2">
-                  <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
-                  <span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
-                </MpFlex>
-              </MpTableCell>
+              <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.owner" as="th" class="sort-th" :class="[colDivider, colOwner]"><span :class="thInner"><span>Owner</span><PxColumnSortMenu col-key="owner" :sort-type="columnSortTypes.owner" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -772,24 +772,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <!-- Bulk delete confirmation -->
   <ClientOnly>
-  <ClientOnly>
-    <MpModal :is-open="isBulkCloseModalOpen" size="sm" @close="isBulkCloseModalOpen = false">
-      <MpModalOverlay />
-      <MpModalContent>
-        <MpModalHeader>Close {{ goalsToClose.length }} goal{{ goalsToClose.length === 1 ? '' : 's' }}?<MpModalCloseButton @click="isBulkCloseModalOpen = false" /></MpModalHeader>
-        <MpModalBody>
-          <MpText size="label" :class="css({ color: 'text.default' })">Once closed, these goals can no longer submit progress or be edited. Goals owned by direct reports are sent for approval first.</MpText>
-        </MpModalBody>
-        <MpModalFooter>
-          <MpButtonGroup>
-            <MpButton variant="ghost" @click="isBulkCloseModalOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmBulkClose(); clearSelection()">Yes, close goals</MpButton>
-          </MpButtonGroup>
-        </MpModalFooter>
-      </MpModalContent>
-    </MpModal>
-  </ClientOnly>
-
   <MpModal :is-open="isBulkDeleteModalOpen" @close="isBulkDeleteModalOpen = false">
     <MpModalOverlay />
     <MpModalContent>

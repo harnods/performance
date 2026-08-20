@@ -96,7 +96,7 @@ function betterLabel(dir?: 'higher' | 'lower') {
 }
 const measurementTypeLabel = computed(() => betterLabel(goal.value?.direction))
 
-const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not updated' }
+const STATUS_LABEL: Record<GoalStatus, string> = { green: 'On track', orange: 'Off track', gray: 'Not started' }
 // The achievement % badge on a progress bar takes the goal's status colour:
 // green = on track, red = off track, neutral = not updated.
 const STATUS_BADGE_TYPE: Record<GoalStatus, 'completed' | 'critical' | 'announcement'> = {
