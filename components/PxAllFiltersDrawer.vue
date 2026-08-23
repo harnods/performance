@@ -16,6 +16,7 @@ import {
 } from '@mekari/pixel3'
 import { BRANCHES, ORGANIZATIONS, JOB_LEVELS, EMPLOYMENT_TYPES } from '~/utils/talents'
 import { EMPLOYEES } from '~/utils/employees'
+import { GOAL_CATEGORIES } from '~/utils/goalTaxonomy'
 
 interface ScopeItem { id: string, name: string }
 interface ScopeDef {
@@ -33,12 +34,15 @@ interface ScopeDef {
 const toItems = (xs: string[]): ScopeItem[] => xs.map(x => ({ id: x, name: x }))
 const JOB_POSITIONS = Array.from(new Set(EMPLOYEES.map(e => e.title))).sort()
 
-// Default scope set = production goals filters (employee attributes of the owner).
+// Default scope set = production goals filters: Category (the goal's own
+// taxonomy, not an owner attribute — matches Goal.category, which stores the
+// category LABEL e.g. 'Financial') plus employee attributes of the owner.
 // Goal owner is the one scope keyed by employee id rather than an attribute
 // value — its item list is every employee, not just those who currently own
 // a goal, so the filter still works before any goals are assigned to them.
-// Listed last (not first) since it's the newest addition to this drawer.
 const DEFAULT_SCOPES: ScopeDef[] = [
+  { key: 'status', label: 'Status', items: toItems(['On track', 'Off track', 'Not started']) },
+  { key: 'category', label: 'Category', items: toItems(GOAL_CATEGORIES.map(c => c.label)) },
   { key: 'branch', label: 'Branch', items: toItems(BRANCHES) },
   { key: 'organization', label: 'Organization', items: toItems(ORGANIZATIONS) },
   { key: 'job_position', label: 'Job position', items: toItems(JOB_POSITIONS) },
@@ -113,7 +117,7 @@ const blankWrap = css({ display: 'flex', flexDirection: 'column', alignItems: 'c
 const blankTitle = css({ fontWeight: '600', color: 'text.default' })
 const blankSub = css({ fontSize: '14px', color: 'text.secondary' })
 const addBtn = css({ display: 'inline-flex', alignItems: 'center', gap: '2', width: 'fit-content', border: 'none', background: 'transparent', color: 'text.link', fontWeight: '600', fontSize: '14px', cursor: 'pointer', paddingBlock: '2' })
-const popPanel = css({ width: '240px', maxHeight: '300px', display: 'flex', flexDirection: 'column' })
+const popPanel = css({ width: '240px', maxHeight: '300px', display: 'flex', flexDirection: 'column', overflowY: 'auto' })
 const popSearch = css({ padding: '2', borderBottom: '1px solid', borderBottomColor: 'gray.50', position: 'sticky', top: '0', background: 'background.neutral', zIndex: '1' })
 const searchBox = css({ position: 'relative', '& input': { paddingLeft: '36px' } })
 const searchIcon = css({ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'icon.secondary', zIndex: '1', pointerEvents: 'none' })

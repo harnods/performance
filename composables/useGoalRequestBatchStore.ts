@@ -14,8 +14,8 @@
 
 // Past this many employees in one bulk "New goals" save, approving each
 // owner's submission runs their goal creation as a background job instead of
-// committing synchronously — mirrors BULK_OWNER_LIMIT's "past this many
-// people the UX changes" shape (composables/useBulkOwnerGate.ts), but for
+// committing synchronously — same "past this many people the UX changes"
+// shape as useBulkOwnerGate.ts's MANUAL_CREATE_OWNER_LIMIT, but for
 // approval-time creation rather than owner selection.
 export const BULK_ASYNC_THRESHOLD = 10
 

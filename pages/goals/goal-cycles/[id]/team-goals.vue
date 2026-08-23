@@ -60,6 +60,7 @@ import {
   toast,
   css,
 } from '@mekari/pixel3'
+import { MANUAL_CREATE_OWNER_LIMIT } from '~/composables/useBulkOwnerGate'
 
 definePageMeta({
   layout: 'default',
@@ -140,6 +141,9 @@ const appliedFilters = ref<Record<string, string[]>>({})
 const appliedScopes = ref<string[]>([])
 const activeFilterCount = computed(() => allFiltersCount(appliedFilters.value))
 function onApplyAllFilters(p: { filters: Record<string, string[]>, scopes: string[] }) {
+  // The drawer's own Status scope supersedes the standalone quick-filter —
+  // reset it so the two never show conflicting/redundant state.
+  statusFilter.value = ''
   appliedFilters.value = p.filters
   appliedScopes.value = p.scopes
 }
@@ -312,7 +316,7 @@ const departments = computed(() => DEPARTMENTS
   .map((name) => {
     const filteredGoals = teamGoals.value.filter(g =>
       g.department === name && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
-      && matchesSearch(g, search.value) && ownerMatchesAllFilters(g.ownerId, appliedFilters.value),
+      && matchesSearch(g, search.value) && goalMatchesAllFilters(g, appliedFilters.value),
     )
     const sortedGoals = sortGoalRows(sortByCategory(filteredGoals), {
       sortKey: sortKey.value,
@@ -870,6 +874,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     v-model:is-open="isSelectEmployeeOpen"
     :exclude-ids="[...fullOwnerIds]"
     :initial-selected="pendingEmployeeIds"
+    :max-selectable="MANUAL_CREATE_OWNER_LIMIT"
     exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
     @continue="continueToNewGoals"
   />

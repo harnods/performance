@@ -13,7 +13,7 @@ import {
   css,
 } from '@mekari/pixel3'
 
-interface Option { value: string; label: string; description?: string; trailing?: string; group?: string }
+interface Option { value: string; label: string; description?: string; trailing?: string; group?: string; photo?: string }
 
 const props = defineProps<{
   modelValue: string
@@ -149,15 +149,17 @@ function set(v: string) {
               :is-active="opt.value === modelValue"
               @click="set(opt.value)"
             >
-              <div v-if="opt.description" :class="itemBody">
-                <MpText size="label" :class="itemLabel">{{ opt.label }}</MpText>
-                <MpText size="label-small" :class="itemCaption">{{ opt.description }}</MpText>
-              </div>
-              <div v-else-if="opt.trailing" :class="itemRow">
-                <MpText size="label">{{ opt.label }}</MpText>
-                <MpText size="label" :class="itemCaption">{{ opt.trailing }}</MpText>
-              </div>
-              <template v-else>{{ opt.label }}</template>
+              <slot name="option" :option="opt">
+                <div v-if="opt.description" :class="itemBody">
+                  <MpText size="label" :class="itemLabel">{{ opt.label }}</MpText>
+                  <MpText size="label-small" :class="itemCaption">{{ opt.description }}</MpText>
+                </div>
+                <div v-else-if="opt.trailing" :class="itemRow">
+                  <MpText size="label">{{ opt.label }}</MpText>
+                  <MpText size="label" :class="itemCaption">{{ opt.trailing }}</MpText>
+                </div>
+                <template v-else>{{ opt.label }}</template>
+              </slot>
             </MpPopoverListItem>
           </template>
         </MpPopoverList>

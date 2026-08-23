@@ -24,6 +24,32 @@ const saveButtonLabel = computed(() => (isEditing.value ? 'Save changes' : 'Save
 
 (`AddGoalDrawer.vue:77`, `GoalCategoryFormDrawer.vue:222`, `competencies/create.vue:331`.) Modals use context verbs: "Update", "Confirm", "Create", "Continue".
 
+## Hover-reveal icon button
+
+An icon-only ghost button that only makes sense in the context of a specific
+row/block (e.g. "add this employee", "change this owner") stays invisible
+until the user hovers that row, rather than always showing:
+
+```ts
+const row = css({
+  display: 'flex', alignItems: 'center', gap: '3',
+  '& .reveal-btn': { opacity: '0', transition: 'opacity 0.12s ease' },
+  '&:hover .reveal-btn': { opacity: '1' },
+})
+```
+```vue
+<div :class="row">
+  ...
+  <MpButton variant="ghost" left-icon="edit" class="reveal-btn" aria-label="..." />
+</div>
+```
+
+`opacity` (not `display`/`v-if`) so the button still occupies layout space —
+nothing shifts when it appears. The plain `class="reveal-btn"` (alongside the
+panda-generated `:class`) is what the `&:hover .reveal-btn` selector targets;
+Panda's own atomic classes aren't stable enough to hook. Pair with
+`MpTooltip` when the icon alone doesn't say what it does (`SelectEmployeesDrawer.vue`'s `.add-employee-icon`, `goal-cycles/[id]/new.vue`'s edit-owner button).
+
 ## No disabled primary CTA
 
 The form/page **primary submit button is never disabled.** `onSave` sets a `submitted` flag, validates, and on failure shows inline errors and/or an error toast, then returns:

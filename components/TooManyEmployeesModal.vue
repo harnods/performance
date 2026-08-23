@@ -4,7 +4,9 @@
   Shared by every "New goals" entry point (individual/team/organization/
   company-goals) — shown right after "Continue" is clicked in
   SelectEmployeesDrawer, before navigating anywhere, when the selection is
-  past useBulkOwnerGate's BULK_OWNER_LIMIT.
+  past useBulkOwnerGate's MANUAL_CREATE_OWNER_LIMIT (currently 1 — the
+  one-goal-at-a-time drawer only fits a single owner; anything more should
+  go through import instead).
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 -->
 <script setup lang="ts">
@@ -21,7 +23,6 @@ import {
   MpText,
   css,
 } from '@mekari/pixel3'
-import { BULK_OWNER_LIMIT } from '~/composables/useBulkOwnerGate'
 
 defineProps<{ isOpen: boolean }>()
 // Manual creation is a hard block past the limit — the only ways out are
@@ -40,12 +41,12 @@ const bodyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.defaul
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
-          Bulk add limit reached
+          Add goals for one employee at a time
           <MpModalCloseButton @click="emit('cancel')" />
         </MpModalHeader>
         <MpModalBody>
           <MpText :class="bodyText">
-            You can bulk add goals for up to {{ BULK_OWNER_LIMIT }} employees at once. For more, use import goals instead.
+            This form creates goals for one employee at a time. To create goals for multiple employees, use import goals instead.
           </MpText>
         </MpModalBody>
         <MpModalFooter>

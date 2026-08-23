@@ -57,6 +57,7 @@ import {
 } from '@mekari/pixel3'
 import { computeRepeatPeriods } from '~/utils/goalSchedule'
 import { EMPLOYEES } from '~/utils/employees'
+import { MANUAL_CREATE_OWNER_LIMIT } from '~/composables/useBulkOwnerGate'
 
 definePageMeta({
   layout: 'default',
@@ -110,11 +111,11 @@ function cancelBulkOwnerModal() {
   isSelectEmployeeOpen.value = true
 }
 
-type Tab = 'all' | 'requests' | 'awaiting' | 'info'
+type Tab = 'all' | 'closed' | 'requests' | 'awaiting' | 'info'
 // Deep-linkable via ?tab= so other surfaces can land on a specific tab.
 // Unknown/absent values fall back to All goals; permission-gated tabs are still
 // policed by the watcher below.
-const TABS: Tab[] = ['all', 'requests', 'awaiting', 'info']
+const TABS: Tab[] = ['all', 'closed', 'requests', 'awaiting', 'info']
 const activeTab = ref<Tab>(
   TABS.includes(route.query.tab as Tab) ? (route.query.tab as Tab) : 'all',
 )
@@ -208,6 +209,9 @@ const appliedFilters = ref<Record<string, string[]>>({})
 const appliedScopes = ref<string[]>([])
 const activeFilterCount = computed(() => allFiltersCount(appliedFilters.value))
 function onApplyAllFilters(p: { filters: Record<string, string[]>, scopes: string[] }) {
+  // The drawer's own Status scope supersedes the standalone quick-filter —
+  // reset it so the two never show conflicting/redundant state.
+  statusFilter.value = ''
   appliedFilters.value = p.filters
   appliedScopes.value = p.scopes
 }
@@ -299,11 +303,19 @@ function openActivityLog(row: { id: string }) {
 // card must land on a filter that actually exists.
 const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'green', atrisk: 'orange', notstarted: 'gray' }
 
+// Unfiltered count — drives the Closed tab's empty state (true "no closed
+// goals in this cycle" vs. filters/search just narrowing the current tab
+// down to zero, which the table shell handles on its own, same as All goals).
+const closedGoalsTotal = computed(() => goals.value.filter(g => g.isClosed).length)
+
 const sourceGoals = computed(() => {
   const base = goalsView.value === 'my'
     ? myGoals.value
     : goalsView.value === 'direct-reports' ? myDirectReportsGoals.value : goals.value
-  return base.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && ownerMatchesAllFilters(g.ownerId, appliedFilters.value))
+  // "Closed" tab narrows to closed goals only, on top of whatever scope the
+  // (still-visible) All-goals dropdown last had selected.
+  const scoped = activeTab.value === 'closed' ? base.filter(g => g.isClosed) : base
+  return scoped.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && goalMatchesAllFilters(g, appliedFilters.value))
 })
 
 // ─── Column sort (sorts WITHIN each owner rowspan group; owner is the only
@@ -921,8 +933,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
        control" section above for what it actually does. Hidden on the
        archive cycle for the same reason as the header actions above — the
        scenario it previews is a "New goals" batch-approval flow, which
-       doesn't apply here. -->
-  <div v-if="!cycle?.isArchive" :class="scenarioFab">
+       doesn't apply here. Also only relevant on the All-goals tab — the
+       batch it previews lands there, not on Closed/My requests/Awaiting/Info. -->
+  <div v-if="!cycle?.isArchive && activeTab === 'all'" :class="scenarioFab">
     <MpPopover is-close-on-select use-portal placement="top-end">
       <MpPopoverTrigger>
         <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
@@ -968,6 +981,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         {{ goalsViewLabel }}
         <MpIcon name="caret-down" size="sm" />
       </button>
+      <button type="button" :class="activeTab === 'closed' ? tabItemActive : tabItem" @click="activeTab = 'closed'">
+        Closed
+      </button>
       <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
         My requests
         <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
@@ -1002,18 +1018,20 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpBannerDescription>
     </MpBanner>
 
-    <!-- Empty state: no goals to show yet — a brand-new cycle, or a batch's
-         goals are still being created in the background (the banner above
-         already explains that; the table itself has nothing of its own to
-         show while creation is in flight, so it stays hidden rather than
-         mixing placeholder rows in with committed ones). -->
-    <MpFlex v-if="goals.length === 0 || activeRequestBatch" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+    <!-- Empty state: no goals to show yet. On "All goals" — a brand-new
+         cycle, or a batch's goals are still being created in the background
+         (the banner above already explains that; the table itself has
+         nothing of its own to show while creation is in flight, so it stays
+         hidden rather than mixing placeholder rows in with committed ones).
+         On "Closed" — the cycle simply has no closed goals yet; no "New
+         goals" CTA here since closing happens from a goal row, not this tab. -->
+    <MpFlex v-if="activeTab === 'closed' ? closedGoalsTotal === 0 : (goals.length === 0 || activeRequestBatch)" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
       <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
       <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
-        <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
-        <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
+        <MpText :class="emptyTitle">{{ activeTab === 'closed' ? 'No closed goals yet' : 'No goals in this cycle yet' }}</MpText>
+        <MpText size="label" :class="captionText">{{ activeTab === 'closed' ? 'Goals you close in this cycle will appear here.' : 'Goals you add to this cycle will appear here.' }}</MpText>
       </MpFlex>
-      <MpButton v-if="!activeRequestBatch && !cycle?.isArchive" variant="secondary" @click="openSelectEmployee">New goals</MpButton>
+      <MpButton v-if="activeTab !== 'closed' && !activeRequestBatch && !cycle?.isArchive" variant="secondary" @click="openSelectEmployee">New goals</MpButton>
     </MpFlex>
 
     <template v-else>
@@ -1322,6 +1340,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     v-model:is-open="isSelectEmployeeOpen"
     :exclude-ids="[...fullOwnerIds]"
     :initial-selected="pendingEmployeeIds"
+    :max-selectable="MANUAL_CREATE_OWNER_LIMIT"
     exclude-note="Employees whose goals already total 100% aren't shown here. Add more goals for them from their existing goal list instead."
     @continue="continueToNewGoals"
   />

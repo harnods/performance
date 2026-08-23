@@ -79,6 +79,20 @@ With `:with-background="false"` the addon stops reserving width, so the input ke
 padding and the placeholder renders on top of the icon. If you want the no-box look, use
 **idiom B**, not this. (Fixed in `PxAllFiltersDrawer.vue` and `PxFilterScope.vue`.)
 
+### Scrollable scope-picker panel (maxHeight + overflowY)
+
+The scope-picker popover in `PxAllFiltersDrawer` (`Add filter` → search + `MpPopoverList` of
+scope names) caps its height so a long scope list doesn't push the panel past the viewport:
+
+```ts
+const popPanel = css({ width: '240px', maxHeight: '300px', display: 'flex', flexDirection: 'column', overflowY: 'auto' })
+```
+
+`overflowY: 'auto'` on the same element that carries `maxHeight` is mandatory — without it the
+list just overflows past the panel border instead of scrolling, clipping the last item(s). The
+sticky search header (`position: 'sticky', top: '0'`) stays pinned because it scrolls with this
+same container.
+
 ### Notes
 
 - No debounce anywhere — `v-model="search"` filters synchronously in a `computed`.
