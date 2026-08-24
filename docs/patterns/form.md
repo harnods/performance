@@ -27,13 +27,39 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger). Props (`PxSelectPopover.vue:18-27`): `modelValue`, `options: {value,label,description?,trailing?,group?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable`, `searchPlaceholder`.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger). Props (`PxSelectPopover.vue:18-27`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable`, `searchPlaceholder`.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
 - `:class="selectWidth"` fallthrough (needed for responsive/media-query widths — `PxSelectPopover.vue:41` keeps wrapper 100% when `width` omitted).
 
 ⚠️ `selectWidth` value is inconsistent across files (`50%` / `264px` / `60%` / `320px` / grid `span3`). CLAUDE.md's intent: **50% of the form column (≈264px on the 3/12 grid)**. Default to that.
+
+### Custom option rendering — `#option` slot
+
+When an option needs more than label/description/trailing text (e.g. an
+employee picker showing an avatar per row), pass a scoped `#option` slot
+instead of hand-rolling a separate `MpSelect` + `MpPopover` — it overrides
+just the row content; the decorative-select trigger, search, and popover
+shell stay exactly the same as every other `PxSelectPopover`:
+
+```vue
+<!-- goal-cycles/[id]/new.vue — "Change goal owner" -->
+<PxSelectPopover v-model="ownerId" :options="ownerOptions" placeholder="Select goal owner" width="100%" :searchable="true">
+  <template #option="{ option }">
+    <div :class="optionRow"><!-- display:flex, alignItems:center, gap:3 -->
+      <PxAvatar :id="option.value" :name="option.label" :src="option.photo" size="lg" variant-color="gray" />
+      <MpFlex direction="column" gap="0">
+        <span>{{ option.label }}</span>
+        <span>{{ option.description }}</span>
+      </MpFlex>
+    </div>
+  </template>
+</PxSelectPopover>
+```
+
+Omitting the slot keeps the original label/description/trailing rendering —
+this is purely additive, no existing caller needs to change.
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 

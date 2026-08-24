@@ -49,6 +49,10 @@ const props = defineProps<{
   excludeNote?: string
   isRequired?: boolean
   confirmLabel?: string
+  /** Past this many picks, block immediately (same payload/close as clicking
+   * Continue) instead of waiting for Continue — see useBulkOwnerGate's
+   * MANUAL_CREATE_OWNER_LIMIT for the "New goals" case this exists for. */
+  maxSelectable?: number
 }>()
 const emit = defineEmits<{
   'update:isOpen': [boolean]
@@ -95,9 +99,27 @@ const selectedEmployees = computed(() =>
     .filter(e => matches(e.name, e.code, selectedSearch.value)),
 )
 
+// Block the moment a user pick crosses the limit — don't wait for
+// "Continue" — so picking a second employee immediately hands off to the
+// caller (which shows the "one at a time, use import" modal). Only called
+// from user-driven adds (selectEmployee/selectAllVisible), never from the
+// initialSelected pre-fill on open — otherwise re-opening this same drawer
+// pre-filled past the limit (e.g. the modal's own "Cancel", which keeps the
+// selection to let them trim it) would immediately re-trigger the block and
+// loop forever instead of landing back on the picker.
+function checkSelectionLimit() {
+  if (props.maxSelectable && selectedIds.value.length > props.maxSelectable) {
+    emit('continue', [...selectedIds.value])
+    close()
+    return true
+  }
+  return false
+}
+
 function selectEmployee(id: string) {
   if (selectedIds.value.includes(id)) return
   selectedIds.value = [...selectedIds.value, id]
+  checkSelectionLimit()
 }
 function removeEmployee(id: string) {
   selectedIds.value = selectedIds.value.filter(eid => eid !== id)
@@ -105,6 +127,7 @@ function removeEmployee(id: string) {
 function selectAllVisible() {
   const ids = availableEmployees.value.map(e => e.id)
   selectedIds.value = [...selectedIds.value, ...ids]
+  checkSelectionLimit()
 }
 function clearSelection() {
   selectedIds.value = []

@@ -39,6 +39,10 @@ import {
   MpModalBody,
   MpModalFooter,
   MpButtonGroup,
+  MpTooltip,
+  MpFormControl,
+  MpFormLabel,
+  MpFormErrorMessage,
   toast,
   css,
 } from '@mekari/pixel3'
@@ -79,6 +83,35 @@ const ownerIds = computed(() => {
 })
 const owners = computed(() => EMPLOYEES.filter(e => ownerIds.value.includes(e.id)))
 
+// ─── Change owner (single-owner case only) ───────────────────────────────────
+// A single-select modal, not the multi-employee picker drawer — swapping to
+// exactly one other owner is all this needs. Saving just rewrites the
+// `employees` query param — drafted goals this session stay as-is and now
+// apply to the new owner.
+const isChangeOwnerModalOpen = ref(false)
+const changeOwnerSelection = ref('')
+const changeOwnerSubmitted = ref(false)
+const changeOwnerInvalid = computed(() => changeOwnerSubmitted.value && !changeOwnerSelection.value)
+// The current owner can't be re-picked as their own replacement. PxSelectPopover's
+// own `searchable` does the name/code filtering (description carries the code).
+const changeOwnerOptions = computed(() => EMPLOYEES
+  .filter(e => e.id !== owners.value[0]?.id)
+  .map(e => ({ value: e.id, label: e.name, description: employeeMeta(e), photo: e.photo })))
+function openEditOwner() {
+  changeOwnerSelection.value = ''
+  changeOwnerSubmitted.value = false
+  isChangeOwnerModalOpen.value = true
+}
+function closeChangeOwnerModal() {
+  isChangeOwnerModalOpen.value = false
+}
+function saveChangeOwner() {
+  changeOwnerSubmitted.value = true
+  if (!changeOwnerSelection.value) return
+  router.replace({ query: { ...route.query, employees: changeOwnerSelection.value } })
+  closeChangeOwnerModal()
+}
+
 // Table can outgrow the viewport (many columns, a wide per-row contributor
 // stack, etc.) — wrapperRef goes on the outer border div so it scrolls
 // horizontally instead of clipping. No sticky columns here, so hasOverflow
@@ -107,9 +140,10 @@ function openContribModal(list: ReturnType<typeof contributorsFor>) {
 }
 
 // ─── Too many owners for one goal ────────────────────────────────────────────
-// Past this many people the one-goal-at-a-time drawer is the wrong tool —
-// point them at the import flow instead, and warn that saving runs in the
-// background since it fans out to one goal record per owner.
+// useBulkOwnerGate now hard-blocks manual creation past 1 owner, so this only
+// matters for someone who reaches this page directly with a hand-crafted
+// `employees` query — warn that saving runs in the background since it fans
+// out to one goal record per owner.
 const BULK_OWNER_LIMIT = 25
 const isBulkOwnerCount = computed(() => owners.value.length > BULK_OWNER_LIMIT)
 
@@ -188,10 +222,10 @@ const existingGoalsFlat = computed(() => existingGoalsByOwner.value.flatMap(
   entry => entry.goals.map(g => ({ ...g, ownerName: entry.owner.name })),
 ))
 
-// The bulk-owner warning is shown earlier now, right when "Continue" is
-// clicked in the select-employees drawer (useBulkOwnerGate) — by the time
-// someone lands here with >BULK_OWNER_LIMIT owners they've already chosen
-// to proceed, so "Add goal" just opens the drawer as normal.
+// The bulk-owner gate runs earlier now, right when "Continue" is clicked in
+// the select-employees drawer (useBulkOwnerGate) — it hard-blocks past 1
+// owner, so anyone who lands here got here with a single owner (or a
+// hand-crafted URL), and "Add goal" just opens the drawer as normal.
 function openAddGoal() {
   isDrawerOpen.value = true
 }
@@ -463,6 +497,27 @@ const stickyActionBar = css({
   borderTopWidth: '1px', borderTopStyle: 'solid', borderTopColor: 'border.default',
 })
 const ownersBar = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBottom: '5' })
+// Single-owner row only — hover-reveals the edit button, mirroring
+// SelectEmployeesDrawer's `.add-employee-icon` idiom (opacity 0→1 on
+// container hover, so the button still occupies layout space and nothing
+// shifts when it appears).
+const singleOwnerRow = css({
+  display: 'flex', alignItems: 'center', gap: '3',
+  '& .edit-owner-btn': { opacity: '0', transition: 'opacity 0.12s ease' },
+  '&:hover .edit-owner-btn': { opacity: '1' },
+})
+// The row's own `gap: '3'` (12px) already sits between the owner text column
+// and this button — the extra 12px marginLeft brings the total to the
+// requested 24px without changing the avatar-to-text spacing before it.
+const editOwnerBtn = css({ minWidth: 'auto', padding: '0', marginLeft: '3' })
+
+// ─── Change owner modal — PxSelectPopover's new `#option` slot (see
+// docs/patterns/form.md) renders each employee as an avatar row instead of
+// plain text, matching SelectEmployeesDrawer's row look.
+const changeOwnerOptionRow = css({ display: 'flex', alignItems: 'center', gap: '3' })
+const changeOwnerOptionName = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const changeOwnerOptionMeta = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+
 // Overlapping owner avatars — mirrors GoalSubmissionReview.vue's stack.
 // -12px overlap: Pixel's runtime css() ignores the `_notFirst` pseudo (it emits
 // a dead class with no rule), so the negative margin goes on EVERY item as a
@@ -555,12 +610,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Owner summary -->
     <div :class="ownersBar">
       <template v-if="owners.length === 1">
-        <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
-        <MpFlex direction="column" align="flex-start" gap="1">
-          <MpText size="label" weight="semiBold" :class="valueText">{{ owners[0].name }}</MpText>
-          <MpText size="label-small" :class="captionText">{{ employeeMeta(owners[0]) }}</MpText>
-          <MpBadge for="tableStatus" type="completed" size="sm">Active</MpBadge>
-        </MpFlex>
+        <div :class="singleOwnerRow">
+          <PxAvatar :id="owners[0].id" :name="owners[0].name" :src="owners[0].photo" size="lg" variant-color="gray" />
+          <MpFlex direction="column" align="flex-start" gap="1">
+            <MpText size="label" weight="semiBold" :class="valueText">{{ owners[0].name }}</MpText>
+            <MpText size="label-small" :class="captionText">{{ employeeMeta(owners[0]) }}</MpText>
+            <MpBadge for="tableStatus" type="completed" size="sm">Active</MpBadge>
+          </MpFlex>
+          <MpTooltip label="Change" placement="top" use-portal>
+            <MpButton variant="ghost" left-icon="edit" class="edit-owner-btn" :class="editOwnerBtn" aria-label="Change goal owner" @click="openEditOwner" />
+          </MpTooltip>
+        </div>
       </template>
       <template v-else>
         <!-- Hand-rolled stack, not MpAvatarGroup: tried it — it clones slot
@@ -891,6 +951,49 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       :editing-draft="editingDraft"
       @save="saveEdit"
     />
+
+    <!-- Change goal owner -->
+    <ClientOnly>
+      <MpModal :is-open="isChangeOwnerModalOpen" size="md" @close="closeChangeOwnerModal">
+        <MpModalOverlay />
+        <MpModalContent>
+          <MpModalHeader>
+            Change goal owner
+            <MpModalCloseButton @click="closeChangeOwnerModal" />
+          </MpModalHeader>
+          <MpModalBody>
+            <MpFormControl id="change-goal-owner" :is-invalid="changeOwnerInvalid">
+              <MpFormLabel>Select goal owner</MpFormLabel>
+              <PxSelectPopover
+                v-model="changeOwnerSelection"
+                :options="changeOwnerOptions"
+                placeholder="Select goal owner"
+                width="100%"
+                :searchable="true"
+                search-placeholder="Search employee name or ID"
+              >
+                <template #option="{ option }">
+                  <div :class="changeOwnerOptionRow">
+                    <PxAvatar :id="option.value" :name="option.label" :src="option.photo" size="lg" variant-color="gray" />
+                    <MpFlex direction="column" gap="0">
+                      <span :class="changeOwnerOptionName">{{ option.label }}</span>
+                      <span :class="changeOwnerOptionMeta">{{ option.description }}</span>
+                    </MpFlex>
+                  </div>
+                </template>
+              </PxSelectPopover>
+              <MpFormErrorMessage>You must select a goal owner</MpFormErrorMessage>
+            </MpFormControl>
+          </MpModalBody>
+          <MpModalFooter>
+            <MpButtonGroup>
+              <MpButton variant="ghost" @click="closeChangeOwnerModal">Cancel</MpButton>
+              <MpButton variant="primary" @click="saveChangeOwner">Save changes</MpButton>
+            </MpButtonGroup>
+          </MpModalFooter>
+        </MpModalContent>
+      </MpModal>
+    </ClientOnly>
   </MpFlex>
 
   <!-- Delete confirmation -->

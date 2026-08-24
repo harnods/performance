@@ -1,8 +1,8 @@
-// Past this many people the one-goal-at-a-time drawer is the wrong tool —
-// point them at the import flow instead. Checked right when "Select
+// The one-goal-at-a-time drawer only makes sense for a single owner — past
+// that, point them at the import flow instead. Checked right when "Select
 // employees" is saved (not after landing on the New goals page), so the
-// warning shows before the user commits to the bulk flow at all.
-export const BULK_OWNER_LIMIT = 25
+// warning shows before the user commits to the manual flow at all.
+export const MANUAL_CREATE_OWNER_LIMIT = 1
 
 export function useBulkOwnerGate(cycleId: () => string) {
   const router = useRouter()
@@ -13,7 +13,7 @@ export function useBulkOwnerGate(cycleId: () => string) {
   const pendingEmployeeIds = ref<string[]>([])
 
   function continueToNewGoals(employeeIds: string[]) {
-    if (employeeIds.length > BULK_OWNER_LIMIT) {
+    if (employeeIds.length > MANUAL_CREATE_OWNER_LIMIT) {
       pendingEmployeeIds.value = employeeIds
       importSuggestionOpen.value = true
       return
