@@ -20,9 +20,9 @@ defineProps<{
 }>()
 const emit = defineEmits<{ (e: 'open', status: 'green' | 'orange' | 'gray'): void }>()
 
-// Direction only — higher than last cycle is green + caret-up, lower is red +
-// caret-down, on every card. The colour reports which way the number moved; it
-// does not judge whether that movement is good for this particular bucket.
+// Direction only — higher than last cycle is caret-up, lower is caret-down, on
+// every card. The CARET carries the direction; the ink stays default on both,
+// because "up" is not good news on Off track and colouring it green said it was.
 function isUp(deltaPct: number) { return deltaPct >= 0 }
 
 const grid = css({ display: 'grid', gridTemplateColumns: { base: '1fr', lg: 'repeat(3, 1fr)' }, gap: '6' })
@@ -49,7 +49,11 @@ const openBtn = css({
   width: '24px', height: '24px', border: 'none', background: 'transparent', cursor: 'pointer',
 })
 
-const valueRow = css({ display: 'flex', alignItems: 'flex-end', gap: '2' })
+// `last baseline`, not `flex-end`: bottom-aligning the BOXES leaves the figure
+// sitting 4px high, because a 40px/44 line box carries much more half-leading
+// below its baseline than the delta's 12px/16 one does. Aligning the last
+// baselines puts the figure and "vs. last cycle" on one line instead.
+const valueRow = css({ display: 'flex', alignItems: 'last baseline', gap: '2' })
 const bigNumberBase = {
   fontSize: '40px', fontWeight: '600', lineHeight: '44px', letterSpacing: '-0.8px',
   whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums',
@@ -58,13 +62,17 @@ const numberGreen = css({ ...bigNumberBase, color: 'green.700' })
 const numberOrange = css({ ...bigNumberBase, color: 'orange.700' })
 const numberGray = css({ ...bigNumberBase, color: 'text.default' })
 
-const deltaBlock = css({ display: 'flex', flexDirection: 'column', justifyContent: 'flex-end' })
+// No justifyContent — the row aligns this block by its last baseline, so the
+// block is exactly as tall as its two lines and has nothing to distribute.
+const deltaBlock = css({ display: 'flex', flexDirection: 'column' })
 const deltaRow = css({ display: 'flex', alignItems: 'center' })
-const deltaBase = { fontSize: '12px', fontWeight: '600', lineHeight: '16px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
-// Semantic success/danger — deliberately lighter than the green.1000/red.1000
-// end of the scale, which reads almost black at 12px.
-const deltaUp = css({ ...deltaBase, color: 'text.success' })
-const deltaDown = css({ ...deltaBase, color: 'text.danger' })
+// Default ink, both directions. A success/danger pair here read as a verdict on
+// the movement, which the dashboard can't make: Off track climbing 40% was
+// rendered green. The caret alone reports the direction.
+const deltaValue = css({
+  fontSize: '12px', fontWeight: '600', lineHeight: '16px',
+  whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: 'text.default',
+})
 const deltaCaption = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', whiteSpace: 'nowrap' })
 
 // Coverage line is plain body text on every card — regular weight, default
@@ -118,11 +126,9 @@ const cards = computed(() => [
                 <MpIcon
                   :name="isUp(bucket.deltaPct) ? 'caret-up' : 'caret-down'"
                   size="sm"
-                  :color="isUp(bucket.deltaPct) ? 'text.success' : 'text.danger'"
+                  color="text.default"
                 />
-                <span :class="isUp(bucket.deltaPct) ? deltaUp : deltaDown">
-                  {{ Math.abs(bucket.deltaPct) }}%
-                </span>
+                <span :class="deltaValue">{{ Math.abs(bucket.deltaPct) }}%</span>
               </div>
               <span :class="deltaCaption">vs. last cycle</span>
             </div>

@@ -14,8 +14,9 @@ status tone and its own breakdown.
 ```
 ┌─ tinted surface + matching border, radius lg, padding 24px, gap 12px ─┐
 │  Title (H2 20/32, text.default)                    [newtab 24px box]  │
-│  1400  ▼40%          ← 40px/44, tracking -0.8, tabular-nums           │
-│        vs. last cycle                                                 │
+│        ▼40%          ← 40px/44, tracking -0.8, tabular-nums           │
+│  1400  vs. last cycle ← figure + LAST delta line share one baseline   │
+│  ‾‾‾‾  ‾‾‾‾‾‾‾‾‾‾‾‾‾   (align-items: last baseline — see Delta below) │
 │  90% out of 900 employees      (14px REGULAR, text.default)           │
 │ ─────────────────────────────  border-bottom, muted tint, pb 12px     │
 │  Company                  90   ← label 14/20, value 14/20 semibold    │
@@ -70,32 +71,60 @@ a 40px figure and must not compete with it.
 
 ## Delta ("vs. last cycle")
 
-Two stacked lines, right of the figure, bottom-aligned with it:
+Two stacked lines, right of the figure:
 
 - **caret + percentage** — 12px semibold, `caret-up` / `caret-down` by the sign of the change.
 - **"vs. last cycle"** — 12px regular, `text.secondary`.
 
-**The delta is purely directional — higher than last cycle is green, lower is red, on
-every card.** It reports which way the number moved; it does not judge whether that
-movement is good for the bucket. Off track rising therefore reads *green*, and that is
-intended: one consistent reading rule across three cards beats three per-card meanings.
+### Align it to the figure's BASELINE, not the bottom of its box
+
+```ts
+const valueRow = css({ display: 'flex', alignItems: 'last baseline', gap: '2' })
+const deltaBlock = css({ display: 'flex', flexDirection: 'column' })  // no justifyContent
+```
+
+> ⚠️ **`alignItems: 'flex-end'` looks right and isn't.** A 40px/44 line box carries far
+> more half-leading beneath its baseline than the delta's 12px/16 one does, so
+> bottom-aligning the *boxes* leaves the figure sitting **~4px high** and "vs. last cycle"
+> hanging low. Measured on this card: 3.5px before, 0px after. `last baseline` aligns the
+> figure with the delta block's **last** line — plain `baseline` would grab its *first*
+> line ("▲17%") instead and drop the whole block far too low.
+>
+> The block then sizes to its own two lines, so `justifyContent` on it does nothing —
+> don't carry it along.
+
+Same rule applies any time a large figure sits **beside** smaller text. It's specifically
+the side-by-side case: `pages/dashboard.vue`'s KPI cells stack label over value in a
+`flexDirection: 'column'`, so nothing shares a line there and the problem can't arise.
+
+**The caret carries the direction; the ink stays neutral.** `caret-up` when the figure is
+higher than last cycle, `caret-down` when it's lower — and **`text.default` on both the
+caret and the percentage, on every card**:
 
 ```ts
 function isUp(deltaPct: number) { return deltaPct >= 0 }
+
+const deltaValue = css({
+  fontSize: '12px', fontWeight: '600', lineHeight: '16px',
+  whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums', color: 'text.default',
+})
 ```
 
-Colour both the caret and the percentage with the **semantic** pair — `text.success`
-(#186F4A) and `text.danger` (#A8352D). Do **not** reach for the end of the raw scale
-(`green.1000` #0B3524 / `red.1000` #0B3524-dark): at 12px those read as near-black and
-lose the success/danger signal entirely.
-
-```ts
-const deltaUp = css({ ...deltaBase, color: 'text.success' })
-const deltaDown = css({ ...deltaBase, color: 'text.danger' })
+```vue
+<MpIcon :name="isUp(bucket.deltaPct) ? 'caret-up' : 'caret-down'" size="sm" color="text.default" />
+<span :class="deltaValue">{{ Math.abs(bucket.deltaPct) }}%</span>
 ```
 
-`MpIcon` needs the same value on its own `color` prop (`color="text.success"`) — a class
-won't override its inline `--mp-icon-color`. See [`icons.md`](icons.md).
+> ⚠️ **Do not colour the delta `text.success` / `text.danger`.** An earlier revision did,
+> on the rule "up is green, down is red, on every card" — which rendered *Off track up
+> 40%* in success green. Success/danger read as a verdict on the movement, and the
+> dashboard has no basis for one: whether a bucket growing is good depends entirely on
+> which bucket it is. Neutral ink states the change and leaves the judgement to the
+> reader. (This is why the tone lives in the card's **surface** — green/orange/gray
+> already say which bucket you're looking at.)
+
+`MpIcon` needs the value on its own `color` prop — a class won't override its inline
+`--mp-icon-color`. See [`icons.md`](icons.md).
 
 **When there is no baseline, render nothing** — no caret, no "0%". `deltaPct` is
 `number | null`, and the whole delta block is `v-if="deltaPct !== null"`. A fabricated
@@ -158,12 +187,14 @@ silently diverging from `table.md`.
 - Tinted surface + matching border + `borderRadius: 'lg'` + 24px padding; never a plain
   white card for a status figure.
 - Figure = 40px/44, `letterSpacing: '-0.8px'`, `fontVariantNumeric: 'tabular-nums'`.
+- Figure ↔ delta share a line via `alignItems: 'last baseline'` — never `flex-end`, which
+  leaves the figure ~4px high.
 - Header block carries the `border-bottom` in a **muted tint** (never the card's border
   colour), `paddingBottom: '3'`; breakdown rows carry none.
 - Coverage line = regular weight, `text.default`, on every tone.
 - `newtab` icon = `gray.600`, and it opens the source list pre-filtered to that card's
   status (add the filter on the destination if it's missing).
 - Tinted cards: breakdown label and value share one ink; only the neutral card splits them.
-- Delta colour = direction only: up → `text.success`, down → `text.danger`, on every
-  card. No baseline → omit the delta entirely.
+- Delta = caret for direction, `text.default` ink for both caret and percentage — never
+  success/danger. No baseline → omit the delta entirely.
 - Equal-width cards in a `grid` (`repeat(3, 1fr)` at `lg`, single column below).

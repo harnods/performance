@@ -194,8 +194,37 @@ is **not** an extra bar added above the table, and the filter bar above stays un
 </MpTableHead>
 ```
 
-- The bulk-bar cell spans **all** columns (`:colspan="headerColCount"`) and zeroes its padding
-  (`noCellPadding`) so the bar's own 52px is the only height.
+- The bulk-bar cell spans **all** columns (`:colspan="headerColCount"`).
+
+### ⚠️ The 8px misalignment — where the bar's padding goes
+
+The bar's select-all checkbox must land in the **same column as the row checkboxes below
+it**. That works out only if exactly one element supplies the horizontal inset:
+
+```ts
+// ✅ the host <th> keeps its own horizontal padding (the recipe's 8px) and only
+//    trims the vertical; the bar contributes none
+const bulkBarCell = css({ paddingBlock: '1' })                    // 4px top/bottom, 8px sides
+const bulkBar     = css({ height: '40px', paddingInline: '0' })   // no inset of its own
+```
+
+```ts
+// 🚫 both supply one → the bar's checkbox sits 8px right of every row checkbox
+const noCellPadding = css({ padding: '0' })
+const bulkBar = css({ height: '52px', paddingInline: '4' })       // 16px vs the cell's 8px
+```
+
+Measured on the Goals dashboard before the fix: bar checkbox at x=282, row checkboxes at
+x=274. It reads as a wobble in the left edge the moment you select a row.
+
+- **Background and bottom border belong to the `th`, not the bar.** If the bar paints its
+  own `gray.25` while sitting inside the cell's padding, the fill stops short of the row's
+  edges and the header goes two-tone. The `MpTable` recipe already gives `th` an opaque
+  `background.surface` — let it show.
+- Keep the bar's own height (40px) close to the normal header row's so selecting rows
+  doesn't visibly grow the header.
+- Applies to every bulk bar: `GoalBulkActionBar.vue`, `GoalsDashApprovalTable.vue`,
+  `GoalsDashNeedsUpdate.vue`.
 - **The body must not shift.** Because column widths are locked by a `<colgroup>` (Custom
   table — see [`table.md`](table.md)) and only the *header row* is swapped, the body columns
   and rows stay exactly in place when selection toggles on/off. On Company goals specifically,
@@ -272,9 +301,12 @@ const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
 - Table row-select checkbox = inside the first content cell, not its own column.
 - Select-all checkbox = in the accordion/category header (after the caret), not the
   column-header `th`; needs `:is-indeterminate` since it's visible at 0 selected too.
-- Company goals: bulk action bar replaces the header row (`colspan`), 52px, `gray.25`, bottom
-  border; Actions = primary `caret-down` popover; Delete is danger. Body never shifts (widths
-  locked by `colgroup`; only the header row swaps).
+- Company goals: bulk action bar replaces the header row (`colspan`); Actions = primary
+  `caret-down` popover; Delete is danger. Body never shifts (widths locked by `colgroup`;
+  only the header row swaps).
+- Bulk-bar inset comes from the **host `th`** (`paddingBlock: '1'`, keep the horizontal),
+  never from the bar (`paddingInline: '0'`) — otherwise the select-all checkbox sits 8px
+  off the row-checkbox column. Background + bottom border are the `th`'s too.
 - Organization/Team/Individual goals: Actions never swaps the table header. Exactly one
   department selected → `GoalBulkActionsMenu` inline in that department's own accordion header.
   2+ departments selected → `GoalFloatingBulkBar`, fixed to the bottom of the viewport.

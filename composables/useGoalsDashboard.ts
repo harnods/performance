@@ -12,6 +12,7 @@
 // ─────────────────────────────────────────────────────────────────────────────
 
 import type { Goal, GoalLevel, GoalStatus } from './useGoalsStore'
+import type { Submission } from './useGoalApprovalsStore'
 import { isAwaitingApproval, submissionTypeLabel } from './useGoalApprovalsStore'
 import { EMPLOYEES } from '~/utils/employees'
 
@@ -75,11 +76,80 @@ export interface NeedsUpdateRow {
   age: string
 }
 
-// Bucketing is NOT redefined here — the dashboard's two approval cards and the
+// Bucketing is NOT redefined here — the dashboard's three approval cards and the
 // goal-cycle "Awaiting approval" tab must show the same rows, so both call
-// submissionTypeLabel() from useGoalApprovalsStore. Submissions that classify as
-// a plain "Goal update" (edit / close / delete) belong to neither card and are
-// intentionally shown in neither.
+// submissionTypeLabel() from useGoalApprovalsStore. All three of its categories
+// now have a card, so nothing classifies into a bucket the dashboard drops.
+
+// One row of an approval card. The three cards list at two different
+// granularities, so both shapes normalise to this before reaching the table:
+//
+//  - "Goal creation" is per EMPLOYEE. A create bundle's weights only add up to
+//    100% together, so it is only ever decided as one unit — never goal by goal
+//    (see useGoalApprovalsStore's header).
+//  - "Goal progress update" and "Goal edit" are per GOAL. A manager triaging
+//    those is deciding about goals, not people, and one employee can have
+//    several in flight; a row per employee would hide all but the first.
+//
+// `title` is what distinguishes them: set on a goal row, absent on an employee
+// row, and the table shows its Goal column exactly when `unit === 'goal'`.
+export interface ApprovalRow {
+  id: string // row key AND selection key
+  // Every submission the row stands for — 1+. Approving the row approves all of
+  // them, so callers must de-duplicate across rows before committing.
+  submissionIds: string[]
+  ownerId: string
+  submittedAt: string
+  title?: string
+  // How many goals the row covers, summed across its submissions. Only
+  // meaningful on an employee row — on a goal row it would always read 1, so
+  // the column is rendered for unit="employee" only.
+  goalCount?: number
+}
+
+// One row per EMPLOYEE, not per submission. Somebody who sent up two separate
+// create batches is ONE row carrying both, with their goal counts summed — the
+// card answers "who is waiting on me", so the same name appearing twice reads
+// as a duplicate rather than as two batches.
+export function approvalEmployeeRows(submissions: Submission[]): ApprovalRow[] {
+  const byOwner = new Map<string, Submission[]>()
+  for (const s of submissions) {
+    const group = byOwner.get(s.ownerId)
+    if (group) group.push(s)
+    else byOwner.set(s.ownerId, [s])
+  }
+
+  return [...byOwner.values()]
+    .map((group) => {
+      // The row's date is the most recent of its batches, so newest-first below
+      // still means "asked most recently".
+      const newest = group.reduce((a, b) => (a.submittedAt >= b.submittedAt ? a : b))
+      return {
+        id: group[0].ownerId,
+        submissionIds: group.map(s => s.id),
+        ownerId: group[0].ownerId,
+        submittedAt: newest.submittedAt,
+        goalCount: group.reduce((total, s) => total + s.items.length, 0),
+      }
+    })
+    // Grouping loses the caller's ordering, so re-establish newest-first
+    // (docs/patterns/table.md's default order rule).
+    .sort((a, b) => b.submittedAt.localeCompare(a.submittedAt))
+}
+
+// A submission item carries the goal as `after` (proposed) and/or `before`
+// (current). Either one names the goal; a delete request only has `before`.
+export function approvalGoalRows(submissions: Submission[]): ApprovalRow[] {
+  return submissions.flatMap(submission =>
+    submission.items.map(item => ({
+      id: item.id,
+      submissionIds: [submission.id],
+      ownerId: item.ownerId ?? submission.ownerId,
+      submittedAt: submission.submittedAt,
+      title: item.after?.title ?? item.before?.title ?? 'Untitled goal',
+    })),
+  )
+}
 
 export function useGoalsDashboard(scopeCycleIds: Ref<string[]>, now: Ref<Date>) {
   const { goals } = useGoalsStore()
@@ -184,6 +254,7 @@ export function useGoalsDashboard(scopeCycleIds: Ref<string[]>, now: Ref<Date>) 
   )
   const creationSubmissions = computed(() => pendingSubmissions.value.filter(s => submissionTypeLabel(s) === 'Goal creation'))
   const progressSubmissions = computed(() => pendingSubmissions.value.filter(s => submissionTypeLabel(s) === 'Goal progress update'))
+  const editSubmissions = computed(() => pendingSubmissions.value.filter(s => submissionTypeLabel(s) === 'Goal edit'))
 
   return {
     scopedGoals,
@@ -199,5 +270,6 @@ export function useGoalsDashboard(scopeCycleIds: Ref<string[]>, now: Ref<Date>) 
     alignedGoalPct,
     creationSubmissions,
     progressSubmissions,
+    editSubmissions,
   }
 }

@@ -40,12 +40,13 @@ import { isAwaitingApproval, submissionTypeLabel } from '~/composables/useGoalAp
 
 const props = defineProps<{ cycleId: string }>()
 const router = useRouter()
+const route = useRoute()
 
 const { cycles } = useGoalCyclesStore()
 const cycle = computed(() => cycles.value.find(c => c.id === props.cycleId))
 const { submissions } = useGoalApprovalsStore(props.cycleId)
 
-const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal update'] as const
+const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal edit'] as const
 
 // Shared with the Goals dashboard's approval cards — see submissionTypeLabel in
 // useGoalApprovalsStore.ts. (The local version this replaced could never return
@@ -59,8 +60,13 @@ function typeLabelFor(submission: Submission): string {
 // manager can still reopen it.
 const openSubmissions = computed(() => submissions.value.filter(isAwaitingApproval))
 
-const typeFilter = ref('')
-const search = ref('')
+// Deep-linkable filters, so a surface that summarises this queue can hand off
+// the rows behind a figure instead of dumping the user on an unfiltered list
+// (docs/patterns/dashboard-section.md). The Goals dashboard's Goal creation
+// card uses both when one employee's row merges several batches. Unknown values
+// are ignored rather than filtering everything away.
+const typeFilter = ref(TYPE_OPTIONS.includes(route.query.type as typeof TYPE_OPTIONS[number]) ? (route.query.type as string) : '')
+const search = ref(typeof route.query.q === 'string' ? route.query.q : '')
 const filteredSubmissions = computed(() => {
   let result = openSubmissions.value
   if (typeFilter.value) result = result.filter(s => typeLabelFor(s) === typeFilter.value)

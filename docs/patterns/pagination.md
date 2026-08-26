@@ -56,10 +56,15 @@ const paged = computed(() => filtered.value.slice((currentPage.value - 1) * rows
 - Reset `currentPage = 1` when rows-per-page or any filter changes.
 - Footer attaches to the table container (same column, no gap), `height: 52px`, `paddingInline: '4'`.
 
-## Progressive "Load more" (non-table lists)
+## Progressive "Load more" (lists, and dashboard tables)
 
-For a plain list inside a card/drawer (not an `MpTable`) — e.g. a boxed list of
-people — use progressive reveal instead of paged rows-per-page. Seen in
+Use progressive reveal instead of paged rows-per-page for a plain list inside a
+card/drawer (not an `MpTable`) — e.g. a boxed list of people — **and for a table inside a
+dashboard section card** (see the fixed-height section below) — all four of the Goals
+dashboard's tables now do. A list **page**'s table keeps the 52px paged footer above;
+don't convert those.
+
+Seen in
 `pages/goals/goal-cycles/[id]/index.vue` (owner rows), `components/ReviewerModals.vue`
 (`loadMoreAdd`), `components/AddGoalDrawer.vue`'s "Goal members" box
 (`components/AddGoalDrawer.vue:558-561` for the logic, `:1215-1240` for the markup), and
@@ -86,7 +91,64 @@ function loadMore() { visibleCount.value += PAGE }
 - Default page size **10**, same as table pagination.
 - No "rows per page" control and no prev/next — this is append-only, not paged.
 - The "Showing X of Y" caption always sits directly beside (or above) the "Load more" link, never separated.
-- Reset `visibleCount` back to `PAGE` whenever the underlying drawer/form resets (e.g. in the host component's `resetForm()`).
+- Reset `visibleCount` back to `PAGE` whenever the underlying data or the host
+  drawer/form resets — `watch(() => props.rows, () => { visibleCount.value = PAGE })`,
+  the append-only counterpart of `currentPage = 1`.
+- The bar disappears once everything is revealed (`v-if="remaining > 0"`); it never
+  renders as a disabled "Load 0 more".
+
+### In a table: append into a height-capped scroll region
+
+A dashboard section card ([`dashboard-section.md`](dashboard-section.md)) is one panel
+among several, so a card that grew by 10 rows per click would push every panel below it
+off screen. **The table's scroll region is height-capped, so "Load more" scrolls instead
+of growing the page.** Reference: `components/GoalsDashApprovalTable.vue`.
+
+```ts
+// Caps at ~7 rows. maxHeight, NOT height: a card with three rows shouldn't sit in
+// 400px of dead space. The point is that the card stops growing, not that it is
+// always this tall.
+const scrollRegion = css({ maxHeight: '400px', overflowY: 'auto' })
+```
+
+```vue
+<MpFlex direction="column">
+  <MpTableContainer :class="scrollRegion">
+    <MpTable :is-hoverable="false">
+      <MpTableHead is-fixed>…</MpTableHead>   <!-- sticky header, Pixel's own -->
+      <MpTableBody>…</MpTableBody>
+    </MpTable>
+  </MpTableContainer>
+
+  <div v-if="remaining > 0" :class="loadMoreBar">
+    <MpText size="label" :class="captionText">Showing {{ visibleRows.length }} of {{ countLabel(rows.length) }}.</MpText>
+    <MpTextlink as="button" size="label" @click="loadMore">Load {{ Math.min(PAGE, remaining) }} more.</MpTextlink>
+  </div>
+</MpFlex>
+```
+
+- **`<MpTableHead is-fixed>` is the sticky header — do not hand-roll it.** The prop sets
+  `data-table-head-fixed`, and the recipe supplies `position: sticky; top: 0; z-index:
+  sticky` plus a `0 2px gray.100` shadow that separates the header from the rows sliding
+  under it. Writing `position: sticky` onto your own `headCell` class reimplements it
+  without the shadow and without the right z-index. See
+  [`table.md`](table.md#mptablehead-props) for the component's other two props.
+- **Put the cap ON `MpTableContainer`, not a wrapper `<div>`.** The component is already
+  the scrollport (it sets `overflow-x: auto`), and sticky resolves against the nearest
+  scrollport. A wrapper would scroll while the header stayed pinned to an inner
+  scrollport that never moves — the header would just scroll away.
+  *(This is not the `overflow: hidden` mistake [`table.md`](table.md) warns about;
+  `overflow-y: auto` is exactly what that element is for.)*
+- Don't give `th` a background of your own — the `MpTable` recipe already paints it
+  opaque `background.surface`, which is what hides the rows passing beneath.
+- The bulk-action bar replaces the header row inside the same `<thead>`, so it inherits
+  the sticky behaviour for free — it stays reachable however far you've scrolled. Its
+  padding contract is in [`checkbox.md`](checkbox.md#-the-8px-misalignment--where-the-bars-padding-goes).
+- **The "Load more" bar sits OUTSIDE the scroll region**, as the card's last child, same
+  52px height and `paddingInline: '4'` as the paged footer it replaces. Inside, it would
+  scroll out of reach.
+- Select-all covers the **revealed** rows (`visibleRows`), not the whole dataset — same
+  rule as paged select-all covering the current page.
 
 ### Boxed list container
 

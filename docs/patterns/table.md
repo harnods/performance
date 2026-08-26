@@ -46,6 +46,13 @@ Almost every rule below branches on this. Identify which you're building **befor
 
 Invariants: `as="th"`/`as="td"` always set; trailing empty-header action column; `MpTableContainer` is the direct scroll host; pagination footer shares the same `MpFlex direction="column"` (no gap) — see [`pagination.md`](pagination.md).
 
+> A Default table inside a **dashboard section card** swaps that paged footer for a
+> progressive "Load more" bar and caps `MpTableContainer` at `maxHeight: 400px` with
+> `<MpTableHead is-fixed>`, so the card can't grow down the page. Everything else here
+> still applies. All three Goals-dashboard tables do this
+> (`GoalsDashNeedsUpdate.vue`, `GoalsDashApprovalTable.vue` ×3). See
+> [`pagination.md`](pagination.md#in-a-table-append-into-a-height-capped-scroll-region).
+
 ## Custom table skeleton (fixed / horizontally scrollable)
 
 The outer border **must** be on a separate wrapper `<div>`, not on `MpTableContainer` (the component already sets `overflow-x:auto`; putting `overflow:hidden` on the same element kills scrolling). `pages/goals/goal-cycles/[id]/index.vue:545-573`:
@@ -93,6 +100,26 @@ const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'mid
 // Custom table
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 ```
+
+## `MpTableHead` props
+
+There is **no `MpTableHeader` component** — the `thead` wrapper is `MpTableHead`, and it
+carries three boolean props. Reach for these before writing CSS that does the same job:
+
+| Prop | Renders | Effect |
+|---|---|---|
+| `is-fixed` | `data-table-head-fixed` | **Sticky header**: `position: sticky; top: 0; z-index: sticky` + a `0 2px gray.100` shadow. Use it whenever the table body scrolls in a capped region — never hand-roll `position: sticky` on your own `headCell` class. |
+| `is-bordered` (default **true**) | `data-table-head-bordered` | The header's bottom border. |
+| `is-narrowed` (default **true**) | `data-table-head-narrowed` | The compact header row height. |
+
+```vue
+<MpTableContainer :class="scrollRegion">   <!-- maxHeight + overflowY: auto -->
+  <MpTable :is-hoverable="false">
+    <MpTableHead is-fixed>…</MpTableHead>
+```
+
+`MpTableCell` likewise has `is-fixed` (→ `data-table-cell-fixed`, the sticky first/last
+**column**) — that's the one `useTableHorizontalScroll` drives on Custom tables.
 
 ## Header (`th`) styling
 
@@ -474,6 +501,7 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 - [ ] `paddingTop/Bottom: '2'` (8px) on every cell
 - [ ] vertical align: middle (A) / top (B, or any table with a ≥3-line column)
 - [ ] no explicit `th` bg/border (let the recipe do it)
+- [ ] body scrolls in a capped region? → `<MpTableHead is-fixed>`, not custom sticky CSS
 - [ ] `:is-hoverable="false"` unless the row is interactive
 - [ ] name cell = plain `<span>` styled as a link
 - [ ] numeric cols right-aligned + `tabular-nums`

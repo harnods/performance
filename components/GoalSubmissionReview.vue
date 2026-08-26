@@ -246,12 +246,12 @@ const acceptedCount = computed(() => submission.value?.items.filter(i => accepte
 const totalCount = computed(() => submission.value?.items.length ?? 0)
 
 // A "Goal creation" bundle (many goals authored at once) uses the per-goal
-// accept checklist + Request revision flow. A "Goal update"/"Goal progress"
+// accept checklist + Request revision flow. A "Goal edit"/"Goal progress"
 // submission is a single simple change — a straight Approve/Reject decision,
 // no per-row accept and no revision loop. A published draft (an `edit` that
 // just clears isDraft) counts as a creation too — see isCreateLikeItem.
 const isCreateSubmission = computed(() => !!submission.value && submission.value.items.some(isCreateLikeItem))
-const requestTitle = computed(() => (isCreateSubmission.value ? 'Goal creation' : 'Goal update'))
+const requestTitle = computed(() => (isCreateSubmission.value ? 'Goal creation' : 'Goal edit'))
 
 // Reject reason is typed inline before it's confirmed — rejectSubmission
 // only gets called once the manager confirms, so a half-typed reason
