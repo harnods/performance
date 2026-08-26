@@ -9,7 +9,8 @@
 
     Goals progress      → Needs update (show/hide)
     Goals distribution  → Full / < Half / < Quarter (drives the donut colour band)
-    Awaiting approval   → Goal creation + Goal progress update (both off = section hidden)
+    Awaiting approval   → Goal creation + Goal progress update + Goal edit
+                          (all three off = section hidden)
 
   Exists so a demo can reach every layout variant without editing seed data —
   notably the progress-update card, which no seeded submission produces.
@@ -29,7 +30,7 @@ import {
 } from '@mekari/pixel3'
 import type { DistributionScenario } from '~/composables/useGoalsDashboardScenario'
 
-const { needsUpdate, distribution, goalCreation, progressUpdate, reset } = useGoalsDashboardScenario()
+const { needsUpdate, distribution, goalCreation, progressUpdate, goalEdit, reset } = useGoalsDashboardScenario()
 
 const distributionOptions: { key: DistributionScenario, label: string, hint: string }[] = [
   { key: 'default', label: 'Default', hint: 'Real data' },
@@ -132,8 +133,16 @@ const choiceHint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.seco
                 @update:is-checked="progressUpdate = $event"
               />
             </MpFlex>
-            <MpText v-if="!goalCreation && !progressUpdate" size="label-small" :class="choiceHint">
-              Both off — section hidden
+            <MpFlex as="span" align="center" justify="space-between" gap="2">
+              <span :class="rowLabel">Goal edit</span>
+              <MpToggle
+                id="scenario-goal-edit"
+                :is-checked="goalEdit"
+                @update:is-checked="goalEdit = $event"
+              />
+            </MpFlex>
+            <MpText v-if="!goalCreation && !progressUpdate && !goalEdit" size="label-small" :class="choiceHint">
+              All off — section hidden
             </MpText>
           </div>
         </div>

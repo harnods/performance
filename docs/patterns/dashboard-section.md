@@ -54,25 +54,145 @@ empty card and let the survivor span the row:
 
 ```ts
 const singleGrid = css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '6' })
-
-const hasCreation = computed(() => creationSubmissions.value.length > 0)
-const hasProgress = computed(() => progressSubmissions.value.length > 0)
-const showAwaitingApproval = computed(() => hasCreation.value || hasProgress.value)
-const approvalGrid = computed(() => (hasCreation.value && hasProgress.value ? pairGrid : singleGrid))
+const approvalGrid = computed(() => (hasA.value && hasB.value ? pairGrid : singleGrid))
 ```
+
+Every card in the row empty → the whole section (heading included) is omitted, same
+reasoning as time-boxed sections below.
+
+### …but a row of TABLE cards goes full-width once the tables get wide
+
+Two-up is a budget of ~526px of table per card at 1440px. That fits identity + date +
+action, and nothing wider. **Awaiting approval** outgrew it: its two per-goal cards carry
+a goal title *and* an owner *and* a date *and* an action, and 4 columns do not fit.
+
+> ⚠️ **This was tried, measured, and reverted — don't re-litigate it from a mockup.**
+> Building the 2-up produced **857px of table in a 526px card**. Every fix made it worse
+> somewhere else:
+>
+> | Attempt | Result |
+> |---|---|
+> | as-is | 857px — "View details" off-screen |
+> | let title + meta wrap | 677px, rows grew 55px → **97px** (3-line titles) |
+> | also drop avatar + job-title line | 544px — *still* 18px over |
+> | floor the Goal column at `minWidth: 260px` | 801px, and the action cell rendered at x=1526 against a container edge of 1391 with `scrollWidth === clientWidth`, i.e. **clipped and unreachable even by scrolling** |
+>
+> The furniture alone is fixed: Date 110px + action button 140px = 250px, leaving 276px to
+> share between a free-text title and a person. There is no setting that fits.
+
+So the section stacks full-width cards (`singleGrid` for all three) instead — where each
+table measures 1125px into a 1125px container, no overflow, action always visible:
 
 ```vue
 <div v-if="showAwaitingApproval" :class="sectionBlock">
   <span :class="sectionTitle">Awaiting approval</span>
-  <div :class="approvalGrid">
-    <GoalsDashApprovalTable v-if="hasCreation" … />
-    <GoalsDashApprovalTable v-if="hasProgress" … />
+  <div :class="singleGrid">
+    <GoalsDashApprovalTable v-if="creationRows.length" title="Goal creation"        unit="employee" :rows="creationRows" @open="openApprovalRow" />
+    <GoalsDashApprovalTable v-if="progressRows.length" title="Goal progress update" unit="goal"     :rows="progressRows" @open="openApprovalRow" />
+    <GoalsDashApprovalTable v-if="editRows.length"     title="Goal edit"            unit="goal"     :rows="editRows"     @open="openApprovalRow" />
   </div>
 </div>
 ```
 
-Both cards empty → the whole section (heading included) is omitted, same reasoning as
-time-boxed sections below.
+Full-width doesn't make the section taller, because each card's table is height-capped
+and scrolls — see the progressive-pagination section in
+[`pagination.md`](pagination.md). The donut pair, whose cards hold charts rather than
+tables, stays two-up.
+
+**Every table in a dashboard section uses that treatment**, not just these three:
+"Needs progress update" does too. A dashboard has no single "the" table, so none of them
+may own the page's vertical space — a paged 52px footer on one card while another grows
+freely reads as two different components.
+
+Rule of thumb: **≥3 columns in the card's table, or a free-text column (a goal/record
+title), → full width.** Identity + date + action still fits a half.
+
+### Per-record vs per-person rows in a summary card
+
+A card that lists things awaiting a decision must be granular at whatever level the
+decision is actually made — otherwise rows either offer a choice nobody can make, or
+hide records behind the first one for that person.
+
+| Card | Row = | Why |
+|---|---|---|
+| Goal creation | one **employee** (all their batches) | A create bundle's weights only sum to 100% together, so it is approved or rejected as one unit. Splitting it per goal would offer a per-goal decision the store can't honour. |
+| Goal progress update | one **goal** | Independent single changes. One employee can have several in flight; per-employee rows would show only the first. |
+| Goal edit | one **goal** | Same. |
+
+### A per-person row is per PERSON — one name, one row
+
+A person can send up several batches. The employee card still shows them **once**: a
+repeated name reads as a duplicated row, not as two requests, and the card's question is
+"who is waiting on me". `approvalEmployeeRows()` groups by `ownerId` and:
+
+- **sums** `items.length` across their batches into `goalCount`;
+- takes the **most recent** `submittedAt` as the row's date, then re-sorts newest-first
+  (grouping loses the caller's ordering, and [`table.md`](table.md)'s default order rule
+  still applies);
+- keeps **every** batch id in `submissionIds`.
+
+**The row discloses when it aggregates.** A summed figure beside a single date otherwise
+reads as one request, so a merged row adds a `text.secondary` caption under the count:
+
+```
+Goals requested
+             9
+across 2 requests
+```
+
+Never merge rows without surfacing the merge — that's the difference between summarising
+and hiding.
+
+**On a per-goal card the goal title is a link**, styled with [`table.md`](table.md)'s
+canonical plain-`<span>` name cell (`text.link`, underline on hover — not `MpTextlink`,
+which brings button padding). It opens the same request the row's "View details" does, so
+the row has two routes to one destination: the title for someone scanning goals, the
+button for someone working the queue top-to-bottom. The employee cards' first column is a
+person, not a record, so it stays plain text.
+
+**A per-person row states how much it stands for.** One Goal creation row hides whole
+batches, so it carries a **Goals requested** column — numeric, therefore right-aligned +
+`tabular-nums` + `width: '1%'` per [`table.md`](table.md). The per-goal cards don't get
+it: there it would read `1` on every row. That keeps both variants at four columns, so
+the bulk bar's `colspan` is a constant rather than a per-unit branch.
+
+Both shapes normalise to one `ApprovalRow` before they reach the table
+(`useGoalsDashboard.ts` — `approvalEmployeeRows()` / `approvalGoalRows()`), and the table
+switches on a `unit: 'employee' | 'goal'` prop: `'goal'` adds the leading Goal column, and
+each unit re-nouns every count ("Total: 8 goals" / "Total: 13 employees", "1 goal
+selected" / "1 employee selected"). Two components would have drifted; two row-builders
+and one table do not.
+
+### One row → many submissions: approving and opening
+
+`ApprovalRow.submissionIds` is **always an array** (1+), never a single id — an employee
+row can cover several batches, and several goal rows can point at one. So:
+
+**Bulk approve flattens, then de-duplicates**, or a shared batch commits twice. The toast
+counts *submissions*, since that is what actually happened — selection is by row, but
+approval is by batch:
+
+```ts
+const submissionIds = new Set(props.rows.filter(r => selected.value.has(r.id)).flatMap(r => r.submissionIds))
+submissionIds.forEach(id => approveSubmission(id))
+```
+
+**"View details" branches on the count.** One batch → its review page. Several → there is
+no single page to open, so hand off to the source queue with that employee and type
+pre-applied, which lists each batch with its own action (the drill-down rule above):
+
+```ts
+function openApprovalRow(row: ApprovalRow) {
+  if (row.submissionIds.length > 1) return goToApprovalQueue(row.ownerId)
+  openSubmission(row.submissionIds[0])
+}
+// → /goals/goal-cycles/{id}?name=…&tab=awaiting&q={employee name}&type=Goal creation
+```
+
+`GoalApprovalQueue.vue` initialises `search` from `?q` and `typeFilter` from `?type`
+(ignoring an unknown `type` rather than filtering everything away); the cycle page already
+reads `?tab`. Opening the newest batch and silently dropping the rest is the tempting
+shortcut — don't: the row promised N requests and would deliver one.
 
 ### ⚠️ This does not violate table.md's "no outer border"
 
@@ -195,12 +315,18 @@ read `useGoalApprovalsStore`, so that store owns the rules:
 
 ```ts
 // composables/useGoalApprovalsStore.ts — the single source of truth
-export type SubmissionTypeLabel = 'Goal creation' | 'Goal progress update' | 'Goal update'
+export type SubmissionTypeLabel = 'Goal creation' | 'Goal progress update' | 'Goal edit'
 export function submissionTypeLabel(submission: Pick<Submission, 'items'>): SubmissionTypeLabel { … }
 export function isAwaitingApproval(submission: Pick<Submission, 'status'>): boolean {
   return submission.status !== 'approved'
 }
 ```
+
+These three strings are **user-visible on four surfaces** — the dashboard's card titles,
+`GoalApprovalQueue.vue`'s and `pages/inbox/awaiting-approval/goals.vue`'s `TYPE_OPTIONS`
+filters, and `GoalSubmissionReview.vue`'s `requestTitle`. Renaming one means renaming the
+union and all four call sites in the same change; a card titled differently from the
+filter option that selects it reads as two different things.
 
 `GoalApprovalQueue.vue` and `useGoalsDashboard.ts` both import these. This is not
 theoretical: the queue's own local copy could never return `'Goal progress update'`
@@ -215,8 +341,10 @@ keys; the destination validates the param and ignores unknown values. Worked exa
 [`stat-card.md`](stat-card.md).
 
 - Put the rule in the **store** that owns the records, not in either component.
-- A category that no dashboard card represents (here `'Goal update'`) simply appears in
-  neither card — that is correct, not a gap to paper over with a fallback bucket.
+- All three categories now have a card, so nothing classifies into a bucket the dashboard
+  drops. If you add a fourth category, either give it a card or leave it out of every
+  card deliberately — never paper over it with a fallback bucket, which is how
+  "Goal creation" once inflated from 13 to 21.
 
 ## Filter bar
 
@@ -234,11 +362,22 @@ scope.
   in the parent), never shown as a permanent empty panel.
 - Card heading = title + total/description with **no gap**.
 - Side-by-side rows use `minmax(0, 1fr)` columns, never a bare `1fr`.
-- A two-up row with one empty side renders one full-width card, not an empty half; both
-  sides empty → omit the whole section.
+- A two-up row with one empty side renders one full-width card, not an empty half; every
+  card empty → omit the whole section.
+- A row of table cards goes full-width once a table needs ≥3 columns or carries a
+  free-text title column; chart cards stay two-up.
+- A decision card's row granularity matches the granularity of the decision — per goal
+  when goals are decided one at a time, per employee when a batch is decided as a unit.
+- A per-person row appears **once** per person, summing across their submissions, and says
+  so ("across N requests") whenever it merged more than one.
+- `submissionIds` is always an array: bulk approve flattens + de-duplicates, and a
+  multi-batch row's action drills into the filtered source list rather than opening one
+  batch and dropping the rest.
 - A card mirroring another surface imports that surface's filter/bucket rules from the
   owning store; never re-derive them locally.
 - The card owns the border — the table inside stays a borderless Default table.
 - Empty section = centered title + caption, no illustration, no button.
 - Always pair a snapshot with "Last updated" + a Refresh that re-derives from a `now` ref.
 - Filters apply on Apply, not reactively.
+- Every table in a section: progressive "Load more" into a `maxHeight: 400px`
+  `MpTableContainer` with `<MpTableHead is-fixed>` — never a paged 52px footer.

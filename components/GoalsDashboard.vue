@@ -22,14 +22,18 @@
 <script setup lang="ts">
 import { MpFlex, MpText, MpButton, MpIcon, toast, css } from '@mekari/pixel3'
 import { customRangeValue, type PeriodValue } from '~/utils/periodPicker'
-import type { Submission } from '~/composables/useGoalApprovalsStore'
 import type { GoalStatus } from '~/composables/useGoalsStore'
 import { DISTRIBUTION_PERCENT, isDemoSubmission } from '~/composables/useGoalsDashboardScenario'
+import { approvalEmployeeRows, approvalGoalRows, type ApprovalRow } from '~/composables/useGoalsDashboard'
+import { employeeById } from '~/utils/employees'
 
 const props = defineProps<{ isNewInterface: boolean }>()
 
 const router = useRouter()
 const { cycles } = useGoalCyclesStore()
+// Every submission, unscoped — openSubmission only needs to resolve an id back
+// to its cycle, and the row it came from was already scope-filtered.
+const { submissions: allSubmissions } = useGoalApprovalsStore()
 
 // ─── Dev scenario (NOT product) ──────────────────────────────────────────────
 // Everything that reads `scenario` exists so a demo can reach every layout
@@ -151,7 +155,7 @@ const {
   needsUpdate,
   assignedEmployees, unassignedEmployees, assignedEmployeePct,
   alignedGoalCount, notAlignedGoalCount, alignedGoalPct,
-  creationSubmissions, progressSubmissions,
+  creationSubmissions, progressSubmissions, editSubmissions,
 } = useGoalsDashboard(scopeCycleIds, now)
 
 // ─── Needs update visibility ─────────────────────────────────────────────────
@@ -203,30 +207,44 @@ function onAssignedSegment(segment: 'filled' | 'remainder') {
 function onAlignedSegment() { goToGoalHierarchy() }
 
 // ─── Awaiting approval visibility ────────────────────────────────────────────
-// The section is absent when nothing is outstanding, and a lone card takes the
-// full width rather than sitting next to an empty half.
+// The section is absent when nothing is outstanding; each card is absent when
+// its own bucket is empty. Every card spans the full width — two of the three
+// list per GOAL, which needs room for a goal title AND its owner, so the old
+// two-up grid squeezed them (see docs/patterns/dashboard-section.md).
 // Each card is gated by its scenario toggle. When a toggle is on but the scope
 // holds no real request of that type, demo rows stand in — otherwise the
 // progress-update card could never be shown at all (no seeded submission
 // produces one).
 const scenarioCycleId = computed(() => scopeCycleIds.value[0] ?? 'seed-26-h1')
-const creationRows = computed(() => {
+const creationSource = computed(() => {
   if (!scenario.goalCreation.value) return []
   return creationSubmissions.value.length
     ? creationSubmissions.value
     : scenario.demoSubmissions('create', scenarioCycleId.value, 6)
 })
-const progressRows = computed(() => {
+const progressSource = computed(() => {
   if (!scenario.progressUpdate.value) return []
   return progressSubmissions.value.length
     ? progressSubmissions.value
     : scenario.demoSubmissions('progress', scenarioCycleId.value, 4)
 })
+const editSource = computed(() => {
+  if (!scenario.goalEdit.value) return []
+  return editSubmissions.value.length
+    ? editSubmissions.value
+    : scenario.demoSubmissions('edit', scenarioCycleId.value, 5)
+})
 
-const hasCreation = computed(() => creationRows.value.length > 0)
-const hasProgress = computed(() => progressRows.value.length > 0)
-const showAwaitingApproval = computed(() => hasCreation.value || hasProgress.value)
-const approvalGrid = computed(() => (hasCreation.value && hasProgress.value ? pairGrid : singleGrid))
+// Goal creation is per employee (a bundle is decided as one unit, and several
+// bundles from one person merge into their single row); the other two are per
+// goal. Both shapes normalise to ApprovalRow in useGoalsDashboard.
+const creationRows = computed(() => approvalEmployeeRows(creationSource.value))
+const progressRows = computed(() => approvalGoalRows(progressSource.value))
+const editRows = computed(() => approvalGoalRows(editSource.value))
+
+const showAwaitingApproval = computed(() =>
+  creationRows.value.length > 0 || progressRows.value.length > 0 || editRows.value.length > 0,
+)
 
 // ─── Distribution overrides ──────────────────────────────────────────────────
 const assignedPct = computed(() => (
@@ -263,12 +281,34 @@ const STATUS_TO_FILTER_KEY: Record<GoalStatus, string> = {
   gray: 'notstarted',
 }
 function openStatus(status: GoalStatus) { goToGoalsIndex(STATUS_TO_FILTER_KEY[status]) }
-function openSubmission(submission: Submission) {
+// A row carries submissionIds, not one Submission — an employee row can merge
+// several batches. One batch → open its review page. Several → there is no
+// single page to open, so hand off to the cycle's own Awaiting approval tab
+// with that employee and type pre-filtered, which lists each batch separately
+// (the drill-down rule in docs/patterns/dashboard-section.md).
+function openApprovalRow(row: ApprovalRow) {
+  if (row.submissionIds.length > 1) return goToApprovalQueue(row.ownerId)
+  openSubmission(row.submissionIds[0])
+}
+
+function goToApprovalQueue(ownerId: string) {
+  const cycle = appliedCycle.value
+  if (!cycle) return
+  router.push({
+    path: `/goals/goal-cycles/${cycle.id}`,
+    // `q` and `type` are read by GoalApprovalQueue; `tab` by the cycle page.
+    query: { name: cycle.name, tab: 'awaiting', q: employeeById(ownerId)?.name ?? '', type: 'Goal creation' },
+  })
+}
+
+function openSubmission(submissionId: string) {
   // A scenario-invented row has no review page behind it.
-  if (isDemoSubmission(submission)) {
+  if (isDemoSubmission({ id: submissionId })) {
     toast.notify({ id: 'goals-dash-demo-submission', position: 'top-center', variant: 'error', title: 'Demo row — no request to open' })
     return
   }
+  const submission = allSubmissions.value.find(s => s.id === submissionId)
+  if (!submission) return
   const cycle = cycles.value.find(c => c.id === submission.cycleId)
   router.push({
     path: `/goals/goal-cycles/${submission.cycleId}/awaiting-approval/${submission.id}`,
@@ -294,7 +334,8 @@ const sectionTitle = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32p
 // minmax(0, 1fr), not 1fr: a bare `1fr` is minmax(auto, 1fr), so a wide table
 // inside one card pushes its column past half and the pair renders lopsided.
 const pairGrid = css({ display: 'grid', gridTemplateColumns: { base: 'minmax(0, 1fr)', xl: 'repeat(2, minmax(0, 1fr))' }, gap: '6' })
-// One card left standing spans the full width instead of half a row.
+// Full-width rows, stacked. Used by Awaiting approval, whose tables are too
+// wide for half a row, and by a lone card left standing in any pair row.
 const singleGrid = css({ display: 'grid', gridTemplateColumns: 'minmax(0, 1fr)', gap: '6' })
 const sectionBlock = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 </script>
@@ -376,22 +417,31 @@ const sectionBlock = css({ display: 'flex', flexDirection: 'column', gap: '4' })
       </div>
     </div>
 
-    <!-- Awaiting approval — hidden entirely when nothing is outstanding; a lone
-         card fills the row (see docs/patterns/dashboard-section.md) -->
+    <!-- Awaiting approval — hidden entirely when nothing is outstanding; every
+         card spans the full width, stacked (see docs/patterns/dashboard-section.md) -->
     <div v-if="showAwaitingApproval" :class="sectionBlock">
       <span :class="sectionTitle">Awaiting approval</span>
-      <div :class="approvalGrid">
+      <div :class="singleGrid">
         <GoalsDashApprovalTable
-          v-if="hasCreation"
+          v-if="creationRows.length"
           title="Goal creation"
-          :submissions="creationRows"
-          @open="openSubmission"
+          unit="employee"
+          :rows="creationRows"
+          @open="openApprovalRow"
         />
         <GoalsDashApprovalTable
-          v-if="hasProgress"
+          v-if="progressRows.length"
           title="Goal progress update"
-          :submissions="progressRows"
-          @open="openSubmission"
+          unit="goal"
+          :rows="progressRows"
+          @open="openApprovalRow"
+        />
+        <GoalsDashApprovalTable
+          v-if="editRows.length"
+          title="Goal edit"
+          unit="goal"
+          :rows="editRows"
+          @open="openApprovalRow"
         />
       </div>
     </div>

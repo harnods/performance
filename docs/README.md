@@ -45,7 +45,7 @@ Sequence for any UI work:
 | [`patterns/sidebar-menu.md`](patterns/sidebar-menu.md) | The left nav — items, level-2 submenu, active state, collapse. |
 | [`patterns/tabs.md`](patterns/tabs.md) | Section/status tabs (pageTabs) vs in-page detail tabs (MpTabs). |
 | [`patterns/filter-bar.md`](patterns/filter-bar.md) | The filter row above a table (search + export always on the right). |
-| [`patterns/pagination.md`](patterns/pagination.md) | Pagination controls under a table. |
+| [`patterns/pagination.md`](patterns/pagination.md) | Pagination under a table — the paged 52px footer, **and** progressive "Load more" (lists, and dashboard tables in a height-capped scroll region). |
 | [`patterns/checkbox.md`](patterns/checkbox.md) | Checkboxes — label gap (the 24px bug), checkbox-in-table (first cell), and the bulk-action bar. |
 | [`patterns/form.md`](patterns/form.md) | Any form — fields, selects, grid, section headers. |
 | [`patterns/page-form.md`](patterns/page-form.md) | Full-page create/edit vs drawer; when to use which. |

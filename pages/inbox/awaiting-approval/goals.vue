@@ -53,12 +53,12 @@ const cycleNameById = computed(() => new Map(cycles.value.map(c => [c.id, c.name
 // "Goal progress update" has no real submissions yet — that feature isn't
 // built anywhere in the app to produce one — but the filter already
 // accounts for it so nothing here needs to change once it exists.
-const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal update'] as const
+const TYPE_OPTIONS = ['Goal creation', 'Goal progress update', 'Goal edit'] as const
 
 // A published draft (an `edit` that just clears isDraft) counts as a
 // creation, same as a literal `create` item — see isCreateLikeItem.
 function typeLabelFor(submission: Submission): string {
-  return submission.items.some(isCreateLikeItem) ? 'Goal creation' : 'Goal update'
+  return submission.items.some(isCreateLikeItem) ? 'Goal creation' : 'Goal edit'
 }
 
 // "Awaiting approval" shows only what's genuinely pending the reviewer's

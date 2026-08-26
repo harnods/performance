@@ -6,7 +6,8 @@
 
   Default table (docs/patterns/table.md): no outer border, middle-aligned (the
   tallest cell stacks 2 lines), 8px cell padding, row-select checkbox inside the
-  first content cell, 52px pagination footer attached below.
+  first content cell, progressive "Load more" into a height-capped scroll region
+  (docs/patterns/pagination.md) — same as the Awaiting approval cards.
 
   Default order is MOST STALE FIRST, not newest-first — this is a triage
   worklist, so the goal most overdue for an update leads. A manual sort on Last
@@ -20,12 +21,7 @@ import {
   MpButton,
   MpAvatar,
   MpCheckbox,
-  MpTooltip,
-  MpPopover,
-  MpPopoverTrigger,
-  MpPopoverContent,
-  MpPopoverList,
-  MpPopoverListItem,
+  MpTextlink,
   MpTableContainer,
   MpTable,
   MpTableHead,
@@ -52,22 +48,22 @@ const sortedRows = computed(() => {
   return [...props.rows].sort((a, b) => (a.updatedAt.getTime() - b.updatedAt.getTime()) * dir)
 })
 
-// ─── Pagination ──────────────────────────────────────────────────────────────
-const rowsPerPage = ref(10)
-const rowsPerPageOptions = [10, 25, 50, 100]
-const currentPage = ref(1)
-const totalRows = computed(() => sortedRows.value.length)
-const totalPages = computed(() => Math.max(1, Math.ceil(totalRows.value / rowsPerPage.value)))
-const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
-const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
-const pagedRows = computed(() => sortedRows.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
-watch([rowsPerPage, () => props.rows], () => { currentPage.value = 1 })
+// ─── Progressive pagination ──────────────────────────────────────────────────
+// Append-only "Load more" into a height-capped scroll region, same as the
+// Awaiting approval cards — a dashboard section must not grow down the page
+// when you reveal more rows (docs/patterns/pagination.md).
+const PAGE = 10
+const visibleCount = ref(PAGE)
+const visibleRows = computed(() => sortedRows.value.slice(0, visibleCount.value))
+const remaining = computed(() => Math.max(0, sortedRows.value.length - visibleCount.value))
+function loadMore() { visibleCount.value += PAGE }
+watch(() => props.rows, () => { visibleCount.value = PAGE })
 
 // ─── Selection + bulk reminder ───────────────────────────────────────────────
 const selected = ref<Set<string>>(new Set())
 const selectedCount = computed(() => selected.value.size)
-const pageIds = computed(() => pagedRows.value.map(r => r.id))
-const isAllSelected = computed(() => pageIds.value.length > 0 && pageIds.value.every(id => selected.value.has(id)))
+const visibleIds = computed(() => visibleRows.value.map(r => r.id))
+const isAllSelected = computed(() => visibleIds.value.length > 0 && visibleIds.value.every(id => selected.value.has(id)))
 
 function toggleSelect(id: string) {
   const next = new Set(selected.value)
@@ -76,8 +72,8 @@ function toggleSelect(id: string) {
 }
 function toggleSelectAll() {
   const next = new Set(selected.value)
-  if (isAllSelected.value) pageIds.value.forEach(id => next.delete(id))
-  else pageIds.value.forEach(id => next.add(id))
+  if (isAllSelected.value) visibleIds.value.forEach(id => next.delete(id))
+  else visibleIds.value.forEach(id => next.add(id))
   selected.value = next
 }
 function clearSelection() { selected.value = new Set() }
@@ -107,12 +103,17 @@ function formatDate(d: Date) {
 // ─── Styles ──────────────────────────────────────────────────────────────────
 // Tallest body cell = Goal owner (name + meta) and Last updated (date + age),
 // both 2 lines → whole table stays verticalAlign middle (docs/patterns/table.md).
+// Sticky-on-scroll is NOT set here — `<MpTableHead is-fixed>` owns it.
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const tightCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const actionHead = css({ width: '1%', whiteSpace: 'nowrap' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '1%', whiteSpace: 'nowrap' })
-const noCellPadding = css({ padding: '0' })
+// Keeps the cell's own horizontal padding so the bar's select-all checkbox
+// lines up with the row checkboxes below — see company-goals.vue's
+// `noCellPadding` and docs/patterns/checkbox.md.
+const bulkBarCell = css({ paddingBlock: '1' })
+const scrollRegion = css({ maxHeight: '400px', overflowY: 'auto' })
 
 // Exactly 20px between the section heading block and the table. NOT the `5`
 // spacing token — Pixel's scale puts that at 1.3rem / 20.8px.
@@ -133,8 +134,11 @@ const dateAge = css({ fontSize: '12px', lineHeight: '16px', color: 'text.danger'
 const goalTitle = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 // Bulk bar — 52px / gray.25 / bottom border, replaces the header row
 // (docs/patterns/checkbox.md).
-const bulkBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px', paddingInline: '4', background: 'gray.25' })
-const paginationBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '52px', paddingInline: '4' })
+// paddingInline: 0 — the host <th> supplies the inset, and its own background
+// covers the full row width. Same contract as components/GoalBulkActionBar.vue.
+const bulkBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', height: '40px', paddingInline: '0' })
+// Sits OUTSIDE the scroll region so it stays reachable however far you scroll.
+const loadMoreBar = css({ display: 'flex', alignItems: 'center', gap: '1', height: '52px', paddingInline: '4' })
 </script>
 
 <template>
@@ -147,12 +151,13 @@ const paginationBar = css({ display: 'flex', alignItems: 'center', justifyConten
     <!-- No empty state: the parent only renders this section when there is at
          least one stale goal AND the cycle is in its final week. -->
     <MpFlex direction="column">
-      <MpTableContainer>
+      <MpTableContainer :class="scrollRegion">
         <MpTable :is-hoverable="false">
-          <MpTableHead>
+          <!-- is-fixed = Pixel's own sticky header. Don't hand-roll it on the th. -->
+          <MpTableHead is-fixed>
             <!-- 1+ selected → the whole header row becomes the bulk bar -->
             <MpTableRow v-if="selectedCount > 0">
-              <MpTableCell as="th" :colspan="4" :class="noCellPadding">
+              <MpTableCell as="th" :colspan="4" :class="bulkBarCell">
                 <div :class="bulkBar">
                   <MpFlex align="center" gap="4">
                     <MpFlex align="center" gap="2">
@@ -196,7 +201,7 @@ const paginationBar = css({ display: 'flex', alignItems: 'center', justifyConten
           </MpTableHead>
 
           <MpTableBody>
-            <MpTableRow v-for="row in pagedRows" :key="row.id">
+            <MpTableRow v-for="row in visibleRows" :key="row.id">
               <MpTableCell as="td" :class="tightCell">
                 <MpFlex align="center" gap="2">
                   <MpCheckbox
@@ -239,38 +244,10 @@ const paginationBar = css({ display: 'flex', alignItems: 'center', justifyConten
         </MpTable>
       </MpTableContainer>
 
-      <div :class="paginationBar">
-        <MpFlex align="center" gap="3">
-          <MpText size="label" :class="captionText">Rows per page</MpText>
-          <MpPopover is-close-on-select use-portal placement="bottom-start">
-            <MpPopoverTrigger>
-              <MpButton variant="ghost" size="sm" right-icon="chevrons-down">{{ rowsPerPage }}</MpButton>
-            </MpPopoverTrigger>
-            <MpPopoverContent>
-              <MpPopoverList>
-                <MpPopoverListItem
-                  v-for="opt in rowsPerPageOptions"
-                  :key="opt"
-                  :is-active="opt === rowsPerPage"
-                  @click="rowsPerPage = opt; currentPage = 1"
-                >
-                  {{ opt }}
-                </MpPopoverListItem>
-              </MpPopoverList>
-            </MpPopoverContent>
-          </MpPopover>
-          <MpText size="label" :class="captionText">Showing {{ showingFrom }}–{{ showingTo }} of {{ totalRows }}</MpText>
-        </MpFlex>
-
-        <MpFlex align="center" gap="2">
-          <MpText size="label" :class="captionText">Page {{ currentPage }} of {{ totalPages }}</MpText>
-          <MpTooltip label="Prev page" use-portal>
-            <MpButton variant="ghost" size="sm" left-icon="chevrons-left" :is-disabled="currentPage === 1" @click="currentPage--" />
-          </MpTooltip>
-          <MpTooltip label="Next page" use-portal>
-            <MpButton variant="ghost" size="sm" left-icon="chevrons-right" :is-disabled="currentPage === totalPages" @click="currentPage++" />
-          </MpTooltip>
-        </MpFlex>
+      <!-- Progressive "Load more" — count caption always beside the link -->
+      <div v-if="remaining > 0" :class="loadMoreBar">
+        <MpText size="label" :class="captionText">Showing {{ visibleRows.length }} of {{ rows.length }} goals.</MpText>
+        <MpTextlink as="button" size="label" @click="loadMore">Load {{ Math.min(PAGE, remaining) }} more.</MpTextlink>
       </div>
     </MpFlex>
   </div>
