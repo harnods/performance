@@ -1131,11 +1131,19 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
           <MpTooltip
             v-if="grp.overWeighted"
-            label="Goal weight is over 100% — this cycle requires each employee's goal weights to total 100%."
+            label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
             use-portal
             placement="top"
           >
-            <MpIcon name="warning-triangle" size="sm" :class="css({ color: 'icon.warning', cursor: 'help' })" />
+            <!-- warning-triangle in the warning-orange token. Colour is forced via a
+                 deep selector: MpIcon's color prop / :class don't reach the glyph and
+                 the icon.warning token isn't emitted in this app's Panda build. var()
+                 keeps it token-driven with a hex fallback (same as the warning-bold
+                 fallback). Outline (no fill variant): the fill glyph asset isn't
+                 resolvable in this build and makes MpIcon render nothing. -->
+            <span :class="css({ display: 'inline-flex', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' }, '& path': { fill: 'var(--mp-icon-warning, #BC560D)' } })">
+              <MpIcon name="warning-triangle" size="sm" />
+            </span>
           </MpTooltip>
           <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
             Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
