@@ -779,7 +779,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                         </span>
                       </MpFlex>
                     </MpFlex>
-                    <span v-else :class="captionText">—</span>
+                    <div v-else :class="progressTrack" />
                   </MpTableCell>
 
                   <!-- Status -->
