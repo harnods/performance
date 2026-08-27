@@ -177,4 +177,32 @@ describe('useGoalsStore — mutations', () => {
     store.updateGoal(target.id, { title: originalTitle })
     expect(store.goals.value.find(g => g.id === target.id)!.title).toBe(originalTitle)
   })
+
+  it('resetToSeed restores every cycle (26 H1 + 26 H2 + archive), not just 26 H1', () => {
+    const store = useGoalsStore()
+    store.resetToSeed()
+    const cycles = new Set(store.goals.value.map(g => g.cycleId))
+    expect(cycles.has('seed-26-h1')).toBe(true)
+    // The bug this guards: resetToSeed used seed() (26 H1 only), wiping H2.
+    expect(store.goals.value.some(g => g.cycleId === 'seed-26-h2')).toBe(true)
+    expect(store.goals.value.some(g => g.cycleId === 'archive-legacy')).toBe(true)
+  })
+
+  it('resetToSeed leaves 26 H2 weights at exactly 100% per owner (H1 stays intentionally over)', () => {
+    const store = useGoalsStore()
+    store.resetToSeed()
+    const sum = (cycle: string) => {
+      const m: Record<string, number> = {}
+      for (const g of store.goals.value) {
+        if (g.cycleId === cycle && !g.isDraft) m[g.ownerId] = (m[g.ownerId] ?? 0) + g.weight
+      }
+      return m
+    }
+    const h2 = sum('seed-26-h2')
+    for (const [owner, w] of Object.entries(h2)) {
+      if (w !== 0) expect(w, `26 H2 owner ${owner}`).toBe(100)
+    }
+    // H1 keeps the seeded over-weights that demo the warning.
+    expect(sum('seed-26-h1').cinta).toBe(121)
+  })
 })
