@@ -1210,7 +1210,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 27
+const SEED_VERSION = 28
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress
@@ -1287,12 +1287,14 @@ function seed26H2(): Goal[] {
       // Company goals roll up from aligned goals (KRs hidden) — keep the
       // deterministic early-cycle status/progress rather than a KR average.
       const max = g.max ?? 100
-      let status: GoalStatus
       let pill: number
-      if (r < 8) { status = 'gray'; pill = 0 }
-      else if (r < 25) { status = 'gray'; pill = 30 + (r % 25) }
-      else if (r < 45) { status = 'orange'; pill = 20 + (r % 20) }
-      else { status = 'green'; pill = 45 + (r % 35) }
+      if (r < 8) pill = 0
+      else if (r < 25) pill = 30 + (r % 25)
+      else if (r < 45) pill = 20 + (r % 20)
+      else pill = 45 + (r % 35)
+      // Status must agree with progress: 0% is Not started (gray), otherwise
+      // On/Off track by the same threshold resolveCompanyRollup uses.
+      const status: GoalStatus = pill === 0 ? 'gray' : pill >= 70 ? 'green' : 'orange'
       return { ...commonoverride, status, pill, value: Math.round((max * pill) / 100), min: g.min ?? 0, max }
     }
     // Non-company measurable: goal progress = average of its (early) KRs.
@@ -1318,8 +1320,18 @@ function resolveCompanyRollup(list: Goal[]): Goal[] {
     return { ...goal, pill: pct, value: Math.round(min + (max - min) * (pct / 100)), status }
   })
 }
+// Every goal must show a progress bar. A goal with no `unit` rendered a bare
+// "—" in the Progress column (and could keep a stale green "On track" status),
+// which reads as broken/missing data. Give unit-less goals a 0–100% scale and
+// derive their progress from status so the bar and status always agree:
+// green = 100% (done), orange = 50% (in progress), gray = 0% (Not started).
+function ensureMeasurable(g: Goal): Goal {
+  if (g.unit) return g
+  const pct = g.status === 'green' ? 100 : g.status === 'orange' ? 50 : 0
+  return { ...g, unit: 'percent', min: 0, max: 100, value: pct, pill: pct }
+}
 function buildSeededGoals(): Goal[] {
-  return resolveCompanyRollup([...seed(), ...seed26H2(), ...seedArchive()])
+  return resolveCompanyRollup([...seed(), ...seed26H2(), ...seedArchive()].map(ensureMeasurable))
 }
 const goals = ref<Goal[]>(buildSeededGoals())
 let loadedFromStorage = false

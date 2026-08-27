@@ -188,6 +188,20 @@ describe('useGoalsStore — mutations', () => {
     expect(store.goals.value.some(g => g.cycleId === 'archive-legacy')).toBe(true)
   })
 
+  it('every seeded goal has a unit (no "—" progress) and a status that agrees with its progress', () => {
+    const { goals } = useGoalsStore()
+    for (const g of goals.value) {
+      // No goal should render a bare "—": the Progress cell shows "—" only
+      // when unit is missing.
+      expect(g.unit, `${g.cycleId} ${g.code} has no unit`).toBeTruthy()
+      const pill = g.pill ?? 0
+      // "Not started" (gray) iff there is no progress; any progress reads as
+      // On/Off track, never Not started.
+      if (g.status === 'gray') expect(pill, `${g.cycleId} ${g.code} gray but pill ${pill}`).toBe(0)
+      else expect(pill, `${g.cycleId} ${g.code} ${g.status} but pill 0`).toBeGreaterThan(0)
+    }
+  })
+
   it('resetToSeed leaves 26 H2 weights at exactly 100% per owner (H1 stays intentionally over)', () => {
     const store = useGoalsStore()
     store.resetToSeed()
