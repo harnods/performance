@@ -239,6 +239,19 @@ const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 // Only matters when this cycle actually enforces the weight rule.
 const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
 
+// Owners whose committed (non-draft) goal weights exceed 100% — an invalid
+// state a weight-mandatory cycle should never reach, surfaced as a warning on
+// the owner's accordion header. Gated on weightMandatory like fullOwnerIds.
+const overWeightedOwnerIds = computed(() => {
+  if (!cycle.value?.weightMandatory) return new Set<string>()
+  const sums = new Map<string, number>()
+  for (const g of goals.value) {
+    if (g.isDraft) continue
+    sums.set(g.ownerId, (sums.get(g.ownerId) ?? 0) + g.weight)
+  }
+  return new Set([...sums].filter(([, w]) => w > 100).map(([id]) => id))
+})
+
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
@@ -605,7 +618,7 @@ function deactivateScenario() {
 const visibleOwners = computed(() =>
   distinctOwnerIds.value.slice(0, visibleOwnerCount.value).map((id) => {
     const g = ownerGoals.value.get(id) ?? []
-    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length }
+    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length, overWeighted: overWeightedOwnerIds.value.has(id) }
   }),
 )
 
@@ -1115,10 +1128,30 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpText size="label-small" :class="captionText">{{ grp.owner.id }} · {{ grp.owner.title }} · {{ grp.owner.department }}</MpText>
           </MpFlex>
         </span>
-        <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
-          Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
-        </span>
-        <MpText v-else size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+        <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
+          <!-- Inline filled warning-triangle (not MpIcon): this Pixel build fetches
+               variant glyphs from cdn.mekari.design at runtime, which doesn't resolve
+               here, so MpIcon renders nothing. Colour = warning token with hex
+               fallback. NOTE: the span must be MpTooltip's ONLY slot child — a comment
+               node here becomes the trigger and nothing shows. -->
+          <MpTooltip
+            v-if="grp.overWeighted"
+            label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
+            use-portal
+            placement="top"
+          >
+            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help' })" aria-label="Goal weight over 100%">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path fill="currentColor" d="M13.3 3.9a1.5 1.5 0 0 0-2.6 0L1.9 19.2A1.5 1.5 0 0 0 3.2 21.5h17.6a1.5 1.5 0 0 0 1.3-2.3L13.3 3.9Z" />
+                <path fill="#fff" d="M11 9h2v5h-2zM11 16.5h2v2h-2z" />
+              </svg>
+            </span>
+          </MpTooltip>
+          <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
+            Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
+          </span>
+          <MpText v-else size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+        </MpFlex>
       </button>
 
       <template v-if="singleOwnerView || isOwnerOpen(grp.id)">
