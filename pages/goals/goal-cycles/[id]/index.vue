@@ -1129,17 +1129,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpFlex>
         </span>
         <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
+          <!-- Inline filled warning-triangle (not MpIcon): this Pixel build fetches
+               variant glyphs from cdn.mekari.design at runtime, which doesn't resolve
+               here, so MpIcon renders nothing. Colour = warning token with hex
+               fallback. NOTE: the span must be MpTooltip's ONLY slot child — a comment
+               node here becomes the trigger and nothing shows. -->
           <MpTooltip
             v-if="grp.overWeighted"
             label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
             use-portal
             placement="top"
           >
-            <!-- Inline filled warning-triangle, not MpIcon: this Pixel build fetches
-                 variant glyphs (warning-triangle) from cdn.mekari.design at runtime,
-                 which doesn't resolve here, so MpIcon renders nothing. Inline SVG is
-                 self-contained and always paints. Colour = the warning token
-                 (icon.warning) with a hex fallback, same pattern as warning-bold. -->
             <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help' })" aria-label="Goal weight over 100%">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
                 <path fill="currentColor" d="M13.3 3.9a1.5 1.5 0 0 0-2.6 0L1.9 19.2A1.5 1.5 0 0 0 3.2 21.5h17.6a1.5 1.5 0 0 0 1.3-2.3L13.3 3.9Z" />
