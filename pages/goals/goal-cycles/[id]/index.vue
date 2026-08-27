@@ -239,18 +239,27 @@ const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 // Only matters when this cycle actually enforces the weight rule.
 const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
 
-// Owners whose committed (non-draft) goal weights exceed 100% — an invalid
-// state a weight-mandatory cycle should never reach, surfaced as a warning on
-// the owner's accordion header. Gated on weightMandatory like fullOwnerIds.
-const overWeightedOwnerIds = computed(() => {
-  if (!cycle.value?.weightMandatory) return new Set<string>()
+// Each owner's committed (non-draft) goal-weight total — the source both
+// the mismatch check and the header's visible percentage read from. Only
+// owners with at least one committed goal get an entry: someone who hasn't
+// committed anything yet reads as "not started", not "0% — wrong", so they're
+// left out of the mismatch set below rather than flagged.
+const ownerWeightTotals = computed(() => {
   const sums = new Map<string, number>()
+  if (!cycle.value?.weightMandatory) return sums
   for (const g of goals.value) {
     if (g.isDraft) continue
     sums.set(g.ownerId, (sums.get(g.ownerId) ?? 0) + g.weight)
   }
-  return new Set([...sums].filter(([, w]) => w > 100).map(([id]) => id))
+  return sums
 })
+// Owners whose committed goal weights don't total exactly 100% — over OR
+// under, an invalid state a weight-mandatory cycle should never reach —
+// surfaced as a warning on the owner's accordion header. Gated on
+// weightMandatory like fullOwnerIds.
+const weightMismatchOwnerIds = computed(() =>
+  new Set([...ownerWeightTotals.value].filter(([, w]) => w !== 100).map(([id]) => id)),
+)
 
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
@@ -319,7 +328,17 @@ const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'gre
 // Unfiltered count — drives the Closed tab's empty state (true "no closed
 // goals in this cycle" vs. filters/search just narrowing the current tab
 // down to zero, which the table shell handles on its own, same as All goals).
-const closedGoalsTotal = computed(() => goals.value.filter(g => g.isClosed).length)
+// restore as closedGoalsTotal directly when the scenario control below is removed.
+const _productClosedGoalsTotal = computed(() => goals.value.filter(g => g.isClosed).length)
+// Dev-preview only (see dev-scenario-control.md) — forces the Closed tab's
+// empty state even when the cycle actually has closed goals, so the empty
+// state can be previewed without deleting seed data. Default (off) shows the
+// real closed goals.
+const closedEmptyScenarioActive = ref(false)
+const currentClosedScenario = computed(() => (closedEmptyScenarioActive.value ? 'empty' : 'default'))
+function activateClosedEmptyScenario() { closedEmptyScenarioActive.value = true }
+function deactivateClosedScenario() { closedEmptyScenarioActive.value = false }
+const closedGoalsTotal = computed(() => (closedEmptyScenarioActive.value ? 0 : _productClosedGoalsTotal.value))
 
 const sourceGoals = computed(() => {
   const base = goalsView.value === 'my'
@@ -327,7 +346,9 @@ const sourceGoals = computed(() => {
     : goalsView.value === 'direct-reports' ? myDirectReportsGoals.value : goals.value
   // "Closed" tab narrows to closed goals only, on top of whatever scope the
   // (still-visible) All-goals dropdown last had selected.
-  const scoped = activeTab.value === 'closed' ? base.filter(g => g.isClosed) : base
+  const scoped = activeTab.value === 'closed'
+    ? (closedEmptyScenarioActive.value ? [] : base.filter(g => g.isClosed))
+    : base
   return scoped.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && goalMatchesAllFilters(g, appliedFilters.value))
 })
 
@@ -611,14 +632,21 @@ function deactivateScenario() {
   const batch = activeRequestBatch.value
   if (batch) removeBatch(batch.id)
 }
-
 // Owner-level pagination: the first N owners (accordion groups). `draftCount`
 // powers the "Publish N goals" bulk textlink next to the goal count — shown
-// only for owners who still have unsubmitted drafts.
+// only for owners who still have unsubmitted drafts. `weightTotal` is only
+// meaningful (and only read in the template) when `weightMismatch` is true.
 const visibleOwners = computed(() =>
   distinctOwnerIds.value.slice(0, visibleOwnerCount.value).map((id) => {
     const g = ownerGoals.value.get(id) ?? []
-    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length, overWeighted: overWeightedOwnerIds.value.has(id) }
+    return {
+      id,
+      owner: ownerOf(id),
+      total: g.length,
+      draftCount: ownerDraftGoals(id).length,
+      weightMismatch: weightMismatchOwnerIds.value.has(id),
+      weightTotal: ownerWeightTotals.value.get(id) ?? 0,
+    }
   }),
 )
 
@@ -789,6 +817,13 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
 // organization-goals.vue's collapseAllBtn for the same nested-interactive
 // constraint — a real link/button can't nest inside another button).
 const publishDraftsLink = css({ display: 'inline-flex', color: 'text.link', cursor: 'pointer', fontSize: '12px', lineHeight: '16px', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
+// The owner's actual total weight next to the warning triangle — a bare
+// tooltip+icon only tells you *that* something's wrong, not whether this
+// owner is over or under 100%, so the number itself has to be on-screen.
+const weightMismatchText = css({ fontSize: '12px', fontWeight: '600', lineHeight: '16px', color: 'var(--mp-icon-warning, #BC560D)', fontVariantNumeric: 'tabular-nums' })
+function weightMismatchLabel(total: number) {
+  return `Goal weight totals ${total}%, not 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals.`
+}
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
@@ -940,15 +975,18 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </Teleport>
 
   <!-- Dev scenario control — floating, bottom-right of the page (not a real
-       product control). Previews the bulk-approved-goal-creation banner +
-       pending-row skeleton merge without running a real >10-owner batch
-       through Select employees → New goals → Approve. See the "Dev scenario
-       control" section above for what it actually does. Hidden on the
-       archive cycle for the same reason as the header actions above — the
-       scenario it previews is a "New goals" batch-approval flow, which
-       doesn't apply here. Also only relevant on the All-goals tab — the
-       batch it previews lands there, not on Closed/My requests/Awaiting/Info. -->
-  <div v-if="!cycle?.isArchive && activeTab === 'all'" :class="scenarioFab">
+       product control). Single axis of state, so a flat MpPopoverList (see
+       dev-scenario-control.md) — its content depends on which tab is active,
+       since the two tabs preview unrelated things:
+         All goals  → Default vs Async — previews the bulk-approved-goal-
+           creation banner + pending-row skeleton merge without running a
+           real >10-owner batch through Select employees → New goals →
+           Approve.
+         Closed     → Default vs Empty — forces the Closed tab's empty state
+           for preview even when the cycle already has closed goals.
+       Hidden on the archive cycle for the same reason as the header actions
+       above — neither scenario applies to that frozen, migrated bucket. -->
+  <div v-if="!cycle?.isArchive && (activeTab === 'all' || activeTab === 'closed')" :class="scenarioFab">
     <MpPopover is-close-on-select use-portal placement="top-end">
       <MpPopoverTrigger>
         <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
@@ -956,9 +994,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </button>
       </MpPopoverTrigger>
       <MpPopoverContent>
-        <MpPopoverList>
+        <MpPopoverList v-if="activeTab === 'all'">
           <MpPopoverListItem :is-active="currentScenario === 'default'" @click="deactivateScenario">Default</MpPopoverListItem>
           <MpPopoverListItem :is-active="currentScenario === 'async'" @click="activateAsyncScenario">Async (goals being submitted)</MpPopoverListItem>
+        </MpPopoverList>
+        <MpPopoverList v-else>
+          <MpPopoverListItem :is-active="currentClosedScenario === 'default'" @click="deactivateClosedScenario">Default</MpPopoverListItem>
+          <MpPopoverListItem :is-active="currentClosedScenario === 'empty'" @click="activateClosedEmptyScenario">Empty</MpPopoverListItem>
         </MpPopoverList>
       </MpPopoverContent>
     </MpPopover>
@@ -1132,17 +1174,20 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <!-- Filled Pixel warning-triangle in the warning-orange token. Colour is set
                on the wrapping span (the glyph uses currentColor) because MpIcon's own
                color prop / :class don't reach it and icon.warning isn't emitted in this
-               app's Panda build; var() keeps it token-driven with a hex fallback.
-               NOTE: the span must be MpTooltip's ONLY slot child — a comment node here
-               becomes the trigger and nothing shows. -->
+               app's Panda build; var() keeps it token-driven with a hex fallback. The
+               actual weight percentage sits right next to it — a tooltip alone only
+               tells you *something's* wrong, not whether this owner is over or under
+               100%. NOTE: the span must be MpTooltip's ONLY slot child — a comment
+               node here becomes the trigger and nothing shows. -->
           <MpTooltip
-            v-if="grp.overWeighted"
-            label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
+            v-if="grp.weightMismatch"
+            :label="weightMismatchLabel(grp.weightTotal)"
             use-portal
             placement="top"
           >
-            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' } })" aria-label="Goal weight over 100%">
+            <span :class="css({ display: 'inline-flex', alignItems: 'center', gap: '1', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' } })" :aria-label="`Goal weight is ${grp.weightTotal}%, not 100%`">
               <MpIcon name="warning-triangle" variant="fill" size="sm" />
+              <span :class="weightMismatchText">{{ grp.weightTotal }}%</span>
             </span>
           </MpTooltip>
           <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">

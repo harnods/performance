@@ -419,6 +419,11 @@ function g(partial: Omit<Goal, 'cycleId'>): Goal {
   return withKrProgress(base)
 }
 
+// Five goals below (RC-07, EB-01, RP-02, AI-02, AP-04 — one per owner:
+// Rizal/Evelyn/Rio/Ali/Andi) carry `isClosed: true` so the Closed tab has
+// real dummy data out of the box instead of always showing its empty state.
+// All five were already fully-achieved ('green', pill ≥ 97) goals, so closing
+// them reads as "done and locked", not an arbitrary pick.
 function seed(): Goal[] {
   return [
   g({
@@ -473,7 +478,7 @@ function seed(): Goal[] {
     id: 'rc-07', level: 'individual', ownerId: 'rizal', department: 'Management',
     category: 'Customer', subCategory: 'Stakeholder',
     code: 'RC-07', title: 'New strategic wholesale partnerships (+5 partnerships)',
-   weight: 10, contributorIds: ['ali'], viewerIds: [], status: 'green', unit: 'count', value: 5, pill: 100, min: 0, max: 5,
+   weight: 10, contributorIds: ['ali'], viewerIds: [], status: 'green', unit: 'count', value: 5, pill: 100, min: 0, max: 5, isClosed: true,
   }),
   g({
     id: 'rc-08', level: 'individual', ownerId: 'rizal', department: 'Management',
@@ -516,7 +521,7 @@ function seed(): Goal[] {
     category: 'Financial', subCategory: 'Reporting',
     code: 'EB-01', title: 'Budget variance — all departments (≤ 5%)',
     alignedToId: 'rc-02', updatedAt: '15 Mar 2026, 15:00',
-    weight: 15, contributorIds: ['agung', 'linda'], viewerIds: ['agung'], status: 'green', unit: 'percent', value: 4.5, pill: 90, min: 0, max: 5,
+    weight: 15, contributorIds: ['agung', 'linda'], viewerIds: ['agung'], status: 'green', unit: 'percent', value: 4.5, pill: 90, min: 0, max: 5, isClosed: true,
   }),
   g({
     id: 'eb-02', level: 'organization', ownerId: 'evelyn', department: 'Accounting',
@@ -578,7 +583,7 @@ function seed(): Goal[] {
     id: 'rp-02', level: 'organization', ownerId: 'rio', department: 'HR',
     category: 'Internal Process', subCategory: 'Talent Acquisition',
     code: 'RP-02', title: 'Time to hire — all roles avg (≤ 30 days)',
-   weight: 15, contributorIds: ['alfian'], viewerIds: ['evelyn', 'ali', 'bayu', 'andi', 'cinta'], status: 'green', unit: 'count', value: 29, pill: 97, min: 0, max: 30,
+   weight: 15, contributorIds: ['alfian'], viewerIds: ['evelyn', 'ali', 'bayu', 'andi', 'cinta'], status: 'green', unit: 'count', value: 29, pill: 97, min: 0, max: 30, isClosed: true,
   }),
   g({
     id: 'rp-03', level: 'organization', ownerId: 'rio', department: 'HR',
@@ -677,7 +682,7 @@ function seed(): Goal[] {
     id: 'ai-02', level: 'organization', ownerId: 'ali', department: 'Sales',
     category: 'Customer', subCategory: 'Retention',
     code: 'AI-02', title: 'Client retention rate (≥ 88%)',
-   weight: 15, contributorIds: ['daud', 'jessie'], viewerIds: ['daud', 'jessie'], status: 'green', unit: 'percent', value: 89.5, pill: 102, min: 0, max: 88,
+   weight: 15, contributorIds: ['daud', 'jessie'], viewerIds: ['daud', 'jessie'], status: 'green', unit: 'percent', value: 89.5, pill: 102, min: 0, max: 88, isClosed: true,
   }),
   g({
     id: 'ai-03', level: 'team', ownerId: 'ali', department: 'Sales',
@@ -807,7 +812,7 @@ function seed(): Goal[] {
     id: 'ap-04', level: 'organization', ownerId: 'andi', department: 'Kitchen',
     category: 'Internal Process', subCategory: 'Food Safety',
     code: 'AP-04', title: 'HACCP audit pass rate (100%)',
-   weight: 12, contributorIds: ['indah'], viewerIds: ['cinta'], status: 'green', unit: 'percent', value: 97.7, pill: 98, min: 0, max: 100,
+   weight: 12, contributorIds: ['indah'], viewerIds: ['cinta'], status: 'green', unit: 'percent', value: 97.7, pill: 98, min: 0, max: 100, isClosed: true,
   }),
   g({
     id: 'ap-05', level: 'team', ownerId: 'andi', department: 'Kitchen',

@@ -13,7 +13,7 @@ Two exist today:
 
 | Where | What it previews |
 |---|---|
-| `pages/goals/goal-cycles/[id]/index.vue` | Default vs **Async** — the bulk-approved-goal-creation banner + pending-row skeleton merge |
+| `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 
 ## The FAB is fixed — copy it exactly
@@ -49,11 +49,16 @@ const scenarioFabButton = css({
 ## Flat list vs grouped panel
 
 - **One axis of state** → `MpPopoverList` of `MpPopoverListItem` with `:is-active`, and
-  `is-close-on-select` (the goal-cycle control).
-- **Several independent groups** → a `css()` panel inside `MpPopoverContent`: a
-  `Scenario` title + a `Reset` textlink, then one labelled group per axis. **Omit
-  `is-close-on-select`** — flipping several toggles in a row shouldn't dismiss the panel
-  each time.
+  `is-close-on-select`. The goal-cycle detail control is this shape *twice over* — its
+  `MpPopoverContent` swaps between two different flat lists depending on which tab is
+  active (`v-if="activeTab === 'all'"` / `v-else`), rather than combining both axes into
+  one panel, since a page can only ever be on one of those tabs at a time.
+- **Several independent groups that can all be true at once** → a `css()` panel inside
+  `MpPopoverContent`: a `Scenario` title + a `Reset` textlink, then one labelled group
+  per axis. **Omit `is-close-on-select`** — flipping several toggles in a row shouldn't
+  dismiss the panel each time. `GoalsDashScenarioControl.vue` is this shape, because its
+  three axes (goals progress, distribution, awaiting approval) are all visible on the
+  dashboard simultaneously.
 
 Group labels are 12px/600 uppercase `text.secondary`; toggles follow
 [`toggle.md`](toggle.md)'s label-before-switch form (bare `<MpToggle />`, label as a
