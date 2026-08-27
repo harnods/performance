@@ -27,24 +27,34 @@ const group1: NavItem[] = [
 // here; the "current" menu points at unbuilt top-level stub pages.
 const goalsNewInterface = useCookie('goals-new-interface', { default: () => true })
 
-const goalsChildrenCurrent: PanelItem[] = [
-  { label: 'Individual goals', path: '/goals/individual-goals' },
-  { label: 'Team goals', path: '/goals/team-goals' },
-  { label: 'Organization goals', path: '/goals/organization-goals' },
-  { label: 'Company goals', path: '/goals/company-goals' },
-  { divider: true },
-  { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
-  { label: 'Goal categories', path: '/goals/goal-categories' },
-  { label: 'Goal settings', path: '/goals/goal-settings' },
-]
+// Goal settings is Super-Admin-only (see useGoalsStore's isSuperAdmin — the
+// route itself also guards this, in case someone reaches it directly by URL
+// or switches "View as" while already on the page). Kept as a function
+// rather than a static array so it re-evaluates when the "View as" persona
+// changes.
+const { currentUserId } = useCurrentUser()
+function goalsChildrenCurrent(): PanelItem[] {
+  return [
+    { label: 'Individual goals', path: '/goals/individual-goals' },
+    { label: 'Team goals', path: '/goals/team-goals' },
+    { label: 'Organization goals', path: '/goals/organization-goals' },
+    { label: 'Company goals', path: '/goals/company-goals' },
+    { divider: true },
+    { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
+    { label: 'Goal categories', path: '/goals/goal-categories' },
+    ...(isSuperAdmin(currentUserId.value) ? [{ label: 'Goal settings', path: '/goals/goal-settings' }] : []),
+  ]
+}
 
-const goalsChildrenNew: PanelItem[] = [
-  { label: 'Goal cycles', path: '/goals/goal-cycles' },
-  { divider: true },
-  { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
-  { label: 'Goal categories', path: '/goals/goal-categories' },
-  { label: 'Goal settings', path: '/goals/goal-settings' },
-]
+function goalsChildrenNew(): PanelItem[] {
+  return [
+    { label: 'Goal cycles', path: '/goals/goal-cycles' },
+    { divider: true },
+    { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
+    { label: 'Goal categories', path: '/goals/goal-categories' },
+    ...(isSuperAdmin(currentUserId.value) ? [{ label: 'Goal settings', path: '/goals/goal-settings' }] : []),
+  ]
+}
 
 const group2 = computed<NavItem[]>(() => [
   {
@@ -58,7 +68,7 @@ const group2 = computed<NavItem[]>(() => [
   },
   {
     icon: 'goal', label: 'Goals',
-    children: goalsNewInterface.value ? goalsChildrenNew : goalsChildrenCurrent,
+    children: goalsNewInterface.value ? goalsChildrenNew() : goalsChildrenCurrent(),
   },
   {
     icon: 'talent-management', label: 'Talents',

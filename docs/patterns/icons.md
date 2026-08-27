@@ -17,8 +17,33 @@ Icon names are kebab-case string literals (`add`, `chevrons-right`, `arrows-righ
 
 **`MpIcon` colour must be set via its own `color` prop** (`<MpIcon name="..." color="icon.inverse" />`), never via a wrapping `:class`/CSS `color`. `MpIcon` renders `--mp-icon-color` as an **inline style** computed from its `color` prop — a Panda `css({ color: 'icon.inverse' })` class on the icon (or its parent) does not override that inline style, so the icon silently stays its default gray (`icon.secondary`-ish `#626B79`) no matter what CSS you throw at it. `goal-cycles/[id]/index.vue`'s scenario-control FAB hit this exactly: `color: 'icon.inverse'` on the wrapping `<button>` had no effect until moved to `MpIcon`'s own `color` prop.
 
+## When a semantic colour token isn't emitted — CSS var + `& svg` override
+
+Some semantic icon colour tokens (e.g. `icon.warning`) aren't emitted in this
+app's Panda build, so `MpIcon`'s own `color` prop silently no-ops for them —
+same failure mode as the general colour gotcha above, but the prop itself
+can't fix it since the token doesn't exist to point at. The fix (the
+over-weight warning triangle, `goal-cycles/[id]/index.vue`'s owner accordion
+header) sets colour on the **wrapping span** instead, via a CSS var with a hex
+fallback, and forces it onto the icon's inner `<svg>` with a `& svg` selector
+override (the glyph itself uses `currentColor`, but `MpIcon` doesn't expose a
+way to set that from outside):
+
+```vue
+<span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' } })" aria-label="Goal weight over 100%">
+  <MpIcon name="warning-triangle" variant="fill" size="sm" />
+</span>
+```
+
+**Gotcha:** if this icon is wrapped in `MpTooltip`, the outer `<span>` must be
+`MpTooltip`'s **only** slot child. A leading `<!-- comment -->` node inside the
+tooltip becomes the trigger instead, and the tooltip never shows.
+
 ## Rules
 
 - Sidebar/precise-box icons → `PxIcon` with `:size`. Inline/button icons → `MpIcon`.
 - Validate every icon name via `get-icon-name` before using it.
 - Colour via `icon.*` tokens, never hex.
+- If a token doesn't visibly apply via `MpIcon`'s `color` prop, it may not be
+  emitted in this build — fall back to the CSS-var + `& svg` override above
+  rather than guessing at a different token or icon name.

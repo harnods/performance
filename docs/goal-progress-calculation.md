@@ -206,3 +206,28 @@ Goals created in the Add-goal drawer always carry a direction (the radio default
 
 Applies identically to the main goal progress and to the parent goal shown in the
 alignment card.
+
+## 10. Progress column — never render an em dash
+
+Every real `Goal` always has a `unit` (enforced by `ensureMeasurable()` in
+`useGoalsStore.ts` — a goal with no authored unit falls back to `percent`, scaled off its
+`status`). So a `row.unit` that's falsy in a goals table only happens for a **non-goal
+row** — e.g. the `kind: 'aligned-trigger'` spacer row that `pages/goals/goal-cycles/[id]/index.vue`
+pushes in place of the inline "View aligned goals" link once a goal's repeat history is
+expanded (it has no `code`/`title`/`unit`, just the toggle).
+
+If a table ever renders its own Progress/Status cell for a row with no unit (defensive
+fallback, shouldn't happen for a real goal), it gets an **empty grey track**
+(`<div :class="progressTrack" />`), never a text dash — a dash reads as broken/missing
+data, an empty track reads as "not started", consistent with §9's `gray` bar treatment.
+This applies in every goals table that shares this cell layout: `index.vue`,
+`company-goals.vue`, `organization-goals.vue`, `team-goals.vue`, `individual-goals.vue`.
+
+**`index.vue`'s `aligned-trigger` row specifically doesn't get a fallback cell at all** —
+it doesn't own a Progress/Status column. Its `progressRowspan`/`showProgress` (computed
+in `withRowSpans`'s `followedByOwnTrigger()`) make the row directly above it — the last
+expanded repeat occurrence, or the main row when there's no repeat expanded — span its
+Progress **and** Status cells down over the trigger row instead of rendering a
+second, empty one. This mirrors the collapsed state exactly, where the same toggle
+sits inline on the main row and Progress/Status show only real data — expanding repeat
+history changes row layout, not what Progress/Status show.

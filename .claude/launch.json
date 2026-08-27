@@ -5,7 +5,8 @@
       "name": "talenta-performance",
       "runtimeExecutable": "npm",
       "runtimeArgs": ["run", "dev"],
-      "port": 3003
+      "port": 3003,
+      "autoPort": true
     },
     {
       "name": "talenta-performance-3001",

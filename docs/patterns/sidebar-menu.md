@@ -22,6 +22,33 @@ Special cases:
 - **Goals** swaps its children based on cookie `goals-new-interface` between `goalsChildrenNew` / `goalsChildrenCurrent` (`:28-46,58-61`).
 - **Inbox** (`:99-111`) has a level-2 submenu but **no rail icon** — excluded from `allGroups` (not on rail) but in `allItems` (`:114`) so active-state still lights its panel on `/inbox/*`.
 
+## Role-gated nav entries
+
+A child that's restricted to a role (e.g. **Goal settings** → Super Admin only,
+via `isSuperAdmin(currentUserId.value)` from `useGoalsStore.ts`) is filtered out
+of the array entirely, not rendered-and-disabled. `goalsChildrenCurrent` /
+`goalsChildrenNew` are **functions**, not static arrays, specifically so they
+re-evaluate `currentUserId` (from `useCurrentUser()`) on every call — a plain
+computed array captured at setup time wouldn't react to switching "View as"
+personas mid-session:
+
+```ts
+function goalsChildrenNew(): PanelItem[] {
+  return [
+    { label: 'Goal cycles', path: '/goals/goal-cycles' },
+    { divider: true },
+    { label: 'Goal hierarchy', path: '/goals/goal-hierarchy' },
+    ...(isSuperAdmin(currentUserId.value) ? [{ label: 'Goal settings', path: '/goals/goal-settings' }] : []),
+  ]
+}
+```
+
+**The sidebar filter is not the access control** — it's only a convenience so a
+restricted entry doesn't dangle in the menu. The destination page must guard
+itself too, since a direct URL bypasses the sidebar entirely (see
+[`empty-state.md`](empty-state.md)'s "Restricted access" section for the
+page-side half of this pattern, `pages/goals/goal-settings.vue`).
+
 ## Active-state logic (`:123-137`)
 
 Flatten every leaf path, then the **longest matching prefix wins**:

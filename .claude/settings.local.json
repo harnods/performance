@@ -83,7 +83,11 @@
       "Bash(git merge *)",
       "Bash(npx vue-tsc *)",
       "Bash(git push *)",
-      "Bash(grep -o '.\\\\{0,3\\\\}:.\\\\{0,3\\\\}')"
+      "Bash(grep -o '.\\\\{0,3\\\\}:.\\\\{0,3\\\\}')",
+      "Bash(git diff *)",
+      "Bash(git fetch *)",
+      "Bash(git stash *)",
+      "Bash(npx vitest *)"
     ]
   }
 }
