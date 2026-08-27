@@ -27,8 +27,8 @@ const saveButtonLabel = computed(() => (isEditing.value ? 'Save changes' : 'Save
 ## Hover-reveal icon button
 
 An icon-only ghost button that only makes sense in the context of a specific
-row/block (e.g. "add this employee", "change this owner") stays invisible
-until the user hovers that row, rather than always showing:
+row/block (e.g. "add this employee") stays invisible until the user hovers
+that row, rather than always showing:
 
 ```ts
 const row = css({
@@ -48,7 +48,7 @@ const row = css({
 nothing shifts when it appears. The plain `class="reveal-btn"` (alongside the
 panda-generated `:class`) is what the `&:hover .reveal-btn` selector targets;
 Panda's own atomic classes aren't stable enough to hook. Pair with
-`MpTooltip` when the icon alone doesn't say what it does (`SelectEmployeesDrawer.vue`'s `.add-employee-icon`, `goal-cycles/[id]/new.vue`'s edit-owner button).
+`MpTooltip` when the icon alone doesn't say what it does (`SelectEmployeesDrawer.vue`'s `.add-employee-icon`).
 
 ## No disabled primary CTA
 
