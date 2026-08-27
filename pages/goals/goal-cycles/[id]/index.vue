@@ -1135,14 +1135,16 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             use-portal
             placement="top"
           >
-            <!-- warning-triangle in the warning-orange token. Colour is forced via a
-                 deep selector: MpIcon's color prop / :class don't reach the glyph and
-                 the icon.warning token isn't emitted in this app's Panda build. var()
-                 keeps it token-driven with a hex fallback (same as the warning-bold
-                 fallback). Outline (no fill variant): the fill glyph asset isn't
-                 resolvable in this build and makes MpIcon render nothing. -->
-            <span :class="css({ display: 'inline-flex', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' }, '& path': { fill: 'var(--mp-icon-warning, #BC560D)' } })">
-              <MpIcon name="warning-triangle" size="sm" />
+            <!-- Inline filled warning-triangle, not MpIcon: this Pixel build fetches
+                 variant glyphs (warning-triangle) from cdn.mekari.design at runtime,
+                 which doesn't resolve here, so MpIcon renders nothing. Inline SVG is
+                 self-contained and always paints. Colour = the warning token
+                 (icon.warning) with a hex fallback, same pattern as warning-bold. -->
+            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help' })" aria-label="Goal weight over 100%">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
+                <path fill="currentColor" d="M13.3 3.9a1.5 1.5 0 0 0-2.6 0L1.9 19.2A1.5 1.5 0 0 0 3.2 21.5h17.6a1.5 1.5 0 0 0 1.3-2.3L13.3 3.9Z" />
+                <path fill="#fff" d="M11 9h2v5h-2zM11 16.5h2v2h-2z" />
+              </svg>
             </span>
           </MpTooltip>
           <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
