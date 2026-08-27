@@ -1129,22 +1129,20 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpFlex>
         </span>
         <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
-          <!-- Inline filled warning-triangle (not MpIcon): this Pixel build fetches
-               variant glyphs from cdn.mekari.design at runtime, which doesn't resolve
-               here, so MpIcon renders nothing. Colour = warning token with hex
-               fallback. NOTE: the span must be MpTooltip's ONLY slot child — a comment
-               node here becomes the trigger and nothing shows. -->
+          <!-- Filled Pixel warning-triangle in the warning-orange token. Colour is set
+               on the wrapping span (the glyph uses currentColor) because MpIcon's own
+               color prop / :class don't reach it and icon.warning isn't emitted in this
+               app's Panda build; var() keeps it token-driven with a hex fallback.
+               NOTE: the span must be MpTooltip's ONLY slot child — a comment node here
+               becomes the trigger and nothing shows. -->
           <MpTooltip
             v-if="grp.overWeighted"
             label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
             use-portal
             placement="top"
           >
-            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help' })" aria-label="Goal weight over 100%">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" aria-hidden="true">
-                <path fill="currentColor" d="M13.3 3.9a1.5 1.5 0 0 0-2.6 0L1.9 19.2A1.5 1.5 0 0 0 3.2 21.5h17.6a1.5 1.5 0 0 0 1.3-2.3L13.3 3.9Z" />
-                <path fill="#fff" d="M11 9h2v5h-2zM11 16.5h2v2h-2z" />
-              </svg>
+            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' } })" aria-label="Goal weight over 100%">
+              <MpIcon name="warning-triangle" variant="fill" size="sm" />
             </span>
           </MpTooltip>
           <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
