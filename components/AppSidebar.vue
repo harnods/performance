@@ -437,8 +437,8 @@ const popoverItemActive = css({ ...popoverItemBase, bg: 'background.brand.bold.h
                         <div v-if="'divider' in child" :class="popoverDivider" />
                         <NuxtLink
                           v-else
-                          :to="child.path"
-                          :class="isChildActive(child) ? popoverItemActive : popoverItem"
+                          :to="childLink(child)"
+                          :class="(child.children ? accordionHasActive(child) : isChildActive(child)) ? popoverItemActive : popoverItem"
                         >
                           {{ child.label }}
                         </NuxtLink>
