@@ -207,7 +207,18 @@ const fieldGroupClass = css({ cursor: 'text' })
             />
           </div>
         </div>
-        <div :class="listWrap" class="px-select-list">
+        <!-- .prevent on mousedown (standard combobox technique) stops the
+             browser's default focus-shift-to-the-clicked-item from blurring
+             the searchOnField input mid-click. Without it: mousedown on a
+             list item blurs the input → onFieldBlur synchronously clears
+             fieldText → filteredOptions recomputes back to the full
+             unfiltered list → the list re-renders/re-flows *before* the
+             browser's mouseup/click land, so the click hits whatever option
+             ended up under the cursor in the new layout instead of the one
+             the user actually meant, or the popover reopens looking
+             unchanged. Harmless for the non-searchOnField list (nothing
+             there depends on focus). -->
+        <div :class="listWrap" class="px-select-list" @mousedown.prevent>
         <MpPopoverList>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
