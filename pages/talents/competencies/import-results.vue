@@ -384,7 +384,7 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
     <!-- Vendor (0/60) — optional -->
     <MpFormControl id="vendor" :class="span6">
       <div :class="labelRow">
-        <MpFormLabel>Vendor</MpFormLabel>
+        <MpFormLabel>Competency assessment provider</MpFormLabel>
         <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
       </div>
       <MpInput v-model="vendor" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
