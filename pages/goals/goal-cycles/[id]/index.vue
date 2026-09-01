@@ -1173,7 +1173,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                becomes the trigger and nothing shows. -->
           <MpTooltip
             v-if="grp.overWeighted"
-            label="Goal weight is over 100%. This cycle requires each employee's weights to total 100% — change goal weights via Import goals."
+            label="Goal weights for each employee must total 100%. Adjust current weights via Import goals."
             use-portal
             placement="top"
           >
@@ -1432,6 +1432,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
+    :weight-mandatory="cycle?.weightMandatory"
     @save="saveEdit"
   />
 

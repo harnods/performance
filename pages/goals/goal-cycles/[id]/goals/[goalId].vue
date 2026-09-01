@@ -1234,6 +1234,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
     :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
+    :weight-mandatory="cycle?.weightMandatory"
     @save="saveEdit"
   />
 
