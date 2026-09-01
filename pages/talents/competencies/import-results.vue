@@ -381,6 +381,15 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
       <MpText as="h2" :class="h2Class">Assessment details</MpText>
     </div>
 
+    <!-- Vendor (0/60) — optional -->
+    <MpFormControl id="vendor" :class="span6">
+      <div :class="labelRow">
+        <MpFormLabel>Competency assessment provider</MpFormLabel>
+        <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
+      </div>
+      <MpInput v-model="vendor" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
+    </MpFormControl>
+
     <!-- Employee assessed -->
     <MpFormControl id="employee-assessed" :is-required="true" :is-invalid="employeesInvalid" :class="span6">
       <MpFormLabel>Employee assessed</MpFormLabel>
@@ -405,15 +414,6 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
           : 'You can select multiple employees to include in the template.' }}
       </MpFormHelpText>
       <MpFormErrorMessage>You must select at least one employee</MpFormErrorMessage>
-    </MpFormControl>
-
-    <!-- Vendor (0/60) — optional -->
-    <MpFormControl id="vendor" :class="span6">
-      <div :class="labelRow">
-        <MpFormLabel>Vendor</MpFormLabel>
-        <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
-      </div>
-      <MpInput v-model="vendor" placeholder="Vendor name" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
     </MpFormControl>
 
     <!-- Footer — action buttons align to the 6-col form width -->
