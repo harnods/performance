@@ -23,6 +23,7 @@ import {
   MpInputTag,
   MpText,
   MpRadio,
+  MpCheckbox,
   MpFormControl,
   MpFormLabel,
   MpFormHelpText,
@@ -122,10 +123,28 @@ const scopeValueOptions = computed(() => {
 // unscoped baseline covers "All employees" — nothing to pick).
 const needsScopeValue = computed(() => hasAssignment.value && scopeType.value !== null)
 
-// Changing the position (or switching current/future) changes both the scope
-// values that apply and who can be assessed — reset both so nothing stale
-// carries over.
-watch([jobPosition, assessmentContext], () => { scopeValue.value = ''; selectedEmployees.value = [] })
+// Future (succession) context only: on top of the one scope attribute the
+// assignment predefines (scopeType), HR can optionally narrow further by
+// whichever of the OTHER two attributes aren't already covered — e.g. an
+// assignment scoped by Job class leaves Job grade + Job level as two
+// independent, optional checkboxes. Each checkbox reveals its own scope
+// picker (unconstrained by the assignment, since the assignment doesn't
+// cover these dimensions) once checked.
+const ALL_SCOPE_TYPES: ScopeType[] = ['job-level', 'grade', 'class']
+const extraScopeTypes = computed<ScopeType[]>(() =>
+  isFuture.value && needsScopeValue.value ? ALL_SCOPE_TYPES.filter(t => t !== scopeType.value) : [],
+)
+const extraScopeChecked = reactive<Record<ScopeType, boolean>>({ 'job-level': false, grade: false, class: false })
+const extraScopeValue = reactive<Record<ScopeType, string>>({ 'job-level': '', grade: '', class: '' })
+
+// Changing the position (or switching current/future) changes the scope
+// values that apply, who can be assessed, and which extra scope checkboxes
+// are even offered — reset all of it so nothing stale carries over.
+watch([jobPosition, assessmentContext], () => {
+  scopeValue.value = ''
+  selectedEmployees.value = []
+  for (const t of ALL_SCOPE_TYPES) { extraScopeChecked[t] = false; extraScopeValue[t] = '' }
+})
 
 function onEmployeesChange(data: { value?: string; text?: string }[]) {
   selectedEmployees.value = data.map(d => d.value ?? d.text ?? '').filter(Boolean)
@@ -142,15 +161,17 @@ const submitted = ref(false)
 const noAssignment = computed(() => !!jobPosition.value && !hasAssignment.value)
 const jobPositionInvalid = computed(() => noAssignment.value || (submitted.value && !jobPosition.value))
 const scopeValueInvalid = computed(() => submitted.value && needsScopeValue.value && !scopeValue.value)
-const vendorInvalid = computed(() => submitted.value && !vendor.value.trim())
 const employeesInvalid = computed(() => submitted.value && selectedEmployees.value.length === 0)
+function extraScopeInvalid(t: ScopeType) {
+  return submitted.value && extraScopeChecked[t] && !extraScopeValue[t]
+}
 
 function isValid(): boolean {
   return !!jobPosition.value
     && hasAssignment.value
     && (!needsScopeValue.value || !!scopeValue.value)
-    && !!vendor.value.trim()
     && selectedEmployees.value.length > 0
+    && extraScopeTypes.value.every(t => !extraScopeChecked[t] || !!extraScopeValue[t])
 }
 
 // Buttons are never disabled (project rule): validate on click and surface inline
@@ -163,7 +184,11 @@ function onRequestTemplate() {
   // finished template right there once it's ready.
   const slug = jobPosition.value.toLowerCase().replace(/\s+/g, '-')
   const scope = scopeValue.value ? `-${scopeValue.value}` : ''
-  addDownload(`competency-template-${slug}${scope}.xlsx`)
+  const extras = extraScopeTypes.value
+    .filter(t => extraScopeChecked[t] && extraScopeValue[t])
+    .map(t => `-${extraScopeValue[t]}`)
+    .join('')
+  addDownload(`competency-template-${slug}${scope}${extras}.xlsx`)
   // Confirm with a dismissible success banner at the top of the tab, captured at
   // submit time so it holds even if the form is edited afterwards.
   const n = selectedEmployees.value.length
@@ -193,6 +218,15 @@ const formColumn = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)'
 const span6 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 6' } })
 const span3 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 3' } })
 const span12 = css({ gridColumn: '1 / -1' })
+
+// Extra scope checkboxes (future/succession) — vertically stacked, each
+// followed immediately by its own revealed field when checked.
+const extraScopeGroup = css({ display: 'flex', flexDirection: 'column', gap: '4' })
+// extraScopeGroup's flex gap (16px) spaces every child uniformly, but the
+// gap from a checkbox down to its OWN revealed field should read tighter
+// (8px) than the gap up to the NEXT checkbox row — pull it up with a
+// negative margin rather than restructuring the group into per-row wrappers.
+const extraScopeIndent = css({ marginLeft: '8', marginTop: '-2' })
 
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '6', marginBottom: '3' })
 // First section sits right under the stage padding — no extra top margin.
@@ -282,8 +316,7 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
         :options="jobPositionOptions"
         :placeholder="`Select ${ctxLabel('Job position').toLowerCase()}`"
         :width="'100%'"
-        searchable
-        :search-placeholder="`Search ${ctxLabel('Job position').toLowerCase()}...`"
+        search-on-field
       />
       <MpFormErrorMessage v-if="noAssignment">This job position has no competency assignment. Please create one before generating a template</MpFormErrorMessage>
       <MpFormErrorMessage v-else>You must select a {{ ctxLabel('Job position').toLowerCase() }}</MpFormErrorMessage>
@@ -301,27 +334,52 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
         :options="scopeValueOptions"
         :placeholder="`Select ${scopeAttrLabel.toLowerCase()}`"
         :width="'100%'"
-        searchable
-        :search-placeholder="`Search ${scopeAttrLabel.toLowerCase()}...`"
+        search-on-field
       />
       <MpFormHelpText>Only values assessed for this position are available.</MpFormHelpText>
       <MpFormErrorMessage>You must select a {{ scopeAttrLabel.toLowerCase() }}</MpFormErrorMessage>
     </MpFormControl>
 
+    <!-- Extra scope narrowing (future/succession only) — the assignment
+         already predefines one scope attribute above; these are the other
+         two, each an independent optional checkbox that reveals its own
+         picker (indented 32px, matching CycleGeneralForm.vue's checkbox →
+         revealed-content indent) once checked. -->
+    <div v-if="extraScopeTypes.length" :class="[span12, extraScopeGroup]">
+      <template v-for="t in extraScopeTypes" :key="t">
+        <MpCheckbox
+          :id="`extra-scope-${t}`"
+          :is-checked="extraScopeChecked[t]"
+          @update:is-checked="(v) => (extraScopeChecked[t] = v)"
+        >
+          {{ ctxLabel(SCOPE_ATTR_LABEL[t]) }}
+        </MpCheckbox>
+        <MpFormControl
+          v-if="extraScopeChecked[t]"
+          :id="`extra-scope-value-${t}`"
+          :is-required="true"
+          :is-invalid="extraScopeInvalid(t)"
+          :class="[span6, extraScopeIndent]"
+        >
+          <!-- No MpFormLabel — the checkbox directly above already labels
+               this row (e.g. "Target job level"); repeating it here read as
+               redundant. -->
+          <PxSelectPopover
+            v-model="extraScopeValue[t]"
+            :options="scopeOptions(t)"
+            :placeholder="`Select ${ctxLabel(SCOPE_ATTR_LABEL[t]).toLowerCase()}`"
+            :width="'100%'"
+            search-on-field
+          />
+          <MpFormErrorMessage>You must select a {{ ctxLabel(SCOPE_ATTR_LABEL[t]).toLowerCase() }}</MpFormErrorMessage>
+        </MpFormControl>
+      </template>
+    </div>
+
     <!-- ── Assessment details ─────────────────────────────────── -->
     <div :class="[sectionHeader, span12]">
       <MpText as="h2" :class="h2Class">Assessment details</MpText>
     </div>
-
-    <!-- Vendor (0/60) -->
-    <MpFormControl id="vendor" :is-required="true" :is-invalid="vendorInvalid" :class="span6">
-      <div :class="labelRow">
-        <MpFormLabel>Vendor</MpFormLabel>
-        <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
-      </div>
-      <MpInput v-model="vendor" placeholder="Vendor name" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
-      <MpFormErrorMessage>Vendor is required.</MpFormErrorMessage>
-    </MpFormControl>
 
     <!-- Employee assessed -->
     <MpFormControl id="employee-assessed" :is-required="true" :is-invalid="employeesInvalid" :class="span6">
@@ -347,6 +405,15 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
           : 'You can select multiple employees to include in the template.' }}
       </MpFormHelpText>
       <MpFormErrorMessage>You must select at least one employee</MpFormErrorMessage>
+    </MpFormControl>
+
+    <!-- Vendor (0/60) — optional -->
+    <MpFormControl id="vendor" :class="span6">
+      <div :class="labelRow">
+        <MpFormLabel>Vendor</MpFormLabel>
+        <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
+      </div>
+      <MpInput v-model="vendor" placeholder="Vendor name" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
     </MpFormControl>
 
     <!-- Footer — action buttons align to the 6-col form width -->

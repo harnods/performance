@@ -65,6 +65,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'New header process tray: a refresh icon that spins while jobs run, with a popover (Download / Import tabs) showing per-job progress and a Download action for finished templates. It auto-opens when a job starts.',
         files: ['composables/useActivityMonitor.ts', 'components/AppHeader.vue'],
       },
+      {
+        category: 'Feature',
+        area: 'Import competency results → Generate template',
+        detail: 'Job position and Job level are now type-directly-on-the-field selects (PxSelectPopover\'s new opt-in search-on-field mode) instead of opening a separate embedded search box. Vendor is no longer mandatory. Future job position gains two independent checkboxes for whichever scope attributes (job grade/class/level) the position\'s assignment doesn\'t already predefine — each reveals its own search-on-field picker, 32px-indented and 8px below its checkbox, with no redundant field label.',
+        files: ['pages/talents/competencies/import-results.vue', 'components/PxSelectPopover.vue'],
+      },
     ],
   },
   {
