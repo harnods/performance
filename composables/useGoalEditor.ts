@@ -48,20 +48,10 @@ export function useGoalEditor() {
     if (!owner) return
     const updated = goalFromDraft(draft, owner, editingGoal.value.isDraft ?? false)
 
-    const { cycles } = useGoalCyclesStore()
-    const cycle = cycles.value.find(c => c.id === editingGoal.value!.cycleId)
-    if (cycle?.weightMandatory) {
-      const combined = alreadyUsedWeightForEdit.value + updated.weight
-      if (combined !== 100) {
-        toast.notify({
-          id: 'goal-edit-weight-error',
-          position: 'top-center',
-          variant: 'error',
-          title: `${owner.name}'s total goal weight would be ${combined}% — it must equal exactly 100%.`,
-        })
-        return
-      }
-    }
+    // Weight-mandatory total (must equal exactly 100%) is validated inside
+    // AddGoalDrawer itself, gated on its `weight-mandatory` prop — it won't
+    // emit 'save' at all on a mismatch, so this handler only ever runs with
+    // a valid weight.
 
     // A direct report's edit goes to the approval queue instead of taking
     // effect immediately — the live goal is untouched until a manager

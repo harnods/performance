@@ -86,6 +86,11 @@ const props = defineProps<{
   // options to goals in the same cycle. Omit to hide the alignment field.
   cycleId?: string
   editingDraft?: DraftGoal | null
+  // When true, weight + alreadyUsedWeight must land on exactly 100 to save —
+  // enforced here (not just displayed as a hint) so an editor's own emitted
+  // 'save' never fires on a mismatch, which previously closed the drawer
+  // before the caller could reject it.
+  weightMandatory?: boolean
 }>()
 const resolvedDrawerId = computed(() => props.drawerId ?? 'drawer-add-goal')
 const emit = defineEmits<{
@@ -368,6 +373,19 @@ watch(category, () => { subCategory.value = '' })
 const remainingWeight = computed(() => {
   const current = weight.value === '' ? 0 : Number(weight.value)
   return 100 - props.alreadyUsedWeight - current
+})
+const weightErrorMessage = computed(() => {
+  if (weight.value === '' || Number(weight.value) <= 0 || Number(weight.value) > 100) {
+    return 'Goal weight is required and must be between 1 and 100.'
+  }
+  if (props.weightMandatory && remainingWeight.value !== 0) {
+    const combined = props.alreadyUsedWeight + Number(weight.value)
+    // Same copy as the "New goals" page's own weight-mandatory error
+    // (pages/goals/goal-cycles/[id]/new.vue) — keep both in sync.
+    const ownerName = props.owners[0]?.name ?? 'This owner'
+    return `${ownerName}'s total goal weight would be ${combined}% — it must equal exactly 100%.`
+  }
+  return ''
 })
 // Only rendered when there's more than one owner with different existing
 // totals (see alreadyUsedWeightByOwner prop doc) — each owner's own
@@ -743,7 +761,7 @@ function save() {
   errors.name = !name.value.trim()
   errors.goalType = !goalType.value
   errors.category = !category.value
-  errors.weight = weight.value === '' || Number(weight.value) <= 0 || Number(weight.value) > 100
+  errors.weight = !!weightErrorMessage.value
   // Team & Organization goals must have at least one member — a contributor
   // can only ever be picked from this list (see isNeedMember), so an empty
   // list would leave the goal with no one able to update its progress.
@@ -794,6 +812,15 @@ function save() {
     }
   }
 
+  if (errors.weight) {
+    // The weight field sits near the top of a long, scrollable drawer body —
+    // if the reason save is blocked is a stale weight (every other field just
+    // edited was fine), scroll it into view so the error isn't silently
+    // invisible below/above the fold.
+    nextTick(() => {
+      document.getElementById('goal-weight')?.scrollIntoView({ behavior: 'smooth', block: 'center' })
+    })
+  }
   if (errors.name || errors.goalType || errors.category || errors.weight || errors.members || errors.deadlineDate || errors.startValue || errors.targetValue || deadlineRuleErrors.value.length) return
   const categoryLabel = GOAL_CATEGORIES.find(c => c.value === category.value)?.label ?? category.value
   const subCategoryLabel = subCategoryOptions.value.find(s => s.value === subCategory.value)?.label ?? ''
@@ -1075,7 +1102,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                   <MpInput v-model="weight" type="number" min="0" max="100" />
                   <MpInputRightAddon>%</MpInputRightAddon>
                 </MpInputGroup>
-                <MpFormErrorMessage>Goal weight is required and must be between 1 and 100.</MpFormErrorMessage>
+                <MpFormErrorMessage>{{ weightErrorMessage }}</MpFormErrorMessage>
                 <MpFlex v-if="!errors.weight && visibleRemainingWeightByOwner" direction="column" gap="0" :class="weightHintWrap">
                   <span v-for="o in visibleRemainingWeightByOwner" :key="o.id" :class="[helperText, o.remaining < 0 && warningText]">{{ o.name }}: {{ o.remaining }}% remaining</span>
                   <button v-if="hiddenRemainingWeightCount && !weightHintExpanded" type="button" :class="[helperText, weightHintMoreLink]" @click="weightHintExpanded = true">
@@ -1579,6 +1606,22 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
   right: 36px !important;
   inset-inline-start: auto !important;
   inset-inline-end: 36px !important;
+}
+
+/* MpInputLeftAddon/MpInputRightAddon measure their own width via
+   getComputedStyle() in onMounted to set --mp-input-offset--{left,right}, but
+   inside a just-opened drawer that read happens before layout settles, so it
+   comes back empty and the var lands as literal "NaNpx". The input's padding
+   is `calc(var(--mp-input-offset--left) + 14px)` with no fallback, so an
+   invalid var invalidates the whole calc() and padding collapses to 0 — the
+   addon box then sits on top of the input's own text instead of beside it.
+   Restore fixed padding wide enough for the longest addon we show (2-char
+   currency codes/"Rp"). */
+:deep(.mp-input-group__root[data-with-left-addon='true'] .mp-input__control) {
+  padding-left: 46px !important;
+}
+:deep(.mp-input-group__root[data-with-right-addon='true'] .mp-input__control) {
+  padding-right: 46px !important;
 }
 
 /* MpModal's own root (where the `class` we pass lands) never gets this
