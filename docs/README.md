@@ -57,6 +57,7 @@ Sequence for any UI work:
 | [`patterns/donut-chart.md`](patterns/donut-chart.md) | Single-proportion donut cards — `MpChart type="doughnut"`, legend/tooltip off, centre-label overlay, and the Chart.js hex exception. |
 | [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
+| [`patterns/upload.md`](patterns/upload.md) | Single-file dropzone upload (drag/drop + browse, file-selected summary row, inline validation). |
 | [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. |
 | [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, and gate/confirmation modals (validate on the triggering action, share logic via a composable). |
 | [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon. |
