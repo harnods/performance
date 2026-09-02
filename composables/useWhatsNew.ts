@@ -26,6 +26,18 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '02 Sep 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Import competency results → Generate template',
+        detail: 'The revealed "Target job level" / "Target job class" select under each future-position checkbox now renders at the same width as the primary scope field ("Target job grade") instead of stretching full-row. Root cause: the checkbox group\'s wrapping container was a flex column (which ignores grid span classes) and MpCheckbox forwards :class to its hidden input rather than its visible label.',
+        files: ['pages/talents/competencies/import-results.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
     date: '01 Sep 2026',
     module: 'Internal tools',
     items: [

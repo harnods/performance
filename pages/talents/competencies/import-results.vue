@@ -220,13 +220,20 @@ const span3 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 3' } })
 const span12 = css({ gridColumn: '1 / -1' })
 
 // Extra scope checkboxes (future/succession) — vertically stacked, each
-// followed immediately by its own revealed field when checked.
-const extraScopeGroup = css({ display: 'flex', flexDirection: 'column', gap: '4' })
-// extraScopeGroup's flex gap (16px) spaces every child uniformly, but the
+// followed immediately by its own revealed field when checked. Nested 12-col
+// grid (mirrors formColumn) so the revealed field can use span3 and match
+// the primary scope field's width exactly — a flex column here would stretch
+// every child to full row width regardless of its span class.
+const extraScopeGroup = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', columnGap: '6', rowGap: '4' })
+// extraScopeGroup's grid rowGap (16px) spaces every child uniformly, but the
 // gap from a checkbox down to its OWN revealed field should read tighter
 // (8px) than the gap up to the NEXT checkbox row — pull it up with a
 // negative margin rather than restructuring the group into per-row wrappers.
-const extraScopeIndent = css({ marginLeft: '8', marginTop: '-2' })
+// marginLeft eats into a grid item's stretched width, so without compensation
+// the indented field would render 32px narrower than the primary scope field
+// (which sits in the same span3 track, unindented) — widen by the same amount
+// so both read as the same size, indent aside.
+const extraScopeIndent = css({ marginLeft: '8', marginTop: '-2', width: '100%' })
 
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '6', marginBottom: '3' })
 // First section sits right under the stage padding — no extra top margin.
@@ -347,19 +354,21 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
          revealed-content indent) once checked. -->
     <div v-if="extraScopeTypes.length" :class="[span12, extraScopeGroup]">
       <template v-for="t in extraScopeTypes" :key="t">
-        <MpCheckbox
-          :id="`extra-scope-${t}`"
-          :is-checked="extraScopeChecked[t]"
-          @update:is-checked="(v) => (extraScopeChecked[t] = v)"
-        >
-          {{ ctxLabel(SCOPE_ATTR_LABEL[t]) }}
-        </MpCheckbox>
+        <div :class="span12">
+          <MpCheckbox
+            :id="`extra-scope-${t}`"
+            :is-checked="extraScopeChecked[t]"
+            @update:is-checked="(v) => (extraScopeChecked[t] = v)"
+          >
+            {{ ctxLabel(SCOPE_ATTR_LABEL[t]) }}
+          </MpCheckbox>
+        </div>
         <MpFormControl
           v-if="extraScopeChecked[t]"
           :id="`extra-scope-value-${t}`"
           :is-required="true"
           :is-invalid="extraScopeInvalid(t)"
-          :class="[span6, extraScopeIndent]"
+          :class="[span3, extraScopeIndent]"
         >
           <!-- No MpFormLabel — the checkbox directly above already labels
                this row (e.g. "Target job level"); repeating it here read as

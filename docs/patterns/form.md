@@ -168,7 +168,23 @@ Use the built-in default slot for the label + `#description` slot for the captio
   </div>
   ```
 
-  Same shape for several independent checkboxes stacked vertically, each with its own reveal (`talents/competencies/import-results.vue`'s "Target job grade" / "Target job class" extra-scope checkboxes) — one `MpCheckbox` + conditional indented block per row, not one shared reveal area. When several of these checkbox+reveal pairs sit in one `gap: '4'` (16px) flex column, that 16px gap is right for spacing one pair from the *next* pair, but reads too loose between a checkbox and its *own* single-field reveal — tighten just that inner gap to 8px with `marginTop: '-2'` on the revealed `MpFormControl` (`extraScopeIndent` in `import-results.vue`) rather than restructuring the group into per-row wrapper divs.
+  Same shape for several independent checkboxes stacked vertically, each with its own reveal (`talents/competencies/import-results.vue`'s "Target job grade" / "Target job class" extra-scope checkboxes) — one `MpCheckbox` + conditional indented block per row, not one shared reveal area. That group's own container must be a **nested 12-col grid** (`gridTemplateColumns: 'repeat(12, 1fr)', columnGap: '6', rowGap: '4'` — mirrors the page's outer `formColumn`), *not* a `flex` column: a flex container's `align-items: stretch` default makes every child fill the full row width regardless of any `span3`/`span6` class on it, silently defeating the width match described below. Use `rowGap` (not `gap`) for the same reason `marginTop: '-2'` is layered on top — see next paragraph.
+
+  ⚠️ **`MpCheckbox`'s `:class` lands on its hidden `<input>`, not the visible `<label>` that's the actual grid/flex item.** Passing a `span12`-style width/grid class straight to `<MpCheckbox :class="…">` does nothing visible — the checkbox silently falls back to grid auto-placement (one implicit column) and its label text wraps illegibly. Wrap the checkbox in a plain `<div :class="span12">` instead and put no class on `MpCheckbox` itself:
+
+  ```vue
+  <!-- import-results.vue — each row's checkbox spans the full grid width -->
+  <div :class="span12">
+    <MpCheckbox :id="`extra-scope-${t}`" :is-checked="extraScopeChecked[t]" @update:is-checked="…">
+      {{ ctxLabel(SCOPE_ATTR_LABEL[t]) }}
+    </MpCheckbox>
+  </div>
+  <MpFormControl v-if="extraScopeChecked[t]" :class="[span3, extraScopeIndent]">
+    <PxSelectPopover v-model="extraScopeValue[t]" :width="'100%'" search-on-field />
+  </MpFormControl>
+  ```
+
+  When the revealed field should read as **the same size** as another field elsewhere in the form (here: the primary scope field above it, also `span3`), give the revealed `MpFormControl` the *same* span class, not a wider one to "make room" for the indent. `marginLeft: '8'` (32px) — used both for the indent and to tighten the checkbox→field gap to 8px via `marginTop: '-2'` (`extraScopeIndent` in `import-results.vue`) — shrinks a grid item's *implicit* stretch width by the margin amount, but does **not** shrink an *explicit* `width: '100%'` on that same item (percentage widths resolve against the full grid track regardless of margin). So: keep the span class identical to the field it must match, add `width: '100%'` to the indent class, and the 32px margin becomes a pure visual offset — the field renders at the exact same width as its unindented sibling, just shifted right. (Do not "compensate" with `calc(100% + 32px)` — that double-counts, since the explicit `100%` already ignores the margin.)
 
   When the revealed block is a single `MpFormControl` whose own label would just repeat the checkbox's own text (checkbox reads "Target job grade", the field it reveals is *also* "Target job grade"), drop that field's `MpFormLabel` — the checkbox above it already labels the row, so the field only needs its `placeholder` (`talents/competencies/import-results.vue`'s extra-scope fields). Keep the label when the revealed content is a *list* of differently-labeled fields (the "Use weight" example above), since nothing else names those rows.
 
