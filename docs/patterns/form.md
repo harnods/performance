@@ -112,6 +112,45 @@ Multiple fields can share one width class like this even when they're not laid o
 side-by-side — it's a visual-alignment tool, not a row-layout tool. Don't reach for
 an inline `MpFlex` row just because two fields should look the same width.
 
+### Two-up inline fields in a span-grid page (`create.vue`/`import-results.vue` style)
+
+⚠️ On a page whose form column *is* the 12-col grid itself — every field carrying its
+own `span6`/`span3`/`span12` class straight from `formColumn` (`competencies/create.vue`,
+`talents/competencies/import-results.vue`) — **two fields with the same span class do
+NOT sit side by side.** Every span class in this convention is pinned to an explicit
+start at column 1 (`gridColumn: { base: '1 / -1', lg: '1 / span 3' }`), so a second
+field with that same class can't occupy the same columns (already taken) and falls to
+the next row instead — same-width fields end up stacked, not paired, even though the
+width looks right at a glance.
+
+Fix: give the *second* (and any later) field in the row a variant class that spans the
+same column *count* but with no explicit start — plain `gridColumn: 'span 3'` instead
+of `'1 / span 3'`. With no fixed start, the grid auto-places it into the next free
+columns in that row (4–6) instead of re-claiming column 1; `formColumn`'s own
+`columnGap: '6'` (24px) then falls out for free between the two fields — no wrapper
+element needed:
+
+```ts
+// Vendor + Assessment date sit side by side, each the same width as Job
+// position (span3, 262px on desktop) — plain 'span 3' (no explicit start)
+// lets the grid auto-place into columns 4-6 instead of pinning back to
+// column 1 like the standard span3 does.
+const span3Auto = css({ gridColumn: { base: '1 / -1', lg: 'span 3' } })
+```
+```vue
+<!-- import-results.vue — Vendor / Assessment date, each span3Auto,
+     directly as grid-item siblings (no MpFlex/wrapper — the grid handles
+     placement + gap on its own) -->
+<MpFormControl id="vendor" :class="span3Auto">...</MpFormControl>
+<MpFormControl id="assessment-date" :class="span3Auto">...</MpFormControl>
+```
+
+Reach for this (fixed width, matches another single field like Job position) over the
+standard `MpFlex` two-up pattern above (equal-stretch, fills the whole row) when the
+pair should read as two independent same-size fields rather than one row split evenly
+in half — e.g. Vendor/Assessment date matching Job position's width, with the rest of
+the row left empty, instead of stretching to fill all 12 columns.
+
 ### Section header / sub-header / description
 
 ```ts

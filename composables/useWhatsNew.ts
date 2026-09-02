@@ -35,6 +35,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'The revealed "Target job level" / "Target job class" select under each future-position checkbox now renders at the same width as the primary scope field ("Target job grade") instead of stretching full-row. Root cause: the checkbox group\'s wrapping container was a flex column (which ignores grid span classes) and MpCheckbox forwards :class to its hidden input rather than its visible label.',
         files: ['pages/talents/competencies/import-results.vue', 'docs/patterns/form.md'],
       },
+      {
+        category: 'Feature',
+        area: 'Import competency results → Generate template',
+        detail: 'Added an "Assessment provider" (renamed from "Competency assessment provider") + "Assessment date" pair in Assessment details, each sized to match Job position (span3) with a 24px gap, for both current and future job position context. New span3Auto grid utility lets a field auto-place beside another same-width field instead of the standard span classes\' fixed column-1 start.',
+        files: ['pages/talents/competencies/import-results.vue', 'docs/patterns/form.md'],
+      },
     ],
   },
   {
