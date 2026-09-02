@@ -24,6 +24,7 @@ import {
   MpText,
   MpRadio,
   MpCheckbox,
+  MpDatePicker,
   MpFormControl,
   MpFormLabel,
   MpFormHelpText,
@@ -75,6 +76,7 @@ const assessmentContext = ref<'current' | 'future'>('current')
 const jobPosition = ref('')
 const scopeValue = ref('')
 const vendor = ref('')
+const assessmentDate = ref('')
 const selectedEmployees = ref<string[]>([])
 
 // Employee assessed. For a CURRENT-position assessment only employees who
@@ -218,6 +220,14 @@ const formColumn = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)'
 const span6 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 6' } })
 const span3 = css({ gridColumn: { base: '1 / -1', lg: '1 / span 3' } })
 const span12 = css({ gridColumn: '1 / -1' })
+
+// Vendor + Assessment date sit side by side, each the same width as Job
+// position (span3) — plain `gridColumn: 'span 3'` (no explicit start, unlike
+// the standard span3/span6/span12 above) lets the grid auto-place the second
+// field into columns 4-6 instead of pinning it back to column 1. See form.md's
+// "Two-up inline fields in a span-grid page" for why the standard span
+// classes can't do this on their own.
+const span3Auto = css({ gridColumn: { base: '1 / -1', lg: 'span 3' } })
 
 // Extra scope checkboxes (future/succession) — vertically stacked, each
 // followed immediately by its own revealed field when checked. Nested 12-col
@@ -390,13 +400,23 @@ const radioBoxActive = css({ borderColor: 'border.brand', background: 'backgroun
       <MpText as="h2" :class="h2Class">Assessment details</MpText>
     </div>
 
-    <!-- Vendor (0/60) — optional -->
-    <MpFormControl id="vendor" :class="span6">
+    <!-- Vendor (0/60) — same width as Job position (span3), not stretched -->
+    <MpFormControl id="vendor" :class="span3Auto">
       <div :class="labelRow">
-        <MpFormLabel>Competency assessment provider</MpFormLabel>
+        <MpFormLabel>Assessment provider</MpFormLabel>
         <MpText size="label-small" :class="counterText">{{ vendorCount }} / {{ VENDOR_MAX }}</MpText>
       </div>
       <MpInput v-model="vendor" :maxlength="VENDOR_MAX" :class="css({ width: '100%' })" />
+    </MpFormControl>
+
+    <!-- Assessment date — same width as Vendor/Job position, sits right next to
+         Vendor (24px column gap, from formColumn's own columnGap) rather than
+         below it: see form.md's "Two-up inline fields in a span-grid page" —
+         span3Auto lets the grid auto-place it in columns 4-6 instead of pinning
+         to column 1 like the standard span3 does. -->
+    <MpFormControl id="assessment-date" :class="span3Auto">
+      <MpFormLabel>Assessment date</MpFormLabel>
+      <MpDatePicker v-model="assessmentDate" placeholder="Select date" format="DD MMM YYYY" :class="css({ width: '100%' })" />
     </MpFormControl>
 
     <!-- Employee assessed -->
