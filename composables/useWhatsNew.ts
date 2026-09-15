@@ -26,6 +26,30 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '15 Sep 2026',
+    module: 'Talents',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Talent directory',
+        detail: 'Added talent pools as tabs above the directory table ("All talents" plus user-created pools via "+ Add pool"). Each pool has its own criteria (branch/job level/job grade/employment type/years of service/competency/performance/attendance/education) set in a drawer, and shows only matching talents. Pool tabs support bulk row selection (export / create IDP / create assignment) and a per-row match score breakdown drawer.',
+        files: [
+          'pages/talents/talent-directory/index.vue',
+          'components/PxAddPoolDrawer.vue',
+          'components/PxMatchScoreDrawer.vue',
+          'utils/talentCriteria.ts',
+          'utils/matchScore.ts',
+          'utils/talents.ts',
+          'docs/patterns/tabs.md',
+          'docs/patterns/checkbox.md',
+          'docs/patterns/filter-bar.md',
+          'docs/patterns/badges.md',
+          'docs/patterns/icons.md',
+        ],
+      },
+    ],
+  },
+  {
     date: '02 Sep 2026',
     module: 'Competencies',
     items: [

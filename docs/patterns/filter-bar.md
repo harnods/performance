@@ -145,6 +145,91 @@ hover). `use-portal` so the tooltip escapes the table's overflow clip:
 
 Export is **never** in the page title/header — primary CTAs go through `#page-header-actions` (see [`header-bar.md`](header-bar.md)).
 
+## Fixed-criteria drawer (vs the "All filters" scope picker)
+
+`PxAllFiltersDrawer`'s "Add filter" popover lists an open-ended, growing set of
+scopes. When a feature filters on a **small, fixed, known-in-advance** set of
+attributes (e.g. the talent-pool criteria — competency score, performance score,
+attendance, education level, years of service —
+`components/PxAddPoolDrawer.vue`, opened from
+`pages/talents/talent-directory/index.vue`), reuse the *same* add/remove-scope
+mechanic (a popover of not-yet-added items → a removable row per added item), just
+with the fixed list swapped in for the dynamic one:
+
+```vue
+<MpDrawer :is-open="isOpen" placement="right" size="md" is-keep-alive @close="...">
+  <MpDrawerContent>
+    <MpDrawerHeader>{{ mode === 'create' ? 'Add pool' : 'Edit pool' }}<MpDrawerCloseButton /></MpDrawerHeader>
+    <MpDrawerBody>
+      <MpFormControl is-required>
+        <MpFormLabel>Name</MpFormLabel>
+        <MpInput v-model="name" placeholder="Enter pool name" />
+      </MpFormControl>
+
+      <!-- section header: H2/20px pattern (CLAUDE.md) + one-line caption -->
+
+      <div v-for="key in addedCriteria" :key="key" :class="criteriaRow">
+        <!-- header: label + a "minus-circular" remove icon (MpTooltip "Remove") -->
+        <!-- body: range row (see below) or an education-level checkbox list -->
+      </div>
+
+      <MpPopover is-close-on-select use-portal placement="bottom-start">
+        <MpPopoverTrigger>
+          <button type="button" :class="addBtn"><MpIcon name="add" size="sm" />Add criteria</button>
+        </MpPopoverTrigger>
+        <MpPopoverContent>
+          <MpPopoverList>
+            <MpPopoverListItem v-for="d in availableCriteria" :key="d.key" @click="addCriteria(d.key)">{{ d.label }}</MpPopoverListItem>
+          </MpPopoverList>
+        </MpPopoverContent>
+      </MpPopover>
+    </MpDrawerBody>
+    <MpDrawerFooter>
+      <!-- Cancel / Save — NOT "Reset all / Cancel / Apply filter". This drawer
+           creates/edits a named thing (a pool), it isn't applying a transient
+           filter, so it takes the create/edit-drawer footer (docs/patterns/buttons.md),
+           not PxAllFiltersDrawer's filter footer. -->
+    </MpDrawerFooter>
+  </MpDrawerContent>
+  <MpDrawerOverlay />
+</MpDrawer>
+```
+
+Key differences from `PxAllFiltersDrawer`, beyond the fixed item list:
+
+- **The drawer also carries a `name` field** — creating the tab/entity and defining
+  its criteria happen in **one step, one drawer**, never "create empty, configure
+  later". `Save` is disabled while `name` is blank; criteria are optional (a pool can
+  be saved with zero criteria — see the [tabs.md](tabs.md#-add-tab-user-created-tabs)
+  empty-state fallback for that case).
+- **One drawer, two modes** (`mode: 'create' | 'edit'`) — reuse it for editing by
+  seeding `name`/`form`/`addedCriteria` from the applied state instead of blank
+  defaults, rather than building a second component.
+- Footer is **Cancel / Save**, matching a create/edit drawer, not **Reset all /
+  Cancel / Apply filter** (that footer is specific to a transient list-filter like
+  `PxAllFiltersDrawer`).
+- A removed criteria row resets its own fields (`null`/`[]`) so re-adding it later
+  starts clean, exactly like `PxAllFiltersDrawer.removeScope`.
+
+### Numeric range filter — "Min – Max" row
+
+For a criterion that's a numeric range (score, percentage, years), use two `MpInput
+type="number"` fields separated by an en dash, both under one `MpFormLabel`:
+
+```vue
+<div :class="rangeRow"> <!-- css({ display: 'flex', alignItems: 'center', gap: '2' }) -->
+  <MpInput v-model="form.min" type="number" placeholder="Min" />
+  <span :class="rangeSep">–</span> <!-- css({ color: 'text.secondary' }) -->
+  <MpInput v-model="form.max" type="number" placeholder="Max" />
+</div>
+```
+
+Add `MpInputGroup` + `MpInputRightAddon` around each side when the value has a unit
+(`%`, `yrs`) — same idiom as any unit-suffixed input (CLAUDE.md forms rule). Treat an
+empty input as "no bound" (not `0`) when matching — coerce `''`/`null`/`undefined` to
+"no bound" before comparing, since a plain `<` / `>` comparison against `''` or
+`undefined` doesn't fail the way you'd expect and silently lets unrelated rows through.
+
 ## Rules
 
 - Layout: `MpFlex justify="space-between"` — filters left, search right.

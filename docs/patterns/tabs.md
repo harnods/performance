@@ -97,6 +97,44 @@ targeting one container append both sets. One teleport, branched inside.
 
 Long detail pages that look tabbed are a **sticky scroll-spy**, not tabs. `pages/talents/talent-directory/[id].vue:54-84` defines a `NAV` array (`Profile / Performance / Competencies / History`) + an `IntersectionObserver` that sets `activeSection` on scroll; clicking calls `scrollIntoView`. The file explicitly documents this (`:8-11`). `pages/reviews/review-cycles/[id]/index.vue` uses an in-stage sticky header (`data-stuck`) instead of `#page-tabs`.
 
+### "+ Add" tab (user-created tabs)
+
+When a page lets the user create their own tabs at runtime (e.g. Talent directory's
+pool tabs, `pages/talents/talent-directory/index.vue`), append a trailing `+ Add …`
+control to the same `#page-tabs` bar, styled with the tab's base styles (`tabItemBase`)
+so it sits flush with the real tabs — never a separate button outside the tab bar:
+
+```vue
+<button type="button" :class="addPoolTab" @click="openAddPool">
+  <MpIcon name="add" size="16px" />
+  Add pool
+</button>
+```
+
+```ts
+const addPoolTab = css({ ...tabItemBase, color: 'text.secondary', _hover: { color: 'text.default' } })
+```
+
+Use icon name `add` (not `plus` — `plus` isn't a Pixel icon in this repo).
+
+The button opens a right-side `MpDrawer` (`components/PxAddPoolDrawer.vue`), **not**
+a modal — when the new tab needs more than just a name (here: a name *and* a set of
+membership criteria), use the drawer + fixed-criteria-list shape from
+[`filter-bar.md`](filter-bar.md#fixed-criteria-drawer-vs-the-all-filters-scope-picker)
+rather than a plain name-only `MpModal`. Name and criteria are set together, in one
+step, in one drawer — there's no separate "create empty tab, then configure it later"
+flow. On save, push the new tab into a local `ref` array **right after the permanent
+first tab** and switch `activeTab` to it immediately — the permanent first tab (e.g.
+"All talents") never moves and can't be removed. The same drawer is reused for
+editing (`mode="edit"`, prefilled from the tab's current name + criteria) via an
+"Edit criteria" button shown next to the filter bar whenever a non-permanent tab is active.
+
+A tab whose criteria haven't matched anything (or a tab saved with zero criteria,
+which the drawer permits) shows the standard [empty state](../empty-state.md) —
+illustration + title + caption + `variant="secondary"` action that reopens the same
+drawer in edit mode — in place of the filter bar + table, exactly like any other
+empty list in this app. Don't invent a different "empty tab" treatment.
+
 ## Rules
 
 - Section/status switching on a list/scoped page → `#page-tabs` teleport + `tabItem`/`tabItemActive` (`text.link`).

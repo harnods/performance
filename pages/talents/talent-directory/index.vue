@@ -33,16 +33,9 @@ import {
   MpPopoverList,
   MpPopoverListItem,
   MpCheckbox,
-  MpModal,
-  MpModalOverlay,
-  MpModalContent,
-  MpModalHeader,
-  MpModalBody,
-  MpModalFooter,
-  MpModalCloseButton,
-  MpFormControl,
-  MpFormLabel,
+  MpBadge,
   css,
+  toast,
 } from '@mekari/pixel3'
 import {
   TALENTS,
@@ -54,10 +47,65 @@ import {
   EMPLOYMENT_TYPES,
   aging,
   formatJoinDate,
+  yearsOfService,
   type TalentEmployee,
 } from '~/utils/talents'
+import { emptyCriteria, hasAnyCriteria, matchesCriteria, type TalentCriteria } from '~/utils/talentCriteria'
+import { computeMatchScore } from '~/utils/matchScore'
 
 definePageMeta({ title: 'Talent directory', layout: 'default' })
+
+// ─── Pool tabs (#page-tabs, Type A — docs/patterns/tabs.md) ─────────────────
+// "All talents" is the permanent first tab (current list). "+ Add pool" opens
+// PxAddPoolDrawer directly — name + criteria are set together in one step, no
+// separate empty-state "add criteria later" step.
+type PoolTab = { id: string, label: string }
+const pools = ref<PoolTab[]>([])
+const activeTab = ref<string>('all')
+let poolSeq = 0
+
+const poolCriteria = ref<Record<string, TalentCriteria>>({})
+const poolDrawerOpen = ref(false)
+const poolDrawerMode = ref<'create' | 'edit'>('create')
+function openAddPool() {
+  poolDrawerMode.value = 'create'
+  poolDrawerOpen.value = true
+}
+function openEditPool() {
+  poolDrawerMode.value = 'edit'
+  poolDrawerOpen.value = true
+}
+const poolDrawerName = computed(() => (poolDrawerMode.value === 'edit' ? (pools.value.find(p => p.id === activeTab.value)?.label ?? '') : ''))
+const activeCriteria = computed(() => poolCriteria.value[activeTab.value] ?? emptyCriteria())
+const poolDrawerCriteria = computed(() => (poolDrawerMode.value === 'edit' ? activeCriteria.value : emptyCriteria()))
+
+function onSavePool({ name, criteria }: { name: string, criteria: TalentCriteria }) {
+  if (poolDrawerMode.value === 'create') {
+    poolSeq += 1
+    const id = `pool-${poolSeq}`
+    pools.value.push({ id, label: name })
+    poolCriteria.value = { ...poolCriteria.value, [id]: criteria }
+    activeTab.value = id
+  }
+  else {
+    const idx = pools.value.findIndex(p => p.id === activeTab.value)
+    if (idx !== -1) pools.value[idx] = { ...pools.value[idx], label: name }
+    poolCriteria.value = { ...poolCriteria.value, [activeTab.value]: criteria }
+  }
+  poolDrawerOpen.value = false
+}
+
+// A pool tab is empty until it has any criteria set (name + criteria are
+// always saved together, but a pool can still be saved with zero criteria).
+const isPoolEmpty = computed(() => activeTab.value !== 'all' && !hasAnyCriteria(activeCriteria.value))
+// Source rows: the full directory for "All talents", or the pool's
+// criteria-matched members for a pool tab.
+const sourceRows = computed<TalentEmployee[]>(() => {
+  if (activeTab.value === 'all') return TALENTS
+  const criteria = poolCriteria.value[activeTab.value]
+  if (!criteria) return []
+  return TALENTS.filter(t => matchesCriteria(t, criteria, yearsOfService))
+})
 
 // ─── Filters ───────────────────────────────────────────────────────────────
 const toOptions = (vals: string[]) => vals.map(v => ({ value: v, label: v }))
@@ -99,7 +147,7 @@ const advancedCount = computed(() => allFiltersCount(advFilters.value))
 
 const filtered = computed(() => {
   const q = search.value.trim().toLowerCase()
-  return TALENTS.filter((t) => {
+  return sourceRows.value.filter((t) => {
     if (branch.value && t.branch !== branch.value) return false
     if (organization.value && t.organization !== organization.value) return false
     const adv = advFilters.value
@@ -112,6 +160,38 @@ const filtered = computed(() => {
     return true
   })
 })
+
+// ─── Bulk select (pool tabs only — docs/patterns/checkbox.md §3, single flat
+// table = the "Company goals" case: the table header swaps to a bulk bar) ───
+const selectedIds = ref<Set<string>>(new Set())
+const selectedCount = computed(() => selectedIds.value.size)
+const filteredIds = computed(() => filtered.value.map(t => t.id))
+const isAllSelected = computed(() => filteredIds.value.length > 0 && filteredIds.value.every(id => selectedIds.value.has(id)))
+function toggleSelect(id: string) {
+  const next = new Set(selectedIds.value)
+  if (next.has(id)) next.delete(id)
+  else next.add(id)
+  selectedIds.value = next
+}
+function toggleSelectAll() {
+  selectedIds.value = isAllSelected.value ? new Set() : new Set(filteredIds.value)
+}
+function clearSelection() { selectedIds.value = new Set() }
+// Selection is scoped to whichever pool tab is active — switching tabs (or
+// leaving the pool view entirely) starts fresh, same as any other view-scoped state.
+watch(activeTab, () => clearSelection())
+
+function bulkAction(action: 'export' | 'create-idp' | 'create-assignment') {
+  const n = selectedCount.value
+  const label = { export: 'Export', 'create-idp': 'IDP creation', 'create-assignment': 'Assignment creation' }[action]
+  toast.notify({ id: `pool-bulk-${action}`, position: 'top-center', variant: 'success', title: `${label} started for ${n} talent${n === 1 ? '' : 's'}` })
+  clearSelection()
+}
+function onBulkKeydown(e: KeyboardEvent) {
+  if (e.key === 'Escape' && selectedCount.value > 0) clearSelection()
+}
+onMounted(() => window.addEventListener('keydown', onBulkKeydown))
+onUnmounted(() => window.removeEventListener('keydown', onBulkKeydown))
 
 // ─── Column sort (behaviour from goal-cycles reference) ──────────────────────
 const sortKey = ref('')
@@ -128,8 +208,10 @@ const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
   employmentType: 'text',
   joinDate: 'date', // sort chronologically by the ISO join date
   status: 'text',
+  matchScore: 'number',
 }
 function sortValue(t: TalentEmployee, key: string): string {
+  if (key === 'matchScore') return String(matchScoreFor(t).overall)
   if (key === 'name') return t.name
   if (key === 'branch') return t.branch
   if (key === 'organization') return t.organization
@@ -178,8 +260,22 @@ const visible = ref<Record<ColKey, boolean>>({
   branch: true, organization: true, jobPosition: true, jobLevel: true,
   jobGrade: true, jobClass: true, employmentType: true, joinDate: true, status: true,
 })
-// name + action + visible optional columns → colspan for the empty-state row.
-const colCount = computed(() => 2 + COLS.filter(c => visible.value[c.key]).length)
+// name + action + visible optional columns (+ Match score on pool tabs) → colspan for the empty-state row.
+const colCount = computed(() => 2 + COLS.filter(c => visible.value[c.key]).length + (activeTab.value !== 'all' ? 1 : 0))
+
+// ─── Match score (pool tabs only) ────────────────────────────────────────────
+const matchScoreOpen = ref(false)
+const matchScoreTalent = ref<TalentEmployee | null>(null)
+function openMatchScore(t: TalentEmployee) {
+  matchScoreTalent.value = t
+  matchScoreOpen.value = true
+}
+function matchScoreType(score: number): 'completed' | 'warning' | 'critical' {
+  if (score >= 70) return 'completed'
+  if (score >= 40) return 'warning'
+  return 'critical'
+}
+function matchScoreFor(t: TalentEmployee) { return computeMatchScore(t, activeCriteria.value) }
 
 // ─── Pagination ───────────────────────────────────────────────────────────────
 const rowsPerPage = ref(10)
@@ -190,7 +286,7 @@ const currentPage = ref(1)
 const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
 const paged = computed(() => sortedRows.value.slice((currentPage.value - 1) * rowsPerPage.value, currentPage.value * rowsPerPage.value))
-watch([branch, organization, advFilters, search], () => { currentPage.value = 1 }, { deep: true })
+watch([branch, organization, advFilters, search, activeTab, poolCriteria], () => { currentPage.value = 1 }, { deep: true })
 
 // ─── Navigation ───────────────────────────────────────────────────────────────
 function viewProfile(t: TalentEmployee) {
@@ -210,6 +306,13 @@ const bodyCell = css({
 })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
+
+// Bulk-action bar (docs/patterns/checkbox.md §3) — the inset comes from the
+// host `th` (paddingBlock only, horizontal stays the recipe default); the bar
+// itself contributes no padding of its own, keeping its checkbox aligned with
+// the row checkboxes below it.
+const bulkBarCell = css({ paddingBlock: '1' })
+const bulkBar = css({ height: '40px', paddingInline: '0' })
 
 // Sticky column dividers: the border only shows on the OUTER edge — the side
 // facing the scrolling content — and only while that column is actually pinned
@@ -254,12 +357,78 @@ const dotBase = css({ width: '8px', height: '8px', borderRadius: 'full', flexShr
 const dotActive = css({ background: 'background.success.bold' })
 const dotResigned = css({ background: 'background.neutral.bold' })
 
+// Match score pill (pool tabs) — clickable, opens PxMatchScoreDrawer.
+const matchScoreBadge = css({ cursor: 'pointer' })
+
 // Filter-bar select trigger — matches the competencies list look.
 const filterSelectWidth = '200px'
+
+// Pool tabs — canonical Type A tab bar (docs/patterns/tabs.md).
+const tabBar = css({ display: 'flex', alignItems: 'center', gap: '5', width: '100%' })
+const tabItemBase = {
+  display: 'inline-flex', alignItems: 'center', gap: '2',
+  paddingBlock: '3', paddingInline: '1',
+  fontSize: '14px', lineHeight: '20px', fontWeight: '400',
+  color: 'text.secondary', background: 'transparent', border: 'none', cursor: 'pointer',
+  borderBottomWidth: '2px', borderBottomStyle: 'solid', borderBottomColor: 'transparent',
+  marginBottom: '-1px', transition: 'color 0.12s ease, border-color 0.12s ease',
+} as const
+const tabItem = css({ ...tabItemBase, _hover: { color: 'text.default' } })
+const tabItemActive = css({ ...tabItemBase, color: 'text.link', fontWeight: '600', borderBottomColor: 'border.brand' })
+const addPoolTab = css({
+  ...tabItemBase,
+  color: 'text.secondary',
+  _hover: { color: 'text.default' },
+})
+
+// Empty-state styling (docs/empty-state.md) — shown for a pool tab until
+// talent criteria are applied (isPoolEmpty is defined above, near poolCriteria).
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 </script>
 
 <template>
-  <MpFlex direction="column" gap="5">
+  <Teleport to="#page-tabs" defer>
+    <div :class="tabBar">
+      <button type="button" :class="activeTab === 'all' ? tabItemActive : tabItem" @click="activeTab = 'all'">
+        All talents
+      </button>
+      <button
+        v-for="p in pools"
+        :key="p.id"
+        type="button"
+        :class="activeTab === p.id ? tabItemActive : tabItem"
+        @click="activeTab = p.id"
+      >
+        {{ p.label }}
+      </button>
+      <button type="button" :class="addPoolTab" @click="openAddPool">
+        <MpIcon name="add" size="16px" />
+        Add pool
+      </button>
+    </div>
+  </Teleport>
+
+  <!-- ═════ Empty state (freshly created pool) ═════ -->
+  <MpFlex
+    v-if="isPoolEmpty"
+    direction="column"
+    align="center"
+    justify="center"
+    gap="4"
+    :class="emptyStateWrap"
+  >
+    <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+    <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+      <MpText :class="emptyTitle">Talents will appear here</MpText>
+      <MpText size="label" :class="captionText">Add talent criteria to start this pool</MpText>
+    </MpFlex>
+    <MpButton variant="secondary" @click="openEditPool">Add talent criteria</MpButton>
+  </MpFlex>
+
+  <MpFlex v-else direction="column" gap="5">
     <!-- ═════ Filter bar ═════ -->
     <MpFlex align="center" justify="space-between" gap="4" wrap="wrap">
       <MpFlex align="center" gap="3" wrap="wrap">
@@ -290,6 +459,9 @@ const filterSelectWidth = '200px'
           @click="clearAll"
         >
           Clear
+        </MpButton>
+        <MpButton v-if="activeTab !== 'all'" variant="ghost" left-icon="edit" @click="openEditPool">
+          Edit criteria
         </MpButton>
       </MpFlex>
 
@@ -335,9 +507,50 @@ const filterSelectWidth = '200px'
       <MpTableContainer has-shadow>
         <MpTable is-hoverable>
           <MpTableHead>
-            <MpTableRow>
+            <!-- Pool tab, 1+ selected → the whole header row becomes the bulk
+                 bar (docs/patterns/checkbox.md §3 — single flat table, same
+                 case as Company goals). -->
+            <MpTableRow v-if="activeTab !== 'all' && selectedCount > 0">
+              <MpTableCell as="th" :colspan="colCount" :class="bulkBarCell">
+                <MpFlex align="center" justify="space-between" :class="bulkBar">
+                  <MpFlex align="center" gap="4">
+                    <MpFlex align="center" gap="2">
+                      <MpCheckbox :is-checked="isAllSelected" :is-indeterminate="!isAllSelected" aria-label="Select all" @update:is-checked="toggleSelectAll" />
+                      <MpText size="label" weight="semiBold" :class="valueText">{{ selectedCount }} talent{{ selectedCount === 1 ? '' : 's' }} selected</MpText>
+                    </MpFlex>
+                    <MpPopover is-close-on-select use-portal placement="bottom-start">
+                      <MpPopoverTrigger>
+                        <MpButton variant="primary" right-icon="caret-down">Actions</MpButton>
+                      </MpPopoverTrigger>
+                      <MpPopoverContent>
+                        <MpPopoverList>
+                          <MpPopoverListItem @click="bulkAction('export')">Export</MpPopoverListItem>
+                          <MpPopoverListItem @click="bulkAction('create-idp')">Create IDP</MpPopoverListItem>
+                          <MpPopoverListItem @click="bulkAction('create-assignment')">Create assignment</MpPopoverListItem>
+                        </MpPopoverList>
+                      </MpPopoverContent>
+                    </MpPopover>
+                  </MpFlex>
+                  <MpText size="label" :class="captionText">Press esc to deselect</MpText>
+                </MpFlex>
+              </MpTableCell>
+            </MpTableRow>
+            <MpTableRow v-else>
               <MpTableCell as="th" class="tdir-sort-th" :class="stickyNameHead">
-                <span :class="thInner"><span>Employee name</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                <span :class="thInner">
+                  <MpCheckbox v-if="activeTab !== 'all'" :is-checked="isAllSelected" aria-label="Select all" @update:is-checked="toggleSelectAll" />
+                  <span>Employee name</span>
+                  <PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" />
+                </span>
+              </MpTableCell>
+              <MpTableCell v-if="activeTab !== 'all'" as="th" class="tdir-sort-th" :class="headCell">
+                <span :class="thInner">
+                  <span>Match score</span>
+                  <MpTooltip label="Calculated by AI based on how well this talent fits the pool's criteria." use-portal>
+                    <MpIcon name="airene-brand" size="sm" :class="css({ color: 'icon.brand', cursor: 'help' })" />
+                  </MpTooltip>
+                  <PxColumnSortMenu col-key="matchScore" :sort-type="columnSortTypes.matchScore" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" />
+                </span>
               </MpTableCell>
               <MpTableCell v-if="visible.branch" as="th" class="tdir-sort-th" :class="headCell">
                 <span :class="thInner"><span>Branch</span><PxColumnSortMenu col-key="branch" :sort-type="columnSortTypes.branch" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
@@ -374,12 +587,24 @@ const filterSelectWidth = '200px'
               <!-- Employee name (sticky) -->
               <MpTableCell as="td" :class="stickyNameCell">
                 <MpFlex align="center" gap="3">
+                  <MpCheckbox v-if="activeTab !== 'all'" :is-checked="selectedIds.has(t.id)" :aria-label="`Select ${t.name}`" @update:is-checked="() => toggleSelect(t.id)" />
                   <PxAvatar :id="`talent-${t.id}`" :name="t.name" :src="t.photo" size="lg" variant-color="gray" />
                   <div :class="nameWrap">
                     <span :class="nameText">{{ t.name }}</span>
                     <span :class="codeText">{{ t.code }}</span>
                   </div>
                 </MpFlex>
+              </MpTableCell>
+
+              <MpTableCell v-if="activeTab !== 'all'" as="td" :class="bodyCell">
+                <MpBadge
+                  for="tableStatus"
+                  :type="matchScoreType(matchScoreFor(t).overall)"
+                  :class="matchScoreBadge"
+                  @click="openMatchScore(t)"
+                >
+                  {{ matchScoreFor(t).overall }}%
+                </MpBadge>
               </MpTableCell>
 
               <MpTableCell v-if="visible.branch" as="td" :class="bodyCell">
@@ -476,6 +701,24 @@ const filterSelectWidth = '200px'
     :applied-scopes="advScopes"
     @close="filtersOpen = false"
     @apply="onApplyAdv"
+  />
+
+  <!-- ═════ Talent criteria drawer (pool tabs) ═════ -->
+  <PxAddPoolDrawer
+    :is-open="poolDrawerOpen"
+    :mode="poolDrawerMode"
+    :applied-name="poolDrawerName"
+    :applied-criteria="poolDrawerCriteria"
+    @close="poolDrawerOpen = false"
+    @save="onSavePool"
+  />
+
+  <!-- ═════ Match score details drawer (pool tabs) ═════ -->
+  <PxMatchScoreDrawer
+    :is-open="matchScoreOpen"
+    :talent="matchScoreTalent"
+    :criteria="activeCriteria"
+    @close="matchScoreOpen = false"
   />
 </template>
 

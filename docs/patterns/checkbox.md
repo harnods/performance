@@ -149,11 +149,14 @@ the column-header `th` never renders its own copy of it.
 
 ## 3. Bulk action bar — replaces the table header, never shifts the body
 
-**Company goals only** (the one page with a single, non-collapsible group — see "Multi-group
-bulk actions" below for why Organization/Team/Individual do it differently). When 1+ rows are
-selected, a bulk-action bar appears **in place of the table's column-header row** (`thead`) — it
-is **not** an extra bar added above the table, and the filter bar above stays untouched. Source:
-`components/GoalBulkActionBar.vue` (Figma Goals node `4831:33085`).
+**Any single flat table** (one group, no accordion — Company goals, and the Talent
+directory pool table below; see "Multi-group bulk actions" below for why
+Organization/Team/Individual goals do it differently). When 1+ rows are selected,
+a bulk-action bar appears **in place of the table's column-header row** (`thead`) —
+it is **not** an extra bar added above the table, and the filter bar above stays
+untouched. Source: `components/GoalBulkActionBar.vue` (Figma Goals node
+`4831:33085`); re-applied inline (no separate component, since there's only one
+call site) in `pages/talents/talent-directory/index.vue`'s pool table.
 
 ### Anatomy (`GoalBulkActionBar.vue`)
 
@@ -177,6 +180,62 @@ is **not** an extra bar added above the table, and the filter bar above stays un
   `MpPopoverListItem` — Edit and Delete always stay. Company goals sets both (bulk
   progress-update and bulk-close don't apply at that level; the row-level "Update goal
   progress" / "Close goal" actions are unaffected).
+
+### A simpler menu, same bar shape — Talent directory's pool table
+
+Not every bulk bar needs Goals' full Update/Edit/Close/Delete set, and not every
+call site is worth splitting into a bar component + a separate shared menu
+component (Goals only did that because `GoalBulkActionsMenu` is reused across
+three different bulk surfaces — the bar, the inline group-header Actions button,
+and the floating bar). The Talent directory pool table has exactly one bulk
+surface, so its Actions popover is inlined directly in the header-swap row
+instead of extracted into its own file:
+
+```vue
+<MpPopover is-close-on-select use-portal placement="bottom-start">
+  <MpPopoverTrigger>
+    <MpButton variant="primary" right-icon="caret-down">Actions</MpButton>
+  </MpPopoverTrigger>
+  <MpPopoverContent>
+    <MpPopoverList>
+      <MpPopoverListItem @click="bulkAction('export')">Export</MpPopoverListItem>
+      <MpPopoverListItem @click="bulkAction('create-idp')">Create IDP</MpPopoverListItem>
+      <MpPopoverListItem @click="bulkAction('create-assignment')">Create assignment</MpPopoverListItem>
+    </MpPopoverList>
+  </MpPopoverContent>
+</MpPopover>
+```
+
+No `MpDivider`/danger item here — none of the three actions is destructive, so
+there's nothing to visually separate. Selection is scoped to the current pool
+tab (`watch(activeTab, () => clearSelection())`) and to whatever the filter bar
+currently shows (`toggleSelectAll` operates on `filtered.value`'s ids, not just
+the current page) — same scoping rule as Goals' per-group `toggleSelectAll`.
+
+#### Deviation: an always-visible select-all checkbox in the column header
+
+Goals never puts a select-all checkbox in the normal (`v-else`) column-header
+`th` — at 0 selected, Company goals' header shows plain column labels, and the
+only way to reach "select all" is to check one row first so the bar appears.
+The Talent directory pool table instead puts the select-all checkbox directly
+in the **normal** "Employee name" `th` too, visible before anything is selected:
+
+```vue
+<span :class="thInner">
+  <MpCheckbox v-if="activeTab !== 'all'" :is-checked="isAllSelected" aria-label="Select all" @update:is-checked="toggleSelectAll" />
+  <span>Employee name</span>
+  <PxColumnSortMenu ... />
+</span>
+```
+
+This checkbox and the bulk bar's own select-all checkbox never render at the
+same time — the normal header row only renders while `selectedCount === 0`
+(the bulk bar takes over for 1+), so there's exactly one select-all control on
+screen at any moment, just in two different rows depending on state. Reach for
+this when the "check one row first" step is worth skipping (a pool table where
+"select everything currently filtered" is a common first action); default to
+Goals' header-only-at-1+ behavior otherwise, since it's the more common case
+in this app.
 
 ### Wiring — swap the header row via `colspan`
 
@@ -301,9 +360,12 @@ const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
 - Table row-select checkbox = inside the first content cell, not its own column.
 - Select-all checkbox = in the accordion/category header (after the caret), not the
   column-header `th`; needs `:is-indeterminate` since it's visible at 0 selected too.
-- Company goals: bulk action bar replaces the header row (`colspan`); Actions = primary
-  `caret-down` popover; Delete is danger. Body never shifts (widths locked by `colgroup`;
-  only the header row swaps).
+- Single flat table (Company goals; Talent directory pool table): bulk action bar
+  replaces the header row (`colspan`); Actions = primary `caret-down` popover
+  (Delete, when present, is danger + separated by `MpDivider`). Body never shifts
+  (widths locked by `colgroup`; only the header row swaps). Only extract a
+  separate `*BulkActionsMenu` component when the same menu is reused across
+  multiple bulk surfaces — a single call site can inline the popover.
 - Bulk-bar inset comes from the **host `th`** (`paddingBlock: '1'`, keep the horizontal),
   never from the bar (`paddingInline: '0'`) — otherwise the select-all checkbox sits 8px
   off the row-checkbox column. Background + bottom border are the `th`'s too.

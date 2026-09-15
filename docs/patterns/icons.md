@@ -39,6 +39,35 @@ way to set that from outside):
 `MpTooltip`'s **only** slot child. A leading `<!-- comment -->` node inside the
 tooltip becomes the trigger instead, and the tooltip never shows.
 
+## AI-generated content marker — `airene-brand`
+
+Anything computed by AI (a summary, a score) carries the `airene-brand` logo icon
+(`icon.brand` colour) beside it, plus a short disclaimer the user can read on
+demand:
+
+```vue
+<MpIcon name="airene-brand" :class="css({ color: 'icon.brand' })" />
+<MpText size="label-small" :class="css({ color: 'text.brand' })">Summarized by AI</MpText>
+```
+
+(`components/CycleDetailGeneral.vue:310`, `pages/reviews/review-cycles/[id]/index.vue:1286`.)
+
+When the AI output is a **score/number a user might act on** (not just a text
+summary), pair the icon with an explanatory `MpTooltip` on hover, and — if it
+opens a detail drawer — repeat the disclaimer as a dismissible-looking
+`MpBanner variant="info"` at the top of that drawer (`Learn more` via
+`MpTextlink as="button"`, not `MpBannerLink` — see [`banner.md`](banner.md)):
+
+```vue
+<MpTooltip label="Calculated by AI based on how well this talent fits the pool's criteria." use-portal>
+  <MpIcon name="airene-brand" size="sm" :class="css({ color: 'icon.brand', cursor: 'help' })" />
+</MpTooltip>
+```
+
+Reference: Talent directory's "Match score" column + `components/PxMatchScoreDrawer.vue`
+— see [`badges.md`](badges.md#tiered-percentage-pill-eg-ai-match-score) for the
+tiered pill this icon sits beside.
+
 ## Rules
 
 - Sidebar/precise-box icons → `PxIcon` with `:size`. Inline/button icons → `MpIcon`.
