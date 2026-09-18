@@ -52,6 +52,14 @@ talent fits a custom pool's criteria (`utils/matchScore.ts`), clickable to open
 extra affordance beyond `cursor: pointer` — a coloured pill next to plain table
 text already reads as interactive.
 
+## Coverage badge (grey → green, with a leading icon)
+
+A read-only "is this covered yet?" pill — `announcement` until the thing is
+satisfied, then `completed`, with an `indicator-circle` → filled `done` icon in
+the default slot. Used for the talent-pool prompt's criteria coverage; the full
+pattern (including why the icon can't be a prop) is in
+[`ai-prompt-builder.md`](ai-prompt-builder.md#coverage-badges--grey-until-the-prompt-mentions-it).
+
 ## API 2 — `variant="tableStatus"` + `:variantColor=` + `size="md"`
 
 Used only in `pages/reviews/review-cycles/[id]/index.vue` with colour maps like `{ Completed: 'completed', 'In progress': 'information', Upcoming: 'announcement', Expired: 'warning' }`. Don't spread this API to new pages.

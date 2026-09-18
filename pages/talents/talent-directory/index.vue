@@ -47,24 +47,32 @@ import {
   EMPLOYMENT_TYPES,
   aging,
   formatJoinDate,
-  yearsOfService,
   type TalentEmployee,
 } from '~/utils/talents'
-import { emptyCriteria, hasAnyCriteria, matchesCriteria, type TalentCriteria } from '~/utils/talentCriteria'
+import { emptyCriteria, hasAnyCriteria, matchesCriteria, summarizeCriteria, type TalentCriteria } from '~/utils/talentCriteria'
 import { computeMatchScore } from '~/utils/matchScore'
+import { TALENT_POOLS_ENABLED } from '~/utils/featureFlags'
 
 definePageMeta({ title: 'Talent directory', layout: 'default' })
 
 // ─── Pool tabs (#page-tabs, Type A — docs/patterns/tabs.md) ─────────────────
+// 🔒 Currently hidden behind TALENT_POOLS_ENABLED (utils/featureFlags.ts). The
+// tab bar isn't rendered while it's off, so `activeTab` stays 'all' and every
+// `activeTab !== 'all'` branch below is unreachable — no second flag check
+// needed on the match-score column, checkboxes, summary strip or empty state.
 // "All talents" is the permanent first tab (current list). "+ Add pool" opens
-// PxAddPoolDrawer directly — name + criteria are set together in one step, no
-// separate empty-state "add criteria later" step.
+// PxAddPoolDrawer directly — a pool's name, scope and criteria are all set in
+// that one drawer, never "create empty, configure later".
+// A pool is scoped to a job position (required) and optionally a branch, then
+// narrowed further by its talent criteria.
+type PoolScope = { jobPosition: string, branch: string }
 type PoolTab = { id: string, label: string }
 const pools = ref<PoolTab[]>([])
 const activeTab = ref<string>('all')
 let poolSeq = 0
 
 const poolCriteria = ref<Record<string, TalentCriteria>>({})
+const poolScopes = ref<Record<string, PoolScope>>({})
 const poolDrawerOpen = ref(false)
 const poolDrawerMode = ref<'create' | 'edit'>('create')
 function openAddPool() {
@@ -77,34 +85,46 @@ function openEditPool() {
 }
 const poolDrawerName = computed(() => (poolDrawerMode.value === 'edit' ? (pools.value.find(p => p.id === activeTab.value)?.label ?? '') : ''))
 const activeCriteria = computed(() => poolCriteria.value[activeTab.value] ?? emptyCriteria())
+const activeScope = computed<PoolScope>(() => poolScopes.value[activeTab.value] ?? { jobPosition: '', branch: '' })
 const poolDrawerCriteria = computed(() => (poolDrawerMode.value === 'edit' ? activeCriteria.value : emptyCriteria()))
+const poolDrawerScope = computed<PoolScope>(() => (poolDrawerMode.value === 'edit' ? activeScope.value : { jobPosition: '', branch: '' }))
 
-function onSavePool({ name, criteria }: { name: string, criteria: TalentCriteria }) {
+function onSavePool({ name, jobPosition, branch, criteria }: { name: string, jobPosition: string, branch: string, criteria: TalentCriteria }) {
+  const id = poolDrawerMode.value === 'create' ? `pool-${(poolSeq += 1)}` : activeTab.value
   if (poolDrawerMode.value === 'create') {
-    poolSeq += 1
-    const id = `pool-${poolSeq}`
     pools.value.push({ id, label: name })
-    poolCriteria.value = { ...poolCriteria.value, [id]: criteria }
     activeTab.value = id
   }
   else {
-    const idx = pools.value.findIndex(p => p.id === activeTab.value)
+    const idx = pools.value.findIndex(p => p.id === id)
     if (idx !== -1) pools.value[idx] = { ...pools.value[idx], label: name }
-    poolCriteria.value = { ...poolCriteria.value, [activeTab.value]: criteria }
   }
+  poolCriteria.value = { ...poolCriteria.value, [id]: criteria }
+  poolScopes.value = { ...poolScopes.value, [id]: { jobPosition, branch } }
   poolDrawerOpen.value = false
 }
 
-// A pool tab is empty until it has any criteria set (name + criteria are
-// always saved together, but a pool can still be saved with zero criteria).
-const isPoolEmpty = computed(() => activeTab.value !== 'all' && !hasAnyCriteria(activeCriteria.value))
-// Source rows: the full directory for "All talents", or the pool's
-// criteria-matched members for a pool tab.
+// A pool tab is empty until it defines *something* — a job position/branch scope
+// or any criteria. Job position is required when saving, so a pool created
+// through the drawer is always configured; this covers the unscoped fallback.
+const isPoolEmpty = computed(() => activeTab.value !== 'all'
+  && !activeScope.value.jobPosition && !activeScope.value.branch
+  && !hasAnyCriteria(activeCriteria.value))
+// What the "Showing …" strip reads back — the criteria as selected, not the
+// prompt as typed, so it stays true after they're edited by hand.
+const poolSummary = computed(() => summarizeCriteria(activeScope.value, activeCriteria.value))
+// Source rows: the full directory for "All talents", or — for a pool tab — the
+// members inside its scope that also match its criteria.
 const sourceRows = computed<TalentEmployee[]>(() => {
   if (activeTab.value === 'all') return TALENTS
   const criteria = poolCriteria.value[activeTab.value]
   if (!criteria) return []
-  return TALENTS.filter(t => matchesCriteria(t, criteria, yearsOfService))
+  const scope = activeScope.value
+  return TALENTS.filter(t =>
+    (!scope.jobPosition || t.jobPosition === scope.jobPosition)
+    && (!scope.branch || t.branch === scope.branch)
+    && matchesCriteria(t, criteria),
+  )
 })
 
 // ─── Filters ───────────────────────────────────────────────────────────────
@@ -381,6 +401,17 @@ const addPoolTab = css({
   _hover: { color: 'text.default' },
 })
 
+// "Showing …" summary strip above a pool's filter bar (docs/patterns/banner.md
+// — summary strip). Neutral, not an MpBanner status variant: it reports what the
+// pool selects, and its pencil reopens the drawer in edit mode.
+const summaryBar = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3',
+  padding: '3', borderRadius: 'lg', border: '1px solid',
+  borderColor: 'border.default', background: 'background.neutral.subtle',
+})
+const summaryLabel = css({ display: 'block', color: 'text.secondary' })
+const summaryText = css({ display: 'block', color: 'text.default', marginTop: '1' })
+
 // Empty-state styling (docs/empty-state.md) — shown for a pool tab until
 // talent criteria are applied (isPoolEmpty is defined above, near poolCriteria).
 const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
@@ -390,7 +421,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 </script>
 
 <template>
-  <Teleport to="#page-tabs" defer>
+  <Teleport v-if="TALENT_POOLS_ENABLED" to="#page-tabs" defer>
     <div :class="tabBar">
       <button type="button" :class="activeTab === 'all' ? tabItemActive : tabItem" @click="activeTab = 'all'">
         All talents
@@ -429,6 +460,17 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </MpFlex>
 
   <MpFlex v-else direction="column" gap="5">
+    <!-- ═════ "Showing …" criteria summary (pool tabs only) ═════ -->
+    <div v-if="activeTab !== 'all'" :class="summaryBar">
+      <div>
+        <MpText size="label" :class="summaryLabel">Showing</MpText>
+        <MpText size="label" weight="semiBold" :class="summaryText">{{ poolSummary }}</MpText>
+      </div>
+      <MpTooltip label="Edit criteria" use-portal>
+        <MpButton variant="ghost" left-icon="edit" aria-label="Edit criteria" @click="openEditPool" />
+      </MpTooltip>
+    </div>
+
     <!-- ═════ Filter bar ═════ -->
     <MpFlex align="center" justify="space-between" gap="4" wrap="wrap">
       <MpFlex align="center" gap="3" wrap="wrap">
@@ -459,9 +501,6 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           @click="clearAll"
         >
           Clear
-        </MpButton>
-        <MpButton v-if="activeTab !== 'all'" variant="ghost" left-icon="edit" @click="openEditPool">
-          Edit criteria
         </MpButton>
       </MpFlex>
 
@@ -705,9 +744,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <!-- ═════ Talent criteria drawer (pool tabs) ═════ -->
   <PxAddPoolDrawer
+    v-if="TALENT_POOLS_ENABLED"
     :is-open="poolDrawerOpen"
     :mode="poolDrawerMode"
     :applied-name="poolDrawerName"
+    :applied-job-position="poolDrawerScope.jobPosition"
+    :applied-branch="poolDrawerScope.branch"
     :applied-criteria="poolDrawerCriteria"
     @close="poolDrawerOpen = false"
     @save="onSavePool"
@@ -715,6 +757,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
 
   <!-- ═════ Match score details drawer (pool tabs) ═════ -->
   <PxMatchScoreDrawer
+    v-if="TALENT_POOLS_ENABLED"
     :is-open="matchScoreOpen"
     :talent="matchScoreTalent"
     :criteria="activeCriteria"

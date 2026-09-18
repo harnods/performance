@@ -60,6 +60,11 @@ const DNA_COMPETENCIES = [
   'Communication', 'Problem Solving', 'Analytical Thinking', 'Teamwork',
   'Customer Focus', 'Execution', 'Leadership', 'Decision Making',
 ]
+// Org-independent behavioural skills — the third competency group, alongside the
+// 8 DNA competencies and the org's technical skills.
+const SOFT_SKILLS = [
+  'Adaptability', 'Time Management', 'Collaboration', 'Active Listening', 'Conflict Resolution',
+]
 const TECH_SKILLS_BY_ORG: Record<string, string[]> = {
   Sales: ['CRM Usage', 'Product Knowledge', 'Lead Qualification', 'Demo Delivery', 'Sales Forecasting'],
   Accounting: ['Financial Reporting', 'Tax Compliance', 'Budgeting', 'Reconciliation'],
@@ -290,11 +295,17 @@ export function buildProfile(t: TalentEmployee): TalentProfile {
       const score = round1(clamp(techAvg + (((seed >> (i + off + 2)) % 5) - 2) * 0.25, 2.0, 5.0))
       return { name, score, rating: itemRating(score, 3.5) }
     })
+    const softAvg = round1(clamp(base - 0.4 + adj + ((seed >> (off + 3)) % 3) * 0.1, 2.4, 4.3))
+    const softItems: CompetencyItem[] = SOFT_SKILLS.map((name, i) => {
+      const score = round1(clamp(softAvg + (((seed >> (i + off + 4)) % 5) - 2) * 0.25, 2.0, 5.0))
+      return { name, score, rating: itemRating(score, 3.5) }
+    })
     return {
       assessment: label, completed, position: t.jobPosition, scope: SCOPES[(seed + off) % SCOPES.length],
       groups: [
         { name: '8 DNA competencies', target: 4.0, average: dnaAvg, gap: round1(dnaAvg - 4.0), items: dnaItems },
         { name: 'Technical skills', target: 3.5, average: techAvg, gap: round1(techAvg - 3.5), items: techItems },
+        { name: 'Soft skills', target: 3.5, average: softAvg, gap: round1(softAvg - 3.5), items: softItems },
       ],
     }
   }

@@ -26,6 +26,91 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '18 Sep 2026',
+    module: 'Talents',
+    items: [
+      {
+        category: 'Chore',
+        area: 'Talent directory — pools',
+        detail: 'Hid the whole talent-pools feature behind a new TALENT_POOLS_ENABLED flag (utils/featureFlags.ts) while the design is still under review. Talent directory is back to the plain "All talents" list: no tab bar, no "+ Add pool", no match-score column, no bulk-select checkboxes, no "Showing …" strip. Only the tab bar and the two drawers are gated — with the tab bar gone `activeTab` can never leave \'all\', so every pool-only branch is unreachable by construction. The code and its tests stay live; flip the flag to true to bring it all back.',
+        files: [
+          'utils/featureFlags.ts',
+          'pages/talents/talent-directory/index.vue',
+          'docs/patterns/feature-flags.md',
+          'docs/patterns/ai-prompt-builder.md',
+          'docs/patterns/accordion.md',
+          'docs/README.md',
+        ],
+      },
+    ],
+  },
+  {
+    date: '17 Sep 2026',
+    module: 'Talents',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Talent directory — Add pool drawer',
+        detail: 'Rebuilt the Add/Edit pool drawer to the new design: a 60-char-counted Name, a required Job position + optional Branch scope row, and a "Describe / Build" segmented control over the Talent criteria section. Describe lets you write the pool in plain language; the badges under the textarea turn from grey to green for each criteria dimension the text mentions (job position, location, competency score, performance result, education level, attendance, years of service), "Refine prompt" rewrites the text to spell those out, and "Next" turns them into criteria rows on the Build step. Pools now also filter by their job position/branch scope, and the primary CTA validates with inline errors + a toast instead of being disabled.',
+        files: [
+          'components/PxAddPoolDrawer.vue',
+          'pages/talents/talent-directory/index.vue',
+          'utils/talentPrompt.ts',
+          'utils/talentPrompt.test.ts',
+          'utils/talents.ts',
+          'docs/patterns/ai-prompt-builder.md',
+          'docs/patterns/filter-bar.md',
+          'docs/patterns/badges.md',
+          'docs/README.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Talent directory — Add pool drawer',
+        detail: 'The Describe textarea now drives the Build step live, not just the badges: typing "a bachelor\'s degree" ticks Bachelor, "95% attendance" fills Attendance\'s Min, "atleast 2 years of service" fills Years of service, "no absents" sets Attendance to 100, and a named branch/job title fills the scope selects. Ranges ("80 to 95"), floors ("at least", "5+") and ceilings ("under 60") are all understood, and each number is assigned to its nearest criterion. Still zero AI/network calls — it is a local keyword whitelist, so it costs nothing to run on a deployed build.',
+        files: [
+          'utils/talentPrompt.ts',
+          'utils/talentPrompt.test.ts',
+          'components/PxAddPoolDrawer.vue',
+          'docs/patterns/ai-prompt-builder.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Talent directory — Build step',
+        detail: 'Rebuilt the Build step to the Figma: each added criterion is now its own collapsible MpAccordion section with the shape its data actually has, instead of one generic Min–Max row. Competency score compares per group (8 DNA competencies / Technical skills / Soft skills) with an Is exactly / at least / at most / between operator; Performance result picks a result per review type (Self / 360 / Team / Manager); Education level and Year of service are "Atleast" floors; Attendance ticks an issue (Absent / Late clock in / Day off) and reveals a Days cap. Pool filtering, match score and the "Showing …" summary all read the new shape, and criteria values come from one memoized source (utils/talentAttributes.ts) shared with the talent profile page so the two can\'t disagree. Soft skills added as a third competency group on the profile.',
+        files: [
+          'components/PxAddPoolDrawer.vue',
+          'utils/talentCriteria.ts',
+          'utils/talentCriteria.test.ts',
+          'utils/talentAttributes.ts',
+          'utils/talentPrompt.ts',
+          'utils/talentPrompt.test.ts',
+          'utils/matchScore.ts',
+          'utils/talent-profile.ts',
+          'pages/talents/talent-directory/index.vue',
+          'docs/patterns/accordion.md',
+          'docs/patterns/filter-bar.md',
+          'docs/patterns/ai-prompt-builder.md',
+          'docs/README.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Talent directory — pool tabs',
+        detail: 'Replaced the "Edit criteria" button in the filter row with a "Showing …" summary strip above it, reading back the pool\'s scope and criteria as a sentence ("Sales Representative, Jakarta HQ, Attendance at least 90%, Bachelor, Years of service at least 2 yrs") with a pencil that reopens the drawer in edit mode. It summarizes the saved criteria, not the prompt that was typed, so it stays true after hand edits.',
+        files: [
+          'pages/talents/talent-directory/index.vue',
+          'utils/talentCriteria.ts',
+          'utils/talentCriteria.test.ts',
+          'docs/patterns/banner.md',
+          'docs/patterns/tabs.md',
+          'docs/README.md',
+        ],
+      },
+    ],
+  },
+  {
     date: '15 Sep 2026',
     module: 'Talents',
     items: [

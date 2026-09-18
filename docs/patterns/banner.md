@@ -30,6 +30,53 @@ are all **direct children of `MpBanner`**, not nested inside each other.
 caller-managed — `MpBannerCloseButton` only emits `click`; hide the banner
 yourself via a local `ref` + `v-if`.
 
+## Summary strip — "Showing …"
+
+**Not every bar above a table is an `MpBanner`.** `MpBanner` has only toned
+status variants; a strip that just *reports what the view is currently showing*
+is neutral and carries no severity, so building it as `MpBanner variant="info"`
+paints a blue alert on a page where nothing is wrong. Use a plain `css()` block:
+
+```ts
+const summaryBar = css({
+  display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3',
+  padding: '3', borderRadius: 'lg', border: '1px solid',
+  borderColor: 'border.default', background: 'background.neutral.subtle',
+})
+const summaryLabel = css({ display: 'block', color: 'text.secondary' })
+const summaryText = css({ display: 'block', color: 'text.default', marginTop: '1' })
+```
+
+```vue
+<div :class="summaryBar">
+  <div>
+    <MpText size="label" :class="summaryLabel">Showing</MpText>
+    <MpText size="label" weight="semiBold" :class="summaryText">{{ poolSummary }}</MpText>
+  </div>
+  <MpTooltip label="Edit criteria" use-portal>
+    <MpButton variant="ghost" left-icon="edit" aria-label="Edit criteria" @click="openEditPool" />
+  </MpTooltip>
+</div>
+```
+
+Shape: a quiet `Showing` caption over the semibold summary, with a single
+ghost pencil on the right that reopens whatever defined it. It sits **above the
+filter bar**, inside the content card.
+
+Rules:
+
+- **Summarize the saved state, not the input that produced it.** Talent
+  directory's pool summary comes from `summarizeCriteria(scope, criteria)`, not
+  from the prompt the user typed — the criteria can be edited by hand afterwards
+  (see [`ai-prompt-builder.md`](ai-prompt-builder.md#reading-it-back-afterwards)).
+- The pencil replaces a separate "Edit criteria" button in the filter row — one
+  affordance for "change what this view shows", next to the text it changes.
+- Icon-only button, so it **must** carry an `aria-label` + `MpTooltip use-portal`
+  ([`filter-bar.md`](filter-bar.md#right-cluster-icon-buttons--column-settings--export-must-have-a-tooltip)).
+- Not dismissible — it describes the view, it isn't news.
+
+Reference: `pages/talents/talent-directory/index.vue` (pool tabs).
+
 ## 🚫 `MpBannerLink` does not work — use `MpTextlink` instead
 
 `MpBannerLink` renders as a plain unstyled `<div>` in this Pixel version:

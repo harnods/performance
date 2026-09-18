@@ -5,6 +5,20 @@ cycle with no goals, a goal-cycles list before any cycle is created, etc.). It
 **replaces** the filter bar + table entirely — never render an empty table
 shell with a placeholder row.
 
+## ⚠️ "No records yet" ≠ "filtered to zero"
+
+This pattern is for a collection that has **nothing in it**. It is *not* for a
+populated list that the user's current filter/search/criteria happen to select
+nothing from — there, keep the filter bar and the table and show the table's own
+no-results row. Swapping in a full-page empty state would hide the very controls
+the user needs to widen the query, and "create one" is the wrong advice when the
+records already exist.
+
+Gate the empty state on *"is this collection configured/populated at all?"*, never
+on `rows.length === 0` after filtering. Talent directory's pool tabs are the
+worked example of both states side by side — see
+[`patterns/tabs.md`](patterns/tabs.md#unconfigured-tab-vs-zero-matches--two-different-treatments).
+
 ## Anatomy (top → bottom, centered)
 
 1. **Illustration** — from `public/illustrations/` (e.g. `empty-timeframe.png`),

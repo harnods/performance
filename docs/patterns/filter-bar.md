@@ -156,22 +156,34 @@ attendance, education level, years of service —
 mechanic (a popover of not-yet-added items → a removable row per added item), just
 with the fixed list swapped in for the dynamic one:
 
+> The criteria builder below is the drawer's **"Build" step**. The same drawer
+> also has a **"Describe"** step (write the pool as a prompt) in front of it —
+> see [`ai-prompt-builder.md`](ai-prompt-builder.md) for the segmented control,
+> the prompt→criteria handoff, and the coverage badges. Everything in this
+> section describes the Build half.
+
 ```vue
-<MpDrawer :is-open="isOpen" placement="right" size="md" is-keep-alive @close="...">
+<MpDrawer :is-open="isOpen" placement="right" size="lg" is-keep-alive @close="...">
   <MpDrawerContent>
     <MpDrawerHeader>{{ mode === 'create' ? 'Add pool' : 'Edit pool' }}<MpDrawerCloseButton /></MpDrawerHeader>
     <MpDrawerBody>
       <MpFormControl is-required>
-        <MpFormLabel>Name</MpFormLabel>
-        <MpInput v-model="name" placeholder="Enter pool name" />
+        <MpFormLabel>Name</MpFormLabel>  <!-- + a `n / 60` char counter on the label row -->
+        <MpInput v-model="name" :maxlength="NAME_MAX" placeholder="Enter pool name" />
       </MpFormControl>
+
+      <!-- scope row: Job position (required) + Branch, two fixed columns -->
 
       <!-- section header: H2/20px pattern (CLAUDE.md) + one-line caption -->
 
-      <div v-for="key in addedCriteria" :key="key" :class="criteriaRow">
-        <!-- header: label + a "minus-circular" remove icon (MpTooltip "Remove") -->
-        <!-- body: range row (see below) or an education-level checkbox list -->
-      </div>
+      <!-- one MpAccordion section per added criterion — see accordion.md -->
+      <MpAccordion is-allow-multiple is-allow-toggle>
+        <MpAccordionItem v-for="key in addedCriteria" :key="key" is-default-open>
+          <!-- header: label + "minus-circular" remove + caret (remove sits
+               OUTSIDE MpAccordionHeader so it can't also collapse) -->
+          <!-- panel: that criterion's own shape (see below) -->
+        </MpAccordionItem>
+      </MpAccordion>
 
       <MpPopover is-close-on-select use-portal placement="bottom-start">
         <MpPopoverTrigger>
@@ -197,38 +209,63 @@ with the fixed list swapped in for the dynamic one:
 
 Key differences from `PxAllFiltersDrawer`, beyond the fixed item list:
 
-- **The drawer also carries a `name` field** — creating the tab/entity and defining
-  its criteria happen in **one step, one drawer**, never "create empty, configure
-  later". `Save` is disabled while `name` is blank; criteria are optional (a pool can
-  be saved with zero criteria — see the [tabs.md](tabs.md#-add-tab-user-created-tabs)
-  empty-state fallback for that case).
+- **The drawer also carries the entity's own fields** — a `name`, plus the pool's
+  scope (job position, branch). Creating the tab/entity and defining its criteria
+  happen in **one drawer**, never "create empty, configure later". Criteria stay
+  optional: a pool scoped to a job position but with zero criteria is still a valid
+  pool (it lists everyone in that position), which is why scope *and* criteria both
+  feed [tabs.md](tabs.md#-add-tab-user-created-tabs)'s empty-state fallback.
+- **`Save` is never disabled** — validate on click, show inline
+  `MpFormErrorMessage`s and an error toast
+  ([`buttons.md`](buttons.md#no-disabled-primary-cta)).
+- **A fixed-width drawer ignores the page's responsive grid.** The scope row is a
+  flat `gridTemplateColumns: '1fr 1fr'`, not `{ base: '1fr', lg: '1fr 1fr' }` —
+  Panda's `lg` tracks the *viewport*, so a breakpoint would collapse the drawer's
+  own two columns on a narrow window even though the drawer is the same width
+  either way. Size the drawer to the content instead: two side-by-side selects
+  need `size="lg"` (684px), not `md` (448px).
 - **One drawer, two modes** (`mode: 'create' | 'edit'`) — reuse it for editing by
   seeding `name`/`form`/`addedCriteria` from the applied state instead of blank
   defaults, rather than building a second component.
 - Footer is **Cancel / Save**, matching a create/edit drawer, not **Reset all /
   Cancel / Apply filter** (that footer is specific to a transient list-filter like
-  `PxAllFiltersDrawer`).
-- A removed criteria row resets its own fields (`null`/`[]`) so re-adding it later
-  starts clean, exactly like `PxAllFiltersDrawer.removeScope`.
+  `PxAllFiltersDrawer`). On the Describe step the primary becomes **Next** —
+  see [`ai-prompt-builder.md`](ai-prompt-builder.md).
+- A removed criteria section resets its own fields so re-adding it later starts
+  clean, exactly like `PxAllFiltersDrawer.removeScope`.
 
-### Numeric range filter — "Min – Max" row
+### Give each criterion the shape its data actually has
 
-For a criterion that's a numeric range (score, percentage, years), use two `MpInput
-type="number"` fields separated by an en dash, both under one `MpFormLabel`:
+The tempting shortcut is one generic "Min – Max" row for every criterion. Don't —
+it forces unrelated things into a number range and makes the filter lie. The
+talent-pool criteria are five different shapes, one per section
+([`accordion.md`](accordion.md) for the section chrome):
 
-```vue
-<div :class="rangeRow"> <!-- css({ display: 'flex', alignItems: 'center', gap: '2' }) -->
-  <MpInput v-model="form.min" type="number" placeholder="Min" />
-  <span :class="rangeSep">–</span> <!-- css({ color: 'text.secondary' }) -->
-  <MpInput v-model="form.max" type="number" placeholder="Max" />
-</div>
-```
+| Criterion | Shape | Why not a range |
+|---|---|---|
+| Competency score | operator select + value, **per group** (DNA / Technical / Soft) | Three separate scores; one range can't say "DNA ≥ 4 but Technical ≥ 3" |
+| Performance result | a result select **per review type** (Self / 360 / Team / Manager) | Ordinal labels, not numbers, and four independent reviewers |
+| Education level | "Atleast" + one select | Ordinal ladder — a floor, not a span |
+| Attendance | a checkbox per issue, revealing a "Days" cap | Three separate counters; ticking is the on/off |
+| Year of service | "Atleast" + number + `Years` addon | Only ever a floor in practice |
 
-Add `MpInputGroup` + `MpInputRightAddon` around each side when the value has a unit
-(`%`, `yrs`) — same idiom as any unit-suffixed input (CLAUDE.md forms rule). Treat an
-empty input as "no bound" (not `0`) when matching — coerce `''`/`null`/`undefined` to
-"no bound" before comparing, since a plain `<` / `>` comparison against `''` or
-`undefined` doesn't fail the way you'd expect and silently lets unrelated rows through.
+Two rules hold across all of them:
+
+- **Empty means "no bound", never `0`.** Coerce `''`/`null`/`undefined` before
+  comparing (`toNum`) — a plain `<` / `>` against `''` doesn't fail the way you'd
+  expect and silently lets unrelated rows through. A ticked attendance issue with
+  an empty Days field is on-but-unbounded, not "0 days".
+- **Units go in `MpInputRightAddon`** (`Days`, `Years`) — the same idiom as any
+  unit-suffixed input (CLAUDE.md forms rule).
+
+### Read the criterion's source data from one place
+
+Each of those shapes needs per-talent data to compare against (group scores,
+review results, issue counts). Derive it **once**, in a shared module, memoized —
+`utils/talentAttributes.ts` reads it back out of `buildProfile` rather than
+re-deriving it, so a pool that says "8 DNA competencies at least 4" selects the
+same people the talent profile page shows a 4 for. Deriving the same number twice
+is how two screens quietly start disagreeing.
 
 ## Rules
 

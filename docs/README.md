@@ -47,6 +47,8 @@ Sequence for any UI work:
 | [`patterns/filter-bar.md`](patterns/filter-bar.md) | The filter row above a table (search + export always on the right). |
 | [`patterns/pagination.md`](patterns/pagination.md) | Pagination under a table — the paged 52px footer, **and** progressive "Load more" (lists, and dashboard tables in a height-capped scroll region). |
 | [`patterns/checkbox.md`](patterns/checkbox.md) | Checkboxes — label gap (the 24px bug), checkbox-in-table (first cell), and the bulk-action bar. |
+| [`patterns/ai-prompt-builder.md`](patterns/ai-prompt-builder.md) | A "Describe" (write a prompt) vs "Build" (explicit fields) segmented control — the prompt→fields→save handoff, and the grey→green coverage badges that show what a prompt still misses. |
+| [`patterns/accordion.md`](patterns/accordion.md) | `MpAccordion` — collapsible, removable form sections. Its prop names are **not** the obvious ones, the remove button must sit outside the header, and `MpInputLeftAddon` needs resizing to hold an operator select. |
 | [`patterns/form.md`](patterns/form.md) | Any form — fields, selects, grid, section headers. |
 | [`patterns/page-form.md`](patterns/page-form.md) | Full-page create/edit vs drawer; when to use which. |
 | [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |
@@ -58,11 +60,12 @@ Sequence for any UI work:
 | [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
 | [`patterns/upload.md`](patterns/upload.md) | Single-file dropzone upload (drag/drop + browse, file-selected summary row, inline validation). |
-| [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. |
+| [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. **Also** the neutral "Showing …" summary strip, which is deliberately *not* an `MpBanner`. |
 | [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, and gate/confirmation modals (validate on the triggering action, share logic via a composable). |
 | [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon. |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, and the rules for faking data safely. |
+| [`patterns/feature-flags.md`](patterns/feature-flags.md) | `utils/featureFlags.ts` — hiding a finished surface until it's meant to ship. The one sanctioned exception to CLAUDE.md's "no feature flags" rule, and which surfaces are currently off. |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |
 | [`patterns/archive-cycle.md`](patterns/archive-cycle.md) | The "All goals from 2020-2025" archive cycle — what's allowed on its goals vs. the cycle itself, and hiding Import/New goals + dev tools on all 5 of its tabs. |
 

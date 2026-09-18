@@ -118,22 +118,39 @@ const addPoolTab = css({ ...tabItemBase, color: 'text.secondary', _hover: { colo
 Use icon name `add` (not `plus` — `plus` isn't a Pixel icon in this repo).
 
 The button opens a right-side `MpDrawer` (`components/PxAddPoolDrawer.vue`), **not**
-a modal — when the new tab needs more than just a name (here: a name *and* a set of
-membership criteria), use the drawer + fixed-criteria-list shape from
+a modal — when the new tab needs more than just a name (here: a name, a job
+position/branch scope, *and* a set of membership criteria), use the drawer +
+fixed-criteria-list shape from
 [`filter-bar.md`](filter-bar.md#fixed-criteria-drawer-vs-the-all-filters-scope-picker)
-rather than a plain name-only `MpModal`. Name and criteria are set together, in one
-step, in one drawer — there's no separate "create empty tab, then configure it later"
-flow. On save, push the new tab into a local `ref` array **right after the permanent
-first tab** and switch `activeTab` to it immediately — the permanent first tab (e.g.
-"All talents") never moves and can't be removed. The same drawer is reused for
-editing (`mode="edit"`, prefilled from the tab's current name + criteria) via an
-"Edit criteria" button shown next to the filter bar whenever a non-permanent tab is active.
+rather than a plain name-only `MpModal`. Everything that defines the tab is set in
+that **one drawer** — there's no separate "create empty tab, then configure it
+later" flow. (The drawer may still be multi-*step* internally — the pool drawer's
+Describe → Build handoff, [`ai-prompt-builder.md`](ai-prompt-builder.md) — but you
+never leave it holding a half-defined tab.) On save, push the new tab into a local
+`ref` array **right after the permanent first tab** and switch `activeTab` to it
+immediately — the permanent first tab (e.g. "All talents") never moves and can't be
+removed. The same drawer is reused for editing (`mode="edit"`, prefilled from the
+tab's current name, scope and criteria), reached from the pencil on the tab's
+"Showing …" summary strip ([`banner.md`](banner.md) — "Summary strip"), not from a
+separate "Edit criteria" button in the filter row: the affordance belongs next to
+the text describing what the tab shows.
 
-A tab whose criteria haven't matched anything (or a tab saved with zero criteria,
-which the drawer permits) shows the standard [empty state](../empty-state.md) —
-illustration + title + caption + `variant="secondary"` action that reopens the same
-drawer in edit mode — in place of the filter bar + table, exactly like any other
-empty list in this app. Don't invent a different "empty tab" treatment.
+### Unconfigured tab vs. zero matches — two different treatments
+
+These look similar and are constantly conflated. They are not the same state:
+
+| State | Condition | Treatment |
+|---|---|---|
+| **Unconfigured** — the tab doesn't define anything yet | no scope *and* no criteria (`isPoolEmpty`) | Standard [empty state](empty-state.md): illustration + title + caption + `variant="secondary"` action reopening the drawer in edit mode, **replacing** the filter bar + table |
+| **Configured, but nothing matches** | scope/criteria are set, they just select no rows | The table's own no-results row — filter bar and table **stay**, exactly like any other over-filtered list |
+
+The second case keeps the table because the user needs the filter bar and "Edit
+criteria" in place to widen the query; swapping in a full-page empty state would
+hide the very controls that fix it. Don't invent a third "empty tab" treatment.
+
+Note a scoped pool is *configured* even with zero criteria — a pool whose job
+position is "Accountant" and whose criteria list is empty legitimately lists every
+Accountant, so it must not show the unconfigured empty state.
 
 ## Rules
 
