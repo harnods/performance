@@ -32,6 +32,11 @@ yourself via a local `ref` + `v-if`.
 
 ## Summary strip — "Showing …"
 
+> 🔒 Its only current use (Talent directory pools) is hidden behind
+> `TALENT_POOLS_ENABLED` ([`feature-flags.md`](feature-flags.md)), so you won't
+> see this strip in the running app yet. The pattern still applies to any
+> "what am I looking at" bar.
+
 **Not every bar above a table is an `MpBanner`.** `MpBanner` has only toned
 status variants; a strip that just *reports what the view is currently showing*
 is neutral and carries no severity, so building it as `MpBanner variant="info"`

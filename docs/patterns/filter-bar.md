@@ -156,6 +156,11 @@ attendance, education level, years of service —
 mechanic (a popover of not-yet-added items → a removable row per added item), just
 with the fixed list swapped in for the dynamic one:
 
+> 🔒 This drawer is currently hidden behind `TALENT_POOLS_ENABLED`
+> ([`feature-flags.md`](feature-flags.md)) — the code and its tests are live,
+> but you won't find it in the running app until the flag is flipped. The rest
+> of this doc (the filter bar itself) is unaffected.
+
 > The criteria builder below is the drawer's **"Build" step**. The same drawer
 > also has a **"Describe"** step (write the pool as a prompt) in front of it —
 > see [`ai-prompt-builder.md`](ai-prompt-builder.md) for the segmented control,

@@ -99,6 +99,10 @@ Long detail pages that look tabbed are a **sticky scroll-spy**, not tabs. `pages
 
 ### "+ Add" tab (user-created tabs)
 
+> 🔒 Its only current use (Talent directory pools) is hidden behind
+> `TALENT_POOLS_ENABLED` ([`feature-flags.md`](feature-flags.md)) — the whole
+> tab bar is unrendered while that's off, so don't go looking for it in the app.
+
 When a page lets the user create their own tabs at runtime (e.g. Talent directory's
 pool tabs, `pages/talents/talent-directory/index.vue`), append a trailing `+ Add …`
 control to the same `#page-tabs` bar, styled with the tab's base styles (`tabItemBase`)
