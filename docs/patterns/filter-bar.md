@@ -24,6 +24,15 @@ Simple pages (goal-cycles, review-cycles, competencies, goal-categories) — `pa
 
 Many-filter pages add `wrap="wrap"` and nest a left `MpFlex gap="3"` cluster (talent-directory `:240`), which can hold `PxSelectPopover` filters + an `All filters (n)` button (`variant="secondary" left-icon="filter"`) that opens a draft/apply/cancel/reset modal, + a `Clear` ghost button.
 
+> **Where the split goes.** Keep the one or two dimensions people filter by constantly
+> inline as `PxSelectPopover`s; push the rest into the drawer rather than growing the bar.
+> `PxAllFiltersDrawer` takes a `scopes` prop, so a page can narrow the default set to just
+> its own dimensions — `talents/idps/index.vue` keeps Branch / Organization / Employee
+> inline and passes only Job position, Job level and Employment status as scopes. `Clear`
+> must reset the drawer's state too (`advFilters`/`advScopes`), not only the inline selects,
+> and `advancedCount` (from `allFiltersCount`) feeds both the button's badge and whether
+> `Clear` shows at all.
+
 ## Search input
 
 ⚠️ **Recurring bug: the search icon overlapping the placeholder text.** There are TWO
@@ -134,6 +143,61 @@ hover). `use-portal` so the tooltip escapes the table's overflow clip:
 > ⚠️ **Current divergence:** the goal-cycle-detail pages render these buttons with `aria-label`
 > but **no `MpTooltip`** (`goal-cycles/[id]/{index,team-goals,company-goals,organization-goals,individual-goals}.vue`).
 > Wrap them in `MpTooltip` — this is a required rule for icon-only buttons here.
+
+### Leading position — when there's no branch/org select in front of it
+
+The right-cluster order above assumes the bar has its own left-cluster filters
+(branch/organization/etc.) for column-settings to trail behind. When a page's
+**only** other filter is a single employee/record picker (`talents/idps/index.vue`
+— just "All employee" + search, no branch/org selects), column settings moves to
+the **front** of the left cluster instead, rendered as `variant="secondary"` with
+both a leading icon and a trailing caret (not the bare ghost icon button above —
+the caret signals it opens a panel, matching the production reference this page
+was built from):
+
+```vue
+<MpFlex align="center" gap="3">
+  <MpTooltip label="Column settings" use-portal>
+    <MpButton variant="secondary" left-icon="column-settings" right-icon="chevrons-down" aria-label="Column settings" />
+  </MpTooltip>
+  <PxSelectPopover v-model="employee" :options="employeeOptions" placeholder="All employee" ... />
+</MpFlex>
+```
+
+Reach for this only when there's nothing else in the left cluster for it to
+trail — a page with even one branch/organization select keeps column settings
+in its usual right-cluster ghost-icon position.
+
+### Column-settings panel — "Select all" toggle
+
+The panel content itself also has a richer variant, used on `talents/idps/index.vue`:
+an uppercase eyebrow label (`COLUMN DISPLAYED`, matching the small-caps
+convention in `inbox/notifications.vue`/`GoalsDashScenarioControl.vue`) with a
+`Select all` / `Deselect all` `MpTextlink` toggle on the same row, above the
+checkbox list:
+
+```ts
+const allColumnsVisible = computed(() => optionalColumns.every(c => visible.value[c.key]))
+function toggleAllColumns() {
+  const next = !allColumnsVisible.value
+  optionalColumns.forEach((c) => { visible.value[c.key] = next })
+}
+```
+
+```vue
+<div :class="css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', marginBottom: '2' })">
+  <span :class="css({ fontSize: '12px', fontWeight: '600', letterSpacing: '0.06em', textTransform: 'uppercase', color: 'text.secondary' })">Column displayed</span>
+  <MpTextlink as="button" size="label" @click="toggleAllColumns">{{ allColumnsVisible ? 'Deselect all' : 'Select all' }}</MpTextlink>
+</div>
+<MpFlex direction="column" gap="2">
+  <MpCheckbox v-for="c in optionalColumns" :key="c.key" :is-checked="visible[c.key]" @update:is-checked="(v) => (visible[c.key] = v)">{{ c.label }}</MpCheckbox>
+</MpFlex>
+```
+
+`talent-directory/index.vue`'s column popover (a plain `Columns` label, no
+eyebrow caps, no select-all) is still valid for a short, always-useful column
+set — reach for the select-all toggle when the optional column list is one a
+user might plausibly want to turn on/off as a block.
 
 ## Export
 

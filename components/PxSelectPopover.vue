@@ -32,6 +32,15 @@ const props = defineProps<{
   // Opt-in only: every other existing `searchable` usage keeps the
   // popover-embedded search box unchanged. See docs/patterns/form.md.
   searchOnField?: boolean
+  // Combobox mode (requires `searchOnField`): the options are *suggestions*,
+  // not a closed list — whatever the user types IS the value. Without this, an
+  // unmatched search reverts on blur, which is right for picking a record and
+  // wrong for a free-text vocabulary the backend keeps open (IDP objective,
+  // action-plan category). See docs/patterns/form.md.
+  allowCustomValue?: boolean
+  // Character cap for the `searchOnField` input, so a free-text field can carry
+  // the same limit its character counter advertises.
+  maxlength?: number
 }>()
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
@@ -48,6 +57,22 @@ const fieldClass = css({
 // responsive width class can be passed in from the parent via fallthrough.
 const wrapperStyle = computed(() => (props.width ? { width: props.width } : undefined))
 
+// ⚠️ MpSelect writes the native <select>'s value during its own setup, before
+// this component's <option> children exist in the DOM — so the browser drops a
+// value that was already known at mount time and the field renders its
+// placeholder instead. It only looks fine when the value arrives from a later
+// user interaction (options exist by then), which is why every *create* form
+// works and a pre-seeded *edit* form does not.
+// Re-apply the value ourselves once the options have rendered.
+const rootEl = ref<HTMLElement | null>(null)
+function syncNativeSelect() {
+  if (!import.meta.client || props.searchOnField) return
+  const el = rootEl.value?.querySelector('select')
+  if (el && el.value !== (props.modelValue ?? '')) el.value = props.modelValue ?? ''
+}
+onMounted(() => nextTick(syncNativeSelect))
+watch(() => [props.modelValue, props.options.length], () => nextTick(syncNativeSelect))
+
 const searchTerm = ref('')
 
 // ─── searchOnField mode — the field is the search box ───────────────────────
@@ -57,17 +82,29 @@ const searchTerm = ref('')
 // blurs the field. Only the *displayed text* needs managing: cleared on focus
 // so typing starts fresh, and reverted to the current selection's label on
 // blur so an abandoned, unselected search doesn't stick around.
-const selectedLabel = computed(() => props.options.find(o => o.value === props.modelValue)?.label ?? '')
+// In combobox mode the model IS the text, so there's no label to look up and
+// nothing to revert to — an unmatched value is a legitimate value.
+const selectedLabel = computed(() =>
+  props.allowCustomValue
+    ? (props.modelValue ?? '')
+    : (props.options.find(o => o.value === props.modelValue)?.label ?? ''),
+)
 const fieldText = ref(selectedLabel.value)
 const isEditingField = ref(false)
 watch(selectedLabel, (label) => { if (!isEditingField.value) fieldText.value = label })
 function onFieldFocus() {
   isEditingField.value = true
-  fieldText.value = ''
+  // Clearing on focus lets a fresh search start from empty, but in combobox mode
+  // it would wipe the value the user is trying to amend.
+  if (!props.allowCustomValue) fieldText.value = ''
 }
 function onFieldBlur() {
   isEditingField.value = false
-  fieldText.value = selectedLabel.value
+  if (!props.allowCustomValue) fieldText.value = selectedLabel.value
+}
+// Combobox mode only — every keystroke is the new value.
+function onFieldInput(v: string) {
+  if (props.allowCustomValue) emit('update:modelValue', v)
 }
 // MpPopoverTrigger toggles open/closed on every click of whatever it wraps —
 // fine for the old inert MpSelect (you'd never "click again" on it while
@@ -153,8 +190,12 @@ const itemRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
 function set(v: string) {
   emit('update:modelValue', v)
   searchTerm.value = ''
-  fieldText.value = props.options.find(o => o.value === v)?.label ?? ''
+  fieldText.value = props.allowCustomValue ? v : (props.options.find(o => o.value === v)?.label ?? '')
 }
+
+// Combobox mode keeps the popover open while typing, so a search that matches
+// nothing would otherwise leave an empty bordered box hanging under the field.
+const noSuggestion = css({ paddingInline: '3', paddingBlock: '2', color: 'text.secondary' })
 
 // searchOnField's trigger swaps MpSelect for a real MpInputGroup/MpInput field
 // (same chevrons-down-addon look as DashMultiSelectSearch.vue's own select-like
@@ -164,7 +205,7 @@ const fieldGroupClass = css({ cursor: 'text' })
 </script>
 
 <template>
-  <div :style="wrapperStyle">
+  <div ref="rootEl" :style="wrapperStyle">
     <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start" :is-disabled="isDisabled">
       <MpPopoverTrigger>
         <MpFlex v-if="searchOnField" :class="isDisabled ? undefined : fieldGroupClass">
@@ -173,6 +214,8 @@ const fieldGroupClass = css({ cursor: 'text' })
               v-model="fieldText"
               :placeholder="placeholder"
               :is-disabled="isDisabled"
+              :maxlength="maxlength"
+              @update:model-value="onFieldInput"
               @focus="onFieldFocus"
               @blur="onFieldBlur"
               @mousedown="onFieldMouseDown"
@@ -219,7 +262,10 @@ const fieldGroupClass = css({ cursor: 'text' })
              unchanged. Harmless for the non-searchOnField list (nothing
              there depends on focus). -->
         <div :class="listWrap" class="px-select-list" @mousedown.prevent>
-        <MpPopoverList>
+        <MpText v-if="allowCustomValue && !filteredOptions.length" size="label" :class="noSuggestion">
+          No matching suggestion — what you typed will be used.
+        </MpText>
+        <MpPopoverList v-else>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
             <MpPopoverListItem
