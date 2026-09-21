@@ -9,6 +9,7 @@ Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls 
 - **primary** — the submit/confirm action. Always the **rightmost** button.
 - **secondary** — black border + black text on neutral fill. Used for in-form triggers ("Select employees", "Manage", "Select component"), select-styled popover triggers, and header utility buttons ("Help").
 - **ghost** — Cancel/dismiss (**always ghost, no exceptions**), icon-only actions (edit, close, add/remove-circular), and export.
+- **danger** — the destructive confirm button in a delete modal's footer, paired with `Cancel` (ghost). Dominant, 20+ files (`goal-cycles/index.vue:600`, `talents/competencies/index.vue:349`, `components/IdpDeleteModal.vue`). Never the row-level trigger that *opens* the confirm (that stays a ghost icon button or a `MpPopoverListItem` styled `color: 'text.danger'`) — `danger` is reserved for the modal's own final "yes, delete" action.
 
 Cancel/dismiss = ghost is 100% consistent across every form, drawer footer, and modal footer.
 
@@ -72,9 +73,22 @@ toast.notify({ id: 'cycle-form-error', position: 'top-center', variant: 'error',
 - **List pages** → the primary CTA lives in `#page-header-actions` (see [`header-bar.md`](header-bar.md)).
 - **Drawers/modals** → footer, Cancel (ghost) + primary, usually in `MpButtonGroup`.
 
+## "Create X" / "Add X" CTA carries `left-icon="add"`
+
+A button whose whole job is creating or adding a new record — a list page's
+header CTA (`Create program`), an empty state's own CTA, "Add action plan" —
+gets `left-icon="add"`, in every variant it appears in (`primary` header
+button and `secondary` empty-state button both, when the same action shows up
+in both places, e.g. `talents/idps/index.vue`'s `Create program`). Keep every
+instance of the same button in sync — this app's IDP list previously dropped
+the icon from `Create program` in a redesign pass and later put it back; don't
+let one variant carry the icon while a sibling instance of the identical
+button/action doesn't.
+
 ## Rules
 
 - Cancel/dismiss = ghost, always. Primary = rightmost.
 - Edit forms say "Save changes"; create forms say "Save".
 - Never disable the primary submit — validate + toast instead.
 - Secondary = black border + black text on neutral.
+- A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action.

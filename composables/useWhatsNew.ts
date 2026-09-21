@@ -26,6 +26,148 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '21 Sep 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Add/edit action plan',
+        detail: 'Converted the add/edit action plan modal to a right-side drawer, and added a "Related to (Optional)" radio group below Category — Competency (reveals a searchable "Select competency" field, sourced from the same competency catalog Succession/Competency assignment already score against) or Goals (disabled, marked "Coming soon" — not wired up yet). The link persists through create, edit, and the view modal (a new "Related to" row, shown only when set).',
+        files: [
+          'components/IdpActionPlanModal.vue',
+          'components/IdpActionPlanViewModal.vue',
+          'components/IdpPlanForm.vue',
+          'pages/talents/idps/[id]/index.vue',
+          'utils/idp.ts',
+          'utils/competency.ts',
+          'composables/useIdpStore.ts',
+          'docs/patterns/form.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Add/edit action plan',
+        detail: 'Refined the drawer per follow-up feedback: required asterisks on Category, Action plan name, Assignee, Start date and End date (Assignee is now also actually enforced on submit, not just marked); dropped the "(Optional)" suffix on the "Related to" title; the revealed competency field is now indented 32px under its own radio with a tight 4px gap, and Goals keeps a flat 8px gap whether or not the field is showing; the competency search is search-on-field now, matching Category, instead of a separate popover search bar. Description keeps no asterisk — its own placeholder already reads "Optional".',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Add/edit action plan',
+        detail: 'Replaced the "Related to" Competency/Goals radio group with a single toggle labelled "Relate action plan to competency" — a plain yes/no relation doesn\'t need a two-option chooser, and Goals had no real destination yet beyond a "Coming soon" placeholder. Turning it on reveals the same searchable competency select, indented under the toggle with a 4px gap, same as any other toggle/checkbox reveal in the app; turning it off clears whatever was picked.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Add/edit action plan',
+        detail: 'The revealed "Select competency" field sat 10px left of the toggle\'s own label — it was using the checkbox-reveal indent token (marginLeft: \'8\', 32px), but MpToggle\'s switch + internal gap to its label measures 42px, not 32px. Measured live and hardcoded the 42px as a literal (not a spacing token, since it\'s specific to MpToggle\'s own dimensions) so the field lines up flush with the label text above it.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
+    date: '18 Sep 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Individual development plan',
+        detail: 'Replicated the IDP feature from production (talenta-performance: views/talent-management/individual-development) into the previously empty IDPs menu, with full CRUD. List page with branch/organization/employee filters, search, column settings, a completed-of-total progress column and pagination; a create/edit form (plan name, objective, employee, current-vs-future focus, action plans) shared by both routes; a detail page with per-status totals and the plan\'s action plans; and add/edit/delete plus a status update modal with an activity trail for each action plan. Data is a localStorage-backed store seeded from utils/idp.ts, same shape as useSuccessionStore.',
+        files: [
+          'pages/talents/idps/index.vue',
+          'pages/talents/idps/create.vue',
+          'pages/talents/idps/[id]/index.vue',
+          'pages/talents/idps/[id]/edit.vue',
+          'components/IdpPlanForm.vue',
+          'components/IdpActionPlanModal.vue',
+          'components/IdpActionPlanViewModal.vue',
+          'components/IdpDeleteModal.vue',
+          'composables/useIdpStore.ts',
+          'utils/idp.ts',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Individual development plan',
+        detail: 'Closed the gaps found comparing the replicated screens against production. Action plans now carry assignees (shown in the view modal as an avatar or an overlapping stack, editable via a tag picker in the add/edit modal, defaulting to the plan\'s own employee). The detail page\'s action-plan table gained column sorting and the standard 52px pagination footer, its Due date column is now labelled as production labels it, and the status totals read Completed → In progress → To do. The plan form shows the selected employee\'s informal education from the talent profile, and keeps an unsaved create draft for 20 minutes. Objective and action-plan Category are now free text with suggestions rather than closed lists, matching the open vocabularies production accepts. The list page gained Job position / Job level / Employment status filters via the All filters drawer. End date must now be at least one day after the start date, and attachments are checked for type and size.',
+        files: [
+          'utils/idp.ts',
+          'composables/useIdpStore.ts',
+          'pages/talents/idps/index.vue',
+          'pages/talents/idps/create.vue',
+          'pages/talents/idps/[id]/index.vue',
+          'components/IdpPlanForm.vue',
+          'components/IdpActionPlanModal.vue',
+          'components/IdpActionPlanViewModal.vue',
+          'pages/talents/talent-directory/[id].vue',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'PxSelectPopover',
+        detail: 'Added `allow-custom-value` — a combobox mode on top of `search-on-field` where the options are suggestions rather than a closed list, so whatever is typed becomes the value instead of reverting on blur. Paired with a new `maxlength` prop so a free-text field honours the character limit its counter advertises. Every existing usage is unaffected; both are opt-in.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Talent profile',
+        detail: 'Added a "Create IDP" header action that opens the development plan form with that person already selected (?employee=<id>), mirroring the deep link production offers from the employee competency section.',
+        files: ['pages/talents/talent-directory/[id].vue', 'pages/talents/idps/create.vue', 'components/IdpPlanForm.vue'],
+      },
+      {
+        category: 'Fix',
+        area: 'Individual development plan',
+        detail: 'Design-pattern audit against docs/patterns found three real defects in the tables and components built this feature. The trailing action column (View detail / Actions dropdown / Edit-Remove icons) on all three IDP tables used the plain header/cell classes instead of the width: 1% + nowrap pair every other table\'s action column uses, so it stretched wide and left the button floating in dead space instead of hugging the row edge. The action-plan view modal\'s assignee avatar stack had no cap, rendering unbounded — now capped at 5 with a "+N" overflow; a nested MpModal for the overflow list crashes live in this Pixel build (getBoundingClientRect on a null ref) while another modal is already open, so it\'s a popover instead. table.md\'s action-column rule was buried as an afterthought sentence under Numeric columns, which is exactly why it got missed — pulled into its own section with a checklist item.',
+        files: [
+          'pages/talents/idps/index.vue',
+          'pages/talents/idps/[id]/index.vue',
+          'components/IdpPlanForm.vue',
+          'components/IdpActionPlanViewModal.vue',
+          'docs/patterns/table.md',
+          'docs/patterns/avatar.md',
+        ],
+      },
+      {
+        category: 'Chore',
+        area: 'Design docs',
+        detail: 'Documented two components built for this feature that had no doc coverage: the multi-file "Choose files" attachment picker (upload.md previously only covered the single-file spreadsheet dropzone) and the variant="danger" button (used in 20+ files for a delete-confirm modal\'s primary action, but absent from buttons.md\'s variant list).',
+        files: ['docs/patterns/upload.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Individual development plan',
+        detail: 'Table headers across all three IDP tables hardcoded fontSize: 12px / color: text.secondary onto headCell, overriding the MpTable recipe\'s actual default (14px / weight 600 / text.default, confirmed via getComputedStyle against goal-cycles). Headers rendered visibly smaller and grayer than every other table in the app. Fixed to match the dominant 20+-file convention (padding + verticalAlign only) — the same bug exists in succession-plans, now flagged in table.md so it doesn\'t get copied a third time. Also dropped an extra textAlign: right on the trailing action column that no canonical actionCell (goal-cycles, competencies, review-cycles) carries.',
+        files: [
+          'pages/talents/idps/index.vue',
+          'pages/talents/idps/[id]/index.vue',
+          'components/IdpPlanForm.vue',
+          'docs/patterns/table.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Individual development plan',
+        detail: 'Reworked the list page to match a production reference screenshot. Page title is now "Individual development plan" (was "IDPs"); the create button dropped its + icon; the filter bar simplified to just column settings (moved to lead the bar, now a bordered icon+caret button) + an "All employee" picker + search, dropping the branch/organization selects and the "All filters" drawer added earlier this session. The column-settings panel gained an uppercase "Column displayed" label and a "Select all"/"Deselect all" toggle. The development-plan name is now plain text (View detail is the row\'s only navigation) instead of a redundant link. The Progress column\'s hand-rolled track/fill bar was replaced with the native MpProgress component (variant="linear" size="sm", teal fill override) — matching the convention review-cycles and CycleDetailGeneral already used for table progress columns, which table.md had missed in favor of documenting the hand-rolled version as canonical. table.md and filter-bar.md updated to reflect both as the current patterns.',
+        files: [
+          'pages/talents/idps/index.vue',
+          'docs/patterns/table.md',
+          'docs/patterns/filter-bar.md',
+        ],
+      },
+      {
+        category: 'Fix',
+        area: 'PxSelectPopover',
+        detail: 'A pre-seeded select rendered its placeholder instead of the selected value. MpSelect writes the native <select>\'s value during its own setup, before PxSelectPopover\'s <option> children exist, so the browser dropped any value known at mount — which is every edit form. PxSelectPopover now re-applies the value once the options have rendered. Create forms were unaffected and stay unchanged.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Form docs',
+        detail: 'Documented that MpFormLabel throws outside an MpFormControl (it injects FormControlContext with no fallback) — inside a modal that makes the whole modal render as empty with no visible error, which cost real debugging time.',
+        files: ['docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
     date: '02 Sep 2026',
     module: 'Competencies',
     items: [
