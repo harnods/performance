@@ -134,7 +134,9 @@ modes All / Selected; one contributor card per owner in multi-owner mode.
 ### G. Save vs Save as draft *(`new.vue`)*
 - **Save:** if `weightMandatory`, each owner must total exactly 100% (blocked otherwise);
   owners with a manager → `createSubmission` (approval), others → `addGoals` (immediate);
-  toast varies (saved / submitted / mixed).
+  toast varies (saved / submitted / mixed). Acting as the Super Admin (Rizal) always takes
+  the immediate path, on any owner, regardless of whether that owner has a manager — see
+  `needsApproval` in `useGoalsStore.ts`.
 - **Save as draft:** `isDraft=true`, never approval, immediate, needs ≥1 goal.
 
 ### H. Approval — My requests / Awaiting approval
