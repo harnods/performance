@@ -38,6 +38,14 @@ definePageMeta({ title: 'Goal settings' })
 
 const router = useRouter()
 
+// Only the Super Admin (Rizal in this demo — see useGoalsStore's isSuperAdmin)
+// can open Goal settings. AppSidebar.vue already hides the nav entry for
+// everyone else, but the route itself still needs its own guard — someone
+// could otherwise reach it directly by URL, or by switching "View as" while
+// already on the page.
+const { currentUserId } = useCurrentUser()
+const canAccess = computed(() => isSuperAdmin(currentUserId.value))
+
 // ─── Toggle state (mock — matches Figma defaults) ──────────────────────────────
 // Shared with AppSidebar.vue: toggling this swaps the Goals level-2 sitemap
 // between the current menu and the new-experience menu (Goal cycles / Goal
@@ -126,10 +134,24 @@ const linkRow = css({ paddingLeft: '10' })
 const reasonList = css({ display: 'flex', flexDirection: 'column', gap: '3', marginTop: '4' })
 const otherInput = css({ paddingLeft: '7', marginTop: '2' })
 const bannerList = css({ display: 'flex', flexDirection: 'column', gap: '1', paddingLeft: '5', listStyleType: 'disc' })
+
+// ─── Restricted state (non-Super-Admin) ─────────────────────────────────────
+const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
+const emptyIllustration = css({ height: '240px', width: 'auto' })
+const emptyTextWrap = css({ maxWidth: '420px' })
+const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 </script>
 
 <template>
-  <div :class="gridArea">
+  <MpFlex v-if="!canAccess" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+    <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+    <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+      <MpText :class="emptyTitle">You don't have access to this page</MpText>
+      <MpText size="label" color="text.secondary">Goal settings can only be opened by a Super Admin.</MpText>
+    </MpFlex>
+  </MpFlex>
+
+  <div v-else :class="gridArea">
     <div :class="formColumn">
       <!-- ── Goals experience ────────────────────────────────────────── -->
       <div :class="firstSectionHeader">

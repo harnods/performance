@@ -35,6 +35,36 @@ illustration, no action button — because an empty section is often good news a
 stacked 240px illustrations would bury the sections that do have data. See
 [`dashboard-section.md`](dashboard-section.md) for the exact markup and the reasoning.
 
+## Restricted access (whole page, role-gated)
+
+Same anatomy as above, minus the action button (there's nothing the viewer
+can do here), used when an entire page is off-limits to the current role
+rather than a collection being empty. The page's own title/breadcrumb stay in
+the fixed header — only the body swaps to this state:
+
+```vue
+<MpFlex v-if="!canAccess" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+  <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
+  <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
+    <MpText :class="emptyTitle">You don't have access to this page</MpText>
+    <MpText size="label" color="text.secondary">Goal settings can only be opened by a Super Admin.</MpText>
+  </MpFlex>
+</MpFlex>
+<div v-else>...real page content...</div>
+```
+
+Reference: `pages/goals/goal-settings.vue` (`canAccess = computed(() =>
+isSuperAdmin(currentUserId.value))`). Two things must both be true for a
+role-gated page:
+
+- **The route itself guards its content** (above) — this is the actual access
+  control. A direct URL, or switching "View as" while already on the page,
+  must never leave the real content reachable.
+- **The nav entry pointing at it is hidden for the same role** — a
+  convenience so the restricted page doesn't dangle in the menu, not a
+  substitute for the guard above. See [`sidebar-menu.md`](sidebar-menu.md)'s
+  "Role-gated nav entries".
+
 ## Inline notice (different construct)
 
 `PxNoAssignmentNotice` is an inline `MpBanner variant="info"` (title + description) — used for "nothing assigned yet" contexts (`succession-plans/create.vue`), not the centered illustration state.

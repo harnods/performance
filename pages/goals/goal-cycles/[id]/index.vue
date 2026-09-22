@@ -239,6 +239,19 @@ const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 // Only matters when this cycle actually enforces the weight rule.
 const fullOwnerIds = computed(() => (cycle.value?.weightMandatory ? fullyWeightedOwnerIds(goals.value) : new Set<string>()))
 
+// Owners whose committed (non-draft) goal weights exceed 100% — an invalid
+// state a weight-mandatory cycle should never reach, surfaced as a warning on
+// the owner's accordion header. Gated on weightMandatory like fullOwnerIds.
+const overWeightedOwnerIds = computed(() => {
+  if (!cycle.value?.weightMandatory) return new Set<string>()
+  const sums = new Map<string, number>()
+  for (const g of goals.value) {
+    if (g.isDraft) continue
+    sums.set(g.ownerId, (sums.get(g.ownerId) ?? 0) + g.weight)
+  }
+  return new Set([...sums].filter(([, w]) => w > 100).map(([id]) => id))
+})
+
 const { isEditDrawerOpen, editingDraft, editingOwners, alreadyUsedWeightForEdit, openEditGoal, saveEdit } = useGoalEditor()
 function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
@@ -306,7 +319,17 @@ const STATUS_FILTER_TO_GOAL_STATUS: Record<string, GoalStatus> = { ontrack: 'gre
 // Unfiltered count — drives the Closed tab's empty state (true "no closed
 // goals in this cycle" vs. filters/search just narrowing the current tab
 // down to zero, which the table shell handles on its own, same as All goals).
-const closedGoalsTotal = computed(() => goals.value.filter(g => g.isClosed).length)
+// restore as closedGoalsTotal directly when the scenario control below is removed.
+const _productClosedGoalsTotal = computed(() => goals.value.filter(g => g.isClosed).length)
+// Dev-preview only (see dev-scenario-control.md) — forces the Closed tab's
+// empty state even when the cycle actually has closed goals, so the empty
+// state can be previewed without deleting seed data. Default (off) shows the
+// real closed goals.
+const closedEmptyScenarioActive = ref(false)
+const currentClosedScenario = computed(() => (closedEmptyScenarioActive.value ? 'empty' : 'default'))
+function activateClosedEmptyScenario() { closedEmptyScenarioActive.value = true }
+function deactivateClosedScenario() { closedEmptyScenarioActive.value = false }
+const closedGoalsTotal = computed(() => (closedEmptyScenarioActive.value ? 0 : _productClosedGoalsTotal.value))
 
 const sourceGoals = computed(() => {
   const base = goalsView.value === 'my'
@@ -314,7 +337,9 @@ const sourceGoals = computed(() => {
     : goalsView.value === 'direct-reports' ? myDirectReportsGoals.value : goals.value
   // "Closed" tab narrows to closed goals only, on top of whatever scope the
   // (still-visible) All-goals dropdown last had selected.
-  const scoped = activeTab.value === 'closed' ? base.filter(g => g.isClosed) : base
+  const scoped = activeTab.value === 'closed'
+    ? (closedEmptyScenarioActive.value ? [] : base.filter(g => g.isClosed))
+    : base
   return scoped.filter(g => (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value]) && matchesSearch(g, search.value) && goalMatchesAllFilters(g, appliedFilters.value))
 })
 
@@ -598,14 +623,13 @@ function deactivateScenario() {
   const batch = activeRequestBatch.value
   if (batch) removeBatch(batch.id)
 }
-
 // Owner-level pagination: the first N owners (accordion groups). `draftCount`
 // powers the "Publish N goals" bulk textlink next to the goal count — shown
 // only for owners who still have unsubmitted drafts.
 const visibleOwners = computed(() =>
   distinctOwnerIds.value.slice(0, visibleOwnerCount.value).map((id) => {
     const g = ownerGoals.value.get(id) ?? []
-    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length }
+    return { id, owner: ownerOf(id), total: g.length, draftCount: ownerDraftGoals(id).length, overWeighted: overWeightedOwnerIds.value.has(id) }
   }),
 )
 
@@ -685,9 +709,27 @@ function ownerRows(id: string) {
     while (j < flat.length && (flat[j].kind === 'repeat' || flat[j].kind === 'aligned-trigger') && flat[j].parentGoalId === flat[startIdx].id) { n++; j++ }
     return n
   }
+  // The trigger row has no progress/status of its own — it's the "View
+  // aligned goals" toggle, relocated below the repeat history, not a
+  // goal. Rather than give it a blank track + "—" (reads as broken data),
+  // let the row right above it (its own last repeat occurrence, or the
+  // main row when there's no repeat) span down over it instead — visually
+  // identical to the collapsed state, where that button sits on the main
+  // row and Progress/Status show only real data.
+  function followedByOwnTrigger(idx: number): boolean {
+    const next = flat[idx + 1]
+    if (!next || next.kind !== 'aligned-trigger') return false
+    // A 'repeat' row carries parentGoalId = the main row's id (it's a past
+    // occurrence OF that goal, not the goal itself) — compare against that,
+    // not its own synthetic `::repeat::` id, or a trigger following the LAST
+    // repeat row never matches and falls through with no cell at all.
+    const ownId = flat[idx].parentGoalId ?? flat[idx].id
+    return next.parentGoalId === ownId
+  }
   return flat.map((row, i) => {
-    if (row.kind === 'aligned') return { ...row, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1, showGoalType: true, goalTypeRowspan: 1 }
-    if (row.kind === 'repeat' || row.kind === 'aligned-trigger') return { ...row, showCategory: false, categoryRowspan: 0, showSubCategory: false, subCategoryRowspan: 0, showGoalType: false, goalTypeRowspan: 0 }
+    if (row.kind === 'aligned') return { ...row, showCategory: true, categoryRowspan: 1, showSubCategory: true, subCategoryRowspan: 1, showGoalType: true, goalTypeRowspan: 1, showProgress: true, progressRowspan: 1 }
+    if (row.kind === 'aligned-trigger') return { ...row, showCategory: false, categoryRowspan: 0, showSubCategory: false, subCategoryRowspan: 0, showGoalType: false, goalTypeRowspan: 0, showProgress: false, progressRowspan: 0 }
+    if (row.kind === 'repeat') return { ...row, showCategory: false, categoryRowspan: 0, showSubCategory: false, subCategoryRowspan: 0, showGoalType: false, goalTypeRowspan: 0, showProgress: true, progressRowspan: followedByOwnTrigger(i) ? 2 : 1 }
     // row.kind === 'main'
     const prev = flat[i - 1]
     const newCategory = i === 0 || prev.kind !== 'main' || prev.category !== row.category
@@ -739,6 +781,7 @@ function ownerRows(id: string) {
       // sibling 'main' rows sharing a category — that was never a pattern
       // for this column, unlike Category/Sub-category above).
       showGoalType: true, goalTypeRowspan: unitSize(i),
+      showProgress: true, progressRowspan: followedByOwnTrigger(i) ? 2 : 1,
     }
   })
 }
@@ -776,7 +819,6 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
 // organization-goals.vue's collapseAllBtn for the same nested-interactive
 // constraint — a real link/button can't nest inside another button).
 const publishDraftsLink = css({ display: 'inline-flex', color: 'text.link', cursor: 'pointer', fontSize: '12px', lineHeight: '16px', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
-
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const tabBar = css({ display: 'flex', gap: '5', width: '100%' })
 const tabItemBase = {
@@ -927,15 +969,18 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
   </Teleport>
 
   <!-- Dev scenario control — floating, bottom-right of the page (not a real
-       product control). Previews the bulk-approved-goal-creation banner +
-       pending-row skeleton merge without running a real >10-owner batch
-       through Select employees → New goals → Approve. See the "Dev scenario
-       control" section above for what it actually does. Hidden on the
-       archive cycle for the same reason as the header actions above — the
-       scenario it previews is a "New goals" batch-approval flow, which
-       doesn't apply here. Also only relevant on the All-goals tab — the
-       batch it previews lands there, not on Closed/My requests/Awaiting/Info. -->
-  <div v-if="!cycle?.isArchive && activeTab === 'all'" :class="scenarioFab">
+       product control). Single axis of state, so a flat MpPopoverList (see
+       dev-scenario-control.md) — its content depends on which tab is active,
+       since the two tabs preview unrelated things:
+         All goals  → Default vs Async — previews the bulk-approved-goal-
+           creation banner + pending-row skeleton merge without running a
+           real >10-owner batch through Select employees → New goals →
+           Approve.
+         Closed     → Default vs Empty — forces the Closed tab's empty state
+           for preview even when the cycle already has closed goals.
+       Hidden on the archive cycle for the same reason as the header actions
+       above — neither scenario applies to that frozen, migrated bucket. -->
+  <div v-if="!cycle?.isArchive && (activeTab === 'all' || activeTab === 'closed')" :class="scenarioFab">
     <MpPopover is-close-on-select use-portal placement="top-end">
       <MpPopoverTrigger>
         <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
@@ -943,9 +988,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         </button>
       </MpPopoverTrigger>
       <MpPopoverContent>
-        <MpPopoverList>
+        <MpPopoverList v-if="activeTab === 'all'">
           <MpPopoverListItem :is-active="currentScenario === 'default'" @click="deactivateScenario">Default</MpPopoverListItem>
           <MpPopoverListItem :is-active="currentScenario === 'async'" @click="activateAsyncScenario">Async (goals being submitted)</MpPopoverListItem>
+        </MpPopoverList>
+        <MpPopoverList v-else>
+          <MpPopoverListItem :is-active="currentClosedScenario === 'default'" @click="deactivateClosedScenario">Default</MpPopoverListItem>
+          <MpPopoverListItem :is-active="currentClosedScenario === 'empty'" @click="activateClosedEmptyScenario">Empty</MpPopoverListItem>
         </MpPopoverList>
       </MpPopoverContent>
     </MpPopover>
@@ -982,7 +1031,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpIcon name="caret-down" size="sm" />
       </button>
       <button type="button" :class="activeTab === 'closed' ? tabItemActive : tabItem" @click="activeTab = 'closed'">
-        Closed
+        Closed goals
       </button>
       <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
         My requests
@@ -1115,10 +1164,28 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <MpText size="label-small" :class="captionText">{{ grp.owner.id }} · {{ grp.owner.title }} · {{ grp.owner.department }}</MpText>
           </MpFlex>
         </span>
-        <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
-          Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
-        </span>
-        <MpText v-else size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+        <MpFlex align="center" gap="2" :class="css({ flexShrink: '0' })">
+          <!-- Filled Pixel warning-triangle in the warning-orange token. Colour is set
+               on the wrapping span (the glyph uses currentColor) because MpIcon's own
+               color prop / :class don't reach it and icon.warning isn't emitted in this
+               app's Panda build; var() keeps it token-driven with a hex fallback.
+               NOTE: the span must be MpTooltip's ONLY slot child — a comment node here
+               becomes the trigger and nothing shows. -->
+          <MpTooltip
+            v-if="grp.overWeighted"
+            label="Goal weights for each employee must total 100%. Adjust current weights via Import goals."
+            use-portal
+            placement="top"
+          >
+            <span :class="css({ display: 'inline-flex', color: 'var(--mp-icon-warning, #BC560D)', cursor: 'help', '& svg': { color: 'var(--mp-icon-warning, #BC560D)' } })" aria-label="Goal weight over 100%">
+              <MpIcon name="warning-triangle" variant="fill" size="sm" />
+            </span>
+          </MpTooltip>
+          <span v-if="grp.draftCount > 0" :class="publishDraftsLink" @click.stop="publishOwnerDrafts(grp.id)">
+            Publish {{ grp.draftCount }} {{ grp.draftCount === 1 ? 'goal' : 'goals' }}
+          </span>
+          <MpText v-else size="label-small" :class="captionText">{{ grp.total }} {{ grp.total === 1 ? 'goal' : 'goals' }}</MpText>
+        </MpFlex>
       </button>
 
       <template v-if="singleOwnerView || isOwnerOpen(grp.id)">
@@ -1225,8 +1292,11 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <MpText size="label" :class="[valueText, cellContent]">{{ row.goalType }}</MpText>
             </MpTableCell>
 
-            <!-- Progress -->
-            <MpTableCell v-if="visibleColumns.progress" as="td" :class="[tightCell, colDivider, colProgress]">
+            <!-- Progress — spans down over a trailing 'aligned-trigger' row (see
+                 progressRowspan/followedByOwnTrigger above) so that toggle never
+                 gets its own blank progress cell; it just sits under whichever
+                 real row is directly above it, exactly like the collapsed state. -->
+            <MpTableCell v-if="visibleColumns.progress && row.showProgress" as="td" :rowspan="row.progressRowspan" :class="[tightCell, colDivider, colProgress]">
               <MpFlex v-if="row.unit" direction="column" gap="1" :class="progressCellWidth">
                 <MpFlex align="center" gap="1">
                   <MpText size="label" :class="valueText">
@@ -1246,13 +1316,15 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   </span>
                 </MpFlex>
               </MpFlex>
-              <span v-else :class="captionText">—</span>
+              <!-- No unit — shouldn't happen for a real goal (ensureMeasurable
+                   guarantees one), but an empty track reads as "not started"
+                   rather than broken/missing data if it ever does. -->
+              <div v-else :class="progressTrack" />
             </MpTableCell>
 
-            <!-- Status -->
-            <MpTableCell v-if="visibleColumns.status" as="td" :class="[tightCell, colDivider, colStatus]">
-              <span v-if="row.kind !== 'aligned-trigger'" :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
-              <span v-else :class="captionText">—</span>
+            <!-- Status — same rowspan as Progress; they merge/skip together. -->
+            <MpTableCell v-if="visibleColumns.status && row.showProgress" as="td" :rowspan="row.progressRowspan" :class="[tightCell, colDivider, colStatus]">
+              <span :class="row.status === 'green' ? statusPillGreen : row.status === 'orange' ? statusPillOrange : statusPillGray">{{ statusLabel[row.status] }}</span>
             </MpTableCell>
 
             <MpTableCell v-if="visibleColumns.lastUpdated" as="td" :class="[tightCell, colDivider, colLastUpdated]">
@@ -1360,6 +1432,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
+    :weight-mandatory="cycle?.weightMandatory"
     @save="saveEdit"
   />
 

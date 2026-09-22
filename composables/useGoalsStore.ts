@@ -427,6 +427,11 @@ function g(partial: Omit<Goal, 'cycleId'>): Goal {
   return withKrProgress(base)
 }
 
+// Five goals below (RC-07, EB-01, RP-02, AI-02, AP-04 — one per owner:
+// Rizal/Evelyn/Rio/Ali/Andi) carry `isClosed: true` so the Closed tab has
+// real dummy data out of the box instead of always showing its empty state.
+// All five were already fully-achieved ('green', pill ≥ 97) goals, so closing
+// them reads as "done and locked", not an arbitrary pick.
 function seed(): Goal[] {
   return [
   g({
@@ -481,7 +486,7 @@ function seed(): Goal[] {
     id: 'rc-07', level: 'individual', ownerId: 'rizal', department: 'Management',
     category: 'Customer', subCategory: 'Stakeholder',
     code: 'RC-07', title: 'New strategic wholesale partnerships (+5 partnerships)',
-   weight: 10, contributorIds: ['ali'], viewerIds: [], status: 'green', unit: 'count', value: 5, pill: 100, min: 0, max: 5,
+   weight: 10, contributorIds: ['ali'], viewerIds: [], status: 'green', unit: 'count', value: 5, pill: 100, min: 0, max: 5, isClosed: true,
   }),
   g({
     id: 'rc-08', level: 'individual', ownerId: 'rizal', department: 'Management',
@@ -524,7 +529,7 @@ function seed(): Goal[] {
     category: 'Financial', subCategory: 'Reporting',
     code: 'EB-01', title: 'Budget variance — all departments (≤ 5%)',
     alignedToId: 'rc-02', updatedAt: '15 Mar 2026, 15:00',
-    weight: 15, contributorIds: ['agung', 'linda'], viewerIds: ['agung'], status: 'green', unit: 'percent', value: 4.5, pill: 90, min: 0, max: 5,
+    weight: 15, contributorIds: ['agung', 'linda'], viewerIds: ['agung'], status: 'green', unit: 'percent', value: 4.5, pill: 90, min: 0, max: 5, isClosed: true,
   }),
   g({
     id: 'eb-02', level: 'organization', ownerId: 'evelyn', department: 'Accounting',
@@ -586,7 +591,7 @@ function seed(): Goal[] {
     id: 'rp-02', level: 'organization', ownerId: 'rio', department: 'HR',
     category: 'Internal Process', subCategory: 'Talent Acquisition',
     code: 'RP-02', title: 'Time to hire — all roles avg (≤ 30 days)',
-   weight: 15, contributorIds: ['alfian'], viewerIds: ['evelyn', 'ali', 'bayu', 'andi', 'cinta'], status: 'green', unit: 'count', value: 29, pill: 97, min: 0, max: 30,
+   weight: 15, contributorIds: ['alfian'], viewerIds: ['evelyn', 'ali', 'bayu', 'andi', 'cinta'], status: 'green', unit: 'count', value: 29, pill: 97, min: 0, max: 30, isClosed: true,
   }),
   g({
     id: 'rp-03', level: 'organization', ownerId: 'rio', department: 'HR',
@@ -685,7 +690,7 @@ function seed(): Goal[] {
     id: 'ai-02', level: 'organization', ownerId: 'ali', department: 'Sales',
     category: 'Customer', subCategory: 'Retention',
     code: 'AI-02', title: 'Client retention rate (≥ 88%)',
-   weight: 15, contributorIds: ['daud', 'jessie'], viewerIds: ['daud', 'jessie'], status: 'green', unit: 'percent', value: 89.5, pill: 102, min: 0, max: 88,
+   weight: 15, contributorIds: ['daud', 'jessie'], viewerIds: ['daud', 'jessie'], status: 'green', unit: 'percent', value: 89.5, pill: 102, min: 0, max: 88, isClosed: true,
   }),
   g({
     id: 'ai-03', level: 'team', ownerId: 'ali', department: 'Sales',
@@ -815,7 +820,7 @@ function seed(): Goal[] {
     id: 'ap-04', level: 'organization', ownerId: 'andi', department: 'Kitchen',
     category: 'Internal Process', subCategory: 'Food Safety',
     code: 'AP-04', title: 'HACCP audit pass rate (100%)',
-   weight: 12, contributorIds: ['indah'], viewerIds: ['cinta'], status: 'green', unit: 'percent', value: 97.7, pill: 98, min: 0, max: 100,
+   weight: 12, contributorIds: ['indah'], viewerIds: ['cinta'], status: 'green', unit: 'percent', value: 97.7, pill: 98, min: 0, max: 100, isClosed: true,
   }),
   g({
     id: 'ap-05', level: 'team', ownerId: 'andi', department: 'Kitchen',
@@ -1218,7 +1223,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 24
+const SEED_VERSION = 29
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress
@@ -1244,8 +1249,41 @@ const H2_TITLE_BY_CODE: Record<string, string> = {
   'ES-04': 'Average check contribution growth (+5% vs H1 2026)',
 }
 
+// H2 must have every owner's goal weights total EXACTLY 100%. The H1 seed
+// intentionally leaves evelyn/ali/cinta slightly over 100 to demo the
+// over-weight warning on the goal-cycle page, and seed26H2 clones those same
+// weights — so scale each owner's cloned weights back to a clean 100 here
+// (integer + proportional; the small rounding drift is absorbed by that
+// owner's largest-weight goal). Owners already at 100 are left untouched.
+function normalizeOwnerWeightsTo100(list: Goal[]): Goal[] {
+  const totals = new Map<string, number>()
+  for (const g of list) totals.set(g.ownerId, (totals.get(g.ownerId) ?? 0) + g.weight)
+
+  const scaled = list.map((g) => {
+    const total = totals.get(g.ownerId) ?? 0
+    if (total === 100 || total === 0) return { ...g }
+    return { ...g, weight: Math.round((g.weight * 100) / total) }
+  })
+
+  // Absorb the rounding drift into each owner's largest-weight goal so the
+  // per-owner sum lands on exactly 100.
+  const scaledSums = new Map<string, number>()
+  const largestIdx = new Map<string, number>()
+  scaled.forEach((g, i) => {
+    scaledSums.set(g.ownerId, (scaledSums.get(g.ownerId) ?? 0) + g.weight)
+    const cur = largestIdx.get(g.ownerId)
+    if (cur === undefined || g.weight > scaled[cur].weight) largestIdx.set(g.ownerId, i)
+  })
+  for (const [owner, idx] of largestIdx) {
+    if ((totals.get(owner) ?? 0) === 0) continue
+    const drift = 100 - (scaledSums.get(owner) ?? 0)
+    if (drift !== 0) scaled[idx] = { ...scaled[idx], weight: scaled[idx].weight + drift }
+  }
+  return scaled
+}
+
 function seed26H2(): Goal[] {
-  return seed().map((g, i) => {
+  return normalizeOwnerWeightsTo100(seed().map((g, i) => {
     const r = (i * 37) % 100
     const alignedToId = g.alignedToId ? `h2-${g.alignedToId}` : undefined
     const title = H2_TITLE_BY_CODE[g.code] ?? g.title
@@ -1262,17 +1300,19 @@ function seed26H2(): Goal[] {
       // Company goals roll up from aligned goals (KRs hidden) — keep the
       // deterministic early-cycle status/progress rather than a KR average.
       const max = g.max ?? 100
-      let status: GoalStatus
       let pill: number
-      if (r < 8) { status = 'gray'; pill = 0 }
-      else if (r < 25) { status = 'gray'; pill = 30 + (r % 25) }
-      else if (r < 45) { status = 'orange'; pill = 20 + (r % 20) }
-      else { status = 'green'; pill = 45 + (r % 35) }
+      if (r < 8) pill = 0
+      else if (r < 25) pill = 30 + (r % 25)
+      else if (r < 45) pill = 20 + (r % 20)
+      else pill = 45 + (r % 35)
+      // Status must agree with progress: 0% is Not started (gray), otherwise
+      // On/Off track by the same threshold resolveCompanyRollup uses.
+      const status: GoalStatus = pill === 0 ? 'gray' : pill >= 70 ? 'green' : 'orange'
       return { ...commonoverride, status, pill, value: Math.round((max * pill) / 100), min: g.min ?? 0, max }
     }
     // Non-company measurable: goal progress = average of its (early) KRs.
     return withKrProgress({ ...commonoverride, min: g.min ?? 0, max: g.max ?? 100 })
-  })
+  }))
 }
 
 // Prod parity: a company goal has no key results — its progress rolls up from
@@ -1293,8 +1333,18 @@ function resolveCompanyRollup(list: Goal[]): Goal[] {
     return { ...goal, pill: pct, value: Math.round(min + (max - min) * (pct / 100)), status }
   })
 }
+// Every goal must show a progress bar. A goal with no `unit` rendered a bare
+// "—" in the Progress column (and could keep a stale green "On track" status),
+// which reads as broken/missing data. Give unit-less goals a 0–100% scale and
+// derive their progress from status so the bar and status always agree:
+// green = 100% (done), orange = 50% (in progress), gray = 0% (Not started).
+function ensureMeasurable(g: Goal): Goal {
+  if (g.unit) return g
+  const pct = g.status === 'green' ? 100 : g.status === 'orange' ? 50 : 0
+  return { ...g, unit: 'percent', min: 0, max: 100, value: pct, pill: pct }
+}
 function buildSeededGoals(): Goal[] {
-  return resolveCompanyRollup([...seed(), ...seed26H2(), ...seedArchive()])
+  return resolveCompanyRollup([...seed(), ...seed26H2(), ...seedArchive()].map(ensureMeasurable))
 }
 const goals = ref<Goal[]>(buildSeededGoals())
 let loadedFromStorage = false
@@ -1332,7 +1382,10 @@ export function useGoalsStore(cycleId?: string) {
   loadFromStorage()
 
   function resetToSeed() {
-    goals.value = seed()
+    // Must rebuild the FULL seed (26 H1 + 26 H2 + archive), not just seed()
+    // which is 26 H1 alone — otherwise a reset wipes every other cycle's goals
+    // and leaves 26 H2 empty.
+    goals.value = buildSeededGoals()
     persist()
   }
 

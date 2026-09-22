@@ -5,6 +5,7 @@ import {
   MpAvatar,
   MpText,
   MpTextlink,
+  MpSpinner,
   MpPopover,
   MpPopoverTrigger,
   MpPopoverContent,
@@ -18,6 +19,22 @@ function signOut() { /* hook real auth here */ }
 
 const { currentUserId, setCurrentUser } = useCurrentUser()
 const activeEmployee = computed(() => employeeById(currentUserId.value))
+
+// ─── Activity monitor (header process tray: Import / Download) ─────────────────
+const { importProcesses, downloadProcesses, activeCount, openSignal, requestedTab, clear: clearMonitor } = useActivityMonitor()
+const activeMonitorTab = ref<'import' | 'download'>('import')
+const currentMonitorList = computed(() => (activeMonitorTab.value === 'import' ? importProcesses.value : downloadProcesses.value))
+// When a job requests it (Process upload → Import, Request template → Download),
+// pop the monitor open on the matching tab by clicking its (uncontrolled)
+// trigger, so the user sees progress and can grab the finished file.
+const monitorTriggerBtn = ref<HTMLButtonElement | null>(null)
+watch(openSignal, () => {
+  activeMonitorTab.value = requestedTab.value
+  nextTick(() => monitorTriggerBtn.value?.click())
+})
+function downloadFromMonitor(fileName: string) {
+  toast.notify({ id: 'monitor-download', position: 'top-center', variant: 'success', title: 'Template downloaded' })
+}
 
 const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
@@ -49,6 +66,31 @@ const launcherButton = css({
   border: 'none',
   _hover: { bg: 'background.surface' },
 })
+
+// ─── Activity monitor styles ──────────────────────────────────────────────────
+const monitorTrigger = css({
+  position: 'relative', display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
+  w: '8', h: '8', borderRadius: 'md', color: 'text.secondary', cursor: 'pointer',
+  background: 'transparent', border: 'none', _hover: { bg: 'background.surface' },
+})
+const monitorDot = css({
+  position: 'absolute', top: '5px', right: '5px', width: '8px', height: '8px', borderRadius: 'full',
+  background: 'var(--mp-background-danger-bold, #C33E35)', border: '2px solid', borderColor: 'white',
+})
+const monitorPanel = css({ display: 'flex', flexDirection: 'column', width: '320px' })
+const monitorTabs = css({ display: 'flex', gap: '4', paddingInline: '4', paddingTop: '2', borderBottom: '1px solid', borderBottomColor: 'border.default' })
+const monitorTab = css({ paddingBottom: '2', fontSize: '14px', lineHeight: '20px', color: 'text.secondary', background: 'transparent', border: 'none', cursor: 'pointer', borderBottom: '2px solid transparent', marginBottom: '-1px' })
+const monitorTabActive = css({ color: 'text.link', fontWeight: '600', borderBottomColor: 'border.brand' })
+const monitorList = css({ display: 'flex', flexDirection: 'column', maxHeight: '280px', overflowY: 'auto' })
+const monitorItem = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBlock: '3', paddingInline: '4', borderBottom: '1px solid', borderBottomColor: 'border.default.subtle' })
+const monitorIcon = css({ display: 'inline-flex', flexShrink: '0' })
+const monitorIconDone = css({ display: 'inline-flex', flexShrink: '0', color: 'var(--mp-icon-success, #1C8459)' })
+const monitorItemMeta = css({ display: 'flex', flexDirection: 'column', gap: '0', minWidth: '0', flex: '1' })
+const monitorFileName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })
+const monitorStatusText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+const monitorPct = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', fontVariantNumeric: 'tabular-nums', flexShrink: '0' })
+const monitorEmpty = css({ paddingBlock: '8', paddingInline: '4', textAlign: 'center', fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
+const monitorFooter = css({ display: 'flex', justifyContent: 'flex-end', paddingInline: '4', paddingBlock: '3', borderTop: '1px solid', borderTopColor: 'border.default' })
 
 
 const profileName = css({
@@ -209,6 +251,46 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
     </MpFlex>
 
     <MpFlex align="center" gap="4">
+      <!-- Activity monitor — background Import / Download jobs -->
+      <MpPopover placement="bottom-end" trigger="click" use-portal>
+        <MpPopoverTrigger>
+          <button ref="monitorTriggerBtn" type="button" :class="monitorTrigger" aria-label="Activity monitor">
+            <span :class="{ 'monitor-icon-spin': activeCount > 0 }" :style="{ display: 'inline-flex' }">
+              <MpIcon name="refresh" :size="20" />
+            </span>
+            <span v-if="activeCount > 0" :class="monitorDot" />
+          </button>
+        </MpPopoverTrigger>
+        <MpPopoverContent>
+          <div :class="monitorPanel">
+            <div :class="monitorTabs">
+              <button type="button" :class="[monitorTab, activeMonitorTab === 'download' && monitorTabActive]" @click="activeMonitorTab = 'download'">Download</button>
+              <button type="button" :class="[monitorTab, activeMonitorTab === 'import' && monitorTabActive]" @click="activeMonitorTab = 'import'">Import</button>
+            </div>
+
+            <div v-if="currentMonitorList.length" :class="monitorList">
+              <div v-for="p in currentMonitorList" :key="p.id" :class="monitorItem">
+                <span v-if="p.status === 'processing'" :class="monitorIcon"><MpSpinner size="sm" /></span>
+                <span v-else :class="monitorIconDone"><MpIcon name="check" size="sm" /></span>
+                <div :class="monitorItemMeta">
+                  <span :class="monitorFileName">{{ p.fileName }}</span>
+                  <span :class="monitorStatusText">
+                    {{ p.status === 'processing' ? 'Processing…' : p.kind === 'download' ? 'Ready to download' : 'Completed' }}
+                  </span>
+                </div>
+                <span v-if="p.status === 'processing'" :class="monitorPct">{{ p.progress }}%</span>
+                <MpTextlink v-else-if="p.kind === 'download'" as="button" size="label" @click="downloadFromMonitor(p.fileName)">Download</MpTextlink>
+              </div>
+            </div>
+            <div v-else :class="monitorEmpty">No {{ activeMonitorTab }} in progress</div>
+
+            <div v-if="currentMonitorList.length" :class="monitorFooter">
+              <MpTextlink as="button" size="label" @click="clearMonitor(activeMonitorTab)">Clear all</MpTextlink>
+            </div>
+          </div>
+        </MpPopoverContent>
+      </MpPopover>
+
       <NuxtLink to="/inbox/notifications" :class="launcherButton" aria-label="Inbox">
         <PxIcon name="inbox" :size="20" />
       </NuxtLink>
@@ -294,3 +376,14 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
     </MpFlex>
   </MpFlex>
 </template>
+
+<style scoped>
+/* Spin the reload glyph while an import/download job is in progress. */
+@keyframes monitor-icon-spin {
+  to { transform: rotate(360deg); }
+}
+.monitor-icon-spin {
+  display: inline-flex;
+  animation: monitor-icon-spin 1s linear infinite;
+}
+</style>

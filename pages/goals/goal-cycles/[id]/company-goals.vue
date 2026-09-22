@@ -649,7 +649,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                     </span>
                   </MpFlex>
                 </MpFlex>
-                <span v-else :class="captionText">—</span>
+                <div v-else :class="progressTrack" />
               </MpTableCell>
 
               <!-- Status -->
@@ -726,6 +726,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     :cycle-id="cycle?.id"
     :cycle-end-date="cycle?.endDate ?? ''"
     :editing-draft="editingDraft"
+    :weight-mandatory="cycle?.weightMandatory"
     @save="saveEdit"
   />
 

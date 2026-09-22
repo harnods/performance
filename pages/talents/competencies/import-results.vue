@@ -23,15 +23,19 @@ import {
   MpInputTag,
   MpText,
   MpRadio,
-  MpCheckbox,
   MpFormControl,
   MpFormLabel,
   MpFormHelpText,
   MpFormErrorMessage,
-  toast,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerTitle,
+  MpBannerDescription,
+  MpBannerCloseButton,
   css,
 } from '@mekari/pixel3'
 import { EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { scopeOptions, type ScopeType } from '~/utils/competency'
 
 definePageMeta({ title: 'Import competency results', layout: 'default' })
 
@@ -47,47 +51,44 @@ const activeTab = ref<TabKey>('generate')
 // ─── Copy ──────────────────────────────────────────────────────────────────────
 const VENDOR_MAX = 60
 
-// ─── Option data (mock) ─────────────────────────────────────────────────────────
-const jobPositionOptions = [
-  { value: 'product-manager', label: 'Product Manager' },
-  { value: 'engineering-manager', label: 'Engineering Manager' },
-  { value: 'software-engineer', label: 'Software Engineer' },
-  { value: 'ux-designer', label: 'UX Designer' },
-  { value: 'data-analyst', label: 'Data Analyst' },
-  { value: 'sales-executive', label: 'Sales Executive' },
-]
+const SCOPE_ATTR_LABEL: Record<ScopeType, string> = {
+  'job-level': 'Job level',
+  'grade': 'Job grade',
+  'class': 'Job class',
+}
 
-// Scope attributes are multi-select (checkboxes): each ticked attribute reveals
-// its own value select below. `base` is the label under "Current job position";
-// under "Future job position" it becomes "Target job level" etc. (see ctxLabel).
-const jobLevelOptions = [
-  { value: 'associate', label: 'Associate' },
-  { value: 'specialist', label: 'Specialist' },
-  { value: 'senior', label: 'Senior' },
-  { value: 'manager', label: 'Manager' },
-  { value: 'senior-manager', label: 'Senior Manager' },
-  { value: 'director', label: 'Director' },
-  { value: 'vp', label: 'VP' },
-]
-const gradeOptions = Array.from({ length: 6 }, (_, i) => ({ value: `grade-${i + 1}`, label: `Grade ${i + 1}` }))
-const classOptions = ['A', 'B', 'C', 'D'].map(c => ({ value: `class-${c.toLowerCase()}`, label: `Class ${c}` }))
+// ─── Data (from the repo's mini-DB, not hardcoded) ───────────────────────────────
+// Job positions come from the employee master, so the dropdown always matches
+// real roles. The scope attribute + assessed values come from the competency
+// ASSIGNMENT of the picked position — never chosen freely — so a template can
+// only be generated for a role that actually has an assessment defined.
+const { assignments } = useCompetencyStore()
+const { addDownload } = useActivityMonitor()
 
-const SCOPE_ATTRS = [
-  { key: 'job-level', base: 'Job level', options: jobLevelOptions },
-  { key: 'job-grade', base: 'Job grade', options: gradeOptions },
-  { key: 'job-class', base: 'Job class', options: classOptions },
-] as const
-
-// Employee assessed pulls from the shared subordinate master (coherent mock).
-const employeeSuggestions = EMPLOYEES.map(e => ({ id: e.id, label: e.name, value: e.id, meta: employeeMeta(e) }))
+const jobPositionOptions = [...new Set(EMPLOYEES.map(e => e.title))]
+  .sort((a, b) => a.localeCompare(b))
+  .map(title => ({ value: title, label: title }))
 
 // ─── Form state (Generate template) ──────────────────────────────────────────────
 const assessmentContext = ref<'current' | 'future'>('current')
 const jobPosition = ref('')
-const scopeChecked = reactive<Record<string, boolean>>({ 'job-level': false, 'job-grade': false, 'job-class': false })
-const scopeValues = reactive<Record<string, string>>({ 'job-level': '', 'job-grade': '', 'job-class': '' })
+const scopeValue = ref('')
 const vendor = ref('')
 const selectedEmployees = ref<string[]>([])
+
+// Employee assessed. For a CURRENT-position assessment only employees who
+// actually hold that job position can be assessed; for a FUTURE-position
+// (succession) assessment the person is being prepared for a role they don't
+// hold yet, so the whole directory stays available.
+const assessableEmployees = computed(() =>
+  assessmentContext.value === 'current' && jobPosition.value
+    ? EMPLOYEES.filter(e => e.title === jobPosition.value)
+    : EMPLOYEES,
+)
+const employeeSuggestions = computed(() =>
+  assessableEmployees.value.map(e => ({ id: e.id, label: e.name, value: e.id, meta: employeeMeta(e) })),
+)
+const restrictEmployeesToPosition = computed(() => assessmentContext.value === 'current' && !!jobPosition.value)
 
 const vendorCount = computed(() => vendor.value.length)
 
@@ -97,54 +98,77 @@ function ctxLabel(base: string) {
   return isFuture.value ? `Target ${base.toLowerCase()}` : base
 }
 
-// The scope attributes currently ticked (drives the dependent value selects).
-const checkedAttrs = computed(() => SCOPE_ATTRS.filter(a => scopeChecked[a.key]))
-// Un-ticking an attribute clears its chosen value.
-function toggleScope(key: string, on: boolean) {
-  scopeChecked[key] = on
-  if (!on) scopeValues[key] = ''
-}
+// The competency assignment that covers the picked job position. A position can
+// appear in a scoped assignment (job level/grade/class) and/or an unscoped
+// baseline ("All employees") — prefer the scoped one, since that carries the
+// scope attribute the template is generated against.
+const positionAssignment = computed(() => {
+  if (!jobPosition.value) return undefined
+  const matches = assignments.value.filter(a => a.positions.includes(jobPosition.value))
+  return matches.find(a => a.scope !== null) ?? matches[0]
+})
+const hasAssignment = computed(() => !!positionAssignment.value)
+// The scope attribute is dictated by the assignment (read-only), not picked.
+const scopeType = computed<ScopeType | null>(() => positionAssignment.value?.scope ?? null)
+const scopeAttrLabel = computed(() => (scopeType.value ? ctxLabel(SCOPE_ATTR_LABEL[scopeType.value]) : ''))
+// Only the scope values the assignment actually assesses are selectable.
+const scopeValueOptions = computed(() => {
+  const a = positionAssignment.value
+  if (!a || !a.scope) return []
+  const values = new Set(a.values)
+  return scopeOptions(a.scope).filter(o => values.has(o.value))
+})
+// A scope value only needs to be picked when the assignment is scoped (an
+// unscoped baseline covers "All employees" — nothing to pick).
+const needsScopeValue = computed(() => hasAssignment.value && scopeType.value !== null)
+
+// Changing the position (or switching current/future) changes both the scope
+// values that apply and who can be assessed — reset both so nothing stale
+// carries over.
+watch([jobPosition, assessmentContext], () => { scopeValue.value = ''; selectedEmployees.value = [] })
 
 function onEmployeesChange(data: { value?: string; text?: string }[]) {
   selectedEmployees.value = data.map(d => d.value ?? d.text ?? '').filter(Boolean)
 }
 
-// ─── Validation ──────────────────────────────────────────────────────────────────
+// Success banner shown after a template request (dismissible).
+const showBanner = ref(false)
+const bannerText = ref('')
+
+// ─── Validation (inline only — never a toast, per the copy library) ───────────────
 const submitted = ref(false)
-const jobPositionInvalid = computed(() => submitted.value && !jobPosition.value)
-const scopeValueInvalid = (key: string) => submitted.value && scopeChecked[key] && !scopeValues[key]
+// Selected a role with no competency assignment → template can't be generated.
+// Surfaced immediately (not gated on submit) since it explains why import is blocked.
+const noAssignment = computed(() => !!jobPosition.value && !hasAssignment.value)
+const jobPositionInvalid = computed(() => noAssignment.value || (submitted.value && !jobPosition.value))
+const scopeValueInvalid = computed(() => submitted.value && needsScopeValue.value && !scopeValue.value)
 const vendorInvalid = computed(() => submitted.value && !vendor.value.trim())
 const employeesInvalid = computed(() => submitted.value && selectedEmployees.value.length === 0)
 
 function isValid(): boolean {
   return !!jobPosition.value
-    && checkedAttrs.value.every(a => !!scopeValues[a.key])
+    && hasAssignment.value
+    && (!needsScopeValue.value || !!scopeValue.value)
     && !!vendor.value.trim()
     && selectedEmployees.value.length > 0
 }
 
-// Buttons are never disabled (project rule): validate on click and surface a
-// toast + inline errors when something is missing.
+// Buttons are never disabled (project rule): validate on click and surface inline
+// errors. Errors never use a toast — only the success confirmation does.
 function onRequestTemplate() {
   submitted.value = true
-  if (!isValid()) {
-    toast.notify({
-      id: 'import-template-invalid',
-      position: 'top-center',
-      variant: 'danger',
-      title: 'Complete the required fields',
-      description: 'Fill in job position, vendor, and at least one employee before requesting the template.',
-    })
-    return
-  }
-  toast.notify({
-    id: 'import-template-requested',
-    position: 'top-center',
-    variant: 'success',
-    title: 'Template requested',
-    description: 'Your assessment template is being generated and will appear under Import history.',
-  })
-  activeTab.value = 'history'
+  if (!isValid()) return
+  // Generating a template produces a downloadable file — hand it to the header
+  // activity monitor (Download tab), which pops open so the user can grab the
+  // finished template right there once it's ready.
+  const slug = jobPosition.value.toLowerCase().replace(/\s+/g, '-')
+  const scope = scopeValue.value ? `-${scopeValue.value}` : ''
+  addDownload(`competency-template-${slug}${scope}.xlsx`)
+  // Confirm with a dismissible success banner at the top of the tab, captured at
+  // submit time so it holds even if the form is edited afterwards.
+  const n = selectedEmployees.value.length
+  bannerText.value = `${jobPosition.value} template - ${n} ${n === 1 ? 'employee' : 'employees'}`
+  showBanner.value = true
 }
 
 function onCancel() {
@@ -187,12 +211,8 @@ const radioBox = css({
   cursor: 'pointer', transition: 'border-color 0.12s ease, background 0.12s ease',
   _hover: { borderColor: 'border.hover' },
 })
-const radioBoxActive = css({ borderColor: 'border.brand', background: 'background.brand.subtle' })
+const radioBoxActive = css({ borderColor: 'border.brand', background: 'background.brand' })
 
-// Scope-value select: sits under its checkbox, indented to line up with the
-// checkbox label text (checkbox box width + gap). marginBottom + the column's
-// 12px flex gap add up to a 20px gap before the next checkbox.
-const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2' })
 </script>
 
 <template>
@@ -213,6 +233,14 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
 
   <!-- ═════════════════ Generate template ═════════════════ -->
   <div v-if="activeTab === 'generate'" :class="formColumn">
+
+    <!-- Success banner after a template request (dismissible) -->
+    <MpBanner v-if="showBanner" variant="success" :class="span12">
+      <MpBannerIcon />
+      <MpBannerTitle>Template request submitted</MpBannerTitle>
+      <MpBannerDescription>{{ bannerText }}</MpBannerDescription>
+      <MpBannerCloseButton @click="showBanner = false" />
+    </MpBanner>
 
     <!-- ── Assessment context ─────────────────────────────────── -->
     <div :class="[sectionHeaderFirst, span12]">
@@ -245,7 +273,8 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
       </label>
     </div>
 
-    <!-- Job position (label becomes "Target job position" for future context) -->
+    <!-- Job position — sourced from the employee master (DB), so it matches real
+         roles and their competency assignments. -->
     <MpFormControl id="job-position" :is-required="true" :is-invalid="jobPositionInvalid" :class="span3">
       <MpFormLabel>{{ ctxLabel('Job position') }}</MpFormLabel>
       <PxSelectPopover
@@ -256,36 +285,27 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
         searchable
         :search-placeholder="`Search ${ctxLabel('Job position').toLowerCase()}...`"
       />
-      <MpFormErrorMessage>Select a {{ ctxLabel('Job position').toLowerCase() }}.</MpFormErrorMessage>
+      <MpFormErrorMessage v-if="noAssignment">This job position has no competency assignment. Please create one before generating a template</MpFormErrorMessage>
+      <MpFormErrorMessage v-else>You must select a {{ ctxLabel('Job position').toLowerCase() }}</MpFormErrorMessage>
     </MpFormControl>
 
-    <!-- Scope attribute — multi-select via checkboxes; a ticked attribute reveals
-         its value select directly underneath, indented to line up with the label. -->
-    <MpFormControl id="scope-attribute" :class="span6">
-      <MpFormLabel>Scope attribute</MpFormLabel>
-      <MpFlex direction="column" gap="3" :class="css({ paddingTop: '1' })">
-        <div v-for="attr in SCOPE_ATTRS" :key="attr.key">
-          <MpCheckbox
-            :is-checked="scopeChecked[attr.key]"
-            @update:is-checked="toggleScope(attr.key, $event)"
-          >
-            {{ ctxLabel(attr.base) }}
-          </MpCheckbox>
-          <div v-if="scopeChecked[attr.key]" :class="scopeValueSlot">
-            <MpFormControl :id="`scope-value-${attr.key}`" :is-required="true" :is-invalid="scopeValueInvalid(attr.key)">
-              <PxSelectPopover
-                v-model="scopeValues[attr.key]"
-                :options="attr.options"
-                :placeholder="`Select ${ctxLabel(attr.base).toLowerCase()}`"
-                :width="'264px'"
-                searchable
-                :search-placeholder="`Search ${ctxLabel(attr.base).toLowerCase()}...`"
-              />
-              <MpFormErrorMessage>Select a {{ ctxLabel(attr.base).toLowerCase() }}.</MpFormErrorMessage>
-            </MpFormControl>
-          </div>
-        </div>
-      </MpFlex>
+    <!-- Scope value — the scope attribute (job level/grade/class) is dictated by
+         the position's competency assignment and is reflected in this field's
+         label; only the values that assignment actually assesses are selectable.
+         Shown only for a scoped assignment (an unscoped "All employees" baseline
+         has no scope value to pick). -->
+    <MpFormControl v-if="needsScopeValue" id="scope-value" :is-required="true" :is-invalid="scopeValueInvalid" :class="span3">
+      <MpFormLabel>{{ scopeAttrLabel }}</MpFormLabel>
+      <PxSelectPopover
+        v-model="scopeValue"
+        :options="scopeValueOptions"
+        :placeholder="`Select ${scopeAttrLabel.toLowerCase()}`"
+        :width="'100%'"
+        searchable
+        :search-placeholder="`Search ${scopeAttrLabel.toLowerCase()}...`"
+      />
+      <MpFormHelpText>Only values assessed for this position are available.</MpFormHelpText>
+      <MpFormErrorMessage>You must select a {{ scopeAttrLabel.toLowerCase() }}</MpFormErrorMessage>
     </MpFormControl>
 
     <!-- ── Assessment details ─────────────────────────────────── -->
@@ -306,7 +326,10 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
     <!-- Employee assessed -->
     <MpFormControl id="employee-assessed" :is-required="true" :is-invalid="employeesInvalid" :class="span6">
       <MpFormLabel>Employee assessed</MpFormLabel>
+      <!-- Keyed by context + position so the chosen chips reset when the
+           assessable set changes (a stale employee from another role can't linger). -->
       <MpInputTag
+        :key="`${assessmentContext}-${jobPosition}`"
         id="employee-assessed-input"
         :placeholder="'Select employees'"
         :suggestions="employeeSuggestions"
@@ -318,8 +341,12 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
         use-portal
         @change="onEmployeesChange"
       />
-      <MpFormHelpText>You can select multiple employees to include in the template.</MpFormHelpText>
-      <MpFormErrorMessage>Select at least one employee.</MpFormErrorMessage>
+      <MpFormHelpText>
+        {{ restrictEmployeesToPosition
+          ? `Only employees in the ${jobPosition} position can be assessed.`
+          : 'You can select multiple employees to include in the template.' }}
+      </MpFormHelpText>
+      <MpFormErrorMessage>You must select at least one employee</MpFormErrorMessage>
     </MpFormControl>
 
     <!-- Footer — action buttons align to the 6-col form width -->
@@ -329,9 +356,13 @@ const scopeValueSlot = css({ paddingLeft: '6', paddingTop: '2', marginBottom: '2
     </MpFlex>
   </div>
 
-  <!-- ═════════════════ Upload results (blank — to be designed) ═════════════════ -->
-  <div v-else-if="activeTab === 'upload'" />
+  <!-- ═════════════════ Upload results ═════════════════ -->
+  <CompetencyUploadResults
+    v-else-if="activeTab === 'upload'"
+    @go-generate="activeTab = 'generate'"
+    @uploaded="activeTab = 'history'"
+  />
 
-  <!-- ═════════════════ Import history (blank — to be designed) ═════════════════ -->
-  <div v-else />
+  <!-- ═════════════════ Import history ═════════════════ -->
+  <CompetencyImportHistory v-else />
 </template>

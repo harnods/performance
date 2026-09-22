@@ -35,32 +35,6 @@ Width — two valid ways:
 
 ⚠️ `selectWidth` value is inconsistent across files (`50%` / `264px` / `60%` / `320px` / grid `span3`). CLAUDE.md's intent: **50% of the form column (≈264px on the 3/12 grid)**. Default to that.
 
-### Custom option rendering — `#option` slot
-
-When an option needs more than label/description/trailing text (e.g. an
-employee picker showing an avatar per row), pass a scoped `#option` slot
-instead of hand-rolling a separate `MpSelect` + `MpPopover` — it overrides
-just the row content; the decorative-select trigger, search, and popover
-shell stay exactly the same as every other `PxSelectPopover`:
-
-```vue
-<!-- goal-cycles/[id]/new.vue — "Change goal owner" -->
-<PxSelectPopover v-model="ownerId" :options="ownerOptions" placeholder="Select goal owner" width="100%" :searchable="true">
-  <template #option="{ option }">
-    <div :class="optionRow"><!-- display:flex, alignItems:center, gap:3 -->
-      <PxAvatar :id="option.value" :name="option.label" :src="option.photo" size="lg" variant-color="gray" />
-      <MpFlex direction="column" gap="0">
-        <span>{{ option.label }}</span>
-        <span>{{ option.description }}</span>
-      </MpFlex>
-    </div>
-  </template>
-</PxSelectPopover>
-```
-
-Omitting the slot keeps the original label/description/trailing rendering —
-this is purely additive, no existing caller needs to change.
-
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
 ```ts
@@ -173,59 +147,49 @@ No official docs exist for it in this repo — these gotchas came from reading i
 - **A tag's own `id` is auto-generated as `` `tag-${text}` `` when added — never trust it to carry your real record id.** Carry the id inside the matched suggestion object instead, and read it back off `tag.value` (the *whole* matched suggestion), not `tag.id`.
 - `@change` fires on every add/remove with the FULL current tag array — always resync your own state from the whole array; don't try to diff adds vs. removes.
 - `data` (the initial tags) is read **once at mount** (no reactive re-sync from later prop changes) — fine as long as the component remounts (e.g. behind a `v-if`) whenever the initial selection should change from outside its own UI.
+- **The suggestion dropdown can show more than a plain label** via the component's default scoped slot — `#default="suggestion"` receives the matched suggestion object itself (whatever shape you passed in `suggestions`, not just its label). Selection click-handling stays wired at the row level regardless of what the slot renders, so an avatar + description row works the same as the plain-text default. The already-picked **chips stay plain text either way** — the slot only affects the dropdown, not the tags themselves — so this only helps when telling candidates apart *before* picking needs more than a name (e.g. several employees sharing a name).
 
 ```vue
 <MpInputTag
-  placeholder="Search employees…"
-  :data="contributorTagData(ownerId)"
-  :suggestions="contributorSuggestions"
+  placeholder="Search goal types…"
+  :data="tagData(selectedValues)"
+  :suggestions="goalSuggestions"
   :is-show-suggestions="true"
   :is-enable-create-new-tag="false"
   use-portal
-  @change="(items) => onContributorTagsChange(ownerId, items)"
-/>
+  @change="onTagsChange"
+>
+  <!-- optional: richer suggestion rows instead of the plain-label default -->
+  <template #default="suggestion">
+    <MpFlex align="center" gap="3">
+      <PxAvatar :id="suggestion.id" :name="suggestion.label" :src="suggestion.photo" size="lg" variant-color="gray" />
+      <MpFlex direction="column" gap="0">
+        <span>{{ suggestion.label }}</span>
+        <span>{{ suggestion.meta }}</span>
+      </MpFlex>
+    </MpFlex>
+  </template>
+</MpInputTag>
 ```
 ```ts
-const contributorSuggestions = computed(() => pool.value.map(id => ({ id, label: employeeById(id)?.name ?? id })))
-function contributorTagData(ownerId: string) {
-  return (selected[ownerId] ?? []).map((id) => {
+const goalSuggestions = computed(() => pool.value.map(id => ({ id, label: employeeById(id)?.name ?? id })))
+function tagData(selected: string[]) {
+  return selected.map((id) => {
     const label = employeeById(id)?.name ?? id
     return { id, text: label, value: { id, label }, isInvalid: false, isReadOnly: false }
   })
 }
-function onContributorTagsChange(ownerId: string, items: unknown) {
+function onTagsChange(items: unknown) {
   const ids = (Array.isArray(items) ? items as { value?: unknown }[] : [])
     .map(i => (i.value && typeof i.value === 'object' ? (i.value as { id?: string }).id : undefined))
     .filter((id): id is string => !!id)
-  selected[ownerId] = ids
+  selectedValues.value = ids
 }
 ```
 
-Reference: `AddGoalDrawer.vue` — "Goal contributor" → Selected members/employees.
+Reference: `ReviewMethodDrawer.vue` — goal-type multi-select (plain-label suggestions). Also `AddGoalDrawer.vue`'s Team/Org "Selected goal members" contributor picker (`contributorTagData`/`contributorSuggestionsFor`/`onContributorTagsChange`) — pool scoped to `contributorIncludeIds` (the goal's own members + owner), owner pinned first via `withOwnerFirst` in `setContributorIds`, suggestion rows use the avatar + description slot above (`photo`/`meta` riding along on the suggestion object) since several employees can share similar names.
 
-## Per-card accordion inside a form (collapse one repeated card's own body)
-
-When a repeated per-person card (one per goal owner, etc.) carries enough content that several stacked get long, make the card's OWN body collapsible — open by default — rather than collapsing the whole page section. The card's identity row (avatar + name) becomes the toggle button; any OTHER real interactive control already in that row (a switch, etc.) must stay a **sibling** of that button, never nested inside it — nesting a real interactive control inside a `<button>` is invalid HTML (same constraint as [`table.md`](table.md)'s accordion-header bulk action).
-
-```vue
-<div :class="personRowBetween">
-  <button type="button" :class="personRowToggle" :aria-expanded="isOpen(id)" @click="toggle(id)">
-    <MpIcon :name="isOpen(id) ? 'caret-down' : 'caret-right'" size="sm" />
-    <PxAvatar ... /><span>{{ name }}</span>
-  </button>
-  <MpToggle ... /> <!-- sibling of the button, not nested inside it -->
-</div>
-<template v-if="isOpen(id)">
-  <!-- the card's collapsible body -->
-</template>
-```
-
-- Default-open: `isOpen(id) => state[id] ?? true` — an unset entry reads as open, so nothing needs seeding.
-- If a save-time validation error targets a field inside a collapsed card, force that card back open in the same validation pass so the error is actually visible.
-- `personRowToggle` = `personRow`'s flex layout + button-chrome reset (`background: transparent, border: none, padding: 0, font: inherit, textAlign: left, cursor: pointer`).
-- **Skip the accordion entirely when a card variant never has more than one thing to show.** AddGoalDrawer's Individual-goal contributor card has only a single field below the identity row (an employee tag picker) — not enough content to justify collapsing. Company shares the same flat tag-picker (no All/Selected mode split — there's no member pool to back that choice, and prod parity makes Company contributor always optional, never mandatory), so it gets the same non-accordion treatment. The two still differ in *when* the picker shows and whether it's required: Individual's is gated behind self-update being off and is required once shown (owner already covers progress while self-update is on, so nothing to pick); Company's is always visible regardless of self-update and never required (no `MpText` required-mark, no `is-invalid`, no error message — see `contributorModeErrors` in `save()`, forced `false` for Company). Both render the identity row as a plain `personRow` div (no button, no caret, no `isContribCardOpen` gating); every other goal type keeps the full toggle-button accordion above.
-
-Reference: `AddGoalDrawer.vue` — "Goal contributor" cards (`personRowToggle`, `isContribCardOpen`/`toggleContribCard`; the non-accordion variant is gated on `isIndividual || isCompanyType`).
+**Prefer the boxed add/remove list over a tag picker when removed items need their own identity row** (avatar + name + job, not just a name chip) — see [`pagination.md`](pagination.md)'s "Boxed list container": `AddGoalDrawer.vue`'s "Goal members" section and Goal contributor's Company/Individual list both use a bordered `memberBox` of avatar rows (each with its own remove button) + a "+Add …" link below, opened via `SelectEmployeesDrawer`, instead of `MpInputTag`. Team/Org's contributor radios use neither: "All goal members" shows no list at all below the radio (it's already the exact Goal members list shown above — restating it would be pure duplication), and "Selected goal members" picks from a small, already-scoped pool (the goal's own members) via `MpInputTag` — the **selected chips** stay plain name text (a full identity block still doesn't fit a chip), even though the slot above gives its suggestion dropdown the richer avatar + description row.
 
 ## Rich text (long descriptions)
 
@@ -258,6 +222,20 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 ```
 
 `%` weight inputs = `width: '104px'`. Suppress number spinners with a `noSpinner` class when needed.
+
+**Gotcha — addon overlaps the input text:** `MpInputLeftAddon`/`MpInputRightAddon` measure their own width via `getComputedStyle()` in `onMounted` to set `--mp-input-offset--{left,right}`, but inside a just-opened drawer that read can happen before layout settles, coming back empty — the var lands as literal `NaNpx`. The input's padding is `calc(var(--mp-input-offset--left) + 14px)` with no fallback, so the invalid var invalidates the whole `calc()` and padding collapses to `0`, letting the addon box sit on top of the input's own text. It's invisible on short single-char addons (`%`) and glaring on 2-char ones (`Rp`). Fix with a scoped `:deep()` override forcing fixed padding (see `AddGoalDrawer.vue`'s `<style scoped>` block):
+```css
+:deep(.mp-input-group__root[data-with-left-addon='true'] .mp-input__control) {
+  padding-left: 46px !important;
+}
+:deep(.mp-input-group__root[data-with-right-addon='true'] .mp-input__control) {
+  padding-right: 46px !important;
+}
+```
+
+## Cross-field / cross-record validation blocking save
+
+A field can be locally valid but still violate a rule that depends on state outside the form (e.g. `AddGoalDrawer.vue`'s weight field: 1–100 is locally fine, but a `weightMandatory` cycle also needs it to land the owner's total on exactly 100%). Validate this *inside* the form component itself, gated on a prop the caller passes in (`weightMandatory` + `alreadyUsedWeight`), not in the `@save` handler after the fact — a handler-level check runs too late: the drawer's own `save()` already emits `'update:isOpen', false` in the same breath as `'save'`, so by the time a parent-side check could reject it, the drawer has already closed. Fold the extra rule into the same `errors.*` + `MpFormErrorMessage` used for local validation, and block `emit('save', …)` from firing at all. Because the drawer can be long, also scroll the offending field into view (`document.getElementById(fieldId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })` inside `nextTick`) so an error on a field the user didn't touch (scrolled past, off the visible area) isn't silently invisible. Do **not** fall back to a `toast.notify()` for this — a toast next to a drawer that already closed reads as "it saved, but here's a warning," when what actually happened is it didn't save at all.
 
 ## Rules
 
