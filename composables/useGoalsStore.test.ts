@@ -1,5 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import type { Goal } from './useGoalsStore'
+
+// Set by tests/setup.ts's useCurrentUser stub — flips the shared "acting
+// persona" ref so needsApproval's Super-Admin-actor bypass can be exercised
+// both ways.
+declare const __setTestUser: (id: string) => void
 import {
   EMPLOYEE_MANAGER,
   fullyWeightedOwnerIds,
@@ -29,9 +34,17 @@ describe('isSuperAdmin / hasManager / needsApproval', () => {
     expect(hasManager('ghost')).toBe(false)
   })
 
-  it('needsApproval mirrors hasManager (approval is centralized, owner-based)', () => {
+  it('needsApproval mirrors hasManager for a non-Super-Admin actor', () => {
+    __setTestUser('rio')
     for (const id of ['rizal', 'rio', 'alfian', 'ghost'])
       expect(needsApproval(id)).toBe(hasManager(id))
+    __setTestUser('rizal') // restore the shared default for later tests in this file
+  })
+
+  it('needsApproval is always false when acting as the Super Admin, regardless of owner', () => {
+    __setTestUser('rizal')
+    for (const id of ['rizal', 'rio', 'alfian', 'ghost'])
+      expect(needsApproval(id)).toBe(false)
   })
 
   it('EMPLOYEE_MANAGER wires reports to the right manager', () => {
