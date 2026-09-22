@@ -1153,6 +1153,23 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                 <span :class="sectionDesc">How progress is tracked and what success looks like.</span>
               </div>
 
+              <MpFormControl v-if="!isDeadlineUnit" id="goal-direction">
+                <MpFlex align="center" gap="1">
+                  <MpFormLabel>Goal direction</MpFormLabel>
+                  <MpText size="label" :class="requiredMark">*</MpText>
+                </MpFlex>
+                <MpFlex direction="column" gap="2">
+                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'higher'">
+                    Higher is better
+                    <template #description>Achievement increases as the value goes up — e.g. revenue, satisfaction score.</template>
+                  </MpRadio>
+                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'lower'">
+                    Lower is better
+                    <template #description>Achievement increases as the value goes down — e.g. cost, defect rate, response time.</template>
+                  </MpRadio>
+                </MpFlex>
+              </MpFormControl>
+
               <MpFormControl id="measurement-unit">
                 <MpFlex align="center" gap="1">
                   <MpFormLabel>Measurement unit</MpFormLabel>
@@ -1264,23 +1281,6 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                       </template>
                     </div>
                   </template>
-                </MpFlex>
-              </MpFormControl>
-
-              <MpFormControl v-if="!isDeadlineUnit" id="goal-direction">
-                <MpFlex align="center" gap="1">
-                  <MpFormLabel>Goal direction</MpFormLabel>
-                  <MpText size="label" :class="requiredMark">*</MpText>
-                </MpFlex>
-                <MpFlex direction="column" gap="2">
-                  <MpRadio name="goal-direction" value="higher" :is-checked="direction === 'higher'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'higher'">
-                    Higher is better
-                    <template #description>Achievement increases as the value goes up — e.g. revenue, satisfaction score.</template>
-                  </MpRadio>
-                  <MpRadio name="goal-direction" value="lower" :is-checked="direction === 'lower'" :is-disabled="lockMeasurement" @update:is-checked="direction = 'lower'">
-                    Lower is better
-                    <template #description>Achievement increases as the value goes down — e.g. cost, defect rate, response time.</template>
-                  </MpRadio>
                 </MpFlex>
               </MpFormControl>
             </div>

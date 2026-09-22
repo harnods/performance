@@ -164,10 +164,18 @@ export function fullyWeightedOwnerIds(goals: Goal[]): Set<string> {
 
 // Whether creating/editing/deleting this owner's goal must go through the
 // approval queue (composables/useGoalApprovalsStore.ts) instead of taking
-// effect immediately. Approval is centralized to the Super Admin, so this
-// only depends on whether the OWNER has a manager at all — not on who's
-// currently acting.
+// effect immediately.
+//
+// Two independent ways to skip the queue: the OWNER has no manager (the
+// original rule — Rizal owns nothing that needs review), OR the person
+// currently ACTING (useCurrentUser, i.e. the "View as" persona) is the Super
+// Admin. Rizal is the approver for every submission anyway, so having him
+// queue his own actions on someone else's goal and then separately approve
+// it would be a no-op detour — acting as Rizal always takes effect
+// immediately, on any owner's goal.
 export function needsApproval(ownerId: string): boolean {
+  const { currentUserId } = useCurrentUser()
+  if (isSuperAdmin(currentUserId.value)) return false
   return hasManager(ownerId)
 }
 
