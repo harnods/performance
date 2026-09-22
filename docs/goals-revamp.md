@@ -89,9 +89,12 @@ cycle info. Scope dropdown: My goals / My direct reports / All / Company / Organ
    beforeunload.
 
 ### C. Goal measurement
-`AddGoalDrawer` → units **Percentage / Number / Amount / Deadline**. Percentage defaults
-0→100; Amount adds a **Currency** picker + thousands-formatted inputs; **Use baseline**
-toggles the Start value; **Goal direction** (Higher/Lower is better; hidden for Deadline).
+`AddGoalDrawer` → **Goal direction** first (Higher/Lower is better; hidden for Deadline),
+then units **Percentage / Number / Amount / Deadline**. Percentage defaults 0→100; Amount
+adds a **Currency** picker + thousands-formatted inputs; **Use baseline** toggles the Start
+value. Direction is driven purely by state (`direction` ref), so it renders correctly above
+the unit picker even though a unit hasn't been chosen yet — it just isn't shown at all once
+Deadline is picked (`v-if="!isDeadlineUnit"`).
 Deadline = `MpDatePicker` (clamped to cycle period) + optional graduated **deadline rules**
 (Days exceeded → Achievement %, max `MAX_DEADLINE_RULES`). Schedule: Start disabled
 (inherits cycle), End bounded to `[cycleStart+1, cycleEnd]`, **Repeat this goal** + preview.
