@@ -27,13 +27,33 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger). Props (`PxSelectPopover.vue:18-27`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable`, `searchPlaceholder`.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only when `search-on-field` is off). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable`, `searchPlaceholder`, `searchOnField`.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
 - `:class="selectWidth"` fallthrough (needed for responsive/media-query widths — `PxSelectPopover.vue:41` keeps wrapper 100% when `width` omitted).
 
 ⚠️ `selectWidth` value is inconsistent across files (`50%` / `264px` / `60%` / `320px` / grid `span3`). CLAUDE.md's intent: **50% of the form column (≈264px on the 3/12 grid)**. Default to that.
+
+### `search-on-field` — typing directly into the field instead of a popover-embedded search box
+
+Default `searchable` opens the popover to a *separate* search input at the top, above the option list (`competencies/create.vue`'s Job position, `CycleGeneralForm.vue`'s Timeframe — most existing usages). Pass the boolean `search-on-field` instead when the field itself should be the search box — no embedded search bar, the closed field is a real text input you type straight into (`talents/competencies/import-results.vue`'s Job position / Job level / the extra scope fields):
+
+```vue
+<PxSelectPopover
+  v-model="jobPosition"
+  :options="jobPositionOptions"
+  placeholder="Select job position"
+  width="100%"
+  search-on-field
+/>
+```
+
+Do not pass `searchable` + `search-on-field` together — pick one per field, same as the required-marker rule above.
+
+Behavior (`PxSelectPopover.vue`'s `searchOnField` branch): the trigger becomes an `MpInputGroup`/`MpInput` with a trailing `chevrons-down` addon (same look as `DashMultiSelectSearch.vue`'s own select-styled search trigger), not the disabled-look `MpSelect`. Clicking it opens the popover exactly like clicking the old select did — nothing extra to wire for that. Focusing the field clears it so typing starts fresh; typing filters the list live; blurring without picking reverts the field back to the current selection's label, so an abandoned search never sticks. Selecting a `MpPopoverListItem` still closes the popover (`is-close-on-select`, unchanged).
+
+**Gotcha:** `MpPopoverTrigger` toggles open/closed on *every* click of whatever it wraps. That's harmless for the old inert `MpSelect` (nothing to click twice), but a real text input gets re-clicked constantly while searching (fixing a typo, moving the cursor) — each of those re-clicks would otherwise slam the popover shut. Fixed with a mousedown/click pair on the input (`wasAlreadyFocused` in `PxSelectPopover.vue`) that only lets the click that *first* focuses the field reach the trigger's toggle; a click while it's already focused is stopped from bubbling.
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
@@ -92,6 +112,45 @@ Multiple fields can share one width class like this even when they're not laid o
 side-by-side — it's a visual-alignment tool, not a row-layout tool. Don't reach for
 an inline `MpFlex` row just because two fields should look the same width.
 
+### Two-up inline fields in a span-grid page (`create.vue`/`import-results.vue` style)
+
+⚠️ On a page whose form column *is* the 12-col grid itself — every field carrying its
+own `span6`/`span3`/`span12` class straight from `formColumn` (`competencies/create.vue`,
+`talents/competencies/import-results.vue`) — **two fields with the same span class do
+NOT sit side by side.** Every span class in this convention is pinned to an explicit
+start at column 1 (`gridColumn: { base: '1 / -1', lg: '1 / span 3' }`), so a second
+field with that same class can't occupy the same columns (already taken) and falls to
+the next row instead — same-width fields end up stacked, not paired, even though the
+width looks right at a glance.
+
+Fix: give the *second* (and any later) field in the row a variant class that spans the
+same column *count* but with no explicit start — plain `gridColumn: 'span 3'` instead
+of `'1 / span 3'`. With no fixed start, the grid auto-places it into the next free
+columns in that row (4–6) instead of re-claiming column 1; `formColumn`'s own
+`columnGap: '6'` (24px) then falls out for free between the two fields — no wrapper
+element needed:
+
+```ts
+// Vendor + Assessment date sit side by side, each the same width as Job
+// position (span3, 262px on desktop) — plain 'span 3' (no explicit start)
+// lets the grid auto-place into columns 4-6 instead of pinning back to
+// column 1 like the standard span3 does.
+const span3Auto = css({ gridColumn: { base: '1 / -1', lg: 'span 3' } })
+```
+```vue
+<!-- import-results.vue — Vendor / Assessment date, each span3Auto,
+     directly as grid-item siblings (no MpFlex/wrapper — the grid handles
+     placement + gap on its own) -->
+<MpFormControl id="vendor" :class="span3Auto">...</MpFormControl>
+<MpFormControl id="assessment-date" :class="span3Auto">...</MpFormControl>
+```
+
+Reach for this (fixed width, matches another single field like Job position) over the
+standard `MpFlex` two-up pattern above (equal-stretch, fills the whole row) when the
+pair should read as two independent same-size fields rather than one row split evenly
+in half — e.g. Vendor/Assessment date matching Job position's width, with the rest of
+the row left empty, instead of stretching to fill all 12 columns.
+
 ### Section header / sub-header / description
 
 ```ts
@@ -134,6 +193,39 @@ Use the built-in default slot for the label + `#description` slot for the captio
 ```
 
   Use this instead of `#description` when the row already reads as busy (e.g. one toggle per person in a per-owner list) and the explanation is genuinely secondary — don't reach for it as a default over `#description`, which stays the norm for a caption everyone should read.
+
+- **Checking a box reveals more fields**: wrap the revealed content in a plain `<div>` with `marginLeft: '8'` (32px) — no border, no card, just indent — shown only `v-if` the box is checked, directly below the checkbox:
+
+  ```vue
+  <!-- CycleGeneralForm.vue:572-588 — "Use weight" reveals a per-method weight list -->
+  <MpCheckbox :is-checked="isShowMethodWeight" @update:is-checked="(v) => (isShowMethodWeight = v)">
+    Use weight
+    <template #description>The score of your review will be calculated by the weight you set up.</template>
+  </MpCheckbox>
+  <div v-if="isShowMethodWeight" :class="css({ marginLeft: '8' })">
+    <!-- revealed fields -->
+  </div>
+  ```
+
+  Same shape for several independent checkboxes stacked vertically, each with its own reveal (`talents/competencies/import-results.vue`'s "Target job grade" / "Target job class" extra-scope checkboxes) — one `MpCheckbox` + conditional indented block per row, not one shared reveal area. That group's own container must be a **nested 12-col grid** (`gridTemplateColumns: 'repeat(12, 1fr)', columnGap: '6', rowGap: '4'` — mirrors the page's outer `formColumn`), *not* a `flex` column: a flex container's `align-items: stretch` default makes every child fill the full row width regardless of any `span3`/`span6` class on it, silently defeating the width match described below. Use `rowGap` (not `gap`) for the same reason `marginTop: '-2'` is layered on top — see next paragraph.
+
+  ⚠️ **`MpCheckbox`'s `:class` lands on its hidden `<input>`, not the visible `<label>` that's the actual grid/flex item.** Passing a `span12`-style width/grid class straight to `<MpCheckbox :class="…">` does nothing visible — the checkbox silently falls back to grid auto-placement (one implicit column) and its label text wraps illegibly. Wrap the checkbox in a plain `<div :class="span12">` instead and put no class on `MpCheckbox` itself:
+
+  ```vue
+  <!-- import-results.vue — each row's checkbox spans the full grid width -->
+  <div :class="span12">
+    <MpCheckbox :id="`extra-scope-${t}`" :is-checked="extraScopeChecked[t]" @update:is-checked="…">
+      {{ ctxLabel(SCOPE_ATTR_LABEL[t]) }}
+    </MpCheckbox>
+  </div>
+  <MpFormControl v-if="extraScopeChecked[t]" :class="[span3, extraScopeIndent]">
+    <PxSelectPopover v-model="extraScopeValue[t]" :width="'100%'" search-on-field />
+  </MpFormControl>
+  ```
+
+  When the revealed field should read as **the same size** as another field elsewhere in the form (here: the primary scope field above it, also `span3`), give the revealed `MpFormControl` the *same* span class, not a wider one to "make room" for the indent. `marginLeft: '8'` (32px) — used both for the indent and to tighten the checkbox→field gap to 8px via `marginTop: '-2'` (`extraScopeIndent` in `import-results.vue`) — shrinks a grid item's *implicit* stretch width by the margin amount, but does **not** shrink an *explicit* `width: '100%'` on that same item (percentage widths resolve against the full grid track regardless of margin). So: keep the span class identical to the field it must match, add `width: '100%'` to the indent class, and the 32px margin becomes a pure visual offset — the field renders at the exact same width as its unindented sibling, just shifted right. (Do not "compensate" with `calc(100% + 32px)` — that double-counts, since the explicit `100%` already ignores the margin.)
+
+  When the revealed block is a single `MpFormControl` whose own label would just repeat the checkbox's own text (checkbox reads "Target job grade", the field it reveals is *also* "Target job grade"), drop that field's `MpFormLabel` — the checkbox above it already labels the row, so the field only needs its `placeholder` (`talents/competencies/import-results.vue`'s extra-scope fields). Keep the label when the revealed content is a *list* of differently-labeled fields (the "Use weight" example above), since nothing else names those rows.
 
 ## Multi-select rendered as removable tags — `MpInputTag`
 

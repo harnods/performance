@@ -74,6 +74,12 @@ All returned HTTP 200, no runtime errors beyond pre-existing warnings (see F4). 
 Gate: `needsApproval(ownerId)` = owner has a manager. Owners without a manager (rizal, and
 super-admin path) mutate goals immediately; owners with a manager are queued as a Submission.
 
+> **Updated rule (post this run):** `needsApproval` also short-circuits to `false` whenever
+> the currently **acting** persona (`useCurrentUser`) is the Super Admin (Rizal) — regardless
+> of whose goal is being created/edited/closed/deleted. Acting as Rizal always takes effect
+> immediately now, even on another owner's goal; the owner-has-no-manager path above is the
+> other, independent way to skip the queue. See `composables/useGoalsStore.ts`'s `needsApproval`.
+
 | ID | Steps | Expected | Status |
 |----|-------|----------|--------|
 | SUB-1 | As an employee create goals via New goals → **Save** (owner has a manager) | Submission created (`status: pending`); toast "Goals submitted for approval". No goal appears in cycle yet. **No inbox notification.** | ⬜ |

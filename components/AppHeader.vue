@@ -20,6 +20,9 @@ function signOut() { /* hook real auth here */ }
 const { currentUserId, setCurrentUser } = useCurrentUser()
 const activeEmployee = computed(() => employeeById(currentUserId.value))
 
+// "What's new (internal)" changelog drawer, opened from the user menu.
+const { openDrawer: openWhatsNew } = useWhatsNew()
+
 // ─── Activity monitor (header process tray: Import / Download) ─────────────────
 const { importProcesses, downloadProcesses, activeCount, openSignal, requestedTab, clear: clearMonitor } = useActivityMonitor()
 const activeMonitorTab = ref<'import' | 'download'>('import')
@@ -300,7 +303,7 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
       </button>
 
       <!-- User dropdown -->
-      <MpPopover placement="bottom-end" trigger="click" use-portal>
+      <MpPopover v-slot="{ onClosePopover }" placement="bottom-end" trigger="click" use-portal>
         <MpPopoverTrigger>
           <button type="button" :class="profileTrigger" aria-label="Open user menu">
             <ClientOnly>
@@ -351,6 +354,13 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
 
             <div :class="popoverDivider" />
 
+            <button type="button" :class="menuRow" @click="onClosePopover(); openWhatsNew()">
+              <MpIcon name="info" size="sm" />
+              What's new (internal)
+            </button>
+
+            <div :class="popoverDivider" />
+
             <button type="button" :class="menuRow" @click="resetDemoData">
               <MpIcon name="refresh" size="sm" />
               Reset demo data
@@ -375,6 +385,9 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
       </MpPopover>
     </MpFlex>
   </MpFlex>
+
+  <!-- What's new (internal) changelog drawer — shared open-state via useWhatsNew -->
+  <WhatsNewDrawer />
 </template>
 
 <style scoped>

@@ -3,6 +3,8 @@ import {
   MpFlex,
   MpSelect,
   MpInput,
+  MpInputGroup,
+  MpInputRightAddon,
   MpIcon,
   MpText,
   MpPopover,
@@ -24,6 +26,12 @@ const props = defineProps<{
   width?: string
   searchable?: boolean
   searchPlaceholder?: string
+  // Type directly into the closed field itself instead of opening the popover
+  // to a separate embedded search box — the field becomes a real text input
+  // that filters the list live as you type (no popover-internal search bar).
+  // Opt-in only: every other existing `searchable` usage keeps the
+  // popover-embedded search box unchanged. See docs/patterns/form.md.
+  searchOnField?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
@@ -41,13 +49,52 @@ const fieldClass = css({
 const wrapperStyle = computed(() => (props.width ? { width: props.width } : undefined))
 
 const searchTerm = ref('')
+
+// ─── searchOnField mode — the field is the search box ───────────────────────
+// The popover's own open/close (click trigger, click-outside, close-on-select)
+// is untouched — MpPopoverTrigger opens on click same as it did wrapping the
+// old disabled-look MpSelect, and stays open while typing since nothing here
+// blurs the field. Only the *displayed text* needs managing: cleared on focus
+// so typing starts fresh, and reverted to the current selection's label on
+// blur so an abandoned, unselected search doesn't stick around.
+const selectedLabel = computed(() => props.options.find(o => o.value === props.modelValue)?.label ?? '')
+const fieldText = ref(selectedLabel.value)
+const isEditingField = ref(false)
+watch(selectedLabel, (label) => { if (!isEditingField.value) fieldText.value = label })
+function onFieldFocus() {
+  isEditingField.value = true
+  fieldText.value = ''
+}
+function onFieldBlur() {
+  isEditingField.value = false
+  fieldText.value = selectedLabel.value
+}
+// MpPopoverTrigger toggles open/closed on every click of whatever it wraps —
+// fine for the old inert MpSelect (you'd never "click again" on it while
+// typing since it can't be typed into), but a real text input very much gets
+// re-clicked mid-search (fixing a typo, moving the cursor) and each of those
+// would otherwise slam the popover shut. Only the click that *first* focuses
+// the field should be allowed through to the trigger's toggle; any click
+// while it's already focused is a normal text-editing click, not a
+// re-open/close request, so stop it from bubbling to the toggle. Read at
+// mousedown (fires *before* focus changes) so it reflects focus state going
+// into this click, not the focus onFieldFocus is about to set.
+let wasAlreadyFocused = false
+function onFieldMouseDown(e: MouseEvent) {
+  wasAlreadyFocused = document.activeElement === e.currentTarget
+}
+function onFieldClick(e: MouseEvent) {
+  if (wasAlreadyFocused) e.stopPropagation()
+}
+
+const activeSearchTerm = computed(() => (props.searchOnField ? fieldText.value : searchTerm.value))
 const filteredOptions = computed(() =>
-  !props.searchable || !searchTerm.value
+  !(props.searchable || props.searchOnField) || !activeSearchTerm.value
     ? props.options
     : props.options.filter(o =>
-        o.label.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        o.description?.toLowerCase().includes(searchTerm.value.toLowerCase()) ||
-        o.trailing?.toLowerCase().includes(searchTerm.value.toLowerCase()),
+        o.label.toLowerCase().includes(activeSearchTerm.value.toLowerCase()) ||
+        o.description?.toLowerCase().includes(activeSearchTerm.value.toLowerCase()) ||
+        o.trailing?.toLowerCase().includes(activeSearchTerm.value.toLowerCase()),
       ),
 )
 
@@ -106,14 +153,35 @@ const itemRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
 function set(v: string) {
   emit('update:modelValue', v)
   searchTerm.value = ''
+  fieldText.value = props.options.find(o => o.value === v)?.label ?? ''
 }
+
+// searchOnField's trigger swaps MpSelect for a real MpInputGroup/MpInput field
+// (same chevrons-down-addon look as DashMultiSelectSearch.vue's own select-like
+// search trigger) — clicking it opens the popover exactly like clicking the
+// old disabled select did, no extra wiring needed for that part.
+const fieldGroupClass = css({ cursor: 'text' })
 </script>
 
 <template>
   <div :style="wrapperStyle">
     <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start" :is-disabled="isDisabled">
       <MpPopoverTrigger>
-        <MpFlex :class="isDisabled ? undefined : fieldClass">
+        <MpFlex v-if="searchOnField" :class="isDisabled ? undefined : fieldGroupClass">
+          <MpInputGroup :class="css({ width: '100%' })">
+            <MpInput
+              v-model="fieldText"
+              :placeholder="placeholder"
+              :is-disabled="isDisabled"
+              @focus="onFieldFocus"
+              @blur="onFieldBlur"
+              @mousedown="onFieldMouseDown"
+              @click="onFieldClick"
+            />
+            <MpInputRightAddon><MpIcon name="chevrons-down" /></MpInputRightAddon>
+          </MpInputGroup>
+        </MpFlex>
+        <MpFlex v-else :class="isDisabled ? undefined : fieldClass">
           <MpSelect
             :model-value="modelValue"
             :placeholder="placeholder"
@@ -130,7 +198,7 @@ function set(v: string) {
         </MpFlex>
       </MpPopoverTrigger>
       <MpPopoverContent>
-        <div v-if="searchable" :class="searchBar" @click.stop>
+        <div v-if="searchable && !searchOnField" :class="searchBar" @click.stop>
           <div :class="searchWrap">
             <MpIcon name="search" :class="searchIcon" />
             <MpInput
@@ -139,7 +207,18 @@ function set(v: string) {
             />
           </div>
         </div>
-        <div :class="listWrap" class="px-select-list">
+        <!-- .prevent on mousedown (standard combobox technique) stops the
+             browser's default focus-shift-to-the-clicked-item from blurring
+             the searchOnField input mid-click. Without it: mousedown on a
+             list item blurs the input → onFieldBlur synchronously clears
+             fieldText → filteredOptions recomputes back to the full
+             unfiltered list → the list re-renders/re-flows *before* the
+             browser's mouseup/click land, so the click hits whatever option
+             ended up under the cursor in the new layout instead of the one
+             the user actually meant, or the popover reopens looking
+             unchanged. Harmless for the non-searchOnField list (nothing
+             there depends on focus). -->
+        <div :class="listWrap" class="px-select-list" @mousedown.prevent>
         <MpPopoverList>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
