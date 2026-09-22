@@ -151,3 +151,26 @@ Empty state notice for pages with no assignments yet.
 - `feat/review-cycles-create` — Review cycles (Evaluation form)
 - `feat/flexible-competency-assignment` — Talents: competency assignment & succession plans
 - Main branch: `main`
+
+---
+
+## 🔴 Changelog — "What's new (internal)" (update on EVERY commit + push)
+
+There is an engineer-facing changelog in the user menu (top-right → **What's new
+(internal)**), backed by `composables/useWhatsNew.ts` (rendered by
+`components/WhatsNewDrawer.vue`). **Whenever you commit and push a user-facing
+change, you MUST add it here in the same commit** — treat it as part of "done",
+not an afterthought.
+
+Rules:
+- **One entry per `module` per `date`.** If an entry with the same `date` +
+  `module` already exists, **append an item to its `items`** — do NOT create a
+  second entry. Only add a new entry when the day or module is new.
+- Newest **day** first (top of the `CHANGELOG` array).
+- Each `item` = `{ category, area, detail, files }`:
+  - `category`: `'Feature' | 'Fix' | 'Chore'`.
+  - `area`: the sub-feature/screen it lives in.
+  - `detail`: what actually changed (plain, specific).
+  - `files`: the files touched, so it's traceable in the repo.
+- `date` format: `"01 Sep 2026"`. `module` is a short area name (e.g. `Goals`,
+  `Competencies`, `Internal tools`, `Build & deploy`).
