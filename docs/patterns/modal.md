@@ -41,6 +41,38 @@ Example: `TooManyEmployeesModal` (bulk goal owners) is shown the instant "Contin
 clicked in `SelectEmployeesDrawer` — see [`composables/useBulkOwnerGate.ts`](../../composables/useBulkOwnerGate.ts) —
 not after landing on the "New goals" page and clicking "Add goal".
 
+## Destructive confirmation modal
+
+For a "delete this thing" confirmation (not a bulk multi-select delete — see the
+Tables doc for that), keep it minimal: no icon, no illustration.
+
+- `MpModalContent`: narrow — `:class="css({ width: '400px', maxWidth: '90vw' })"`.
+  A one-line question + one-sentence body doesn't need the wider default modal width.
+- `MpModalHeader`: the action as a question, e.g. `Delete review timeframe?`
+- `MpModalBody`: one `MpText` (`:class="valueText"`, i.e. `color: 'text.default'`)
+  stating what will happen — plain language, no jargon, name the blast radius if the
+  action cascades (e.g. "This will permanently delete all employee reviews under this
+  timeframe.")
+- `MpModalFooter`: `MpButton variant="ghost"` **Cancel** + `MpButton variant="danger"`
+  labeled with the action verb (**Delete** / **Remove**), `justifyContent: 'flex-end'`,
+  `gap: '3'`
+
+The menu item that opens it (in an `MpPopoverList`) is red, wrapped in a span rather
+than a variant prop, and separated from non-destructive items with `MpDivider`:
+
+```vue
+<MpDivider />
+<MpPopoverListItem @click.stop="askDelete(item)">
+  <span :class="dangerText">Delete</span>
+</MpPopoverListItem>
+```
+where `dangerText = css({ color: 'text.danger' })`.
+
+Reference: [`pages/reviews/review-cycles/[id]/index.vue`](../../pages/reviews/review-cycles/%5Bid%5D/index.vue)
+(`deleteTimeframeModalOpen` / `askDeleteTimeframe`), mirroring the existing
+`removeEmployeeModalOpen` confirm modal in the same file and the `dangerText` popover
+item in [`components/GoalBulkActionsMenu.vue`](../../components/GoalBulkActionsMenu.vue).
+
 ## Reusing a gate modal across multiple entry points
 
 If several pages share the same "select something → continue" flow and the same

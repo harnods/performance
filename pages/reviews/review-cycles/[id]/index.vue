@@ -34,6 +34,7 @@ import {
   MpPopoverContent,
   MpPopoverList,
   MpPopoverListItem,
+  MpDivider,
   MpSkeleton,
   toast,
   css,
@@ -261,6 +262,7 @@ const filteredRows = computed(() => {
 const labelText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const captionText = css({ color: 'text.secondary' })
+const dangerText = css({ color: 'text.danger' })
 // Reviewers modal — sticky per-method header; border-bottom appears only when
 // pinned (data-stuck toggled on scroll). Opaque bg so rows scroll under it.
 const methodHeaderClass = css({
@@ -1149,6 +1151,36 @@ function confirmRemoveEmployee() {
   })
 }
 
+// ── Delete a whole review timeframe (bulk, not per-employee) ─────────────
+// Removes the entire timeframe group — every employee and period row in
+// it — from the current scenario's dataset.
+const deleteTimeframeModalOpen = ref(false)
+const timeframeToDelete = ref<TimeframeGroup | null>(null)
+
+function askDeleteTimeframe(tg: TimeframeGroup) {
+  timeframeToDelete.value = tg
+  deleteTimeframeModalOpen.value = true
+}
+function cancelDeleteTimeframe() {
+  deleteTimeframeModalOpen.value = false
+  timeframeToDelete.value = null
+}
+function confirmDeleteTimeframe() {
+  if (!timeframeToDelete.value) return
+  const tg = timeframeToDelete.value
+  const dataset = DATASETS[currentScenario.value.datasetKey]
+  const index = dataset.findIndex(g => g.timeframe === tg.timeframe)
+  if (index !== -1) dataset.splice(index, 1)
+  deleteTimeframeModalOpen.value = false
+  timeframeToDelete.value = null
+  toast.notify({
+    id: 'delete-review-timeframe',
+    position: 'top-center',
+    variant: 'success',
+    title: `${tg.timeframe} review timeframe deleted`,
+  })
+}
+
 </script>
 
 <template>
@@ -1587,6 +1619,10 @@ function confirmRemoveEmployee() {
                     <MpPopoverList>
                       <MpPopoverListItem @click.stop="viewTimeframeDetails(tg)">View details</MpPopoverListItem>
                       <MpPopoverListItem @click.stop="openExtend(tg)">Extend review period</MpPopoverListItem>
+                      <MpDivider />
+                      <MpPopoverListItem @click.stop="askDeleteTimeframe(tg)">
+                        <span :class="dangerText">Delete</span>
+                      </MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>
                 </MpPopover>
@@ -1924,6 +1960,25 @@ function confirmRemoveEmployee() {
       <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
         <MpButton variant="ghost" @click="cancelRemoveEmployee">Cancel</MpButton>
         <MpButton variant="danger" @click="confirmRemoveEmployee">Remove</MpButton>
+      </MpModalFooter>
+    </MpModalContent>
+  </MpModal>
+
+  <MpModal :is-open="deleteTimeframeModalOpen" @close="cancelDeleteTimeframe">
+    <MpModalOverlay />
+    <MpModalContent :class="css({ width: '400px', maxWidth: '90vw' })">
+      <MpModalHeader>
+        Delete review timeframe?
+        <MpModalCloseButton @click="cancelDeleteTimeframe" />
+      </MpModalHeader>
+      <MpModalBody>
+        <MpText :class="valueText">
+          This will permanently delete all employee reviews under this timeframe.
+        </MpText>
+      </MpModalBody>
+      <MpModalFooter :class="css({ display: 'flex', gap: '3', justifyContent: 'flex-end' })">
+        <MpButton variant="ghost" @click="cancelDeleteTimeframe">Cancel</MpButton>
+        <MpButton variant="danger" @click="confirmDeleteTimeframe">Delete</MpButton>
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
