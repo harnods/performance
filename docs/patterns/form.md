@@ -43,6 +43,8 @@ Width — two valid ways:
 
 ⚠️ `selectWidth` value is inconsistent across files (`50%` / `264px` / `60%` / `320px` / grid `span3`). CLAUDE.md's intent: **50% of the form column (≈264px on the 3/12 grid)**. Default to that.
 
+**Option row weight:** the default `label`+`description` option render (used whenever an option has `description`) bolds the title (`itemLabel`, `fontWeight: 'semiBold'`) — right when the title is an identity, e.g. an employee's name above their job title (`pages/talents/idps/index.vue`'s "All employee" filter, `IdpPlanForm.vue`'s assignee select). When the title is just a plain term and the description explains it rather than sitting below an identity — e.g. a competency name + its definition (`components/IdpActionPlanModal.vue`'s "Select competency") — bolding reads as more important than it is. Don't change the shared default for this (it's still correct for every identity-style select); override per-usage with the `#option="{ option }"` slot instead, replicating `itemBody`/`itemCaption` but dropping `fontWeight` on the label (see `IdpActionPlanModal.vue`'s `competencyOptionBody`/`competencyOptionLabel`/`competencyOptionCaption`).
+
 ### Pre-seeded values (edit forms) — the fix that makes them show up
 
 `MpSelect` writes the native `<select>`'s value during **its own setup**, before
@@ -91,6 +93,8 @@ Do not pass `searchable` + `search-on-field` together — pick one per field, sa
 Behavior (`PxSelectPopover.vue`'s `searchOnField` branch): the trigger becomes an `MpInputGroup`/`MpInput` with a trailing `chevrons-down` addon (same look as `DashMultiSelectSearch.vue`'s own select-styled search trigger), not the disabled-look `MpSelect`. Clicking it opens the popover exactly like clicking the old select did — nothing extra to wire for that. Focusing the field clears it so typing starts fresh; typing filters the list live; blurring without picking reverts the field back to the current selection's label, so an abandoned search never sticks. Selecting a `MpPopoverListItem` still closes the popover (`is-close-on-select`, unchanged).
 
 **Gotcha:** `MpPopoverTrigger` toggles open/closed on *every* click of whatever it wraps. That's harmless for the old inert `MpSelect` (nothing to click twice), but a real text input gets re-clicked constantly while searching (fixing a typo, moving the cursor) — each of those re-clicks would otherwise slam the popover shut. Fixed with a mousedown/click pair on the input (`wasAlreadyFocused` in `PxSelectPopover.vue`) that only lets the click that *first* focuses the field reach the trigger's toggle; a click while it's already focused is stopped from bubbling.
+
+**Gotcha — popover panel width:** `MpPopover`'s `is-adaptive-width` only sets the panel's *min-width* to the trigger's width (`width: max-content` underneath), so an option with a long label/description — e.g. a competency's description — pushes the panel wider than the field (`components/IdpActionPlanModal.vue`'s "Relates to → Competency" select). `PxSelectPopover.vue` fixes this itself: it measures the trigger with a `ResizeObserver` (`triggerWidth`/`observeTriggerWidth`) and passes an explicit `:style="{ width: ... }"` to `MpPopoverContent`, which `mergeProps` applies *after* `MpPopover`'s own min/max-width style, so it wins and clamps the panel to exactly the field's width. This is automatic for every `PxSelectPopover` — nothing to opt into per-usage.
 
 ### `allow-custom-value` — a free-text field with suggestions (combobox)
 
