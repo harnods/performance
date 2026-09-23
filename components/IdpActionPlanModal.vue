@@ -163,6 +163,11 @@ const competencyGroup = css({ display: 'flex', flexDirection: 'column', gap: '1'
 const competencyFieldIndent = css({ marginLeft: '8' }) // 32px indent under the Competency radio
 const goalGapDefault = css({ marginTop: '2' }) // 8px — unchanged spacing when nothing is revealed
 const goalGapSelected = css({ marginTop: '5' }) // 20px — extra room once the competency select is showing above it
+// Mirrors PxSelectPopover's own itemBody/itemLabel/itemCaption, minus the bold
+// title — see the #option slot override above.
+const competencyOptionBody = css({ display: 'flex', flexDirection: 'column', gap: '0', paddingBlock: '1' })
+const competencyOptionLabel = css({ color: 'text.default' })
+const competencyOptionCaption = css({ color: 'text.secondary' })
 </script>
 
 <template>
@@ -192,47 +197,6 @@ const goalGapSelected = css({ marginTop: '5' }) // 20px — extra room once the 
                 :maxlength="NAME_MAX"
               />
               <MpFormErrorMessage>{{ errors.category }}</MpFormErrorMessage>
-            </MpFormControl>
-
-            <!-- Relate this action plan to a competency it develops. Radios,
-                 not a closed choice: clicking the already-selected Competency
-                 radio deselects it (see onRelatedToCompetencyClick) since
-                 "no relation" is a valid state. Goal isn't selectable yet —
-                 badge, not #description, flags it as "Coming soon" (see
-                 docs/patterns/form.md's inline-MpBadge exception). -->
-            <MpFormControl id="ap-related-to">
-              <MpFormLabel>Relates to</MpFormLabel>
-              <div :class="radioRow">
-                <div :class="competencyGroup">
-                  <MpRadio :is-checked="relatedTo === 'competency'" @click="onRelatedToCompetencyClick">
-                    Competency
-                  </MpRadio>
-                  <!-- No MpFormLabel — the Competency radio right above it
-                       already names this field; a repeated "Competency"
-                       label would be pure duplication (docs/patterns/form.md). -->
-                  <MpFormControl v-if="relatedTo === 'competency'" id="ap-related-competency" :class="competencyFieldIndent" :is-invalid="!!errors.relatedCompetency">
-                    <PxSelectPopover
-                      v-model="relatedCompetency"
-                      :options="competencyOptions"
-                      placeholder="Select competency"
-                      width="100%"
-                      search-on-field
-                    />
-                    <MpFormErrorMessage>{{ errors.relatedCompetency }}</MpFormErrorMessage>
-                  </MpFormControl>
-                </div>
-                <!-- Wrapper div, not :class on MpRadio directly — MpRadio's
-                     :class lands on its hidden <input>, not the visible
-                     <label> (same gotcha as MpCheckbox). -->
-                <div :class="relatedTo === 'competency' ? goalGapSelected : goalGapDefault">
-                  <MpRadio :is-checked="false" is-disabled>
-                    <MpFlex as="span" align="center" gap="1">
-                      Goal
-                      <MpBadge for="tableStatus" type="announcement" size="sm">Coming soon</MpBadge>
-                    </MpFlex>
-                  </MpRadio>
-                </div>
-              </div>
             </MpFormControl>
 
             <MpFormControl id="ap-name" is-required :is-invalid="!!errors.name">
@@ -266,6 +230,59 @@ const goalGapSelected = css({ marginTop: '5' }) // 20px — extra room once the 
                 <MpFormErrorMessage>{{ errors.dueDate }}</MpFormErrorMessage>
               </MpFormControl>
             </div>
+
+            <!-- Relate this action plan to a competency it develops. Radios,
+                 not a closed choice: clicking the already-selected Competency
+                 radio deselects it (see onRelatedToCompetencyClick) since
+                 "no relation" is a valid state. Goal isn't selectable yet —
+                 badge, not #description, flags it as "Coming soon" (see
+                 docs/patterns/form.md's inline-MpBadge exception). -->
+            <MpFormControl id="ap-related-to">
+              <MpFormLabel>Relates to</MpFormLabel>
+              <div :class="radioRow">
+                <div :class="competencyGroup">
+                  <MpRadio :is-checked="relatedTo === 'competency'" @click="onRelatedToCompetencyClick">
+                    Competency
+                  </MpRadio>
+                  <!-- No MpFormLabel — the Competency radio right above it
+                       already names this field; a repeated "Competency"
+                       label would be pure duplication (docs/patterns/form.md). -->
+                  <MpFormControl v-if="relatedTo === 'competency'" id="ap-related-competency" :class="competencyFieldIndent" :is-invalid="!!errors.relatedCompetency">
+                    <PxSelectPopover
+                      v-model="relatedCompetency"
+                      :options="competencyOptions"
+                      placeholder="Select competency"
+                      width="100%"
+                      search-on-field
+                    >
+                      <!-- Override PxSelectPopover's default option render, which
+                           bolds the title — right for an identity (a person's
+                           name beside their job title elsewhere), wrong here
+                           where the competency name isn't more prominent than
+                           its description. -->
+                      <template #option="{ option }">
+                        <div :class="competencyOptionBody">
+                          <MpText size="label" :class="competencyOptionLabel">{{ option.label }}</MpText>
+                          <MpText size="label-small" :class="competencyOptionCaption">{{ option.description }}</MpText>
+                        </div>
+                      </template>
+                    </PxSelectPopover>
+                    <MpFormErrorMessage>{{ errors.relatedCompetency }}</MpFormErrorMessage>
+                  </MpFormControl>
+                </div>
+                <!-- Wrapper div, not :class on MpRadio directly — MpRadio's
+                     :class lands on its hidden <input>, not the visible
+                     <label> (same gotcha as MpCheckbox). -->
+                <div :class="relatedTo === 'competency' ? goalGapSelected : goalGapDefault">
+                  <MpRadio :is-checked="false" is-disabled>
+                    <MpFlex as="span" align="center" gap="1">
+                      Goal
+                      <MpBadge for="tableStatus" type="announcement" size="sm">Coming soon</MpBadge>
+                    </MpFlex>
+                  </MpRadio>
+                </div>
+              </div>
+            </MpFormControl>
 
             <!-- MpFormLabel injects from MpFormControl and throws without one,
                  so even a non-validated field gets the wrapper. -->

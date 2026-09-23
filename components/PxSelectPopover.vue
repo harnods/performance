@@ -73,6 +73,26 @@ function syncNativeSelect() {
 onMounted(() => nextTick(syncNativeSelect))
 watch(() => [props.modelValue, props.options.length], () => nextTick(syncNativeSelect))
 
+// `is-adaptive-width` on MpPopover only sets the popover's *min-width* to the
+// trigger's width — the panel still sizes to `max-content`, so a long option
+// label/description (like a competency's description) pushes it wider than
+// the field. Measure the trigger ourselves and pass an explicit `width` to
+// MpPopoverContent (merged in *after* MpPopover's own style, so it wins) to
+// cap the panel at exactly the field's width.
+const triggerWidth = ref(0)
+let triggerObserver: ResizeObserver | undefined
+function observeTriggerWidth() {
+  if (!import.meta.client || !rootEl.value) return
+  triggerWidth.value = rootEl.value.getBoundingClientRect().width
+  triggerObserver = new ResizeObserver(([entry]) => {
+    if (entry) triggerWidth.value = entry.contentRect.width
+  })
+  triggerObserver.observe(rootEl.value)
+}
+onMounted(() => nextTick(observeTriggerWidth))
+onBeforeUnmount(() => triggerObserver?.disconnect())
+const popoverContentStyle = computed(() => (triggerWidth.value ? { width: `${triggerWidth.value}px` } : undefined))
+
 const searchTerm = ref('')
 
 // ─── searchOnField mode — the field is the search box ───────────────────────
@@ -240,7 +260,7 @@ const fieldGroupClass = css({ cursor: 'text' })
           </MpSelect>
         </MpFlex>
       </MpPopoverTrigger>
-      <MpPopoverContent>
+      <MpPopoverContent :style="popoverContentStyle">
         <div v-if="searchable && !searchOnField" :class="searchBar" @click.stop>
           <div :class="searchWrap">
             <MpIcon name="search" :class="searchIcon" />

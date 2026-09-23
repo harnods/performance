@@ -26,6 +26,30 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '23 Sep 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Add action plan',
+        detail: '"Select competency" popover panel could render wider than the field itself when an option\'s description was long — `MpPopover`\'s `is-adaptive-width` only sets a min-width to the trigger, not an exact width. `PxSelectPopover` now measures the trigger with a ResizeObserver and passes an explicit width to the popover content, clamping every select popover (not just this one) to the field\'s width.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Add action plan',
+        detail: 'The competency dropdown\'s option titles were rendered semi-bold via PxSelectPopover\'s shared default — right for an identity (a name above a job title) but not for a plain term explained by its own description. Overrode the option render for this select only (regular-weight title, unchanged layout/caption); every other select keeps the bold default.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Add action plan',
+        detail: 'Moved the "Relates to" (Competency/Goal) section below Start date/End date, after Description.',
+        files: ['components/IdpActionPlanModal.vue'],
+      },
+    ],
+  },
+  {
     date: '21 Sep 2026',
     module: 'IDPs',
     items: [
