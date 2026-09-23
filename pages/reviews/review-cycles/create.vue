@@ -483,8 +483,11 @@ function onSave() {
 
             <!-- Explanatory banner -->
             <div :class="bannerBox">
-              <MpText size="label" :class="css({ fontWeight: '600', color: 'text.default', display: 'block', marginBottom: '3' })">
+              <MpText size="label" :class="css({ fontWeight: '600', color: 'text.default', display: 'block' })">
                 6-month contract example
+              </MpText>
+              <MpText size="label-small" color="text.secondary" :class="css({ display: 'block', marginBottom: '3' })">
+                Reviewed every 2 months · 3-day window
               </MpText>
 
               <!-- Timeline -->
@@ -512,10 +515,6 @@ function onSave() {
                   <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days before end</MpText>
                 </div>
               </div>
-
-              <MpText size="label-small" color="text.secondary">
-                3 review timeframes generated for a 6-month contract. Each timeframe covers a 3-day review period.
-              </MpText>
             </div>
           </div>
         </template>
