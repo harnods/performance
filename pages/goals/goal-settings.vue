@@ -175,6 +175,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
               <ul :class="bannerList">
                 <li>Goals that were saved as drafts will be hidden in the old interface until you switch back to new interface.</li>
                 <li>Goals created or edited in the old interface won't move into a matching cycle you already created in the new interface even if the dates fall within that cycle's period.</li>
+                <li>Goal progress display for existing goals will follow the new interface's setting and can't be edited individually.</li>
               </ul>
             </MpBannerDescription>
           </MpBanner>
