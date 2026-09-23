@@ -41,6 +41,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Reworded the contract-example banner: title is now "6-month contract example" with a "Reviewed every 2 months · 3-day window" description line beneath it, and the redundant trailing summary line was removed.',
         files: ['pages/reviews/review-cycles/create.vue'],
       },
+      {
+        category: 'Chore',
+        area: 'Create review cycle → Review period (multiple)',
+        detail: 'Removed the "6-month contract example" illustrative card (title, description, and 3-column timeline) from the Multiple review periods section for the demo build.',
+        files: ['pages/reviews/review-cycles/create.vue'],
+      },
     ],
   },
   {
