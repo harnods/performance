@@ -192,6 +192,24 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: '23 Sep 2026',
+    module: 'Reviews',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Review cycle detail → timeframe group menu',
+        detail: 'Added a "Delete" option (red, below a divider) to each review timeframe group\'s kebab menu. Confirms via a narrow (400px) modal — "Delete review timeframe? / This will permanently delete all employee reviews under this timeframe." — before removing the whole timeframe group.',
+        files: ['pages/reviews/review-cycles/[id]/index.vue', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Create review cycle → Review period example banner',
+        detail: 'Reworded the contract-example banner: title is now "6-month contract example" with a "Reviewed every 2 months · 3-day window" description line beneath it, and the redundant trailing summary line was removed.',
+        files: ['pages/reviews/review-cycles/create.vue'],
+      },
+    ],
+  },
+  {
     date: '02 Sep 2026',
     module: 'Competencies',
     items: [
