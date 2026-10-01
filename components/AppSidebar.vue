@@ -75,7 +75,7 @@ const group2 = computed<NavItem[]>(() => [
     children: [
       { label: 'Talent directory', path: '/talents/talent-directory' },
       { label: 'Succession plans', path: '/talents/succession-plans' },
-      { label: 'IDPs', path: '/talents/idps' },
+      { label: 'IDP', path: '/talents/idps' },
       {
         label: 'Competencies',
         children: [

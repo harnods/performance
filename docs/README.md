@@ -51,6 +51,7 @@ Sequence for any UI work:
 | [`patterns/page-form.md`](patterns/page-form.md) | Full-page create/edit vs drawer; when to use which. |
 | [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |
 | [`patterns/date-format.md`](patterns/date-format.md) | Date & timestamp formatting (table vs non-table golden rule). |
+| [`patterns/date-picker.md`](patterns/date-picker.md) | `MpDatePicker` — `value-type` decides whether your model holds a `Date` or an ISO string, `use-portal` in dialogs, ranges vs two fields. |
 | [`patterns/badges.md`](patterns/badges.md) | Status badges/pills. |
 | [`patterns/dashboard-section.md`](patterns/dashboard-section.md) | **Any dashboard.** How sections compose — the section card shell (and why the table inside stays borderless), the compact no-illustration empty state, the "Last updated + Refresh" freshness row, and apply-on-demand filters. |
 | [`patterns/stat-card.md`](patterns/stat-card.md) | Tinted headline-figure cards (On track / Off track / Not started) — tone table, the delta's "is-this-good" colour rule, and why dashboard triage tables order most-stale-first. |

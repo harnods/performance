@@ -18,6 +18,7 @@ import {
   MpAvatar,
   MpIcon,
   MpTextlink,
+  MpButton,
   MpPopover,
   MpPopoverTrigger,
   MpPopoverContent,
@@ -34,7 +35,14 @@ import {
 import { getProfile } from '~/utils/talent-profile'
 
 const route = useRoute()
+const router = useRouter()
 const profile = computed(() => getProfile(route.params.id as string))
+
+// Production reaches "Create IDP" from the employee's competency section; here
+// it's a header action, landing on the create form with this person preselected.
+function createIdp() {
+  router.push({ path: '/talents/idps/create', query: { employee: String(route.params.id) } })
+}
 
 definePageMeta({
   title: 'Talent profile',
@@ -289,6 +297,10 @@ const periodSelect = css({ width: '200px', marginBottom: '3' })
 
 <template>
   <div v-if="profile">
+    <Teleport to="#page-header-actions" defer>
+      <MpButton variant="secondary" left-icon="add" @click="createIdp">Create IDP</MpButton>
+    </Teleport>
+
     <!-- ═════ Profile header ═════ -->
     <div :class="headerRow">
       <PxAvatar :id="`profile-${profile.base.id}`" :name="profile.base.name" :src="profile.base.photo" size="xl" variant-color="gray" />

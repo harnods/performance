@@ -79,6 +79,7 @@ export const TALENTS: TalentEmployee[] = EMPLOYEES.map((e: Employee) => {
 const distinct = (vals: string[]) => Array.from(new Set(vals)).sort()
 export const BRANCHES = distinct(TALENTS.map(t => t.branch))
 export const ORGANIZATIONS = distinct(TALENTS.map(t => t.organization))
+export const JOB_POSITIONS = distinct(TALENTS.map(t => t.jobPosition))
 export const JOB_LEVELS = distinct(TALENTS.map(t => t.jobLevel))
 export const JOB_GRADES = distinct(TALENTS.map(t => t.jobGrade))
 export const JOB_CLASSES = distinct(TALENTS.map(t => t.jobClass))

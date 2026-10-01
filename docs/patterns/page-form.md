@@ -52,6 +52,126 @@ A form field whose value is chosen via a nested drawer (e.g. "align to a parent 
 
 Reference: `AddGoalDrawer.vue:806-816` ("Align to a goal" field, opens `GoalAlignDrawer`).
 
+## Mixed-width page form: narrow inputs, full-width tables
+
+`IdpPlanForm.vue`'s full-page create/edit form doesn't use `form.md`'s 12-col
+grid — it's a plain flex column — but it still needs the same split every
+other page form has: **input fields read best at a normal form width; a
+table embedded in that same form reads best at the page's full width**, same
+as the tables on the list ("index") page. A 4-or-5-column table squeezed into
+a 625px form column looks cramped/cut off, not "compact."
+
+```ts
+const formCol = css({ display: 'flex', flexDirection: 'column', gap: '6' })   // no maxWidth — the outer column runs full width
+const narrowCol = css({ display: 'flex', flexDirection: 'column', gap: '6', maxWidth: '625px' })  // wraps only the plain-input sections
+```
+
+```vue
+<div :class="formCol">
+  <div :class="narrowCol">
+    <!-- name, objective, employee — plain inputs -->
+  </div>
+
+  <!-- Informal education table — NOT wrapped in narrowCol, runs full width -->
+  <div v-if="employeeId">…</div>
+
+  <MpFlex v-if="employeeId" direction="column" gap="3" :class="narrowCol">
+    <!-- Focus plan radios + future-job-position select — plain inputs again -->
+  </MpFlex>
+
+  <!-- Action plan section (title + table + Add button) — not wrapped, full width -->
+  <MpFormControl id="idp-action-plans">…</MpFormControl>
+</div>
+```
+
+- **Wrap each *narrow* section in its own `narrowCol`, not the whole form** —
+  a table sitting between two input sections (here: Employee → informal
+  education table → Focus plan) forces the narrow wrapper to split into
+  multiple sibling blocks rather than one contiguous column. `narrowCol`
+  repeats the same `gap: '6'` as the outer `formCol` so the vertical rhythm
+  between sections stays identical whether or not a given section happens to
+  be width-capped.
+- **Only plain-input sections get `narrowCol`.** Section headings (`MpText`)
+  and tables are left unwrapped — a heading doesn't look wrong stretched, and
+  a table actively wants the extra width. A field with its own explicit fixed
+  width (e.g. `selectWidth` at 264px on "Select job position") doesn't need
+  `narrowCol` either — it's already narrow regardless of its container.
+- **The in-form footer bar (`footerBar`) stays unwrapped too** — Cancel/Submit
+  read fine right-aligned across the full width, matching every other
+  full-width footer bar in the app; there's no reason to pull it back to 625px
+  just because the fields above it are narrow.
+
+## Unsaved-draft recovery (full-page create only)
+
+A **drawer** protects in-progress input with a dirty check and a "Leave without saving?"
+confirm (below). A **full-page create** can't — the user navigates away through the
+breadcrumb, the sidebar, or the browser's own back button, and none of those route through
+your close handler. So a page form persists its draft instead, and restores it on return.
+
+```ts
+// IdpPlanForm.vue
+const DRAFT_KEY = 'talenta-idp-form-draft'
+const DRAFT_TTL_MS = 20 * 60 * 1000
+
+function clearDraft() {
+  if (import.meta.client) localStorage.removeItem(DRAFT_KEY)
+}
+function saveDraft() {
+  if (props.mode !== 'create' || !import.meta.client) return
+  localStorage.setItem(DRAFT_KEY, JSON.stringify({ expiresAt: Date.now() + DRAFT_TTL_MS, form: {…}, actionPlans: actionPlans.value }))
+}
+watch([name, objective, employeeId, focus, futureJobPosition, actionPlans], saveDraft, { deep: true })
+```
+
+The rules that make this safe:
+
+- **Create only.** An edit form must never autosave a draft — the record already exists, and
+  a stale draft restored days later silently fights the real values. Gate every read *and*
+  write on `mode === 'create'`.
+- **Restore in `onMounted`, never in setup.** `localStorage` doesn't exist on the server, so
+  reading it during setup makes the SSR pass and the client's first render disagree — Vue
+  logs "Hydration completed but contains mismatches." Mount runs after hydration, so the
+  restored values land as an ordinary reactive patch. (Same reasoning as the `isMounted` gate
+  in [`table.md`](table.md#-ssrhydration-gotcha-for-client-only-batch-state), one step simpler
+  because nothing renders from it before mount.)
+- **Give it a TTL and honour it on read.** 20 minutes, refreshed on every keystroke. A draft
+  past its expiry is dropped, not restored — coming back tomorrow to a half-typed form you've
+  forgotten is worse than starting clean.
+- **Clear on *both* exits.** Submit and Cancel. Cancel routing straight to `emit('cancel')`
+  leaves the draft behind, so the next visit resurrects a form the user explicitly abandoned —
+  wrap it: `function onCancel() { clearDraft(); emit('cancel') }`.
+- **Wrap the parse in try/catch** and clear on failure; a shape change ships a draft the new
+  code can't read.
+
+## Deep-linking a prefilled create page
+
+"Create X for this person" from elsewhere in the app passes the identity as a **query param**,
+which the page turns into a prop — the form component never reads the route itself, so it
+stays usable from any caller.
+
+```ts
+// pages/talents/idps/create.vue
+const initialEmployeeId = computed(() => (route.query.employee ? String(route.query.employee) : undefined))
+```
+```vue
+<IdpPlanForm mode="create" :initial-employee-id="initialEmployeeId" @submit="onSubmit" @cancel="onCancel" />
+```
+
+**An explicit deep link beats a saved draft.** Arriving via "Create IDP" for Person B while a
+draft for Person A is still live must not silently hand back Person A's form. Check the prop
+first, clear the draft, and return before the restore path runs:
+
+```ts
+onMounted(() => {
+  if (props.mode !== 'create') return
+  if (props.initialEmployeeId) { clearDraft(); employeeId.value = props.initialEmployeeId; return }
+  // …restore draft…
+})
+```
+
+Reference: `components/IdpPlanForm.vue` + `pages/talents/idps/create.vue`, linked from
+`pages/talents/talent-directory/[id].vue`'s "Create IDP" header action.
+
 ## Drawer skeleton
 
 ```vue
@@ -158,5 +278,6 @@ Reference: `goal-cycles/[id]/new.vue` — the "Goal owners" modal above.
 
 - Primary entity create/edit = full page. Nested editor = drawer (via Manage). Confirm/tiny input = modal.
 - Drawers open via a button, never on toggle; always reset on open.
+- Protecting in-progress input: drawer → dirty check + "Leave without saving?"; full page → TTL'd `localStorage` draft, create mode only, restored in `onMounted`.
 - Cancel = ghost; edit = "Save changes", create = "Save" (see [`buttons.md`](buttons.md)).
 - Don't hand-roll radio "cards" with raw hex — use `MpRadio` (see [`tokens.md`](tokens.md)).

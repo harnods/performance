@@ -107,6 +107,49 @@ export const DEPARTMENT_GROUPS: Record<string, GroupTarget[]> = {
   ],
 }
 
+// Flat, deduplicated competency catalog — every named competency across every
+// department, sorted. Used wherever a screen needs to pick "a competency" by
+// name rather than a whole department's scored group (e.g. the IDP action
+// plan's "Related to" field) — derived from the same source Succession/
+// Competency assignment already score against, so the names never drift out
+// of sync with each other.
+export const ALL_COMPETENCIES: string[] = Array.from(
+  new Set(Object.values(DEPARTMENT_GROUPS).flatMap(groups => groups.map(g => g.group))),
+).sort()
+
+// One-line explainer per competency, shown as the option's description
+// wherever a competency is picked by name (e.g. the IDP action plan's
+// "Relates to" field) — helps someone pick the right one without already
+// knowing what each group covers.
+export const COMPETENCY_DESCRIPTIONS: Record<string, string> = {
+  'Financial Reporting': 'Preparing and presenting accurate financial statements',
+  'Accuracy & Detail': 'Catching errors and keeping work precise under volume',
+  'Compliance': 'Following regulatory and internal policy requirements',
+  'Analytical Thinking': 'Breaking down problems and drawing sound conclusions from data',
+  'Communication': 'Sharing information clearly, verbally and in writing',
+  'Recruitment': 'Sourcing, assessing, and hiring the right candidates',
+  'Employee Relations': 'Handling workplace issues fairly and maintaining trust',
+  'HR Compliance': 'Applying labor law and HR policy correctly',
+  'Leadership': 'Guiding, motivating, and developing a team toward shared goals',
+  'Sales Strategy': 'Planning how to win and grow accounts',
+  'Negotiation': 'Reaching agreements that work for both sides',
+  'Customer Relationship': 'Building and sustaining long-term client trust',
+  'Culinary Skills': 'Technique and craft in food preparation',
+  'Food Safety': 'Following hygiene and safety standards in the kitchen',
+  'Kitchen Management': 'Running kitchen operations efficiently under pressure',
+  'Teamwork': 'Working effectively and reliably with others',
+  'Brand Strategy': 'Shaping how the brand is positioned and perceived',
+  'Digital Marketing': 'Planning and running campaigns across digital channels',
+  'Content & Communication': 'Creating clear, on-brand messaging for an audience',
+  'Data Analytics': 'Turning marketing data into actionable insight',
+  'Customer Service': 'Delivering a helpful, positive experience to customers',
+  'Product Knowledge': 'Understanding the menu or offering well enough to advise customers',
+  'Attention to Detail': 'Getting the small things right consistently',
+  'Vision & Strategy': 'Setting direction and long-term priorities for the business',
+  'Decision Making': 'Making sound calls under uncertainty or time pressure',
+  'Business Acumen': 'Understanding how decisions affect the business as a whole',
+}
+
 // Succession: only SOME employees are assessed for a future job, and only for a
 // realistic next step (keyed by employee id, not title). Entry-level roles
 // (waitstaff, barista, cashier) have no future-job assessment. Most employees

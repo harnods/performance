@@ -129,6 +129,18 @@ Do **not** put explicit background/border/font on `th` — the Pixel `MpTable` r
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 ```
 
+⚠️ **Confirmed live mistake, not hypothetical** — `talents/succession-plans/{index,[id]}.vue` and (until fixed) `talents/idps/{index,[id]/index}.vue` + `components/IdpPlanForm.vue` all hardcoded `fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'left'` onto `headCell`. The recipe's actual default is **14px / weight 600 / `text.default`** (dark, verified via `getComputedStyle` against `goal-cycles/index.vue`) — the hardcoded version renders visibly smaller and grayer, a real regression in visual hierarchy, not a no-op. The correct `headCell` is just:
+
+```ts
+// ✅ dominant convention — 20+ files across goals/competencies/reviews
+const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
+
+// 🚫 don't reintroduce this — renders smaller/grayer than every other table's header
+const headCell = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fontWeight: '600', color: 'text.secondary', textAlign: 'left', verticalAlign: 'middle' })
+```
+
+If a table genuinely needs a different header look, that's a sign to check with the live Pixel MCP/design first — don't hand-tune font properties on a hunch.
+
 ## Column sort — `PxColumnSortMenu`
 
 `components/PxColumnSortMenu.vue` = hover-revealed header icon → popover. Props `colKey`, `sortType: 'text'|'number'|'date'`, `sortKey`, `sortDir`; emits `sortChange: [key, dir]`; clicking the active direction clears the sort. Wiring (`goal-cycles/index.vue:352`):
@@ -147,7 +159,7 @@ Hover-reveal needs an **unlayered** scoped rule to beat the component's `visibil
 .gc-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
 ```
 
-> ⚠️ Only `goal-cycles/index.vue` actually wires sorting. The Custom goal tables render a **static, non-functional** `<MpIcon name="sort-default" size="sm" />` that does nothing. When you build a sortable table, wire `PxColumnSortMenu` properly — don't copy the decorative icon.
+> ⚠️ The Custom goal tables render a **static, non-functional** `<MpIcon name="sort-default" size="sm" />` that does nothing. When you build a sortable table, wire `PxColumnSortMenu` properly — don't copy the decorative icon. Working references: `goal-cycles/index.vue`, `talents/idps/index.vue`, `talents/idps/[id]/index.vue`, `talent-directory/[id].vue`.
 
 ## Default row order — newest-first
 
@@ -444,13 +456,163 @@ Reference: `goal-cycles/[id]/index.vue` (`publishDraftsLink`,
   so the body does **not** shift when selection toggles.
 - Full anatomy + wiring: **[`checkbox.md`](checkbox.md)**.
 
+## Progress column — native `MpProgress`, bar + "N of M", never a bare percentage
+
+A column reporting completion (IDP development plans, review-cycle publish
+status, etc.) is a bar **plus** the raw counts beside it — the bar alone can't
+tell 1-of-2 from 50-of-100, and a lone "50%" hides how much work the row
+actually represents.
+
+**Use the native `MpProgress` component for the bar — don't hand-roll
+track/fill `<div>`s.** This was the dominant convention already
+(`review-cycles/index.vue`, `CycleDetailGeneral.vue`, the timeframe/instance
+review pages — 4+ table usages) before `talents/idps/index.vue` was fixed to
+match it; the hand-rolled version is a mistake to avoid repeating, not a
+second valid option.
+
+```ts
+const progressWrap = css({ display: 'flex', alignItems: 'center', gap: '3', minWidth: '200px' })
+const progressBar  = css({ flex: '1' })   // MpProgress fills its container's width
+const progressCount = css({ fontSize: '12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' })
+// MpProgress's built-in `color` prop only offers a handful of named tones
+// (stone/violet, etc.) — none of them are the "on track" green/teal a plain
+// done/total ratio wants, so override the fill with a scoped class targeting
+// the recipe's own element. Same override in review-cycles/index.vue and
+// CycleDetailGeneral.vue — don't re-pick a colour per surface.
+const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
+```
+
+```vue
+<div :class="progressWrap">
+  <MpProgress variant="linear" size="sm" :class="[progressBar, tealProgress]" :value="pct" />
+  <span :class="progressCount">
+    <span :class="css({ color: done >= total && total > 0 ? 'text.default' : 'text.secondary' })">{{ done }}</span>
+    <span :class="captionText"> of </span>
+    <span :class="css({ fontWeight: '600' })">{{ total }}</span>
+  </span>
+</div>
+```
+
+- **`:value` takes the percentage directly (0–100), no inline `style` needed**
+  — that's the whole point of using the component instead of a hand-rolled
+  `<div :style="{ width: pct+'%' }">`.
+- The done count goes `text.default` only once the row is **complete**, staying
+  `text.secondary` otherwise, so a finished row reads as finished at a glance.
+- Counts are `tabular-nums` like any numeric cell (below), and the cell carries a
+  `minWidth` so the bar doesn't collapse in a narrow column.
+- `variant="linear" size="sm"` on every table usage — don't reach for other
+  sizes/variants without checking the live component first.
+
+### When a hand-rolled bar is still the right call
+
+`UpdateProgressDrawer.vue`'s own bar (not a table — a drawer body) stays
+hand-rolled `<div>` track/fill, because it needs a **per-row status colour**
+(`statusFillClass`, red/amber/green driven by the goal's own status) that
+`MpProgress`'s fixed `color` prop can't express row-by-row without a lot of
+extra wiring. A plain single-colour done/total ratio in a table cell has no
+such need — reach for `MpProgress` there.
+
+Reference: `pages/talents/idps/index.vue`, `pages/reviews/review-cycles/index.vue` (Progress/Published columns).
+
+## Non-link name cell when a row already has its own detail button
+
+Most Default tables pair a link-styled name (see "Clickable name cell" above)
+**with** a redundant `View details` button in the trailing column — clicking
+either one navigates (`talents/succession-plans/index.vue`, goal-cycles'
+whole-row-clickable variant). That's the default; keep doing it for new
+tables.
+
+`talents/idps/index.vue` is a deliberate exception: the name renders as
+**plain text** (no `nameLink` class, no `@click`, no cursor change) and
+`View detail` is the row's **only** navigation affordance. Reach for this only
+when there's an explicit reason two navigation targets on the same row would
+be redundant/confusing for that specific screen — don't drop the name-link by
+default just because a detail button already exists, since the paired version
+is what every other list page does. When you do drop it, drop it all the way:
+a plain `<span>` with a leftover `@click`/cursor-pointer that no longer looks
+like a link is worse than either consistent state.
+
+`talents/idps/[id]/index.vue`'s **Action plan** table is the same exception
+one level down: the action plan's name used to be a `nameLink` that opened the
+view modal (`viewing = a`) on click, but the row's own **Actions** menu already
+offers **Update**, which opens that exact same modal — a second click target
+doing the identical thing. The name is now plain text (`{{ a.name }}`, no
+class, no `@click`); Actions → Update is the row's only way in. `Actions` →
+`Edit`/`Delete` are unrelated actions (they open the add/edit drawer and the
+delete confirmation, not the view modal) and stay exactly as they were.
+
+## Two-line cell: primary value + a type/kind caption below it
+
+When a column's value is itself typed (this competency vs. that one — the
+*kind* of thing, not a per-row detail like a job title), stack the value over
+a small caption naming its type, and fall back to a plain **`-`** when the row
+has no value at all — never an empty cell, and never render the caption alone:
+
+```vue
+<MpTableCell as="td" :class="cell">
+  <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
+    <span :class="subText">Competency</span>
+    <span>{{ a.relatedCompetency }}</span>
+  </MpFlex>
+  <span v-else>-</span>
+</MpTableCell>
+```
+
+- **`MpFlex direction="column" gap="0"`, two plain `<span>`s** — same shape as
+  every other stacked name+subtext cell in this repo (Employee, Focus), not a
+  one-off. Order here is flipped from that convention on purpose: the **type**
+  comes first (`subText`, `text.secondary`/12px) and the **value** second —
+  since a competency and a future goal read the same ("Leadership") without
+  the type labelling it, the type reads better leading than trailing. The two
+  spans keep the same text styles either way (`subText` small/secondary on
+  the type, plain/default on the value) — only the order swapped, not which
+  line gets which style.
+- **`-` replaces the whole cell**, not just the value — an empty top line with
+  a dangling "Competency" caption underneath would be worse than either state.
+- Reference: the **Relation** column in both `components/IdpPlanForm.vue`
+  (the create/edit plan form's own action-plan table) and
+  `talents/idps/[id]/index.vue` (the plan detail page's action-plan table) —
+  same column, same cell markup, kept identical across both tables on purpose
+  since they show the same underlying `ActionPlan.relatedTo` /
+  `relatedCompetency` fields. If a second relation kind (Goal) ships for real,
+  the caption becomes whichever kind applies (`'competency'` → "Competency",
+  `'goal'` → "Goal") rather than a hardcoded string.
+
 ## Numeric columns — right-align + tabular-nums
 
 ```ts
 const numCellBase = { paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', textAlign: 'right', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' } as const
 ```
 
-Header is `textAlign: 'right'` + `width: '1%'` + `nowrap`. The trailing action column reuses the same right-align + `width: '1%'` + `nowrap` idiom.
+Header is `textAlign: 'right'` + `width: '1%'` + `nowrap`.
+
+## Trailing action column — `width: '1%'`, never bare `headCell`/`cell`
+
+⚠️ **Easy to miss because it isn't a numeric column** — it's easy to reach for the
+same plain `headCell`/`cell` classes every other `th`/`td` uses and stop there. Without
+`width: '1%'`, the browser gives the action column an even share of whatever width
+is left over, so the button/popover trigger sits in a column far wider than it
+needs, floating in the extra space instead of hugging the row's right edge.
+
+```ts
+// pages/goals/goal-cycles/index.vue:269-270 — the canonical pair, reused for
+// every trailing action column, not just numeric ones
+const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
+const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle', textAlign: 'right' })
+```
+
+```vue
+<MpTableCell as="th" :class="actionHead" />          <!-- empty header, trailing column -->
+…
+<MpTableCell as="td" :class="actionCell">
+  <MpButton variant="secondary" @click="…">View detail</MpButton>
+</MpTableCell>
+```
+
+Applies to any trailing column holding a button, a popover trigger, or an
+Edit/Remove icon pair — not only literal numeric data. Same idiom the numeric
+columns above use (`width: '1%'` + `nowrap`); give it its own named pair rather
+than reusing `numCellBase`, since an action column has no number to align.
 
 ## Merged / rowspan cells (Custom table)
 
@@ -500,11 +662,12 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 - [ ] `as="th"`/`as="td"` on every cell
 - [ ] `paddingTop/Bottom: '2'` (8px) on every cell
 - [ ] vertical align: middle (A) / top (B, or any table with a ≥3-line column)
-- [ ] no explicit `th` bg/border (let the recipe do it)
+- [ ] no explicit `th` bg/border/font (let the recipe do it — the real default is 14px/600/`text.default`, not a smaller gray label)
 - [ ] body scrolls in a capped region? → `<MpTableHead is-fixed>`, not custom sticky CSS
 - [ ] `:is-hoverable="false"` unless the row is interactive
 - [ ] name cell = plain `<span>` styled as a link
 - [ ] numeric cols right-aligned + `tabular-nums`
+- [ ] trailing action column (button/popover/icon pair) → `width: '1%'` + `nowrap`, not bare `headCell`/`cell`
 - [ ] Default table = no outer border; Custom table = `tableOuterBorder` + `useTableHorizontalScroll`
 - [ ] empty state: full replacement (no data) vs in-table row (filtered-to-zero)
 - [ ] pending/background-job rows merge into the real row list (never a separate table), skeleton only the not-yet-known columns, excluded from any "N goals" count, and gated behind `isMounted` if their source is client-only

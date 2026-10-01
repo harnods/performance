@@ -148,6 +148,38 @@ appeared. The `v-for`'d slot children aren't capped the way the component's own
 `getChildren()`/`slice(0, max)` logic expects in this build. Always hand-roll the
 5-avatar-then-"+N" stack (as above) instead, even for the "plain" case.
 
+### The "+N" surface inside an already-open modal — popover, not a nested modal
+
+⚠️ **Confirmed live, not a guess:** mounting a second `MpModal` while one is
+already open throws `element.getBoundingClientRect is not a function` from
+inside Pixel's own modal/focus-trap code, and the second modal never renders —
+this build doesn't support two `MpModal` instances stacked at once. The "+N
+opens a modal" rule above assumes the trigger lives on a **page**; when the
+avatar stack itself lives *inside* another modal (a detail view, a form
+modal), reach for an **`MpPopover`** instead — same "list of avatar + name
+rows" content, just in a popover:
+
+```vue
+<MpPopover v-if="hiddenCount > 0" use-portal placement="bottom-start">
+  <MpPopoverTrigger>
+    <button type="button" :aria-label="`${hiddenCount} more assignees`">
+      <span :class="avatarCountCircle">+{{ hiddenCount }}</span>
+    </button>
+  </MpPopoverTrigger>
+  <MpPopoverContent>
+    <div :class="css({ display: 'flex', flexDirection: 'column', gap: '3', maxHeight: '280px', overflowY: 'auto', padding: '3', minWidth: '220px' })">
+      <div v-for="id in hidden" :key="id" :class="css({ display: 'flex', alignItems: 'center', gap: '2' })">
+        <PxAvatar :id="id" :name="nameOf(id)" :src="photoOf(id)" size="md" variant-color="gray" />
+        <span>{{ nameOf(id) }}</span>
+      </div>
+    </div>
+  </MpPopoverContent>
+</MpPopover>
+```
+
+Reference: `components/IdpActionPlanViewModal.vue` — the assignee stack in the
+right column of the action-plan detail modal.
+
 Reference: `goal-cycles/[id]/new.vue` (goal owners bar, hand-rolled — `OWNER_AVATAR_CAP`/
 `visibleOwners`/`hiddenOwnerCount`/`avatarStack`/`avatarCountCircle`; same page's per-row
 "Goal contributor" cell in the drafted-goals table mirrors it 1:1 at `size="sm"` —

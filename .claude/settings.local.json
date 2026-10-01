@@ -87,7 +87,16 @@
       "Bash(git diff *)",
       "Bash(git fetch *)",
       "Bash(git stash *)",
-      "Bash(npx vitest *)"
+      "Bash(npx vitest *)",
+      "Bash(node -e \"const p=require\\('./package.json'\\); console.log\\(JSON.stringify\\(p.scripts,null,2\\)\\)\")",
+      "Bash(python3 -)",
+      "Bash(jq -r .[].type /Users/mekari/.claude/projects/-Users-mekari-Desktop-Performance/f8b14fc5-06a1-4746-903b-39a74dfc3b97/tool-results/mcp-Claude_Browser-read_console_messages-1789712993776.txt)",
+      "Bash(awk 'NR>=77 && NR<=140' utils/talent-profile.ts)",
+      "Bash(npx eslint *)",
+      "Bash(grep -n \"actionCell/actionHead\\\\|no explicit \\\\`th\\\\` bg/border\" docs/patterns/table.md)",
+      "Bash(grep -n \"## Header \\(\\\\`th\\\\`\\) styling\" -A10 docs/patterns/table.md)",
+      "Bash(grep -n \"no explicit \\\\`th\\\\` bg/border\" docs/patterns/table.md)",
+      "Bash(grep -n \"actionPlans: this.tasks\\\\|actionPlans: actionPlans\\\\|actionPlans,$\\\\|actionPlans: draft.actionPlans\\\\|actionPlans.value\" components/IdpPlanForm.vue pages/talents/idps/create.vue \"pages/talents/idps/[id]/edit.vue\")"
     ]
   }
 }

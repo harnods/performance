@@ -2,6 +2,10 @@
 
 ⚠️ There is **no shared `utils/date.ts`** yet — formatting is re-implemented per file (~10 duplicates). The formats below are consistent; **prefer extracting a shared helper** when you touch this, but at minimum match the exact format for the context.
 
+> For the date **input** (`MpDatePicker`) — and the `value-type` trap where
+> `format` silently defines your stored value — see
+> [`date-picker.md`](date-picker.md).
+
 ## Golden rule — format depends on context
 
 | Context | Format | Example |
