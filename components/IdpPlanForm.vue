@@ -369,7 +369,7 @@ const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
               <MpTableCell as="td" :class="cell">
                 <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
                   <span>{{ a.relatedCompetency }}</span>
-                  <span :class="subText">Competency</span>
+                  <span :class="subText">Competency item</span>
                 </MpFlex>
                 <span v-else>-</span>
               </MpTableCell>

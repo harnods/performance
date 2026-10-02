@@ -77,6 +77,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Demo-only coachmarks (orange pulses) flag what differs from production, with a bottom-left dev tools panel (show/hide, reset). All demo code lives in components/demo/, mounted once from app.vue behind runtimeConfig.public.demoMode, and is excluded from component auto-import. Product files carry no demo code.',
         files: ['components/demo/DemoLayer.vue', 'components/demo/coachmarks.ts', 'components/demo/DevCoachmark.vue', 'components/demo/IdpDevTools.vue', 'components/demo/useDevCoachmarks.ts', 'app.vue', 'nuxt.config.ts', 'assets/css/main.css', 'docs/patterns/dev-scenario-control.md'],
       },
+      {
+        category: 'Feature',
+        area: 'Relates to (competency item)',
+        detail: 'IDP now relates action plans to Competency items instead of competency assignments: "Competency" → "Competency item" everywhere (drawer radio, picker, table captions, Update modal). Picker options come from the competency item store (name 1 line, description 2 lines, ellipsis). The Competency item detail drawer shows the item\'s description and rating scale (Rating left-aligned) instead of target score by department.',
+        files: ['components/IdpActionPlanModal.vue', 'components/CompetencyDetailDrawer.vue', 'components/IdpActionPlanViewModal.vue', 'components/IdpPlanForm.vue', 'pages/talents/idps/[id]/index.vue', 'utils/idp.ts', 'components/demo/coachmarks.ts', 'docs/patterns/table.md', 'docs/patterns/form.md', 'docs/patterns/modal.md', 'docs/patterns/page-form.md'],
+      },
     ],
   },
   {

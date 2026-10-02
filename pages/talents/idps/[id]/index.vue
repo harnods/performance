@@ -242,7 +242,7 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
                 <MpTableCell as="td" :class="cell">
                   <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" align="flex-start" gap="0">
                     <MpText as="button" type="button" size="label" color="text.link" @click.stop="openCompetency(a.relatedCompetency)">{{ a.relatedCompetency }}</MpText>
-                    <span :class="subText">Competency</span>
+                    <span :class="subText">Competency item</span>
                   </MpFlex>
                   <span v-else>-</span>
                 </MpTableCell>

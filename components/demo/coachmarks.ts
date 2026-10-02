@@ -64,7 +64,7 @@ export const COACHMARKS: CoachmarkDef[] = [
     route: IDP_DETAIL_OR_FORM,
     find: () => document.getElementById('ap-related-to-label'),
     title: 'Relates to field',
-    description: 'New field: link an action plan to a competency (Goal is coming soon). The choice shows up in the action-plan tables and the Update modal.',
+    description: 'New field: link an action plan to a competency item (Goal is coming soon). The choice shows up in the action-plan tables and the Update modal.',
     placement: 'left',
   },
   {
@@ -72,7 +72,7 @@ export const COACHMARKS: CoachmarkDef[] = [
     route: DETAIL,
     find: () => byText(document, 'th', 'Relates to'),
     title: 'Relates to column',
-    description: 'New column: what each action plan relates to. Click a competency name to open its Competency detail drawer.',
+    description: 'New column: what each action plan relates to. Click a competency item name to open its Competency item detail drawer.',
     placement: 'bottom-start',
   },
   {
@@ -88,7 +88,7 @@ export const COACHMARKS: CoachmarkDef[] = [
     route: DETAIL,
     find: () => byText(document.querySelector('.idp-view-modal'), 'span', 'Relates to'),
     title: 'Relates to info',
-    description: 'New: shows what this action plan relates to, with View details opening the Competency detail drawer.',
+    description: 'New: shows what this action plan relates to, with View details opening the Competency item detail drawer.',
     placement: 'left',
   },
 ]

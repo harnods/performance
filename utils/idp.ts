@@ -58,7 +58,7 @@ export interface ActionPlan {
   activities: ActionPlanActivity[]
   /** Optional link to a competency (or, later, a goal) this action plan develops. */
   relatedTo: ActionPlanRelatedTo
-  /** Set only when relatedTo === 'competency' — a name from ALL_COMPETENCIES. */
+  /** Set only when relatedTo === 'competency' — a Competency item name (useCompetencyItemStore). */
   relatedCompetency: string
 }
 

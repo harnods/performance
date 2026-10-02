@@ -45,6 +45,8 @@ Width — two valid ways:
 
 **Option row weight:** the default `label`+`description` option render (used whenever an option has `description`) bolds the title (`itemLabel`, `fontWeight: 'semiBold'`) — right when the title is an identity, e.g. an employee's name above their job title (`pages/talents/idps/index.vue`'s "All employee" filter, `IdpPlanForm.vue`'s assignee select). When the title is just a plain term and the description explains it rather than sitting below an identity — e.g. a competency name + its definition (`components/IdpActionPlanModal.vue`'s "Select competency") — bolding reads as more important than it is. Don't change the shared default for this (it's still correct for every identity-style select); override per-usage with the `#option="{ option }"` slot instead, replicating `itemBody`/`itemCaption` but dropping `fontWeight` on the label (see `IdpActionPlanModal.vue`'s `competencyOptionBody`/`competencyOptionLabel`/`competencyOptionCaption`).
 
+**Long option descriptions clamp to 2 lines.** When an option's description can run long (competency item descriptions in `IdpActionPlanModal.vue`), cap the caption at **2 lines with an ellipsis** using the repo's clamp (same as `inbox/notifications.vue`): `display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden'`. Put the full text in `:title`, and give the option body `minWidth: '0'` so the clamp can work inside the panel's fixed width. The **label (the item name) stays on 1 line** with an ellipsis (`whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis'`), also with its full text in `:title`.
+
 ### Pre-seeded values (edit forms) — the fix that makes them show up
 
 `MpSelect` writes the native `<select>`'s value during **its own setup**, before
@@ -426,8 +428,8 @@ const goalGapSelected = css({ marginTop: '5' }) // 20px — extra room once the 
   number; here the radio-to-select gap (4px) and the select-to-next-radio gap
   (20px) are deliberately different, so `radioRow` drops its `gap` entirely
   and `competencyGroup` / the Goal wrapper each carry their own spacing instead.
-- **No `MpFormLabel` on the revealed field** — the Competency radio directly
-  above it already names what the select is for; repeating "Competency" as a
+- **No `MpFormLabel` on the revealed field** — the "Competency item" radio directly
+  above it already names what the select is for; repeating "Competency item" as a
   field label would be pure duplication (same rule as the checkbox-reveal
   case above, where the revealed field's label would just repeat the box's
   own text).

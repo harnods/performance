@@ -29,7 +29,7 @@ When is a create/edit a full page, a drawer, or a modal? Established split:
   It opens from a **"View details" link** (`MpText as="button"
   size="label-small" color="text.link"`), not from a secondary button. The
   page owns and mounts the drawer, so it can open over a modal. Example:
-  `CompetencyDetailDrawer.vue` ("Competency detail"), opened from the "Relates
+  `CompetencyDetailDrawer.vue` ("Competency item detail"), opened from the "Relates
   to" group in the IDP action-plan Update modal (`IdpActionPlanViewModal.vue`,
   which emits `viewCompetency`). See [modal.md](modal.md) and
   [table.md](table.md) ("Relates to" cell).

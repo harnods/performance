@@ -107,7 +107,7 @@ for similar two-column "view one record" modals:
   The timestamp sits **under the sentence as its description** (12/16
   `text.secondary`).
 - **"Relates to" group** (`relatedTo === 'competency'`), three lines:
-  "Competency" (value style), then the competency name (14/20
+  "Competency item" (value style), then the competency item name (14/20
   `text.secondary`), then a **"View details"** link (`MpText as="button"
   size="label-small" color="text.link"`). The link emits `viewCompetency`. The
   page opens `CompetencyDetailDrawer`, which stacks over this modal without
