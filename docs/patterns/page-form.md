@@ -33,6 +33,14 @@ When is a create/edit a full page, a drawer, or a modal? Established split:
   to" group in the IDP action-plan Update modal (`IdpActionPlanViewModal.vue`,
   which emits `viewCompetency`). See [modal.md](modal.md) and
   [table.md](table.md) ("Relates to" cell).
+- **Full-size modal** (`MpModal size="full"`): only when **migrating** a production screen that is
+  already a full-screen modal, for parity. Competency item create/edit
+  (`components/competency-item/ModalForm.vue`) is the example. It has the default `MpModalHeader`
+  title + close, a centred body (form column 448px, then a wide section up to 1152px), and an
+  `MpModalFooter` with the destructive ghost action (Delete item) and the primary submit,
+  right-aligned. A sub-edit opened from it may be a second `MpModal` (rating description); that
+  works here because both are mounted by the same component. Don't pick a full-size modal for new
+  work: use a full page.
 - **Modal** (`MpModal`): confirmation and small single-purpose inputs (purpose selection, disable-prefill confirm, save-cascade confirm).
 
 ## Drawer must open via "Manage", never on toggle
