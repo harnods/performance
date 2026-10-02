@@ -297,7 +297,7 @@ const filterSelectWidth = '200px'
         <!-- Column settings -->
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+            <MpButton variant="ghost" left-icon="table-view-column" aria-label="Column settings" />
           </MpPopoverTrigger>
           <MpPopoverContent>
             <div :class="css({ padding: '3', minWidth: '220px' })">

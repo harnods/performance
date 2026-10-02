@@ -26,6 +26,60 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '02 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'IDP list',
+        detail: 'Progress column now uses the goals-list track/fill bar with a right-aligned "N of M" (total semibold) above it, replacing MpProgress.',
+        files: ['pages/talents/idps/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'IDP store',
+        detail: 'localStorage plans now load after hydration, so a hard reload no longer leaves stale progress-bar widths from the SSR seed.',
+        files: ['composables/useIdpStore.ts'],
+      },
+      {
+        category: 'Feature',
+        area: 'IDP detail',
+        detail: 'Summary row matches production sizing (14/20 text, no vertical padding, equal-width status totals). "Relation" column renamed "Relates to" (name + "Competency" caption).',
+        files: ['pages/talents/idps/[id]/index.vue', 'docs/patterns/stat-card.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Action plan Update modal',
+        detail: 'Production paddings and layout; "Relates to" group shows Competency, the name and a "View details" link that opens the new read-only Competency detail drawer (target score by department).',
+        files: ['components/IdpActionPlanViewModal.vue', 'components/CompetencyDetailDrawer.vue', 'pages/talents/idps/[id]/index.vue', 'docs/patterns/modal.md', 'docs/patterns/page-form.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Create/edit development plan',
+        detail: 'Action-plan rows use a kebab menu (Edit / Delete) instead of separate icon buttons; "Relates to" column matches the detail page.',
+        files: ['components/IdpPlanForm.vue', 'docs/patterns/table.md'],
+      },
+    ],
+  },
+  {
+    date: '02 Oct 2026',
+    module: 'Design system',
+    items: [
+      {
+        category: 'Feature',
+        area: 'PxSelectPopover',
+        detail: 'Searchable selects now search in the field itself; the search bar inside the popover is removed app-wide. Creatable selects (Category, Objective) offer "Add \"…\" as a {label}" instead of committing every keystroke.',
+        files: ['components/PxSelectPopover.vue', 'components/IdpActionPlanModal.vue', 'components/IdpPlanForm.vue', 'docs/patterns/form.md', 'CLAUDE.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Column settings',
+        detail: 'Column-settings buttons use the table-view-column icon everywhere.',
+        files: ['pages/talents/idps/index.vue', 'pages/talents/talent-directory/index.vue', 'pages/goals/goal-cycles/[id]/index.vue', 'pages/goals/goal-cycles/[id]/company-goals.vue', 'pages/goals/goal-cycles/[id]/organization-goals.vue', 'pages/goals/goal-cycles/[id]/team-goals.vue', 'pages/goals/goal-cycles/[id]/individual-goals.vue', 'docs/patterns/filter-bar.md'],
+      },
+    ],
+  },
+  {
     date: '23 Sep 2026',
     module: 'IDPs',
     items: [

@@ -13,10 +13,9 @@ import {
 } from '@mekari/pixel3'
 import { TALENTS } from '~/utils/talents'
 import { ACTION_PLAN_STATUSES, STATUS_BY_ID, type ActionPlan, type ActionPlanStatus } from '~/utils/idp'
-import { COMPETENCY_DESCRIPTIONS } from '~/utils/competency'
 
 const props = defineProps<{ isOpen: boolean, actionPlan: ActionPlan | null }>()
-const emit = defineEmits<{ 'update:isOpen': [value: boolean], 'statusChange': [status: ActionPlanStatus] }>()
+const emit = defineEmits<{ 'update:isOpen': [value: boolean], 'statusChange': [status: ActionPlanStatus], 'viewCompetency': [name: string] }>()
 
 function close() { emit('update:isOpen', false) }
 
@@ -65,12 +64,17 @@ function formatActivityAt(iso: string): string {
 }
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
-const bodyGrid = css({ display: 'grid', gridTemplateColumns: { base: '1fr', lg: '1fr 220px' }, gap: '8' })
-const leftCol = css({ display: 'flex', flexDirection: 'column', gap: '6', minWidth: '0' })
-const rightCol = css({ display: 'flex', flexDirection: 'column', gap: '5' })
-const infoLabel = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', marginBottom: '1', display: 'block' })
-const infoValue = css({ fontSize: '14px', fontWeight: '600', color: 'text.default' })
-const sectionTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default', marginBottom: '3' })
+// Spacing measured off production's ModalViewActionPlan: 280px right column,
+// 24px between left-column sections, 20px between right-column groups, 14px
+// labels 4px above their value. Explicit px because spacing tokens 5/6 render
+// 20.8/24.96px in this build.
+const bodyGrid = css({ display: 'grid', gridTemplateColumns: { base: '1fr', lg: '1fr 280px' }, gap: '32px' })
+const leftCol = css({ display: 'flex', flexDirection: 'column', gap: '24px', minWidth: '0' })
+const rightCol = css({ display: 'flex', flexDirection: 'column', gap: '20px' })
+const infoLabel = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary', marginBottom: '4px', display: 'block' })
+const infoValue = css({ fontSize: '14px', lineHeight: '20px', fontWeight: '600', color: 'text.default' })
+const infoSub = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
+const sectionTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default', marginBottom: '12px' })
 const descText = css({ color: 'text.default', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' })
 const captionText = css({ color: 'text.secondary' })
 const fileRow = css({ display: 'flex', alignItems: 'center', gap: '2', fontSize: '14px', paddingBlock: '1' })
@@ -92,7 +96,10 @@ const avatarCountCircle = css({
 })
 const assigneeList = css({ display: 'flex', flexDirection: 'column', gap: '3', maxHeight: '280px', overflowY: 'auto', padding: '3', minWidth: '220px' })
 const assigneeRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
-const activityRow = css({ display: 'flex', alignItems: 'flex-start', gap: '3', paddingBlock: '2' })
+const activityList = css({ display: 'flex', flexDirection: 'column', gap: '12px' })
+const activityRow = css({ display: 'flex', alignItems: 'center', gap: '12px' })
+// Production puts the timestamp inline after the sentence, 12px apart.
+const activityLine = css({ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: '12px' })
 const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 </script>
 
@@ -132,15 +139,17 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
 
               <div>
                 <MpText :class="sectionTitle">Activity</MpText>
-                <div v-for="act in actionPlan.activities" :key="act.id" :class="activityRow">
-                  <PxAvatar :id="`act-${act.id}`" :name="talentById(act.userId)?.name" :src="talentById(act.userId)?.photo" size="md" variant-color="gray" />
-                  <MpFlex direction="column" gap="0">
-                    <span :class="activityText">
-                      <MpText as="span" weight="semiBold">{{ talentById(act.userId)?.name ?? 'Someone' }}</MpText>
-                      {{ ' ' }}{{ act.content }}
-                    </span>
-                    <MpText size="label-small" :class="captionText">{{ formatActivityAt(act.at) }}</MpText>
-                  </MpFlex>
+                <div v-if="actionPlan.activities.length" :class="activityList">
+                  <div v-for="act in actionPlan.activities" :key="act.id" :class="activityRow">
+                    <PxAvatar :id="`act-${act.id}`" :name="talentById(act.userId)?.name" :src="talentById(act.userId)?.photo" size="lg" variant-color="gray" />
+                    <div :class="activityLine">
+                      <span :class="activityText">
+                        <MpText as="span" weight="semiBold">{{ talentById(act.userId)?.name ?? 'Someone' }}</MpText>
+                        {{ ' ' }}{{ act.content }}
+                      </span>
+                      <span :class="[activityText, captionText]">{{ formatActivityAt(act.at) }}</span>
+                    </div>
+                  </div>
                 </div>
                 <MpText v-if="!actionPlan.activities.length" size="label" :class="captionText">No activity yet.</MpText>
               </div>
@@ -173,12 +182,12 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
 
               <div>
                 <span :class="infoLabel">Assignee</span>
-                <MpFlex v-if="actionPlan.assignees.length === 1" align="center" gap="2">
+                <MpFlex v-if="actionPlan.assignees.length === 1" align="center" gap="3">
                   <PxAvatar
                     :id="`asg-${actionPlan.assignees[0]}`"
                     :name="talentById(actionPlan.assignees[0])?.name"
                     :src="talentById(actionPlan.assignees[0])?.photo"
-                    size="md"
+                    size="lg"
                     variant-color="gray"
                   />
                   <span :class="infoValue">{{ talentById(actionPlan.assignees[0])?.name ?? '-' }}</span>
@@ -217,10 +226,11 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
                 <span :class="infoValue">{{ actionPlan.category }}</span>
               </div>
               <div v-if="actionPlan.relatedTo === 'competency' && actionPlan.relatedCompetency">
-                <span :class="infoLabel">Competency</span>
-                <MpFlex direction="column" gap="0">
-                  <span :class="infoValue">{{ actionPlan.relatedCompetency }}</span>
-                  <span :class="captionText">{{ COMPETENCY_DESCRIPTIONS[actionPlan.relatedCompetency] }}</span>
+                <span :class="infoLabel">Relates to</span>
+                <MpFlex direction="column" align="flex-start" gap="0">
+                  <span :class="infoValue">Competency</span>
+                  <span :class="infoSub">{{ actionPlan.relatedCompetency }}</span>
+                  <MpText as="button" type="button" size="label-small" color="text.link" @click="emit('viewCompetency', actionPlan.relatedCompetency)">View details</MpText>
                 </MpFlex>
               </div>
               <div>
@@ -243,5 +253,13 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
 /* docs/patterns/modal.md — top-center at 80px, beating MpModal's inline 3.75rem. */
 :global(.idp-view-modal [data-pixel-component='MpModalContent']) {
   margin-top: 80px !important;
+}
+/* Production's ModalViewActionPlan padding: 24px sides (Pixel default is
+   16px), 20px header block, 40px under the last value. */
+:global(.idp-view-modal [data-pixel-component='MpModalHeader']) {
+  padding: 20px 24px !important;
+}
+:global(.idp-view-modal [data-pixel-component='MpModalBody']) {
+  padding: 24px 24px 40px !important;
 }
 </style>

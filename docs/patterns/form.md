@@ -35,7 +35,7 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only when `search-on-field` is off). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable`, `searchPlaceholder`, `searchOnField`, `allowCustomValue`, `maxlength`.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `customValueLabel`, `maxlength`. `searchPlaceholder` is deprecated and ignored.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
@@ -74,9 +74,11 @@ watch(() => [props.modelValue, props.options.length], () => nextTick(syncNativeS
 
 If you build another select wrapper around `MpSelect`, it needs the same sync.
 
-### `search-on-field` — typing directly into the field instead of a popover-embedded search box
+### Searchable selects: search in the field, never a search bar in the popover
 
-Default `searchable` opens the popover to a *separate* search input at the top, above the option list (`competencies/create.vue`'s Job position, `CycleGeneralForm.vue`'s Timeframe — most existing usages). Pass the boolean `search-on-field` instead when the field itself should be the search box — no embedded search bar, the closed field is a real text input you type straight into (`talents/competencies/import-results.vue`'s Job position / Job level / the extra scope fields):
+**A select never has a search bar inside its popover.** When a select is
+searchable, the **field itself** is the search box. `searchable` and
+`search-on-field` are synonyms, and both render this:
 
 ```vue
 <PxSelectPopover
@@ -84,51 +86,61 @@ Default `searchable` opens the popover to a *separate* search input at the top, 
   :options="jobPositionOptions"
   placeholder="Select job position"
   width="100%"
-  search-on-field
+  searchable
 />
 ```
 
-Do not pass `searchable` + `search-on-field` together — pick one per field, same as the required-marker rule above.
+Behavior (`PxSelectPopover.vue`, `onField`):
 
-Behavior (`PxSelectPopover.vue`'s `searchOnField` branch): the trigger becomes an `MpInputGroup`/`MpInput` with a trailing `chevrons-down` addon (same look as `DashMultiSelectSearch.vue`'s own select-styled search trigger), not the disabled-look `MpSelect`. Clicking it opens the popover exactly like clicking the old select did — nothing extra to wire for that. Focusing the field clears it so typing starts fresh; typing filters the list live; blurring without picking reverts the field back to the current selection's label, so an abandoned search never sticks. Selecting a `MpPopoverListItem` still closes the popover (`is-close-on-select`, unchanged).
+- The trigger is an `MpInputGroup`/`MpInput` with a trailing `chevrons-down`
+  addon, not the disabled-look `MpSelect`. Clicking it opens the popover.
+- Focusing clears the text so typing starts fresh, and typing filters the
+  list live (label, description and trailing text).
+- Blurring without picking reverts the field to the current selection's label.
+- With `is-clearable`, deleting the text and blurring clears the value.
+- No match shows "No results found" instead of an empty bordered box.
+- `search-placeholder` is ignored. The field's `placeholder` is the only
+  prompt, so phrase it to cover both (e.g. "Search or select employee").
 
-**Gotcha:** `MpPopoverTrigger` toggles open/closed on *every* click of whatever it wraps. That's harmless for the old inert `MpSelect` (nothing to click twice), but a real text input gets re-clicked constantly while searching (fixing a typo, moving the cursor) — each of those re-clicks would otherwise slam the popover shut. Fixed with a mousedown/click pair on the input (`wasAlreadyFocused` in `PxSelectPopover.vue`) that only lets the click that *first* focuses the field reach the trigger's toggle; a click while it's already focused is stopped from bubbling.
+**Gotcha:** `MpPopoverTrigger` toggles on *every* click of what it wraps, and
+a real text input gets re-clicked while searching. A mousedown/click pair on
+the input (`wasAlreadyFocused`) only lets the click that *first* focuses the
+field reach the toggle.
 
-**Gotcha — popover panel width:** `MpPopover`'s `is-adaptive-width` only sets the panel's *min-width* to the trigger's width (`width: max-content` underneath), so an option with a long label/description — e.g. a competency's description — pushes the panel wider than the field (`components/IdpActionPlanModal.vue`'s "Relates to → Competency" select). `PxSelectPopover.vue` fixes this itself: it measures the trigger with a `ResizeObserver` (`triggerWidth`/`observeTriggerWidth`) and passes an explicit `:style="{ width: ... }"` to `MpPopoverContent`, which `mergeProps` applies *after* `MpPopover`'s own min/max-width style, so it wins and clamps the panel to exactly the field's width. This is automatic for every `PxSelectPopover` — nothing to opt into per-usage.
+**Gotcha: popover panel width.** `is-adaptive-width` only sets the panel's
+*min-width*, so a long option pushes it wider than the field.
+`PxSelectPopover.vue` measures the trigger with a `ResizeObserver` and passes
+an explicit width to `MpPopoverContent`. This is automatic for every usage.
 
-### `allow-custom-value` — a free-text field with suggestions (combobox)
+### Creatable selects: the "Add as a {label}" pattern
 
-`search-on-field` still enforces a **closed list**: type something unmatched, blur, and
-the field reverts to the current selection. That's right when the value must resolve to a
-real record (an employee, a job position), and wrong when the vocabulary is genuinely
-open — the backend accepts anything and the listed options are only hints.
-
-Pass `allow-custom-value` **alongside** `search-on-field` for the open case. The model
-then *is* the typed text: focus no longer clears the field, blur no longer reverts, and
-every keystroke emits `update:modelValue`. Picking a suggestion just fills the same text.
+When the user may add a value that isn't in the list (an open vocabulary such
+as an action plan's **Category** or a plan's **Objective**), pass
+`allow-custom-value` plus `custom-value-label`. It implies field search:
 
 ```vue
-<!-- IdpPlanForm.vue — Objective; IdpActionPlanModal.vue — Category -->
+<!-- IdpActionPlanModal.vue (Category); IdpPlanForm.vue (Objective, label "objective") -->
 <PxSelectPopover
-  v-model="objective"
-  :options="objectiveOptions"
-  placeholder="Search or type an objective"
+  v-model="category"
+  :options="categoryOptions"
+  placeholder="Select or type a category"
   width="100%"
-  search-on-field
   allow-custom-value
+  custom-value-label="category"
   :maxlength="NAME_MAX"
 />
 ```
 
-- **The tell is a character counter.** If the field carries a `n / 60` counter, the user
-  is expected to *type* into it, so it needs this prop — a closed select can't overflow a
-  limit. Both IDP fields carry one (see "Character counter" above).
-- `:maxlength` exists for exactly this mode — it caps the `search-on-field` input so the
-  field honours the limit its counter advertises. It does nothing without `search-on-field`.
-- A search matching no option renders "No matching suggestion — what you typed will be
-  used." rather than an empty bordered popover, since the popover stays open while typing.
-- `is-clearable` is a no-op here (that's the `MpSelect` trigger's × button, and this mode
-  renders an `MpInput`); the user clears the field by selecting the text and deleting it.
+- When the typed text matches no option label exactly (case-insensitive), the
+  list ends with **`Add "<typed text>" as a category`**. The article is
+  automatic: "as an objective".
+- **Nothing is committed per keystroke.** The value is set only by picking an
+  option or the "Add as" item. Blurring without picking reverts, the same as a
+  closed list.
+- A saved custom value has no option, so the field shows the raw value.
+- `:maxlength` caps the typed text to match the field's character counter.
+  The counter reads the **model**, so it updates once a value is picked, not
+  while typing.
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
@@ -458,13 +470,10 @@ relevant follow-up regardless of which option is picked — like Focus's
 future-job-position field — the after-the-group shape is still correct;
 reach for the nested reveal only when the follow-up is specific to one option.)
 
-**The revealed field's search is `search-on-field`, matching whatever
-sibling field in the same form already types-to-filter** (here, Category) —
-`searchable`'s separate popover-embedded search bar reads as a different
-control right next to one that doesn't have it. Don't pair it with
-`allow-custom-value` unless the field is a genuinely open vocabulary like
-Category — a competency (or any closed catalog) should still only resolve to
-a real option, not accept arbitrary typed text.
+**The revealed field searches in the field, like every searchable select.**
+Don't pair it with `allow-custom-value` unless the field is a genuinely open
+vocabulary like Category. A competency (or any closed catalog) should only
+resolve to a real option.
 
 ## Multi-select rendered as removable tags — `MpInputTag`
 
@@ -572,7 +581,7 @@ A field can be locally valid but still violate a rule that depends on state outs
 
 - Field = `MpFormControl` + `MpFormLabel` (+ `MpFormErrorMessage`). Required via `:is-required`.
 - Dropdowns = `PxSelectPopover`, width ≈50% of form column.
-- Closed list → `searchable` or `search-on-field`. Open vocabulary (has a character counter) → `search-on-field` + `allow-custom-value` + `:maxlength`.
+- Searchable select → `searchable` (search happens in the field, never a search bar in the popover). Open vocabulary (has a character counter) → `allow-custom-value` + `custom-value-label` + `:maxlength` ("Add as a {label}").
 - Section headers hand-rolled (`h2Class`/`h3Class`), never `MpText size="h2"`.
 - No cards / no divider lines between sections — spacing + row border-bottom.
 - Toggle/checkbox/radio use built-in label + `#description` slots.

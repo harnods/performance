@@ -80,3 +80,30 @@ limit/warning, put the gating logic in a composable (state + navigation) and the
 UI in one shared modal component, rather than duplicating both per page. See
 `useBulkOwnerGate` + `TooManyEmployeesModal`, used from `[id]/index.vue`,
 `individual-goals.vue`, `team-goals.vue`, `organization-goals.vue`, `company-goals.vue`.
+
+## Read-only record modal (IDP action plan "Update" modal)
+
+`components/IdpActionPlanViewModal.vue` replicates production's
+`ModalViewActionPlan`. Its spacing was measured off production, so mirror it
+for similar two-column "view one record" modals:
+
+- **Padding:** header `20px 24px`, body `24px 24px 40px`. Pixel's default is
+  16px, so it's overridden with the same scoped `:global(...) !important`
+  rule as the 80px top margin.
+- **Grid:** `1fr 280px`, with a 32px gap. Left column (description,
+  attachments, activity) has 24px between sections. Right column has 20px
+  between label/value groups.
+- **Right-column groups:** the label is 14/20 `text.secondary`, 4px above the
+  value. The value is 14/20 semibold.
+- **Activity rows:** `lg` avatar with 12px to the text, and 12px between rows.
+  The timestamp sits **inline after the sentence** (12px apart, 14px
+  `text.secondary`), not on its own line.
+- **"Relates to" group** (`relatedTo === 'competency'`), three lines:
+  "Competency" (value style), then the competency name (14/20
+  `text.secondary`), then a **"View details"** link (`MpText as="button"
+  size="label-small" color="text.link"`). The link emits `viewCompetency`. The
+  page opens `CompetencyDetailDrawer`, which stacks over this modal without
+  issue. Only a **modal opened inside this modal** crashes (see avatar.md);
+  a drawer mounted by the parent page is fine.
+- Explicit px for spacing, because tokens `5` and `6` render 20.8px and
+  24.96px in this build.

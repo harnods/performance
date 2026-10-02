@@ -129,11 +129,14 @@ watch([...filters, search], () => { currentPage.value = 1 })
 The right cluster holds two icon-only ghost buttons before the search input, in order
 **column settings → export → search**. Both are icon-only, so both **must be wrapped in an
 `MpTooltip`** (an `aria-label` alone is not enough — the user needs a visible tooltip on
-hover). `use-portal` so the tooltip escapes the table's overflow clip:
+hover). `use-portal` so the tooltip escapes the table's overflow clip.
+
+**Column settings always uses the `table-view-column` icon**, never `column-settings`
+or any other glyph, on every table:
 
 ```vue
 <MpTooltip label="Column settings" use-portal>
-  <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" />
+  <MpButton variant="ghost" left-icon="table-view-column" aria-label="Column settings" />
 </MpTooltip>
 <MpTooltip label="Export" use-portal>
   <MpButton variant="ghost" left-icon="upload" aria-label="Export" />
@@ -158,7 +161,7 @@ was built from):
 ```vue
 <MpFlex align="center" gap="3">
   <MpTooltip label="Column settings" use-portal>
-    <MpButton variant="secondary" left-icon="column-settings" right-icon="chevrons-down" aria-label="Column settings" />
+    <MpButton variant="secondary" left-icon="table-view-column" right-icon="chevrons-down" aria-label="Column settings" />
   </MpTooltip>
   <PxSelectPopover v-model="employee" :options="employeeOptions" placeholder="All employee" ... />
 </MpFlex>
