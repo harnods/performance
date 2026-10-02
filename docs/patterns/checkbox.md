@@ -147,6 +147,17 @@ the column-header `th` never renders its own copy of it.
   stay off. Guard it with `groupSelectedCount(dept.rows) > 0 && !isAllSelected(...)`, not just
   `!isAllSelected(...)` alone.
 
+### Flat (ungrouped) table: select-all in the first header cell
+
+A plain list with no group header (competency items, `pages/talents/competencies/items/index.vue`)
+puts the **select-all checkbox in the first `th`**, before the column label, mirroring the
+row checkbox inside the first `td` (`MpFlex align="center" gap="2"`). It's unchecked at 0
+selected; once 1+ rows are selected the header swaps to the bulk bar (below), whose own
+checkbox takes over. Select-all acts on the **current page**, and the selection persists across
+pages (production parity). Lock widths with a `<colgroup>` **and** `tableLayout: 'fixed'` on
+`MpTable`. With auto layout the header content still nudges the columns when it swaps (seen as
+a 20px shift), even with `<col>` widths.
+
 ## 3. Bulk action bar — replaces the table header, never shifts the body
 
 **Company goals only** (the one page with a single, non-collapsible group — see "Multi-group

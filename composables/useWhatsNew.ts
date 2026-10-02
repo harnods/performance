@@ -77,6 +77,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Demo-only coachmarks (orange pulses) flag what differs from production, with a bottom-left dev tools panel (show/hide, reset). All demo code lives in components/demo/, mounted once from app.vue behind runtimeConfig.public.demoMode, and is excluded from component auto-import. Product files carry no demo code.',
         files: ['components/demo/DemoLayer.vue', 'components/demo/coachmarks.ts', 'components/demo/DevCoachmark.vue', 'components/demo/IdpDevTools.vue', 'components/demo/useDevCoachmarks.ts', 'app.vue', 'nuxt.config.ts', 'assets/css/main.css', 'docs/patterns/dev-scenario-control.md'],
       },
+      {
+        category: 'Feature',
+        area: 'Relates to (competency item)',
+        detail: 'IDP now relates action plans to Competency items instead of competency assignments: "Competency" → "Competency item" everywhere (drawer radio, picker, table captions, Update modal). Picker options come from the competency item store (name 1 line, description 2 lines, ellipsis). The Competency item detail drawer shows the item\'s description and rating scale (Rating left-aligned) instead of target score by department.',
+        files: ['components/IdpActionPlanModal.vue', 'components/CompetencyDetailDrawer.vue', 'components/IdpActionPlanViewModal.vue', 'components/IdpPlanForm.vue', 'pages/talents/idps/[id]/index.vue', 'utils/idp.ts', 'components/demo/coachmarks.ts', 'docs/patterns/table.md', 'docs/patterns/form.md', 'docs/patterns/modal.md', 'docs/patterns/page-form.md'],
+      },
     ],
   },
   {
@@ -106,6 +112,18 @@ export const CHANGELOG: ChangelogEntry[] = [
         area: 'Forms',
         detail: 'No space between a field label and its required asterisk: Pixel\'s 4px margin zeroed globally, and hand-built asterisks no longer use a gap.',
         files: ['assets/css/main.css', 'components/AddGoalDrawer.vue', 'components/AddKeyResultDrawer.vue', 'components/GoalCategoryFormDrawer.vue', 'components/GoalCycleInfoPanel.vue', 'components/SuccessionPromoteModal.vue', 'components/SuccessionReadinessModal.vue', 'pages/goals/goal-cycles/index.vue', 'pages/talents/succession-plans/create.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
+    date: '02 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Competency items',
+        detail: 'Migrated the competency item pages from talenta-review (010875214aba) as a static prototype: list (search, sort, bulk select, kebab, delete / unable-to-delete flows, pagination), full-size Create/Edit item modal with rating scale, Upload .xlsx and Edit bulk item pages, and a Filled/Empty scenario control. Mock data verified against talenta-noncore-api (cde912f): Applied counts competency groups only, newest-first order, Novice…Proficient default ratings, FE toast copy.',
+        files: ['pages/talents/competencies/items/index.vue', 'pages/talents/competencies/items/upload.vue', 'pages/talents/competencies/items/bulk-edit.vue', 'components/competency-item/ModalForm.vue', 'components/competency-item/Upload.vue', 'components/rating-scale/ModalForm.vue', 'components/UploadPage.vue', 'components/CompetencyItemScenarioControl.vue', 'composables/useCompetencyItemStore.ts', 'utils/competencyItem.ts', 'docs/patterns/page-form.md', 'docs/patterns/upload.md', 'docs/patterns/checkbox.md', 'docs/patterns/dev-scenario-control.md'],
       },
     ],
   },

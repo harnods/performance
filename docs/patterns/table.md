@@ -587,7 +587,7 @@ has no value at all — never an empty cell, and never render the caption alone:
 ```vue
 <MpTableCell as="td" :class="cell">
   <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
-    <span :class="subText">Competency</span>
+    <span :class="subText">Competency item</span>
     <span>{{ a.relatedCompetency }}</span>
   </MpFlex>
   <span v-else>-</span>
@@ -604,14 +604,14 @@ has no value at all — never an empty cell, and never render the caption alone:
   the type, plain/default on the value) — only the order swapped, not which
   line gets which style.
 - **`-` replaces the whole cell**, not just the value — an empty top line with
-  a dangling "Competency" caption underneath would be worse than either state.
+  a dangling "Competency item" caption underneath would be worse than either state.
 - Reference: the **Relation** column in both `components/IdpPlanForm.vue`
   (the create/edit plan form's own action-plan table) and
   `talents/idps/[id]/index.vue` (the plan detail page's action-plan table) —
   same column, same cell markup, kept identical across both tables on purpose
   since they show the same underlying `ActionPlan.relatedTo` /
   `relatedCompetency` fields. If a second relation kind (Goal) ships for real,
-  the caption becomes whichever kind applies (`'competency'` → "Competency",
+  the caption becomes whichever kind applies (`'competency'` → "Competency item",
   `'goal'` → "Goal") rather than a hardcoded string.
 
 ## Numeric columns — right-align + tabular-nums
@@ -723,7 +723,7 @@ doesn't stretch. In the **create/edit form** table the name is plain text:
 ```vue
 <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
   <span>{{ a.relatedCompetency }}</span>
-  <span :class="subText">Competency</span>
+  <span :class="subText">Competency item</span>
 </MpFlex>
 <span v-else>-</span>
 ```
@@ -738,12 +738,22 @@ doesn't stretch. In the **create/edit form** table the name is plain text:
 - **Mount the drawer in the branch that renders the content**, not in a
   `v-else`/not-found branch. Otherwise it never mounts.
 
-### Competency detail drawer content
+### Competency item detail drawer content
+
+**IDP relates action plans to Competency items** (setup → Competency items,
+`useCompetencyItemStore`), **not** to competency assignments
+(`utils/competency`). The word is always **"Competency item"**: the radio, the
+picker placeholder ("Select competency item"), the table caption, the Update
+modal value and the drawer title ("Competency item detail"). The picker's
+options and the drawer's data both come from the competency item store.
 
 `components/CompetencyDetailDrawer.vue`: no icon. The name (16/600) has its
-description (14px `text.secondary`) **directly under it**. Then comes
-**"Target score by department"** as an **H3**: a plain `<h3>` with
-16px/600/24, **not** `MpText`, whose default size overrides the class. It
-sits exactly **20px** below the description (`marginTop: '20px'`; spacing
-token `5` renders 20.8px). The table lists **only the departments whose
-competency set includes this competency**, with their target score.
+description (14px `text.secondary`, "-" when empty) **directly under it**.
+Then comes **"Rating scale"** as an **H3**: a plain `<h3>` with 16px/600/24,
+**not** `MpText`, whose default size overrides the class. It sits exactly
+**20px** below the description (`marginTop: '20px'`; spacing token `5`
+renders 20.8px). The table is the item's own rating scale: **Rating**
+(80px, **left-aligned**, tabular) and **Description**. Rating is an exception to
+the right-align rule for numbers: it's a short scale label ("1"–"5") read
+together with its description, not a quantity to compare. If the item no longer
+exists, a 14px `text.secondary` line says so instead of the table.

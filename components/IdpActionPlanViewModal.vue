@@ -233,7 +233,7 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
               <div v-if="actionPlan.relatedTo === 'competency' && actionPlan.relatedCompetency">
                 <span :class="infoLabel">Relates to</span>
                 <MpFlex direction="column" align="flex-start" gap="0">
-                  <span :class="infoValue">Competency</span>
+                  <span :class="infoValue">Competency item</span>
                   <span :class="infoSub">{{ actionPlan.relatedCompetency }}</span>
                   <MpText as="button" type="button" size="label-small" color="text.link" @click="emit('viewCompetency', actionPlan.relatedCompetency)">View details</MpText>
                 </MpFlex>
