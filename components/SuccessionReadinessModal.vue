@@ -66,7 +66,7 @@ const req = css({ color: 'text.danger' })
           </div>
           <div :class="divider" />
           <MpFormControl id="readiness-range" :is-invalid="invalid">
-            <MpFormLabel>Readiness <MpText as="span" :class="req">*</MpText></MpFormLabel>
+            <MpFormLabel>Readiness<MpText as="span" :class="req">*</MpText></MpFormLabel>
             <PxSelectPopover v-model="value" :options="READINESS_OPTIONS" placeholder="Select range" :width="'100%'" />
             <MpFormErrorMessage>You must select readiness</MpFormErrorMessage>
           </MpFormControl>

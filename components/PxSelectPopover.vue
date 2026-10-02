@@ -24,20 +24,21 @@ const props = defineProps<{
   isClearable?: boolean
   isDisabled?: boolean
   width?: string
+  // Search always happens in the field itself: `searchable` and
+  // `searchOnField` are synonyms that turn the closed field into a text input
+  // that filters the list as you type. There is no search bar inside the
+  // popover. See docs/patterns/form.md.
   searchable?: boolean
+  /** @deprecated No popover search bar any more; the field uses `placeholder`. */
   searchPlaceholder?: string
-  // Type directly into the closed field itself instead of opening the popover
-  // to a separate embedded search box — the field becomes a real text input
-  // that filters the list live as you type (no popover-internal search bar).
-  // Opt-in only: every other existing `searchable` usage keeps the
-  // popover-embedded search box unchanged. See docs/patterns/form.md.
   searchOnField?: boolean
-  // Combobox mode (requires `searchOnField`): the options are *suggestions*,
-  // not a closed list — whatever the user types IS the value. Without this, an
-  // unmatched search reverts on blur, which is right for picking a record and
-  // wrong for a free-text vocabulary the backend keeps open (IDP objective,
-  // action-plan category). See docs/patterns/form.md.
+  // Creatable (implies field search): when the typed text matches no option,
+  // the list offers a centred `Add “<text>”` row. Picking it sets the
+  // value. Nothing is committed per keystroke. Used for open vocabularies
+  // (IDP objective, action-plan category). See docs/patterns/form.md.
   allowCustomValue?: boolean
+  /** @deprecated The Add row no longer names the type. */
+  customValueLabel?: string
   // Character cap for the `searchOnField` input, so a free-text field can carry
   // the same limit its character counter advertises.
   maxlength?: number
@@ -65,8 +66,9 @@ const wrapperStyle = computed(() => (props.width ? { width: props.width } : unde
 // works and a pre-seeded *edit* form does not.
 // Re-apply the value ourselves once the options have rendered.
 const rootEl = ref<HTMLElement | null>(null)
+const onField = computed(() => !!(props.searchable || props.searchOnField || props.allowCustomValue))
 function syncNativeSelect() {
-  if (!import.meta.client || props.searchOnField) return
+  if (!import.meta.client || onField.value) return
   const el = rootEl.value?.querySelector('select')
   if (el && el.value !== (props.modelValue ?? '')) el.value = props.modelValue ?? ''
 }
@@ -93,8 +95,6 @@ onMounted(() => nextTick(observeTriggerWidth))
 onBeforeUnmount(() => triggerObserver?.disconnect())
 const popoverContentStyle = computed(() => (triggerWidth.value ? { width: `${triggerWidth.value}px` } : undefined))
 
-const searchTerm = ref('')
-
 // ─── searchOnField mode — the field is the search box ───────────────────────
 // The popover's own open/close (click trigger, click-outside, close-on-select)
 // is untouched — MpPopoverTrigger opens on click same as it did wrapping the
@@ -102,29 +102,28 @@ const searchTerm = ref('')
 // blurs the field. Only the *displayed text* needs managing: cleared on focus
 // so typing starts fresh, and reverted to the current selection's label on
 // blur so an abandoned, unselected search doesn't stick around.
-// In combobox mode the model IS the text, so there's no label to look up and
-// nothing to revert to — an unmatched value is a legitimate value.
+// A custom (created) value has no option, so it falls back to the raw value.
 const selectedLabel = computed(() =>
-  props.allowCustomValue
-    ? (props.modelValue ?? '')
-    : (props.options.find(o => o.value === props.modelValue)?.label ?? ''),
+  props.options.find(o => o.value === props.modelValue)?.label
+  ?? (props.allowCustomValue ? (props.modelValue ?? '') : ''),
 )
 const fieldText = ref(selectedLabel.value)
 const isEditingField = ref(false)
+// Did the user type during this focus? Only then may an emptied field clear.
+const hasTyped = ref(false)
 watch(selectedLabel, (label) => { if (!isEditingField.value) fieldText.value = label })
 function onFieldFocus() {
   isEditingField.value = true
-  // Clearing on focus lets a fresh search start from empty, but in combobox mode
-  // it would wipe the value the user is trying to amend.
-  if (!props.allowCustomValue) fieldText.value = ''
+  hasTyped.value = false
+  fieldText.value = ''
 }
 function onFieldBlur() {
   isEditingField.value = false
-  if (!props.allowCustomValue) fieldText.value = selectedLabel.value
+  if (hasTyped.value && !fieldText.value.trim() && props.isClearable) emit('update:modelValue', '')
+  fieldText.value = selectedLabel.value
 }
-// Combobox mode only — every keystroke is the new value.
-function onFieldInput(v: string) {
-  if (props.allowCustomValue) emit('update:modelValue', v)
+function onFieldInput() {
+  hasTyped.value = true
 }
 // MpPopoverTrigger toggles open/closed on every click of whatever it wraps —
 // fine for the old inert MpSelect (you'd never "click again" on it while
@@ -144,9 +143,9 @@ function onFieldClick(e: MouseEvent) {
   if (wasAlreadyFocused) e.stopPropagation()
 }
 
-const activeSearchTerm = computed(() => (props.searchOnField ? fieldText.value : searchTerm.value))
+const activeSearchTerm = computed(() => (onField.value && isEditingField.value ? fieldText.value.trim() : ''))
 const filteredOptions = computed(() =>
-  !(props.searchable || props.searchOnField) || !activeSearchTerm.value
+  !activeSearchTerm.value
     ? props.options
     : props.options.filter(o =>
         o.label.toLowerCase().includes(activeSearchTerm.value.toLowerCase()) ||
@@ -176,24 +175,6 @@ const groupHeader = css({
   fontSize: '12px', lineHeight: '16px', fontWeight: 'semiBold', color: 'text.secondary',
 })
 
-const searchBar = css({
-  paddingInline: '3',
-  paddingBlock: '2',
-  borderBottom: '1px solid',
-  borderBottomColor: 'border.default',
-  flexShrink: '0',
-  overflow: 'hidden',
-})
-// Search field: icon overlaid at left, inner input padded so text never collides.
-const searchWrap = css({
-  position: 'relative',
-  width: '100%',
-  '& input': { paddingLeft: '36px' },
-})
-const searchIcon = css({
-  position: 'absolute', left: '3', top: '50%', transform: 'translateY(-50%)',
-  color: 'icon.default', pointerEvents: 'none', zIndex: '1',
-})
 const listWrap = css({
   display: 'flex',
   flexDirection: 'column',
@@ -209,13 +190,24 @@ const itemRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'sp
 
 function set(v: string) {
   emit('update:modelValue', v)
-  searchTerm.value = ''
-  fieldText.value = props.allowCustomValue ? v : (props.options.find(o => o.value === v)?.label ?? '')
+  fieldText.value = props.options.find(o => o.value === v)?.label ?? v
 }
 
-// Combobox mode keeps the popover open while typing, so a search that matches
-// nothing would otherwise leave an empty bordered box hanging under the field.
-const noSuggestion = css({ paddingInline: '3', paddingBlock: '2', color: 'text.secondary' })
+// Creatable: offer `Add "<text>" as a <label>` unless the text already matches
+// an option label exactly (case-insensitive).
+const createCandidate = computed(() => {
+  if (!props.allowCustomValue) return ''
+  const t = activeSearchTerm.value
+  if (!t || props.options.some(o => o.label.toLowerCase() === t.toLowerCase())) return ''
+  return t
+})
+// The popover stays open while typing, so an empty result needs a message
+// rather than an empty bordered box.
+// Same box as MpPopoverListItem (8px 12px, 14/20), so it lines up with options.
+const noResults = css({ padding: '8px 12px', fontSize: '14px', lineHeight: '20px', color: 'text.secondary', textAlign: 'left', width: '100%' })
+const createItem = css({ justifyContent: 'center', paddingBlock: '16px' })
+const createItemDivider = css({ borderTop: '1px solid', borderTopColor: 'border.default' })
+const createText = css({ width: '100%', textAlign: 'center', color: 'text.link' })
 
 // searchOnField's trigger swaps MpSelect for a real MpInputGroup/MpInput field
 // (same chevrons-down-addon look as DashMultiSelectSearch.vue's own select-like
@@ -228,7 +220,7 @@ const fieldGroupClass = css({ cursor: 'text' })
   <div ref="rootEl" :style="wrapperStyle">
     <MpPopover is-close-on-select is-adaptive-width use-portal placement="bottom-start" :is-disabled="isDisabled">
       <MpPopoverTrigger>
-        <MpFlex v-if="searchOnField" :class="isDisabled ? undefined : fieldGroupClass">
+        <MpFlex v-if="onField" :class="isDisabled ? undefined : fieldGroupClass">
           <MpInputGroup :class="css({ width: '100%' })">
             <MpInput
               v-model="fieldText"
@@ -261,15 +253,6 @@ const fieldGroupClass = css({ cursor: 'text' })
         </MpFlex>
       </MpPopoverTrigger>
       <MpPopoverContent :style="popoverContentStyle">
-        <div v-if="searchable && !searchOnField" :class="searchBar" @click.stop>
-          <div :class="searchWrap">
-            <MpIcon name="search" :class="searchIcon" />
-            <MpInput
-              v-model="searchTerm"
-              :placeholder="searchPlaceholder ?? 'Search'"
-            />
-          </div>
-        </div>
         <!-- .prevent on mousedown (standard combobox technique) stops the
              browser's default focus-shift-to-the-clicked-item from blurring
              the searchOnField input mid-click. Without it: mousedown on a
@@ -282,10 +265,10 @@ const fieldGroupClass = css({ cursor: 'text' })
              unchanged. Harmless for the non-searchOnField list (nothing
              there depends on focus). -->
         <div :class="listWrap" class="px-select-list" @mousedown.prevent>
-        <MpText v-if="allowCustomValue && !filteredOptions.length" size="label" :class="noSuggestion">
-          No matching suggestion — what you typed will be used.
-        </MpText>
-        <MpPopoverList v-else>
+        <MpPopoverList>
+          <!-- Non-interactive row, padded exactly like MpPopoverListItem.
+               Creatable selects skip it: the "Add" link is the whole answer. -->
+          <div v-if="!filteredOptions.length && !createCandidate" :class="noResults">No results found</div>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
             <MpPopoverListItem
@@ -307,6 +290,11 @@ const fieldGroupClass = css({ cursor: 'text' })
               </slot>
             </MpPopoverListItem>
           </template>
+          <!-- Creatable: a centred link-coloured "Add “text”" row. When options
+               match it sits under them, split off by a default top border. -->
+          <MpPopoverListItem v-if="createCandidate" :class="[createItem, filteredOptions.length && createItemDivider]" @click="set(createCandidate)">
+            <span :class="createText">Add “{{ createCandidate }}”</span>
+          </MpPopoverListItem>
         </MpPopoverList>
         </div>
       </MpPopoverContent>

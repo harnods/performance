@@ -24,6 +24,15 @@ When is a create/edit a full page, a drawer, or a modal? Established split:
 
 - **Full page** (`pages/.../create.vue`, default layout + breadcrumb + page title): top-level create/edit of a **primary entity** — Review cycle, Competency assignment, Succession plan. Uses `definePageMeta({ title, layout: 'default', breadcrumb })`, the 12-col grid ([`form.md`](form.md)), and an in-form footer bar for the primary CTA.
 - **Drawer** (`MpDrawer placement="right"`): a **nested/secondary** editor invoked from within a page — one review method, a goal, a goal category, employee picker. Opened **only via a "Manage" / "Select…" secondary button**, never automatically on a toggle.
+- **Read-only detail drawer**: a right `MpDrawer` (`size="md"`, header + close
+  button, no footer) that shows details about something a record refers to.
+  It opens from a **"View details" link** (`MpText as="button"
+  size="label-small" color="text.link"`), not from a secondary button. The
+  page owns and mounts the drawer, so it can open over a modal. Example:
+  `CompetencyDetailDrawer.vue` ("Competency detail"), opened from the "Relates
+  to" group in the IDP action-plan Update modal (`IdpActionPlanViewModal.vue`,
+  which emits `viewCompetency`). See [modal.md](modal.md) and
+  [table.md](table.md) ("Relates to" cell).
 - **Modal** (`MpModal`): confirmation and small single-purpose inputs (purpose selection, disable-prefill confirm, save-cascade confirm).
 
 ## Drawer must open via "Manage", never on toggle

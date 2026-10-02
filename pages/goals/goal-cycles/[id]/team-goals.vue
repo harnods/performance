@@ -643,7 +643,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpFlex align="center" gap="2">
         <MpPopover use-portal placement="bottom-end">
           <MpPopoverTrigger>
-            <MpButton variant="ghost" left-icon="column-settings" aria-label="Column settings" title="Column settings" />
+            <MpButton variant="ghost" left-icon="table-view-column" aria-label="Column settings" title="Column settings" />
           </MpPopoverTrigger>
           <MpPopoverContent :class="css({ minWidth: '200px' })">
             <MpFlex direction="column" gap="2" :class="css({ padding: '2' })">

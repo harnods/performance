@@ -194,6 +194,7 @@ const competencyOptionCaption = css({ color: 'text.secondary' })
                 width="100%"
                 search-on-field
                 allow-custom-value
+                custom-value-label="category"
                 :maxlength="NAME_MAX"
               />
               <MpFormErrorMessage>{{ errors.category }}</MpFormErrorMessage>

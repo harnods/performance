@@ -26,6 +26,90 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '02 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'IDP list',
+        detail: 'Progress column now uses the goals-list track/fill bar with a right-aligned "N of M" (total semibold) above it, replacing MpProgress.',
+        files: ['pages/talents/idps/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'IDP store',
+        detail: 'localStorage plans now load after hydration, so a hard reload no longer leaves stale progress-bar widths from the SSR seed.',
+        files: ['composables/useIdpStore.ts'],
+      },
+      {
+        category: 'Feature',
+        area: 'IDP detail',
+        detail: 'Summary row matches production sizing (14/20 text, no vertical padding, equal-width status totals). "Relation" column renamed "Relates to" (name + "Competency" caption).',
+        files: ['pages/talents/idps/[id]/index.vue', 'docs/patterns/stat-card.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Action plan Update modal',
+        detail: 'Production paddings and layout; "Relates to" group shows Competency, the name and a "View details" link that opens the new read-only Competency detail drawer (target score by department).',
+        files: ['components/IdpActionPlanViewModal.vue', 'components/CompetencyDetailDrawer.vue', 'pages/talents/idps/[id]/index.vue', 'docs/patterns/modal.md', 'docs/patterns/page-form.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Create/edit development plan',
+        detail: 'Action-plan rows use a kebab menu (Edit / Delete) instead of separate icon buttons; "Relates to" column matches the detail page.',
+        files: ['components/IdpPlanForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'IDP detail',
+        detail: 'Relates to: competency name is link-coloured and opens the Competency detail drawer.',
+        files: ['pages/talents/idps/[id]/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Action plan Update modal',
+        detail: 'Header reads "Update action plan" (Pixel header padding); the name is a 20/600 title with its description below, as in the form; activity timestamps sit under each entry.',
+        files: ['components/IdpActionPlanViewModal.vue', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Demo',
+        detail: 'Demo-only coachmarks (orange pulses) flag what differs from production, with a bottom-left dev tools panel (show/hide, reset). All demo code lives in components/demo/, mounted once from app.vue behind runtimeConfig.public.demoMode, and is excluded from component auto-import. Product files carry no demo code.',
+        files: ['components/demo/DemoLayer.vue', 'components/demo/coachmarks.ts', 'components/demo/DevCoachmark.vue', 'components/demo/IdpDevTools.vue', 'components/demo/useDevCoachmarks.ts', 'app.vue', 'nuxt.config.ts', 'assets/css/main.css', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '02 Oct 2026',
+    module: 'Design system',
+    items: [
+      {
+        category: 'Feature',
+        area: 'PxSelectPopover',
+        detail: 'Searchable selects now search in the field itself; the search bar inside the popover is removed app-wide. Creatable selects (Category, Objective) offer "Add \"…\" as a {label}" instead of committing every keystroke.',
+        files: ['components/PxSelectPopover.vue', 'components/IdpActionPlanModal.vue', 'components/IdpPlanForm.vue', 'docs/patterns/form.md', 'CLAUDE.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Column settings',
+        detail: 'Column-settings buttons use the table-view-column icon everywhere.',
+        files: ['pages/talents/idps/index.vue', 'pages/talents/talent-directory/index.vue', 'pages/goals/goal-cycles/[id]/index.vue', 'pages/goals/goal-cycles/[id]/company-goals.vue', 'pages/goals/goal-cycles/[id]/organization-goals.vue', 'pages/goals/goal-cycles/[id]/team-goals.vue', 'pages/goals/goal-cycles/[id]/individual-goals.vue', 'docs/patterns/filter-bar.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'PxSelectPopover',
+        detail: 'Creatable selects show a centred, link-coloured "Add “…”" row when the typed text matches nothing; non-creatable selects show "No results found", padded like an option.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/form.md', 'CLAUDE.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Forms',
+        detail: 'No space between a field label and its required asterisk: Pixel\'s 4px margin zeroed globally, and hand-built asterisks no longer use a gap.',
+        files: ['assets/css/main.css', 'components/AddGoalDrawer.vue', 'components/AddKeyResultDrawer.vue', 'components/GoalCategoryFormDrawer.vue', 'components/GoalCycleInfoPanel.vue', 'components/SuccessionPromoteModal.vue', 'components/SuccessionReadinessModal.vue', 'pages/goals/goal-cycles/index.vue', 'pages/talents/succession-plans/create.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
     date: '23 Sep 2026',
     module: 'IDPs',
     items: [
@@ -205,6 +289,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         category: 'Fix',
         area: 'Create review cycle → Review period example banner',
         detail: 'Reworded the contract-example banner: title is now "6-month contract example" with a "Reviewed every 2 months · 3-day window" description line beneath it, and the redundant trailing summary line was removed.',
+        files: ['pages/reviews/review-cycles/create.vue'],
+      },
+      {
+        category: 'Chore',
+        area: 'Create review cycle → Review period (multiple)',
+        detail: 'Removed the "6-month contract example" illustrative card (title, description, and 3-column timeline) from the Multiple review periods section for the demo build.',
         files: ['pages/reviews/review-cycles/create.vue'],
       },
     ],

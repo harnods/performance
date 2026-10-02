@@ -200,6 +200,14 @@ const goalNameLink = css({ display: 'inline', color: 'text.link', cursor: 'point
 
 ## Row action menu (kebab) — branch on row state with `<template>`
 
+Icon-only row actions are a **kebab** (`MpButton variant="ghost" left-icon="menu-kebab"`)
+opening an `MpPopover` (`placement="bottom-end"`, `is-close-on-select`, `use-portal`)
+with the actions listed, and Delete in `text.danger`. Never use a row of separate
+edit/delete icon buttons. This includes in-form tables, such as `IdpPlanForm.vue`'s
+action-plan rows (Edit, Delete). Pages that already use a labelled "Actions" secondary
+button dropdown (e.g. the IDP detail table) keep it.
+
+
 The trailing action cell is a `MpPopover` + `MpPopoverList` of `MpPopoverListItem`s.
 When a row's **lifecycle state** changes which actions make sense, split the list into
 `<template v-if="…">` / `<template v-else>` blocks rather than hanging a `v-if` on every
@@ -458,17 +466,16 @@ Reference: `goal-cycles/[id]/index.vue` (`publishDraftsLink`,
 
 ## Progress column — native `MpProgress`, bar + "N of M", never a bare percentage
 
-A column reporting completion (IDP development plans, review-cycle publish
-status, etc.) is a bar **plus** the raw counts beside it — the bar alone can't
+A column reporting completion (review-cycle publish status, etc.) is a bar **plus** the raw counts beside it — the bar alone can't
 tell 1-of-2 from 50-of-100, and a lone "50%" hides how much work the row
 actually represents.
 
 **Use the native `MpProgress` component for the bar — don't hand-roll
 track/fill `<div>`s.** This was the dominant convention already
 (`review-cycles/index.vue`, `CycleDetailGeneral.vue`, the timeframe/instance
-review pages — 4+ table usages) before `talents/idps/index.vue` was fixed to
-match it; the hand-rolled version is a mistake to avoid repeating, not a
-second valid option.
+review pages — 4+ table usages). Don't invent a third bar style. The one
+exception is the **goals-style progress cell** below, which IDP now shares
+with the goals list.
 
 ```ts
 const progressWrap = css({ display: 'flex', alignItems: 'center', gap: '3', minWidth: '200px' })
@@ -512,7 +519,36 @@ hand-rolled `<div>` track/fill, because it needs a **per-row status colour**
 extra wiring. A plain single-colour done/total ratio in a table cell has no
 such need — reach for `MpProgress` there.
 
-Reference: `pages/talents/idps/index.vue`, `pages/reviews/review-cycles/index.vue` (Progress/Published columns).
+Reference: `pages/reviews/review-cycles/index.vue` (Progress/Published columns).
+
+### Goals-style progress cell (goals list + IDP)
+
+The goals list (`pages/goals/goal-cycles/[id]/individual-goals.vue`) and the
+IDP list (`pages/talents/idps/index.vue`) share the same hand-rolled
+track/fill bar: 8px tall, `border.default` track, radius full. Product asked
+for IDP to match goals, so don't switch either one to `MpProgress`.
+
+- **Goals:** value + % pill above the bar, min/max labels below it (3 lines,
+  so the table is `verticalAlign: 'top'`). Fill/pill colour follows the goal
+  status (teal / rose / gray).
+- **IDP (trimmed):** only a **right-aligned "N of M"** above the bar, with the total **M in semibold (600)**. There's
+  no % pill and no min/max row. The cell is 2 lines, so the table stays
+  `verticalAlign: 'middle'`. IDP has no off-track state, so the fill is
+  **teal when done > 0, gray at 0**.
+
+```vue
+<MpFlex direction="column" gap="1" :class="progressCellWidth">
+  <MpFlex justify="flex-end">
+    <MpText size="label" :class="css({ fontVariantNumeric: 'tabular-nums' })">{{ done }} of <span :class="css({ fontWeight: '600' })">{{ total }}</span></MpText>
+  </MpFlex>
+  <div :class="progressTrack">
+    <div :class="[progressFill, done > 0 ? fillGreen : fillGray]" :style="{ width: `${pct}%` }" />
+  </div>
+</MpFlex>
+```
+
+The fill width is the one inline `:style` allowed here because the value is
+dynamic, same as the goals list.
 
 ## Non-link name cell when a row already has its own detail button
 
@@ -671,3 +707,43 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 - [ ] Default table = no outer border; Custom table = `tableOuterBorder` + `useTableHorizontalScroll`
 - [ ] empty state: full replacement (no data) vs in-table row (filtered-to-zero)
 - [ ] pending/background-job rows merge into the real row list (never a separate table), skeleton only the not-yet-known columns, excluded from any "N goals" count, and gated behind `isMounted` if their source is client-only
+
+## "Relates to" cell — name + type caption
+
+IDP action-plan tables (`pages/talents/idps/[id]/index.vue` and
+`components/IdpPlanForm.vue`) have a **"Relates to"** column. Don't call it
+"Relation". The cell shows the linked item's name with its **type as a
+caption below** (12px `text.secondary`), with no icon.
+
+On the **plan detail page** the name is a link: `MpText as="button"
+size="label" color="text.link"` (`@click.stop`), and it opens
+`CompetencyDetailDrawer`. The column is `align="flex-start"` so the button
+doesn't stretch. In the **create/edit form** table the name is plain text:
+
+```vue
+<MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
+  <span>{{ a.relatedCompetency }}</span>
+  <span :class="subText">Competency</span>
+</MpFlex>
+<span v-else>-</span>
+```
+
+- The cell is 2 lines, so the table stays `verticalAlign: 'middle'`.
+- The competency's details are reached from the action-plan **Update modal**
+  (`IdpActionPlanViewModal.vue`). Its "Relates to" group has a **"View
+  details"** link (`MpText as="button" size="label-small" color="text.link"`;
+  don't use `MpTextlink` with a `css()` size override, since it has no size
+  variant and its `_base` layer outranks utilities). That link emits
+  `viewCompetency`, and the page opens `CompetencyDetailDrawer`. See modal.md.
+- **Mount the drawer in the branch that renders the content**, not in a
+  `v-else`/not-found branch. Otherwise it never mounts.
+
+### Competency detail drawer content
+
+`components/CompetencyDetailDrawer.vue`: no icon. The name (16/600) has its
+description (14px `text.secondary`) **directly under it**. Then comes
+**"Target score by department"** as an **H3**: a plain `<h3>` with
+16px/600/24, **not** `MpText`, whose default size overrides the class. It
+sits exactly **20px** below the description (`marginTop: '20px'`; spacing
+token `5` renders 20.8px). The table lists **only the departments whose
+competency set includes this competency**, with their target score.

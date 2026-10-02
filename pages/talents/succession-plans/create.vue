@@ -202,13 +202,13 @@ const captionText = css({ color: 'text.secondary' })
         <MpText :class="sectionCaption">Choose the position you're planning a successor for, then set the criteria candidates must meet.</MpText>
       </MpFlex>
       <MpFormControl id="key-position" :is-invalid="keyPositionInvalid">
-        <MpFormLabel>Key position <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+        <MpFormLabel>Key position<MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
         <PxSelectPopover v-model="keyPosition" :options="keyPositionOptions" placeholder="Select key position" :width="selectWidth" searchable />
         <MpFormHelpText>The role you want to prepare a successor for.</MpFormHelpText>
         <MpFormErrorMessage>You must select key position</MpFormErrorMessage>
       </MpFormControl>
       <MpFormControl id="organization" :is-invalid="organizationInvalid">
-        <MpFormLabel>Organization <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+        <MpFormLabel>Organization<MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
         <PxSelectPopover v-model="organization" :options="orgOptions" placeholder="Select organization" :width="selectWidth" searchable />
         <MpFormHelpText>The organization this position is for.</MpFormHelpText>
         <MpFormErrorMessage>You must select organization</MpFormErrorMessage>
@@ -254,7 +254,7 @@ const captionText = css({ color: 'text.secondary' })
       <template v-else>
         <!-- Scope dimension for this position (job level / grade / class) -->
         <MpFormControl id="scope-value" :is-invalid="scopeValueInvalid">
-          <MpFormLabel>{{ scopeLabel }} <MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
+          <MpFormLabel>{{ scopeLabel }}<MpText as="span" :class="reqMark">*</MpText></MpFormLabel>
           <PxSelectPopover v-model="scopeValue" :options="scopeValueOptions" :placeholder="`Select ${scopeLabel.toLowerCase()}`" :width="selectWidth" />
           <MpFormHelpText>Only {{ scopeLabel.toLowerCase() }} values with a competency assessment for this role are shown.</MpFormHelpText>
           <MpFormErrorMessage>You must select {{ scopeLabel.toLowerCase() }}</MpFormErrorMessage>

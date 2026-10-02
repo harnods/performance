@@ -13,7 +13,7 @@ import {
   MpFlex, MpButton, MpText, MpIcon, MpInput, MpInputGroup, MpInputLeftAddon,
   MpTable, MpTableContainer, MpTableHead, MpTableBody, MpTableRow, MpTableCell,
   MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem,
-  MpCheckbox, MpTooltip, MpTextlink, MpProgress, css,
+  MpCheckbox, MpTooltip, MpTextlink, css,
 } from '@mekari/pixel3'
 import { TALENTS } from '~/utils/talents'
 import { planProgress, focusLabel, focusPosition, type IdpPlan } from '~/utils/idp'
@@ -117,15 +117,14 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', white
 const nameText = css({ fontSize: '14px', fontWeight: '600', color: 'text.default' })
 const subText = css({ fontSize: '12px', color: 'text.secondary' })
 const captionText = css({ color: 'text.secondary' })
-const progressWrap = css({ display: 'flex', alignItems: 'center', gap: '3', minWidth: '200px' })
-// MpProgress fills its container's width, so the same flex:1 wrapper the
-// hand-rolled track used still controls layout — only the bar itself is now
-// the native component. Color override matches the repo's own teal convention
-// for MpProgress (review-cycles/index.vue, CycleDetailGeneral.vue) rather than
-// its built-in stone/violet options, which don't fit the "on track" green.
-const progressBar = css({ flex: '1' })
-const tealProgress = css({ '& .mp-progress__linear': { backgroundColor: 'teal.400' } })
-const progressCount = css({ fontSize: '12px', whiteSpace: 'nowrap', fontVariantNumeric: 'tabular-nums' })
+// Goals-list track/fill (goal-cycles/[id]/individual-goals.vue), trimmed for
+// IDP: right-aligned "N of M" above the bar, no % pill, no min/max row. IDP has
+// no off-track state, so the fill is teal once any action plan is done.
+const progressCellWidth = css({ width: '100%', minWidth: '200px' })
+const progressTrack = css({ width: '100%', height: '8px', borderRadius: 'full', background: 'border.default', overflow: 'hidden' })
+const progressFill = css({ height: '100%', borderRadius: 'full' })
+const fillGreen = css({ background: 'teal.400' })
+const fillGray = css({ background: 'gray.400' })
 const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
 const emptyIllustration = css({ height: '240px', width: 'auto' })
 const emptyTextWrap = css({ maxWidth: '420px' })
@@ -160,7 +159,7 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
         <MpPopover use-portal placement="bottom-start">
           <MpPopoverTrigger>
             <MpTooltip label="Column settings" use-portal>
-              <MpButton variant="secondary" left-icon="column-settings" right-icon="chevrons-down" aria-label="Column settings" />
+              <MpButton variant="secondary" left-icon="table-view-column" right-icon="chevrons-down" aria-label="Column settings" />
             </MpTooltip>
           </MpPopoverTrigger>
           <MpPopoverContent>
@@ -231,14 +230,14 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
               <MpTableCell v-if="visible.jobLevel" as="td" :class="cell">{{ talentById(p.employeeId)?.jobLevel || '-' }}</MpTableCell>
               <MpTableCell v-if="visible.employmentType" as="td" :class="cell">{{ talentById(p.employeeId)?.employmentType || '-' }}</MpTableCell>
               <MpTableCell as="td" :class="cell">
-                <div :class="progressWrap">
-                  <MpProgress variant="linear" size="sm" :class="[progressBar, tealProgress]" :value="planProgress(p).percent" />
-                  <span :class="progressCount">
-                    <span :class="css({ color: planProgress(p).done >= planProgress(p).total && planProgress(p).total > 0 ? 'text.default' : 'text.secondary' })">{{ planProgress(p).done }}</span>
-                    <span :class="captionText"> of </span>
-                    <span :class="css({ fontWeight: '600' })">{{ planProgress(p).total }}</span>
-                  </span>
-                </div>
+                <MpFlex direction="column" gap="1" :class="progressCellWidth">
+                  <MpFlex justify="flex-end">
+                    <MpText size="label" :class="css({ color: 'text.default', fontVariantNumeric: 'tabular-nums' })">{{ planProgress(p).done }} of <span :class="css({ fontWeight: '600' })">{{ planProgress(p).total }}</span></MpText>
+                  </MpFlex>
+                  <div :class="progressTrack">
+                    <div :class="[progressFill, planProgress(p).done > 0 ? fillGreen : fillGray]" :style="{ width: `${planProgress(p).percent}%` }" />
+                  </div>
+                </MpFlex>
               </MpTableCell>
               <MpTableCell as="td" :class="actionCell">
                 <MpButton variant="secondary" @click="openDetail(p.id)">View detail</MpButton>

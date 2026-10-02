@@ -268,49 +268,6 @@ const footerBar = css({
   paddingTop: '4',
 })
 
-// Multiple review period banner
-const bannerBox = css({
-  background: 'background.neutral.subtle',
-  border: '1px solid',
-  borderColor: 'border.default',
-  borderRadius: 'md',
-  padding: '4',
-})
-
-const timelineWrapper = css({
-  position: 'relative',
-  display: 'flex',
-  justifyContent: 'space-between',
-  marginBottom: '2',
-  paddingTop: '1',
-})
-
-const timelineConnector = css({
-  position: 'absolute',
-  top: '9px',
-  left: '16%',
-  right: '16%',
-  height: '2px',
-  background: 'background.brand.bold',
-})
-
-const timelineDot = css({
-  width: '10px',
-  height: '10px',
-  borderRadius: 'full',
-  background: 'background.brand.bold',
-  marginBottom: '2',
-  flexShrink: '0',
-})
-
-const timelineCol = css({
-  display: 'flex',
-  flexDirection: 'column',
-  alignItems: 'center',
-  gap: '0',
-  flex: '1',
-})
-
 function onCancel() {
   router.push('/reviews/review-cycles')
 }
@@ -480,42 +437,6 @@ function onSave() {
               <MpBannerIcon />
               <MpBannerDescription>This configuration may generate a high number of review periods per employee depending on their contract duration.</MpBannerDescription>
             </MpBanner>
-
-            <!-- Explanatory banner -->
-            <div :class="bannerBox">
-              <MpText size="label" :class="css({ fontWeight: '600', color: 'text.default', display: 'block' })">
-                6-month contract example
-              </MpText>
-              <MpText size="label-small" color="text.secondary" :class="css({ display: 'block', marginBottom: '3' })">
-                Reviewed every 2 months · 3-day window
-              </MpText>
-
-              <!-- Timeline -->
-              <div :class="timelineWrapper">
-                <div :class="timelineConnector" />
-                <div :class="timelineCol">
-                  <div :class="timelineDot" />
-                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Period 1</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 2</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days after month 2</MpText>
-                </div>
-                <div :class="timelineCol">
-                  <div :class="timelineDot" />
-                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Period 2</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 4</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days after month 4</MpText>
-                </div>
-                <div :class="timelineCol">
-                  <div :class="timelineDot" />
-                  <MpText size="label-small" :class="css({ fontWeight: '600', color: 'text.default', textAlign: 'center' })">Final</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">Month 6</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center', marginTop: '1' })">Review period</MpText>
-                  <MpText size="label-small" color="text.secondary" :class="css({ textAlign: 'center' })">3 days before end</MpText>
-                </div>
-              </div>
-            </div>
           </div>
         </template>
 
