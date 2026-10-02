@@ -9,12 +9,13 @@ the viewport is deliberately reserved for dev affordances so it reads as "not pa
 product" at a glance. Real actions live in `#page-header-actions`, a filter bar, or a
 table's action column — see [`header-bar.md`](header-bar.md) and [`buttons.md`](buttons.md).
 
-Two exist today:
+Three exist today:
 
 | Where | What it previews |
 |---|---|
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
+| `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 
 ## The FAB is fixed — copy it exactly
 

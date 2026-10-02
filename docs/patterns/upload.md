@@ -7,7 +7,7 @@ Two shapes coexist, picked by what's being uploaded — don't mix them.
 | Use for | a single spreadsheet import | any number of loose attachments on a record (an action plan, a form) |
 | Trigger | full dashed drop target, drag-or-click | `MpUpload`'s "Choose file" button |
 | File count | one; picking a new file replaces it | any number; each add appends |
-| Reference | `components/CompetencyUploadResults.vue` | `components/IdpActionPlanModal.vue` |
+| Reference | `components/CompetencyUploadResults.vue`, `components/UploadPage.vue` | `components/IdpActionPlanModal.vue` |
 
 ## Dropzone (single spreadsheet import)
 
@@ -183,3 +183,28 @@ const fileName = css({ flex: '1', overflow: 'hidden', textOverflow: 'ellipsis', 
   failures.
 - Toasts are reserved for the *successful* hand-off after Process upload (dropzone
   only), not for per-file errors on either shape.
+
+
+## Upload page with a template download (`components/UploadPage.vue`)
+
+A full page for "download our template → fill it → upload it back", migrated from
+talenta-review's `UploadPage`. Used by competency item **Upload .xlsx** and **Edit bulk item**
+(`components/competency-item/Upload.vue`, one component on two routes).
+
+Order, in a 552px column with 24px gaps:
+1. **"Download the template"** (20/600 title) + a 14px `text.secondary` line.
+2. **Template row**: a bordered `button` (1px `border.default`, radius md, 16px padding, white,
+   hover `background.neutral.subtle`) with the `excel-document` icon, the template file name
+   (16/600), and a trailing `download` icon.
+3. **"Please note that:"** (16/600) + tips, each an `indicator-circle` icon (sm) + 14px
+   `text.secondary` text.
+4. **"Upload spreadsheet"** label + the **dropzone** above (240px tall here). Once a file is
+   chosen it becomes a bordered file row with a ghost `close` button.
+5. Error output: `MpBanner variant="danger"` for one message, or a "File errors" label + a
+   banner listing row errors.
+6. Footer: **Cancel** (ghost) + the submit (primary, label from `submitText`, e.g. "Save
+   changes" for bulk edit), right-aligned. The submit is **never disabled**: with no file it shows
+   "Please upload a spreadsheet first" on the dropzone.
+
+The download, upload and processing are mocked in the prototype. A file whose name contains
+"error" demos the row-error banner.

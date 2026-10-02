@@ -26,6 +26,18 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '02 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Competency items',
+        detail: 'Migrated the competency item pages from talenta-review (010875214aba) as a static prototype: list (search, sort, bulk select, kebab, delete / unable-to-delete flows, pagination), full-size Create/Edit item modal with rating scale, Upload .xlsx and Edit bulk item pages, and a Filled/Empty scenario control. Mock data verified against talenta-noncore-api (cde912f): Applied counts competency groups only, newest-first order, Novice…Proficient default ratings, FE toast copy.',
+        files: ['pages/talents/competencies/items/index.vue', 'pages/talents/competencies/items/upload.vue', 'pages/talents/competencies/items/bulk-edit.vue', 'components/competency-item/ModalForm.vue', 'components/competency-item/Upload.vue', 'components/rating-scale/ModalForm.vue', 'components/UploadPage.vue', 'components/CompetencyItemScenarioControl.vue', 'composables/useCompetencyItemStore.ts', 'utils/competencyItem.ts', 'docs/patterns/page-form.md', 'docs/patterns/upload.md', 'docs/patterns/checkbox.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '23 Sep 2026',
     module: 'IDPs',
     items: [
