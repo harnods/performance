@@ -125,8 +125,8 @@ Custom popover-driven select. Always use this for form dropdowns.
 />
 ```
 Searchable = type in the field itself (no search bar inside the popover). For a
-user-addable value use `allow-custom-value` + `custom-value-label` ("Add as a
-{label}"). See `docs/patterns/form.md`.
+user-addable value use `allow-custom-value` (centred link-coloured "Add “…”"
+row). See `docs/patterns/form.md`.
 
 ### `PxNoAssignmentNotice`
 Empty state notice for pages with no assignments yet.

@@ -87,17 +87,25 @@ UI in one shared modal component, rather than duplicating both per page. See
 `ModalViewActionPlan`. Its spacing was measured off production, so mirror it
 for similar two-column "view one record" modals:
 
-- **Padding:** header `20px 24px`, body `24px 24px 40px`. Pixel's default is
-  16px, so it's overridden with the same scoped `:global(...) !important`
-  rule as the 80px top margin.
+- **Padding:** the **header keeps Pixel's own `MpModalHeader` padding**
+  (12px 16px, 55px tall). Never override the header. The body is
+  `24px 24px 40px`, matching production, via the same scoped
+  `:global(...) !important` rule as the 80px top margin.
 - **Grid:** `1fr 280px`, with a 32px gap. Left column (description,
   attachments, activity) has 24px between sections. Right column has 20px
   between label/value groups.
 - **Right-column groups:** the label is 14/20 `text.secondary`, 4px above the
   value. The value is 14/20 semibold.
+- **Header** is the generic action, **"Update action plan"**, not the record's
+  name.
+- **Record title in the content:** the action plan's name opens the left
+  column as a title, with its description directly under it. It uses the same
+  pattern and sizes as the form's section header (`IdpPlanForm`): 20/600/32
+  `text.default` title and 14/20 `text.secondary` description ("No
+  description" when empty).
 - **Activity rows:** `lg` avatar with 12px to the text, and 12px between rows.
-  The timestamp sits **inline after the sentence** (12px apart, 14px
-  `text.secondary`), not on its own line.
+  The timestamp sits **under the sentence as its description** (12/16
+  `text.secondary`).
 - **"Relates to" group** (`relatedTo === 'competency'`), three lines:
   "Competency" (value style), then the competency name (14/20
   `text.secondary`), then a **"View details"** link (`MpText as="button"

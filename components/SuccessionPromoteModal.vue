@@ -68,7 +68,7 @@ const req = css({ color: 'text.danger' })
           </div>
           <div :class="divider" />
           <MpFormControl id="promote-key-position" :is-invalid="keyPosInvalid">
-            <MpFormLabel>Promote to key position <MpText as="span" :class="req">*</MpText></MpFormLabel>
+            <MpFormLabel>Promote to key position<MpText as="span" :class="req">*</MpText></MpFormLabel>
             <!-- Single option → nothing to choose; keep the select but disable it (pre-selected) -->
             <PxSelectPopover v-model="keyPos" :options="options" placeholder="Select position" :width="'100%'" :is-disabled="options.length === 1" />
             <MpFormErrorMessage>You must select key position</MpFormErrorMessage>

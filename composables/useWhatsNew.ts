@@ -59,6 +59,24 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Action-plan rows use a kebab menu (Edit / Delete) instead of separate icon buttons; "Relates to" column matches the detail page.',
         files: ['components/IdpPlanForm.vue', 'docs/patterns/table.md'],
       },
+      {
+        category: 'Feature',
+        area: 'IDP detail',
+        detail: 'Relates to: competency name is link-coloured and opens the Competency detail drawer.',
+        files: ['pages/talents/idps/[id]/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Action plan Update modal',
+        detail: 'Header reads "Update action plan" (Pixel header padding); the name is a 20/600 title with its description below, as in the form; activity timestamps sit under each entry.',
+        files: ['components/IdpActionPlanViewModal.vue', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Demo',
+        detail: 'Demo-only coachmarks (orange pulses) flag what differs from production, with a bottom-left dev tools panel (show/hide, reset). All demo code lives in components/demo/, mounted once from app.vue behind runtimeConfig.public.demoMode, and is excluded from component auto-import. Product files carry no demo code.',
+        files: ['components/demo/DemoLayer.vue', 'components/demo/coachmarks.ts', 'components/demo/DevCoachmark.vue', 'components/demo/IdpDevTools.vue', 'components/demo/useDevCoachmarks.ts', 'app.vue', 'nuxt.config.ts', 'assets/css/main.css', 'docs/patterns/dev-scenario-control.md'],
+      },
     ],
   },
   {
@@ -76,6 +94,18 @@ export const CHANGELOG: ChangelogEntry[] = [
         area: 'Column settings',
         detail: 'Column-settings buttons use the table-view-column icon everywhere.',
         files: ['pages/talents/idps/index.vue', 'pages/talents/talent-directory/index.vue', 'pages/goals/goal-cycles/[id]/index.vue', 'pages/goals/goal-cycles/[id]/company-goals.vue', 'pages/goals/goal-cycles/[id]/organization-goals.vue', 'pages/goals/goal-cycles/[id]/team-goals.vue', 'pages/goals/goal-cycles/[id]/individual-goals.vue', 'docs/patterns/filter-bar.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'PxSelectPopover',
+        detail: 'Creatable selects show a centred, link-coloured "Add “…”" row when the typed text matches nothing; non-creatable selects show "No results found", padded like an option.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/form.md', 'CLAUDE.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Forms',
+        detail: 'No space between a field label and its required asterisk: Pixel\'s 4px margin zeroed globally, and hand-built asterisks no longer use a gap.',
+        files: ['assets/css/main.css', 'components/AddGoalDrawer.vue', 'components/AddKeyResultDrawer.vue', 'components/GoalCategoryFormDrawer.vue', 'components/GoalCycleInfoPanel.vue', 'components/SuccessionPromoteModal.vue', 'components/SuccessionReadinessModal.vue', 'pages/goals/goal-cycles/index.vue', 'pages/talents/succession-plans/create.vue', 'docs/patterns/form.md'],
       },
     ],
   },

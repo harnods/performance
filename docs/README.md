@@ -63,7 +63,7 @@ Sequence for any UI work:
 | [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, gate/confirmation modals (validate on the triggering action, share logic via a composable), and the read-only two-column record modal (production paddings). |
 | [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon. |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
-| [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, and the rules for faking data safely. |
+| [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, the rules for faking data safely, and **dev coachmarks** (pulses flagging what is new vs production). |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |
 | [`patterns/archive-cycle.md`](patterns/archive-cycle.md) | The "All goals from 2020-2025" archive cycle — what's allowed on its goals vs. the cycle itself, and hiding Import/New goals + dev tools on all 5 of its tabs. |
 

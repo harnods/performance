@@ -276,7 +276,7 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
             <!-- Name -->
             <MpFormControl id="kr-name" :is-invalid="errors.name">
               <div :class="labelRow">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Key result name</MpFormLabel>
                   <MpText size="label" :class="reqStar">*</MpText>
                 </MpFlex>
@@ -300,7 +300,7 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
 
             <!-- Measurement unit (+ inline per-unit fields — mirrors Add Goal) -->
             <MpFormControl id="kr-unit">
-              <MpFlex align="center" gap="1">
+              <MpFlex align="center" gap="0">
                 <MpFormLabel>Measurement unit</MpFormLabel>
                 <MpText size="label" :class="reqStar">*</MpText>
               </MpFlex>
@@ -375,7 +375,7 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
                           <MpFormErrorMessage>{{ startError }}</MpFormErrorMessage>
                         </MpFormControl>
                         <MpFormControl id="kr-target" :class="css({ flex: '1' })" :is-invalid="errors.target">
-                          <MpFlex align="center" gap="1">
+                          <MpFlex align="center" gap="0">
                             <MpFormLabel>Target</MpFormLabel>
                             <MpText size="label" :class="reqStar">*</MpText>
                           </MpFlex>
@@ -398,7 +398,7 @@ const addLink = css({ display: 'inline-flex', alignItems: 'center', gap: '2', wi
 
             <!-- Goal direction (mirrors Add Goal) — hidden for Deadline -->
             <MpFormControl v-if="!isDeadline" id="kr-direction">
-              <MpFlex align="center" gap="1">
+              <MpFlex align="center" gap="0">
                 <MpFormLabel>Goal direction</MpFormLabel>
                 <MpText size="label" :class="reqStar">*</MpText>
               </MpFlex>

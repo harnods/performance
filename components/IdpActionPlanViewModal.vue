@@ -75,7 +75,8 @@ const infoLabel = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
 const infoValue = css({ fontSize: '14px', lineHeight: '20px', fontWeight: '600', color: 'text.default' })
 const infoSub = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const sectionTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default', marginBottom: '12px' })
-const descText = css({ color: 'text.default', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' })
+const planTitle = css({ display: 'block', fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default', overflowWrap: 'anywhere' })
+const planDesc = css({ display: 'block', fontSize: '14px', lineHeight: '20px', color: 'text.secondary', whiteSpace: 'pre-wrap', overflowWrap: 'break-word' })
 const captionText = css({ color: 'text.secondary' })
 const fileRow = css({ display: 'flex', alignItems: 'center', gap: '2', fontSize: '14px', paddingBlock: '1' })
 const fileName = css({ overflow: 'hidden', textOverflow: 'ellipsis', whiteSpace: 'nowrap', color: 'text.default' })
@@ -98,8 +99,9 @@ const assigneeList = css({ display: 'flex', flexDirection: 'column', gap: '3', m
 const assigneeRow = css({ display: 'flex', alignItems: 'center', gap: '2' })
 const activityList = css({ display: 'flex', flexDirection: 'column', gap: '12px' })
 const activityRow = css({ display: 'flex', alignItems: 'center', gap: '12px' })
-// Production puts the timestamp inline after the sentence, 12px apart.
-const activityLine = css({ display: 'flex', alignItems: 'baseline', flexWrap: 'wrap', columnGap: '12px' })
+// Timestamp sits under the sentence as its description.
+const activityLine = css({ display: 'flex', flexDirection: 'column' })
+const activityTime = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 </script>
 
@@ -109,16 +111,19 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
       <MpModalOverlay />
       <MpModalContent>
         <MpModalHeader>
-          {{ actionPlan?.name }}
+          Update action plan
           <MpModalCloseButton @click="close" />
         </MpModalHeader>
         <MpModalBody>
           <div v-if="actionPlan" :class="bodyGrid">
             <!-- Left: description, attachments, activity -->
             <div :class="leftCol">
-              <MpText :class="actionPlan.description ? descText : captionText">
-                {{ actionPlan.description || 'No description' }}
-              </MpText>
+              <!-- Title + description, same pattern and sizes as IdpPlanForm's
+                   section header (20/600/32 title, 14/20 text.secondary). -->
+              <div>
+                <span :class="planTitle">{{ actionPlan.name }}</span>
+                <span :class="planDesc">{{ actionPlan.description || 'No description' }}</span>
+              </div>
 
               <div v-if="actionPlan.attachments.length">
                 <MpText :class="sectionTitle">Attachment</MpText>
@@ -147,7 +152,7 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
                         <MpText as="span" weight="semiBold">{{ talentById(act.userId)?.name ?? 'Someone' }}</MpText>
                         {{ ' ' }}{{ act.content }}
                       </span>
-                      <span :class="[activityText, captionText]">{{ formatActivityAt(act.at) }}</span>
+                      <span :class="activityTime">{{ formatActivityAt(act.at) }}</span>
                     </div>
                   </div>
                 </div>
@@ -254,11 +259,8 @@ const activityText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
 :global(.idp-view-modal [data-pixel-component='MpModalContent']) {
   margin-top: 80px !important;
 }
-/* Production's ModalViewActionPlan padding: 24px sides (Pixel default is
-   16px), 20px header block, 40px under the last value. */
-:global(.idp-view-modal [data-pixel-component='MpModalHeader']) {
-  padding: 20px 24px !important;
-}
+/* Header keeps Pixel's own MpModalHeader padding. Body uses production's
+   ModalViewActionPlan padding: 24px sides, 40px under the last value. */
 :global(.idp-view-modal [data-pixel-component='MpModalBody']) {
   padding: 24px 24px 40px !important;
 }

@@ -713,8 +713,12 @@ Rule of thumb: genuinely empty dataset → (a); filtered-to-zero → (b).
 IDP action-plan tables (`pages/talents/idps/[id]/index.vue` and
 `components/IdpPlanForm.vue`) have a **"Relates to"** column. Don't call it
 "Relation". The cell shows the linked item's name with its **type as a
-caption below** (12px `text.secondary`). There's no icon and no link in the
-table:
+caption below** (12px `text.secondary`), with no icon.
+
+On the **plan detail page** the name is a link: `MpText as="button"
+size="label" color="text.link"` (`@click.stop`), and it opens
+`CompetencyDetailDrawer`. The column is `align="flex-start"` so the button
+doesn't stretch. In the **create/edit form** table the name is plain text:
 
 ```vue
 <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">

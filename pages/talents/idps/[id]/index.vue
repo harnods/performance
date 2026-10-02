@@ -165,7 +165,8 @@ const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' 
 // (docs/patterns/table.md's numeric-cols idiom).
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
-// Update modal's "Relates to" → View details: read-only competency drawer.
+// Competency detail drawer: opened from the table's competency name and the
+// Update modal's "Relates to" → View details.
 const competencyDetail = ref<string | null>(null)
 const isCompetencyOpen = ref(false)
 function openCompetency(name: string) { competencyDetail.value = name; isCompetencyOpen.value = true }
@@ -239,8 +240,8 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
                 <MpTableCell as="td" :class="cell">{{ a.name }}</MpTableCell>
                 <MpTableCell as="td" :class="cell">{{ a.category }}</MpTableCell>
                 <MpTableCell as="td" :class="cell">
-                  <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
-                    <span>{{ a.relatedCompetency }}</span>
+                  <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" align="flex-start" gap="0">
+                    <MpText as="button" type="button" size="label" color="text.link" @click.stop="openCompetency(a.relatedCompetency)">{{ a.relatedCompetency }}</MpText>
                     <span :class="subText">Competency</span>
                   </MpFlex>
                   <span v-else>-</span>
@@ -333,6 +334,7 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
     />
 
     <CompetencyDetailDrawer :is-open="isCompetencyOpen" :competency="competencyDetail" @close="isCompetencyOpen = false" />
+
   </template>
 
   <MpFlex v-else :class="notFound">

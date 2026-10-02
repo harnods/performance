@@ -23,7 +23,7 @@ Every field: `MpFormControl` (with `id`) + `MpFormLabel` + `MpFormErrorMessage`.
 
 ### Required marker
 
-⚠️ Two conventions coexist. **Preferred: `:is-required="true"` on `MpFormControl`** (built-in, `competencies/create.vue:477`). The drawers roll a manual red asterisk (`MpFlex align="center" gap="1"` + `<MpText :class="css({ color: 'text.danger' })">*</MpText>`, `AddGoalDrawer.vue:580-584`). Pick one per form; don't mix.
+⚠️ Two conventions coexist. **Preferred: `:is-required="true"` on `MpFormControl`** (built-in, `competencies/create.vue:477`). The drawers roll a manual red asterisk (`MpFlex align="center" gap="0"` + `<MpText :class="css({ color: 'text.danger' })">*</MpText>`, `AddGoalDrawer.vue`). Pick one per form; don't mix. **Either way, there's no space between the label and the asterisk**: the manual wrapper is `gap="0"`, there's no whitespace before an inline `*`, and the built-in marker's 4px Pixel margin is zeroed in `main.css`.
 
 ### Help text
 
@@ -35,7 +35,7 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `customValueLabel`, `maxlength`. `searchPlaceholder` is deprecated and ignored.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `maxlength` (`customValueLabel` deprecated). `searchPlaceholder` is deprecated and ignored.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
@@ -112,35 +112,39 @@ field reach the toggle.
 `PxSelectPopover.vue` measures the trigger with a `ResizeObserver` and passes
 an explicit width to `MpPopoverContent`. This is automatic for every usage.
 
-### Creatable selects: the "Add as a {label}" pattern
+### Creatable selects: the centred "Add “…”" row
 
 When the user may add a value that isn't in the list (an open vocabulary such
 as an action plan's **Category** or a plan's **Objective**), pass
-`allow-custom-value` plus `custom-value-label`. It implies field search:
+`allow-custom-value`. It implies field search:
 
 ```vue
-<!-- IdpActionPlanModal.vue (Category); IdpPlanForm.vue (Objective, label "objective") -->
+<!-- IdpActionPlanModal.vue (Category); IdpPlanForm.vue (Objective) -->
 <PxSelectPopover
   v-model="category"
   :options="categoryOptions"
   placeholder="Select or type a category"
   width="100%"
   allow-custom-value
-  custom-value-label="category"
   :maxlength="NAME_MAX"
 />
 ```
 
 - When the typed text matches no option label exactly (case-insensitive), the
-  list ends with **`Add "<typed text>" as a category`**. The article is
-  automatic: "as an objective".
+  list offers a single row: **`Add “<typed text>”`**, centred, in
+  `text.link`, with 16px vertical padding. It has no icon, no type noun and no
+  "No results found" line above it. The Add row is the whole answer.
+- When some options **do** match, the same Add row sits under them with a 1px
+  `border.default` top border.
+- A **non-creatable** select with no match shows "No results found": a
+  non-interactive row inside `MpPopoverList`, padded like an option
+  (`8px 12px`, 14/20, `text.secondary`, left-aligned).
 - **Nothing is committed per keystroke.** The value is set only by picking an
-  option or the "Add as" item. Blurring without picking reverts, the same as a
-  closed list.
+  option or the Add row. Blurring without picking reverts.
 - A saved custom value has no option, so the field shows the raw value.
 - `:maxlength` caps the typed text to match the field's character counter.
-  The counter reads the **model**, so it updates once a value is picked, not
-  while typing.
+  The counter reads the **model**, so it updates once a value is picked.
+- `custom-value-label` is deprecated and ignored.
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
@@ -580,8 +584,12 @@ A field can be locally valid but still violate a rule that depends on state outs
 ## Rules
 
 - Field = `MpFormControl` + `MpFormLabel` (+ `MpFormErrorMessage`). Required via `:is-required`.
+- **The required asterisk sits flush against the label, with no space** ("Objective*").
+  Pixel's `_base` layer gives `.mp-form-control__required` a 4px `margin-left`;
+  `assets/css/main.css` zeroes it globally with an unlayered rule. Don't add spacing back
+  per field.
 - Dropdowns = `PxSelectPopover`, width ≈50% of form column.
-- Searchable select → `searchable` (search happens in the field, never a search bar in the popover). Open vocabulary (has a character counter) → `allow-custom-value` + `custom-value-label` + `:maxlength` ("Add as a {label}").
+- Searchable select → `searchable` (search happens in the field, never a search bar in the popover). Open vocabulary (has a character counter) → `allow-custom-value` + `:maxlength` (centred "Add “…”" row).
 - Section headers hand-rolled (`h2Class`/`h3Class`), never `MpText size="h2"`.
 - No cards / no divider lines between sections — spacing + row border-bottom.
 - Toggle/checkbox/radio use built-in label + `#description` slots.

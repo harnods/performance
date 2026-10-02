@@ -33,10 +33,11 @@ const props = defineProps<{
   searchPlaceholder?: string
   searchOnField?: boolean
   // Creatable (implies field search): when the typed text matches no option,
-  // the list offers `Add "<text>" as a <customValueLabel>`. Picking it sets the
+  // the list offers a centred `Add “<text>”` row. Picking it sets the
   // value. Nothing is committed per keystroke. Used for open vocabularies
   // (IDP objective, action-plan category). See docs/patterns/form.md.
   allowCustomValue?: boolean
+  /** @deprecated The Add row no longer names the type. */
   customValueLabel?: string
   // Character cap for the `searchOnField` input, so a free-text field can carry
   // the same limit its character counter advertises.
@@ -200,13 +201,13 @@ const createCandidate = computed(() => {
   if (!t || props.options.some(o => o.label.toLowerCase() === t.toLowerCase())) return ''
   return t
 })
-const createNoun = computed(() => {
-  const noun = props.customValueLabel ?? 'value'
-  return `${/^[aeiou]/i.test(noun) ? 'an' : 'a'} ${noun}`
-})
 // The popover stays open while typing, so an empty result needs a message
 // rather than an empty bordered box.
-const noResults = css({ paddingInline: '3', paddingBlock: '2', color: 'text.secondary' })
+// Same box as MpPopoverListItem (8px 12px, 14/20), so it lines up with options.
+const noResults = css({ padding: '8px 12px', fontSize: '14px', lineHeight: '20px', color: 'text.secondary', textAlign: 'left', width: '100%' })
+const createItem = css({ justifyContent: 'center', paddingBlock: '16px' })
+const createItemDivider = css({ borderTop: '1px solid', borderTopColor: 'border.default' })
+const createText = css({ width: '100%', textAlign: 'center', color: 'text.link' })
 
 // searchOnField's trigger swaps MpSelect for a real MpInputGroup/MpInput field
 // (same chevrons-down-addon look as DashMultiSelectSearch.vue's own select-like
@@ -264,10 +265,10 @@ const fieldGroupClass = css({ cursor: 'text' })
              unchanged. Harmless for the non-searchOnField list (nothing
              there depends on focus). -->
         <div :class="listWrap" class="px-select-list" @mousedown.prevent>
-        <MpText v-if="!filteredOptions.length && !createCandidate" size="label" :class="noResults">
-          No results found
-        </MpText>
-        <MpPopoverList v-else>
+        <MpPopoverList>
+          <!-- Non-interactive row, padded exactly like MpPopoverListItem.
+               Creatable selects skip it: the "Add" link is the whole answer. -->
+          <div v-if="!filteredOptions.length && !createCandidate" :class="noResults">No results found</div>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
             <MpPopoverListItem
@@ -289,8 +290,10 @@ const fieldGroupClass = css({ cursor: 'text' })
               </slot>
             </MpPopoverListItem>
           </template>
-          <MpPopoverListItem v-if="createCandidate" @click="set(createCandidate)">
-            Add "{{ createCandidate }}" as {{ createNoun }}
+          <!-- Creatable: a centred link-coloured "Add “text”" row. When options
+               match it sits under them, split off by a default top border. -->
+          <MpPopoverListItem v-if="createCandidate" :class="[createItem, filteredOptions.length && createItemDivider]" @click="set(createCandidate)">
+            <span :class="createText">Add “{{ createCandidate }}”</span>
           </MpPopoverListItem>
         </MpPopoverList>
         </div>
