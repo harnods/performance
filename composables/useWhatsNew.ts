@@ -53,6 +53,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Brought the demo-only coachmark layer from fix/IDP (DemoLayer, DevCoachmark, useDevCoachmarks; not auto-imported, off with NUXT_PUBLIC_DEMO_MODE=false) and added evaluation-cycle coachmarks plus EvaluationCycleDevTools (bottom-left FAB: Edit cycle (read-only) switch + show/reset coachmarks).',
         files: ['components/demo/', 'app.vue', 'nuxt.config.ts', 'assets/css/main.css', 'docs/patterns/dev-scenario-control.md'],
       },
+      {
+        category: 'Fix',
+        area: 'Create new cycle (Evaluation) · Employee filter',
+        detail: 'Value picker options didn\'t tick on a real mouse click: clicking the checkbox label text fired a second (synthetic) click that toggled the row back. Rows now toggle on click.prevent (also fixes the dashboard picker). Turned off browser autofill on type-in select fields so Chrome\'s suggestion bubble no longer covers the Pixel popover. With 2+ rows every row (top included) has a remove button; a lone row never does. The value-field demo pulse is pinned to the field\'s corner, so it no longer shifts the first row\'s remove button or stretches the "and" divider.',
+        files: ['components/DashMultiSelectSearch.vue', 'components/PxSelectPopover.vue', 'pages/reviews/review-cycles/create.vue', 'components/demo/DemoLayer.vue', 'components/demo/coachmarks.ts', 'docs/patterns/form.md', 'docs/patterns/dev-scenario-control.md'],
+      },
     ],
   },
   {

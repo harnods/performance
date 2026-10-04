@@ -149,8 +149,10 @@ const searchBox = css({ position: 'relative', '& input': { paddingLeft: '36px' }
 const searchIcon = css({ position: 'absolute', left: '12px', top: '50%', transform: 'translateY(-50%)', color: 'icon.secondary', zIndex: '1', pointerEvents: 'none' })
 const list = css({ overflowY: 'auto', padding: '1', display: 'flex', flexDirection: 'column' })
 // Each option is a padded, clickable row wrapping the checkbox (the checkbox's
-// own class doesn't add outer padding). Row click toggles; the checkbox is
-// display-only (pointer-events none) so there's no double toggle.
+// own class doesn't add outer padding). Row click toggles. `.prevent` on that
+// click matters: a click on the checkbox's own <label> text would otherwise make
+// the browser fire a second click on the hidden input, which bubbles back to the
+// row and toggles it twice (= no change).
 const optionRow = css({ display: 'flex', alignItems: 'center', paddingBlock: '2', paddingInline: '2', borderRadius: 'sm', cursor: 'pointer', _hover: { background: 'background.neutral.subtle' } })
 const allRow = css({ display: 'flex', alignItems: 'center', paddingBlock: '2', paddingInline: '2', borderRadius: 'sm', cursor: 'pointer', borderBottom: '1px solid', borderBottomColor: 'gray.50', marginBottom: '1', _hover: { background: 'background.neutral.subtle' } })
 const cbNoPointer = css({ pointerEvents: 'none' })
@@ -170,6 +172,7 @@ const sentinel = css({ height: '1px', flexShrink: '0' })
               :placeholder="placeholder"
               :is-disabled="isDisabled"
               :is-invalid="isInvalid"
+              autocomplete="off"
               @focus="onFieldFocus"
               @blur="onFieldBlur"
               @mousedown="onFieldMouseDown"
@@ -196,10 +199,10 @@ const sentinel = css({ height: '1px', flexShrink: '0' })
           <!-- mousedown.prevent keeps focus in the field while ticking options
                (PxSelectPopover does the same), so the typed search survives. -->
           <div :class="list" @mousedown.prevent>
-            <div v-if="showAllRow" :class="allRow" @click="toggleAll">
+            <div v-if="showAllRow" :class="allRow" @click.prevent="toggleAll">
               <MpCheckbox :id="`mss-all-${allLabel}`" :class="cbNoPointer" :is-checked="allChecked" :is-indeterminate="someChecked">{{ allLabel }}</MpCheckbox>
             </div>
-            <div v-for="o in filtered" :key="o.value" :class="optionRow" @click="toggle(o.value)">
+            <div v-for="o in filtered" :key="o.value" :class="optionRow" @click.prevent="toggle(o.value)">
               <MpCheckbox :id="`mss-${allLabel}-${o.value}`" :class="cbNoPointer" :is-checked="modelValue.includes(o.value)">{{ o.label }}</MpCheckbox>
             </div>
             <MpText v-if="!filtered.length && !isLoadingMore" size="label" :class="css({ color: 'text.secondary', padding: '2' })">No result found</MpText>

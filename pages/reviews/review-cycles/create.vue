@@ -118,7 +118,8 @@ const unusedDimensions = computed(() => FILTER_DIMENSIONS.filter(d => !usedDimen
 function addFilter(dimension: string) {
   filterRows.value.push({ id: filterSeq++, dimension, values: [] })
 }
-function removeFilter(index: number) { filterRows.value.splice(index, 1) }
+// At least one row always stays (the remove button only shows with 2+ rows).
+function removeFilter(index: number) { if (filterRows.value.length > 1) filterRows.value.splice(index, 1) }
 
 // Save-time check (no disabled Save): a turned-on filter needs at least one value.
 const filterErrors = computed(() => filterRows.value.map(r =>
@@ -313,7 +314,6 @@ const filterRow = css({ display: 'flex', alignItems: 'flex-start', gap: '3', wid
 const filterSelect = css({ flex: { base: '1 1 0', lg: '0 0 264px' }, minWidth: '0' })
 const filterValueRow = css({ display: 'flex', alignItems: 'flex-start', gap: '24px', flex: { base: '1 1 0', lg: '0 0 auto' }, minWidth: '0' })
 // "—— and ——" between filter rows: solid 1px border.default lines, label-small "and".
-const removeSpacer = css({ width: '38px', flexShrink: '0' })
 // The divider ends at the value field. The remove slot after the value field is
 // 62px (24px gap + 38px button); the divider's own 12px gap + this 50px spacer
 // match it, so the line stops exactly where the value field does.
@@ -526,14 +526,11 @@ function onSave() {
                       <span v-if="filterErrors[i]" :class="errorText">{{ filterErrors[i] }}</span>
                     </div>
                   </MpTooltip>
-                  <template v-if="!isEdit">
-                    <MpTooltip v-if="i > 0" label="Remove" use-portal>
-                      <MpButton variant="ghost" left-icon="minus-circular" aria-label="Remove filter" @click="removeFilter(i)" />
-                    </MpTooltip>
-                    <!-- First row has no remove button; reserve its width once rows are
-                         added so every row's value field lines up. -->
-                    <span v-else-if="filterRows.length > 1" :class="removeSpacer" aria-hidden="true" />
-                  </template>
+                  <!-- Every row can be removed while 2+ remain; at least one row
+                       always stays, so a lone row has no remove button. -->
+                  <MpTooltip v-if="!isEdit && filterRows.length > 1" label="Remove" use-portal>
+                    <MpButton variant="ghost" left-icon="minus-circular" aria-label="Remove filter" @click="removeFilter(i)" />
+                  </MpTooltip>
                 </div>
               </div>
             </template>

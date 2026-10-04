@@ -90,7 +90,7 @@ Default `searchable` opens the popover to a *separate* search input at the top, 
 
 Do not pass `searchable` + `search-on-field` together — pick one per field, same as the required-marker rule above.
 
-Behavior (`PxSelectPopover.vue`'s `searchOnField` branch): the trigger becomes an `MpInputGroup`/`MpInput` with a trailing `chevrons-down` addon (same look as `DashMultiSelectSearch.vue`'s own select-styled search trigger), not the disabled-look `MpSelect`. Clicking it opens the popover exactly like clicking the old select did — nothing extra to wire for that. Focusing the field clears it so typing starts fresh; typing filters the list live; blurring without picking reverts the field back to the current selection's label, so an abandoned search never sticks. Selecting a `MpPopoverListItem` still closes the popover (`is-close-on-select`, unchanged).
+Behavior (`PxSelectPopover.vue`'s `searchOnField` branch): the trigger becomes an `MpInputGroup`/`MpInput` (with `autocomplete="off"`, so Chrome's autofill bubble never covers the popover) with a trailing `chevrons-down` addon (same look as `DashMultiSelectSearch.vue`'s own select-styled search trigger), not the disabled-look `MpSelect`. Clicking it opens the popover exactly like clicking the old select did — nothing extra to wire for that. Focusing the field clears it so typing starts fresh; typing filters the list live; blurring without picking reverts the field back to the current selection's label, so an abandoned search never sticks. Selecting a `MpPopoverListItem` still closes the popover (`is-close-on-select`, unchanged).
 
 **Gotcha:** `MpPopoverTrigger` toggles open/closed on *every* click of whatever it wraps. That's harmless for the old inert `MpSelect` (nothing to click twice), but a real text input gets re-clicked constantly while searching (fixing a typo, moving the cursor) — each of those re-clicks would otherwise slam the popover shut. Fixed with a mousedown/click pair on the input (`wasAlreadyFocused` in `PxSelectPopover.vue`) that only lets the click that *first* focuses the field reach the trigger's toggle; a click while it's already focused is stopped from bubbling.
 
@@ -175,7 +175,14 @@ grade and Job class are independent: neither narrows the other's list.
 - **Search in the field, not in the popover** (`search-on-field`, same idea as
   `PxSelectPopover`'s): no search box inside the list. Focusing the field clears it so
   you can type, and the list filters as you type. Ticking options keeps the field focused
-  (`@mousedown.prevent` on the list), so you can tick several matches. Leaving the field
+  (`@mousedown.prevent` on the list), so you can tick several matches. The field has
+  `autocomplete="off"`. Without it, Chrome shows its own autofill bubble (e.g. "All job
+  grade") under the field, on top of the Pixel popover.
+- **Option rows toggle on `@click.prevent`.** The row wraps an `MpCheckbox`, whose
+  `<label>` text is clickable. Without `.prevent`, a click on the text makes the browser
+  fire a second click on the hidden input, which bubbles back to the row and toggles it
+  twice, so nothing changes. Scripted `el.click()` doesn't reproduce this; test with a
+  real mouse click. Leaving the field
   shows the picked names again. The "All …" row hides while a search is typed.
 - **The popover is exactly as wide as the field** (measured, like `PxSelectPopover`).
 - **Job grade / Job class** load from a live, paginated endpoint in production
@@ -202,10 +209,13 @@ grade and Job class are independent: neither narrows the other's list.
   has a type and some types are still unused. It's a deliberate dropdown, unlike buttons.md's
   ghost `add-circular` "add another row", because the user must choose *which* row to add.
 - **No duplicates**: a dimension chosen in any row is removed from every other row's options.
-- **Remove**: every **added** row has `MpButton variant="ghost" left-icon="minus-circular"`
-  **24px** after its value field, wrapped in `MpTooltip label="Remove"` (icon-only buttons
-  always get a tooltip; keep `aria-label="Remove filter"` on the button). Once rows are added, the first row reserves the same 38px
-  (`removeSpacer`), so every value field lines up.
+- **Remove**: once there are **2+ rows, every row** (the top one included) has
+  `MpButton variant="ghost" left-icon="minus-circular"` **24px** after its value field,
+  wrapped in `MpTooltip label="Remove"`. Icon-only buttons always get a tooltip; keep
+  `aria-label="Remove filter"` on the button. **At least one row always stays**: a lone row
+  has no remove button (to clear it, pick "No filter applied"), and `removeFilter` refuses to
+  drop the last row. When the top row is removed, the next row becomes the first and gains
+  the "No filter applied" option.
 - Dimensions: Organization, Branch, Job position, Job level, Job grade, Job class.
 
 ### Validation (on Save, Save never disabled)

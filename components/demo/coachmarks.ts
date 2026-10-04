@@ -16,6 +16,10 @@ export interface CoachmarkDef {
   title: string
   description: string
   placement?: 'top' | 'bottom' | 'left' | 'right' | 'top-start' | 'bottom-start' | 'right-start'
+  /** Pin the pulse to the anchor's top-right corner (absolutely positioned) instead
+   *  of appending it inline — for anchors inside a flex layout, where an extra
+   *  inline child would take a gap slot and shift its siblings. */
+  corner?: boolean
 }
 
 // Element under `root` whose OWN text nodes (ignoring children and Vue's
@@ -55,8 +59,10 @@ export const COACHMARKS: CoachmarkDef[] = [
     id: 'eval-filter-value-field',
     route: CYCLE_CREATE,
     when: r => isEvaluation(r) && r.query.mode !== 'edit',
-    // The first value picker's row (value field + remove slot, 24px apart).
-    find: () => employeeFilter()?.querySelector('.mp-gap_24px') ?? null,
+    // The first value field itself; pinned to its corner so the row's layout
+    // (value field → 24px → remove button) is untouched.
+    find: () => employeeFilter()?.querySelector('.mp-gap_24px [data-pixel-component="MpInputGroup"]') ?? null,
+    corner: true,
     title: 'Value field',
     description: 'Changed: type in the field itself to search (no search box in the list), and the field names the picked values instead of "{n} selected". The list is as wide as the field. Job grade and Job class load more as you scroll.',
   },

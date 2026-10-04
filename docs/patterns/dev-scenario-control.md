@@ -151,6 +151,12 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
+- **Never append a pulse inline inside a flex/grid row.** It becomes an extra
+  item that takes a gap slot and shifts its siblings (it pushed the filter row's
+  remove button out and widened the "and" divider). Set `corner: true` on the
+  entry instead: the host is absolutely positioned at the anchor's top-right
+  corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
+  static, so layout is untouched.
 
 ### Look and behaviour
 
@@ -194,7 +200,7 @@ Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 |---|---|---|
 | Always | "Employee filter" label | Several filter types instead of one; AND across filters, OR within; new Job grade / Job class |
 | Always | The caption under the label | One fixed caption says who's included |
-| Create, once a filter type is picked | First value field's row (`.mp-gap_24px`) | Search in the field, named values, popover as wide as the field, infinite scroll |
+| Create, once a filter type is picked | First value field (`.mp-gap_24px [data-pixel-component="MpInputGroup"]`), `corner: true` | Search in the field, named values, popover as wide as the field, infinite scroll |
 | After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
 | Edit (`?mode=edit`) | "Employee filter" label | Locked fields explain why on hover; production says nothing |
 

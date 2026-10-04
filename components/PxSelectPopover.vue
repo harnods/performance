@@ -235,6 +235,7 @@ const fieldGroupClass = css({ cursor: 'text' })
               :placeholder="placeholder"
               :is-disabled="isDisabled"
               :maxlength="maxlength"
+              autocomplete="off"
               @update:model-value="onFieldInput"
               @focus="onFieldFocus"
               @blur="onFieldBlur"

@@ -29,6 +29,11 @@ function scan() {
       host = document.createElement('span')
       host.dataset.demoCoachmark = def.id
       host.style.display = 'inline'
+      if (def.corner) {
+        // Out of the anchor's flow: no layout shift for its siblings.
+        if (getComputedStyle(anchor).position === 'static') (anchor as HTMLElement).style.position = 'relative'
+        Object.assign(host.style, { position: 'absolute', top: '-8px', right: '-8px', zIndex: '2', lineHeight: '0' })
+      }
       anchor.appendChild(host)
     }
     next.set(def.id, host)
