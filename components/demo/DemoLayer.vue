@@ -8,10 +8,13 @@
 */
 import DevCoachmark from './DevCoachmark.vue'
 import IdpDevTools from './IdpDevTools.vue'
+import EvaluationCycleDevTools from './EvaluationCycleDevTools.vue'
 import { COACHMARKS, type CoachmarkDef } from './coachmarks'
 
 const route = useRoute()
-const active = computed(() => COACHMARKS.filter(c => c.route.test(route.path)))
+const active = computed(() => COACHMARKS.filter(c => c.route.test(route.path) && (c.when?.(route) ?? true)))
+// Each module brings its own dev tools panel; IDP's is the default.
+const isEvaluationCycle = computed(() => route.path.startsWith('/reviews/review-cycles'))
 
 // id → host <span> appended inside the anchor element.
 const hosts = shallowRef(new Map<string, HTMLElement>())
@@ -26,6 +29,11 @@ function scan() {
       host = document.createElement('span')
       host.dataset.demoCoachmark = def.id
       host.style.display = 'inline'
+      if (def.corner) {
+        // Out of the anchor's flow: no layout shift for its siblings.
+        if (getComputedStyle(anchor).position === 'static') (anchor as HTMLElement).style.position = 'relative'
+        Object.assign(host.style, { position: 'absolute', top: '-8px', right: '-8px', zIndex: '2', lineHeight: '0' })
+      }
       anchor.appendChild(host)
     }
     next.set(def.id, host)
@@ -49,7 +57,7 @@ onMounted(() => {
   queueScan()
 })
 onBeforeUnmount(() => { observer?.disconnect(); cancelAnimationFrame(frame) })
-watch(() => route.path, queueScan)
+watch(() => route.fullPath, queueScan)
 
 const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) as CoachmarkDef[])
 </script>
@@ -59,6 +67,7 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
     <Teleport v-for="def in mounted" :key="def.id" :to="hosts.get(def.id)">
       <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
     </Teleport>
-    <IdpDevTools v-if="active.length" />
+    <EvaluationCycleDevTools v-if="active.length && isEvaluationCycle" />
+    <IdpDevTools v-else-if="active.length" />
   </div>
 </template>

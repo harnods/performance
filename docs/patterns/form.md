@@ -96,6 +96,8 @@ Behavior (`PxSelectPopover.vue`, `onField`):
 
 - The trigger is an `MpInputGroup`/`MpInput` with a trailing `chevrons-down`
   addon, not the disabled-look `MpSelect`. Clicking it opens the popover.
+- The input has `autocomplete="off"`, so Chrome's autofill bubble never
+  covers the popover.
 - Focusing clears the text so typing starts fresh, and typing filters the
   list live (label, description and trailing text).
 - Blurring without picking reverts the field to the current selection's label.
@@ -147,6 +149,121 @@ as an action plan's **Category** or a plan's **Objective**), pass
 - `:maxlength` caps the typed text to match the field's character counter.
   The counter reads the **model**, so it updates once a value is picked.
 - `custom-value-label` is deprecated and ignored.
+
+## Repeatable filter rows ("Add filter")
+
+When a form lets the user stack several **filter dimensions**, each with its own values
+(evaluation cycle create's **Employee filter**, `pages/reviews/review-cycles/create.vue`,
+built from PRD "Multiple Filters for Evaluation Cycle Employee Selection"), render one
+row per filter inside the same `MpFormControl` + label.
+
+**Logic (PRD D1/D5):** AND across rows, OR across the values picked within one row. Job
+grade and Job class are independent: neither narrows the other's list.
+
+### Layout
+- **Each row is one inline line**, never wrapped: a **dimension** `PxSelectPopover`, then a
+  **value** `DashMultiSelectSearch`, 12px apart (`filterSelect`: 264px on `lg`; below `lg`
+  the two share the row). **Every field in a row is top-aligned** (`alignItems:
+  'flex-start'` on `filterRow` and `filterValueRow`), so an error under one field never
+  shifts the dimension select, the value field, or the remove button: their tops stay equal
+  with or without errors. The rows container is `width: fit-content` on `lg`.
+- **"and" divider between rows**: a solid 1px `border.default` line, **"and"**
+  (`MpText size="label-small"`, color `gray.400`), then another line, 12px gaps. It goes
+  between rows only, never above the first or after the last. **It stops at the value
+  field's right edge, not under the remove button**: a trailing 50px spacer (`andTrailing`),
+  plus the divider's own 12px gap, equals the 62px remove slot (24px gap + 38px button).
+  The spacer is dropped on Edit, where there are no remove buttons.
+- **One caption, always shown, always in the same place**: directly under the label,
+  14/20 `text.secondary` (`EMPLOYEE_FILTER_CAPTION`). The copy is the same in every state
+  (no filter, one filter, several, Edit), so nothing appears, disappears or moves as rows
+  change:
+  "Only employees who match these filters are included in this cycle". One sentence that
+  says what the field does, nothing about the "no filter" case. Don't name the Employment
+  status here: "all employees with Probation status are included" read as a promise about
+  who the cycle covers, which was misleading.
+  (uxw-mekari caption rule: no closing period.)
+  Don't add state-specific helper lines or notes below the rows. Put the extra detail in the
+  caption, or in a tooltip if only some people need it (see Edit).
+
+### Values
+- **The value starts empty.** Picking a dimension doesn't preselect "All …". The value
+  field shows a grey **"Select {filter name}"** placeholder (`DashMultiSelectSearch`
+  `placeholder`).
+- The trigger **lists the picked labels** (`summarize`): up to 2 names, then "+N"
+  ("Finance, Product +2"), never "{n} selected". Naming the values is how the UI says
+  "any of these".
+- **Search in the field, not in the popover** (`search-on-field`, same idea as
+  `PxSelectPopover`'s): no search box inside the list. Focusing the field clears it so
+  you can type, and the list filters as you type. Ticking options keeps the field focused
+  (`@mousedown.prevent` on the list), so you can tick several matches. The field has
+  `autocomplete="off"`. Without it, Chrome shows its own autofill bubble (e.g. "All job
+  grade") under the field, on top of the Pixel popover.
+- **Option rows toggle on `@click.prevent`.** The row wraps an `MpCheckbox`, whose
+  `<label>` text is clickable. Without `.prevent`, a click on the text makes the browser
+  fire a second click on the hidden input, which bubbles back to the row and toggles it
+  twice, so nothing changes. Scripted `el.click()` doesn't reproduce this; test with a
+  real mouse click. Leaving the field
+  shows the picked names again. The "All …" row hides while a search is typed.
+- **The popover is exactly as wide as the field** (measured, like `PxSelectPopover`).
+- **Job grade / Job class** load from a live, paginated endpoint in production
+  (`GET /external-assessments/job-grades`, `/job-classes`). They use **infinite scroll**,
+  the same as `MpAutocomplete`'s `is-infinity-scroll`. An invisible marker after the last
+  option fires `@load-more` when it scrolls into view. While the page loads, Pixel's loader
+  row shows (`MpSpinner size="md"` + "Loading", `px 3 / py 2 / gap 3`). No "Load more"
+  link. Props: `hasMore`, `isLoadingMore`, `@load-more`. The prototype mocks 30 grades in
+  pages of 10. The other four types keep local lists.
+- **Search on those two lists hits the server** (PRD W1: "paginated, searchable"), not just
+  the pages loaded so far. "Grade 25" is found before it has scrolled in
+  (`remote-search` + `@search`, mocked with a 400ms delay over the full list). Their
+  **"All …" row is hidden**: with paging it could only tick the loaded rows. To include
+  every grade, the user just doesn't add a Job grade filter.
+
+### Adding, removing, resetting
+- The **first row** keeps "No filter applied". Choosing it again removes the added rows.
+- **"Add filter ▾" is a dropdown button**: `MpButton variant="secondary"
+  right-icon="chevrons-down"` (no left icon) inside an `MpPopover is-close-on-select
+  use-portal placement="bottom-start"`. The `MpPopoverList` lists **only the filter types
+  not used yet** (`unusedDimensions`), and picking one adds a row already set to that type,
+  with an empty value. This is the same button + popover pairing as the IDP column settings.
+  The wrapper is `width: fit-content`, under the rows. The button shows only when every row
+  has a type and some types are still unused. It's a deliberate dropdown, unlike buttons.md's
+  ghost `add-circular` "add another row", because the user must choose *which* row to add.
+- **No duplicates**: a dimension chosen in any row is removed from every other row's options.
+- **Remove**: once there are **2+ rows, every row** (the top one included) has
+  `MpButton variant="ghost" left-icon="minus-circular"` **24px** after its value field,
+  wrapped in `MpTooltip label="Remove"`. Icon-only buttons always get a tooltip; keep
+  `aria-label="Remove filter"` on the button. **At least one row always stays**: a lone row
+  has no remove button (to clear it, pick "No filter applied"), and `removeFilter` refuses to
+  drop the last row. When the top row is removed, the next row becomes the first and gains
+  the "No filter applied" option.
+- Dimensions: Organization, Branch, Job position, Job level, Job grade, Job class.
+
+### Validation (on Save, Save never disabled)
+- A turned-on filter with no value is an error. The **value trigger only** is marked
+  invalid (`is-invalid`), with "You must select at least one {filter}" (uxw-mekari
+  "select at least one" pattern) underneath (12/16
+  `text.danger`, `errorText`), plus the "Please check the form's error" toast and a scroll
+  to the section.
+- **Don't wrap the value picker in an invalid `MpFormControl`.** Its invalid state flows
+  into the popover's own search input and checkboxes (they turn red). Pass `is-invalid` to
+  the picker and render the message yourself.
+
+### Edit (PRD D4): read-only
+- The whole section is disabled: the outer `MpFormControl :is-disabled`, plus
+  `is-disabled` on every dimension and value field. There's no "Add filter" and no remove
+  buttons. The "and" dividers stay, so the saved logic is readable.
+- **No info note under the fields.** The reason goes in an `MpTooltip` shown when you
+  hover any disabled field: "Employee filters can't be changed after the cycle is created"
+  (`FILTER_LOCKED_TOOLTIP`). Each field's wrapper `div` sits inside the tooltip, because a
+  disabled input fires no mouse events itself. MpTooltip has no `is-disabled`, so it's
+  switched off outside Edit with `:is-manual="!isEdit" :is-open="false"`. That keeps a
+  single template for both modes.
+- **Disabled fields look the same**, whether `PxSelectPopover` (a native `<select>`) or
+  `DashMultiSelectSearch` (an `MpInput`): Pixel's `text.disabled` / `background.disabled` /
+  `border.disabled`. The browser's own `select:disabled { opacity: 0.7 }` used to fade the
+  select further. `assets/css/main.css` resets it (`.mp-select__control:disabled
+  { opacity: 1 }`), app-wide.
+  The prototype previews this with `?mode=edit` (sample saved filters).
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
@@ -327,6 +444,11 @@ Use the built-in default slot for the label + `#description` slot for the captio
 ```
 
   Use this instead of `#description` when the row already reads as busy (e.g. one toggle per person in a per-owner list) and the explanation is genuinely secondary — don't reach for it as a default over `#description`, which stays the norm for a caption everyone should read.
+- **Locked field → tooltip on the field, not a note below it**: when a field is disabled because it
+  can't change (e.g. after creation), don't add an info note under it. Wrap the field's wrapper `div` in
+  `MpTooltip` with the reason; a disabled input fires no mouse events itself. MpTooltip has no
+  `is-disabled`, so turn it off while the field is editable with `:is-manual="!locked" :is-open="false"`.
+  Reference: the Employee filter's Edit state ("Repeatable filter rows" above).
 
 - **Checking a box reveals more fields**: wrap the revealed content in a plain `<div>` with `marginLeft: '8'` (32px) — no border, no card, just indent — shown only `v-if` the box is checked, directly below the checkbox:
 
