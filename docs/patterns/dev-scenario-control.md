@@ -9,12 +9,15 @@ the viewport is deliberately reserved for dev affordances so it reads as "not pa
 product" at a glance. Real actions live in `#page-header-actions`, a filter bar, or a
 table's action column — see [`header-bar.md`](header-bar.md) and [`buttons.md`](buttons.md).
 
-Two exist today:
+Four exist today:
 
 | Where | What it previews |
 |---|---|
+| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. |
+| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
+| `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 
 ## The FAB is fixed — copy it exactly
 
@@ -110,11 +113,98 @@ export function useGoalsDashboardScenario() { return { needsUpdate, distribution
 - Scenario state is in-memory only — never persist it to `localStorage` beside real
   mini-DB data.
 
+## Coachmarks: flag what's new vs production (`components/demo/`)
+
+For demos and FE hand-off, a page can mark every element that differs from
+production with a **pulse**. Clicking a pulse opens a **coachmark** that says
+what's new.
+
+### Demo code never lives in product files
+
+**Everything demo-only lives in `components/demo/`. Product components and
+pages contain zero demo code**, so a developer porting a page to
+talenta-review copies nothing demo-related.
+
+- `components/demo/coachmarks.ts` is the **registry**. Each entry has an `id`,
+  a `route` regex, a `find()` that locates an element **already in the product
+  markup** (an `MpFormLabel`'s `<controlId>-label` id, an exact own-text match
+  on a `th`/title, or a scoped selector like `.idp-view-modal`), plus `title`,
+  `description` and `placement`, and an optional `when(route)` for a query
+  condition (the evaluation entries only show on `?purpose=evaluation`).
+- `components/demo/DemoLayer.vue` is mounted **once in `app.vue`**. It
+  filters the registry by route, watches the DOM (MutationObserver, one scan
+  per frame, so tables, drawers and modals that mount later get their
+  pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
+  and teleports a `DevCoachmark` into it. It also renders the module's dev
+  tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
+  `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
+  `route.fullPath`, so a query change (e.g. `?mode=edit`) updates the pulses.
+- **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
+  prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
+- **Not auto-imported:** `nuxt.config.ts` registers components with
+  `ignore: ['demo/**']`, so a product file can't use `<DevCoachmark>` by
+  accident. Only `app.vue` imports `DemoLayer`, explicitly.
+- Every demo file starts with a `DEMO ONLY — do not port` banner. **To port
+  a page, ignore `components/demo/` and the `DemoLayer` line in `app.vue`.**
+- Adding a coachmark is one registry entry. Don't add markup to the product
+  component. If an anchor has no stable id or text, match on what's already
+  rendered, scoped as tightly as you can.
+- A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
+  trigger the label's control.
+
+### Look and behaviour
+
+- `DevCoachmark` renders an 8px **orange** dot (`orange.500`) with an animated
+  ring (`px-coachmark-pulse` in `main.css`).
+- The coachmark is an `MpPopover` (`use-portal`), 280px wide, with a 14/600
+  title, a 14px `text.secondary` description, and a right-aligned **Hide**
+  button (`MpButton variant="secondary"`) that hides that one coachmark.
+  There's no eyebrow label.
+- **`IdpDevTools`** / **`EvaluationCycleDevTools`** are the FAB panels (one per
+  module, picked by `DemoLayer` from the route). A module's own scenario switches
+  go in a **Scenario** group above Coachmarks, using the same label-before-toggle
+  row + 12px hint (e.g. "Edit cycle (read-only)"). Every panel has a **Coachmarks** group with a
+  **Show coachmarks** toggle, an "n hidden" count and a **Reset coachmarks**
+  textlink. Reset shows every hidden coachmark again and turns them back on.
+- State lives in `components/demo/useDevCoachmarks.ts`. It's module-scope and
+  in-memory only, so a reload brings everything back.
+- **Write the description as the delta:** what's new and when it appears.
+  Ids are `<page>-<area>-<thing>`.
+- **Behaviour changes need a visible anchor.** When the change is "X only
+  appears after Y", anchor the pulse to what's always on screen (the field
+  label or section title that triggers it), not inside X. In the
+  description, say what production does instead.
+
+Current IDP coachmarks:
+
+| Where | Anchor | What it explains |
+|---|---|---|
+| Create/edit plan | Employee label | Informal education table only appears after an employee is selected (production shows it immediately as an empty state) |
+| Create/edit plan | "Select focus" label | Current-position description on the Focus option |
+| Create/edit plan | "Action plan" section title | Action plan table only appears after the first action plan is added (production shows it immediately as an empty state) |
+| Create/edit plan | "Relates to" column header | New column |
+| Add action plan drawer | "Relates to" label | New field |
+| Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
+| Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
+| Update modal | "Relates to" label | New Relates to info |
+
+Current evaluation cycle coachmarks (Create new cycle → Employee filter):
+
+| When | Anchor | What it explains |
+|---|---|---|
+| Always | "Employee filter" label | Several filter types instead of one; AND across filters, OR within; new Job grade / Job class |
+| Always | The caption under the label | One fixed caption says who's included |
+| Create, once a filter type is picked | First value field's row (`.mp-gap_24px`) | Search in the field, named values, popover as wide as the field, infinite scroll |
+| After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
+| Edit (`?mode=edit`) | "Employee filter" label | Locked fields explain why on hover; production says nothing |
+
 ## Rules
 
 - Floating FAB = dev only. Never for product actions.
 - Fixed bottom-right, 24px, 48px circle, `background.inverse`, `sliders` icon,
-  popover `placement="top-end"`.
+  popover `placement="top-end"`. **Exception:** the demo-layer panels
+  (`IdpDevTools`, `EvaluationCycleDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
+  collides with a page's own bottom-right scenario FAB.
 - Multi-group panel: no `is-close-on-select`; always a `Reset` + a `Default` choice.
 - State in a module-scope composable; defaults mirror the real seed.
 - A forced state fakes its own preconditions, reusing the real rule's constants.

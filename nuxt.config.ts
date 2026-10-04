@@ -2,6 +2,16 @@ export default defineNuxtConfig({
   compatibilityDate: '2025-05-28',
   devtools: { enabled: false },
   css: ['~/assets/css/main.css'],
+  // components/demo/ is demo-only (coachmarks + dev tools): never auto-imported,
+  // so product components can't reference it by accident. app.vue imports
+  // DemoLayer explicitly. See docs/patterns/dev-scenario-control.md.
+  components: [{ path: '~/components', ignore: ['demo/**'] }],
+  runtimeConfig: {
+    public: {
+      // Demo affordances on/off (NUXT_PUBLIC_DEMO_MODE=false to hide).
+      demoMode: true,
+    },
+  },
   routeRules: {
     '/reviews': { redirect: '/reviews/pending-actions' },
     '/goals': { redirect: '/goals/individual-goals' },
