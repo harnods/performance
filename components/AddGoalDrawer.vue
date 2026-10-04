@@ -1031,7 +1031,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
 
               <MpFormControl id="goal-name" :is-invalid="errors.name">
                 <MpFlex align="center" justify="space-between">
-                  <MpFlex align="center" gap="1">
+                  <MpFlex align="center" gap="0">
                     <MpFormLabel>Goal name</MpFormLabel>
                     <MpText size="label" :class="requiredMark">*</MpText>
                   </MpFlex>
@@ -1057,7 +1057,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               </MpFormControl>
 
               <MpFormControl id="goal-type" :is-invalid="errors.goalType" :class="goalWeightWidth">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Goal type</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
@@ -1080,7 +1080,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               </MpFormControl>
 
               <MpFormControl id="goal-category" :is-invalid="errors.category" :class="goalWeightWidth">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Goal category</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
@@ -1094,7 +1094,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               </MpFormControl>
 
               <MpFormControl id="goal-weight" :is-invalid="errors.weight" :class="goalWeightWidth">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Goal weight</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
@@ -1154,7 +1154,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               </div>
 
               <MpFormControl v-if="!isDeadlineUnit" id="goal-direction">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Goal direction</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
@@ -1171,7 +1171,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
               </MpFormControl>
 
               <MpFormControl id="measurement-unit">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Measurement unit</MpFormLabel>
                   <MpText size="label" :class="requiredMark">*</MpText>
                 </MpFlex>
@@ -1291,7 +1291,7 @@ const krRow = css({ display: 'flex', alignItems: 'flex-start', gap: '2', padding
                  section is hidden for them. -->
             <div v-if="isNeedMember" :class="section">
               <div :class="sectionHeader">
-                <span :class="sectionTitle">Goal members <MpText size="label" :class="requiredMark">*</MpText></span>
+                <span :class="sectionTitle">Goal members<MpText size="label" :class="requiredMark">*</MpText></span>
                 <span :class="sectionDesc">People who can view this goal and align their goals to it.</span>
               </div>
               <MpFormControl id="goal-members" :is-invalid="errors.members">

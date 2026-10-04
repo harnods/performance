@@ -15,7 +15,6 @@ import {
   MpFormControl, MpFormLabel, MpFormErrorMessage, MpDatePicker, MpUpload, toast, css,
 } from '@mekari/pixel3'
 import { ACTION_PLAN_CATEGORIES, type ActionPlanDraft, type ActionPlanRelatedTo } from '~/utils/idp'
-import { ALL_COMPETENCIES, COMPETENCY_DESCRIPTIONS } from '~/utils/competency'
 
 const props = defineProps<{
   isOpen: boolean
@@ -53,7 +52,9 @@ const submitted = ref(false)
 const attachmentError = ref('')
 
 const categoryOptions = ACTION_PLAN_CATEGORIES.map(c => ({ value: c, label: c }))
-const competencyOptions = ALL_COMPETENCIES.map(c => ({ value: c, label: c, description: COMPETENCY_DESCRIPTIONS[c] }))
+// Options come from Competency items (setup → items), not competency assignments.
+const { list: competencyItems } = useCompetencyItemStore()
+const competencyOptions = computed(() => competencyItems.value.map(i => ({ value: i.name, label: i.name, description: i.description ?? undefined })))
 
 // Radios aren't a native mutually-exclusive group here (no shared `name`,
 // selection is driven entirely by `relatedTo`), and clicking an
@@ -165,9 +166,11 @@ const goalGapDefault = css({ marginTop: '2' }) // 8px — unchanged spacing when
 const goalGapSelected = css({ marginTop: '5' }) // 20px — extra room once the competency select is showing above it
 // Mirrors PxSelectPopover's own itemBody/itemLabel/itemCaption, minus the bold
 // title — see the #option slot override above.
-const competencyOptionBody = css({ display: 'flex', flexDirection: 'column', gap: '0', paddingBlock: '1' })
-const competencyOptionLabel = css({ color: 'text.default' })
-const competencyOptionCaption = css({ color: 'text.secondary' })
+const competencyOptionBody = css({ display: 'flex', flexDirection: 'column', gap: '0', paddingBlock: '1', minWidth: '0', width: '100%', textAlign: 'left' })
+// Name stays on one line with an ellipsis; full text in `title`.
+const competencyOptionLabel = css({ color: 'text.default', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })
+// Max 2 lines, then ellipsis (same clamp as inbox/notifications.vue); full text in `title`.
+const competencyOptionCaption = css({ color: 'text.secondary', display: '-webkit-box', WebkitLineClamp: '2', WebkitBoxOrient: 'vertical', overflow: 'hidden', whiteSpace: 'normal', overflowWrap: 'anywhere' })
 </script>
 
 <template>
@@ -194,6 +197,7 @@ const competencyOptionCaption = css({ color: 'text.secondary' })
                 width="100%"
                 search-on-field
                 allow-custom-value
+                custom-value-label="category"
                 :maxlength="NAME_MAX"
               />
               <MpFormErrorMessage>{{ errors.category }}</MpFormErrorMessage>
@@ -242,7 +246,7 @@ const competencyOptionCaption = css({ color: 'text.secondary' })
               <div :class="radioRow">
                 <div :class="competencyGroup">
                   <MpRadio :is-checked="relatedTo === 'competency'" @click="onRelatedToCompetencyClick">
-                    Competency
+                    Competency item
                   </MpRadio>
                   <!-- No MpFormLabel — the Competency radio right above it
                        already names this field; a repeated "Competency"
@@ -251,7 +255,7 @@ const competencyOptionCaption = css({ color: 'text.secondary' })
                     <PxSelectPopover
                       v-model="relatedCompetency"
                       :options="competencyOptions"
-                      placeholder="Select competency"
+                      placeholder="Select competency item"
                       width="100%"
                       search-on-field
                     >
@@ -262,8 +266,8 @@ const competencyOptionCaption = css({ color: 'text.secondary' })
                            its description. -->
                       <template #option="{ option }">
                         <div :class="competencyOptionBody">
-                          <MpText size="label" :class="competencyOptionLabel">{{ option.label }}</MpText>
-                          <MpText size="label-small" :class="competencyOptionCaption">{{ option.description }}</MpText>
+                          <MpText size="label" :class="competencyOptionLabel" :title="option.label">{{ option.label }}</MpText>
+                          <MpText v-if="option.description" size="label-small" :class="competencyOptionCaption" :title="option.description">{{ option.description }}</MpText>
                         </div>
                       </template>
                     </PxSelectPopover>

@@ -145,12 +145,15 @@ const page = css({ display: 'flex', flexDirection: 'column', gap: '5' })
 // 25 / 25 / 50, mirroring production's plan-detail header. Collapses to stacked
 // rows below lg so the three status totals never squeeze.
 const summaryRow = css({ display: 'grid', gridTemplateColumns: { base: '1fr', lg: '1fr 1fr 2fr' }, gap: '0' })
-const summaryCell = css({ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '1', paddingInline: '4', paddingBlock: '2', borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', _first: { paddingLeft: '0' }, _last: { borderRightWidth: '0' } })
-const summaryLabel = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
+// Production parity: every line is 14/20, no vertical padding, 16px inline.
+const summaryCell = css({ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0', paddingInline: '4', paddingBlock: '0', borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', _first: { paddingLeft: '0' }, _last: { borderRightWidth: '0' } })
+const summaryTitle = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
+const summaryLabel = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 // Overrides summaryCell's column direction — the three status totals sit in a row.
 const statusGroup = css({ flexDirection: 'row', alignItems: 'center', gap: '8', paddingLeft: '4' })
-const statusItem = css({ display: 'flex', alignItems: 'center', gap: '3' })
-const statusTotal = css({ fontSize: '20px', fontWeight: '600', lineHeight: '28px', color: 'text.default', fontVariantNumeric: 'tabular-nums' })
+// flex: 1 — each status takes an equal share of the group's width.
+const statusItem = css({ display: 'flex', alignItems: 'center', gap: '3', flex: '1', minWidth: '0' })
+const statusTotal = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default', fontVariantNumeric: 'tabular-nums' })
 const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3', flexWrap: 'wrap' })
 // No explicit font/color here — the MpTable recipe supplies the th's own
 // 14px/600/text.default styling. Only padding + alignment are ours to set
@@ -162,7 +165,12 @@ const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' 
 // (docs/patterns/table.md's numeric-cols idiom).
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
-const nameText = css({ fontSize: '14px', fontWeight: '600', color: 'text.default' })
+// Competency detail drawer: opened from the table's competency name and the
+// Update modal's "Relates to" → View details.
+const competencyDetail = ref<string | null>(null)
+const isCompetencyOpen = ref(false)
+function openCompetency(name: string) { competencyDetail.value = name; isCompetencyOpen.value = true }
+
 const subText = css({ fontSize: '12px', color: 'text.secondary' })
 const captionText = css({ color: 'text.secondary' })
 const emptyBlock = css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1', paddingBlock: '16', textAlign: 'center' })
@@ -183,14 +191,14 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
           <MpFlex align="center" gap="2">
             <PxAvatar :id="`idp-detail-${plan.id}`" :name="employee?.name" :src="employee?.photo" size="lg" variant-color="gray" />
             <MpFlex direction="column" gap="0">
-              <span :class="nameText">{{ employee?.name }}</span>
-              <span :class="subText">{{ focusLabel(plan) }} · {{ focusPosition(plan) || '-' }}</span>
+              <span :class="summaryTitle">{{ employee?.name }}</span>
+              <span :class="summaryLabel">{{ plan.focus === 1 ? `${focusLabel(plan)} · ` : '' }}{{ focusPosition(plan) || '-' }}</span>
             </MpFlex>
           </MpFlex>
         </div>
         <div :class="summaryCell">
-          <span :class="summaryLabel">Objective</span>
-          <MpText>{{ plan.objective || '-' }}</MpText>
+          <span :class="summaryTitle">Objective</span>
+          <span :class="summaryLabel">{{ plan.objective || '-' }}</span>
         </div>
         <div :class="[summaryCell, statusGroup]">
           <div v-for="s in summaryStatuses" :key="s.id" :class="statusItem">
@@ -220,7 +228,7 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
               <MpTableRow>
                 <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Action plan</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                 <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Category</span><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-                <MpTableCell as="th" :class="headCell">Relation</MpTableCell>
+                <MpTableCell as="th" :class="headCell">Relates to</MpTableCell>
                 <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Start date</span><PxColumnSortMenu col-key="startDate" :sort-type="columnSortTypes.startDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                 <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Due date</span><PxColumnSortMenu col-key="dueDate" :sort-type="columnSortTypes.dueDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
                 <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
@@ -232,9 +240,9 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
                 <MpTableCell as="td" :class="cell">{{ a.name }}</MpTableCell>
                 <MpTableCell as="td" :class="cell">{{ a.category }}</MpTableCell>
                 <MpTableCell as="td" :class="cell">
-                  <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
-                    <span :class="subText">Competency</span>
-                    <span>{{ a.relatedCompetency }}</span>
+                  <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" align="flex-start" gap="0">
+                    <MpText as="button" type="button" size="label" color="text.link" @click.stop="openCompetency(a.relatedCompetency)">{{ a.relatedCompetency }}</MpText>
+                    <span :class="subText">Competency item</span>
                   </MpFlex>
                   <span v-else>-</span>
                 </MpTableCell>
@@ -314,6 +322,7 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
       :action-plan="viewing"
       @update:is-open="(v: boolean) => { if (!v) viewing = null }"
       @status-change="(s: ActionPlanStatus) => viewing && changeStatus(viewing, s)"
+      @view-competency="openCompetency"
     />
 
     <IdpDeleteModal
@@ -323,6 +332,9 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
       @update:is-open="(v: boolean) => (isDeleteOpen = v)"
       @confirm="confirmDelete"
     />
+
+    <CompetencyDetailDrawer :is-open="isCompetencyOpen" :competency="competencyDetail" @close="isCompetencyOpen = false" />
+
   </template>
 
   <MpFlex v-else :class="notFound">

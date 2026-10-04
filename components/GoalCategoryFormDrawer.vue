@@ -175,7 +175,7 @@ const valueText = css({ color: 'text.default' })
           <div :class="fields">
             <MpFormControl id="category-name" :is-invalid="!!errors.name">
               <div :class="labelRow">
-                <MpFlex align="center" gap="1">
+                <MpFlex align="center" gap="0">
                   <MpFormLabel>Goal category name</MpFormLabel>
                   <MpText size="label" :class="reqStar">*</MpText>
                 </MpFlex>

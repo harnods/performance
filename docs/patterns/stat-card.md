@@ -198,3 +198,33 @@ silently diverging from `table.md`.
 - Delta = caret for direction, `text.default` ink for both caret and percentage — never
   success/danger. No baseline → omit the delta entirely.
 - Equal-width cards in a `grid` (`repeat(3, 1fr)` at `lg`, single column below).
+
+## Inline status totals (detail-page summary row) — not a card
+
+The IDP detail page (`pages/talents/idps/[id]/index.vue`) has a lighter
+sibling of the stat card: a flat summary row (employee / objective / status
+totals, grid `1fr 1fr 2fr`) separated by 1px right borders, with **no tinted
+card**. It matches production's sizing, which is compact:
+
+- **No vertical padding** (`paddingBlock: '0'`), **16px inline** padding
+  (`paddingInline: '4'`; the first cell has `paddingLeft: '0'`), and no gap
+  between the two lines.
+- **Every line is 14px/20px.** Each cell is a title line and a value line:
+  - Employee: name in `text.default`, regular weight (not semibold), then
+    job position in `text.secondary`. The avatar stays `lg` (see avatar.md).
+  - Objective: "Objective" in `text.default`, then the value in
+    `text.secondary`.
+  - Status: label in `text.secondary`, then the count at **14px/600**. Don't
+    use a 20px figure; that's the tinted stat card, not this row. The icon is
+    `MpIcon` at the default md size (20px).
+- **Each status item fills an equal share of the group** (`flex: 1`,
+  `minWidth: 0`). Don't size them to content, which bunches them on the left.
+
+```ts
+const summaryCell  = css({ display: 'flex', flexDirection: 'column', justifyContent: 'center', gap: '0', paddingInline: '4', paddingBlock: '0', borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', _first: { paddingLeft: '0' }, _last: { borderRightWidth: '0' } })
+const summaryTitle = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
+const summaryLabel = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
+const statusTotal  = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default', fontVariantNumeric: 'tabular-nums' })
+const statusGroup  = css({ flexDirection: 'row', alignItems: 'center', gap: '8', paddingLeft: '4' })
+const statusItem   = css({ display: 'flex', alignItems: 'center', gap: '3', flex: '1', minWidth: '0' })
+```

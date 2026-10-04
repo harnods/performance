@@ -59,7 +59,11 @@ export interface IdpPlanDraft {
 }
 
 export function useIdpStore() {
-  loadFromStorage()
+  // On a hard reload, SSR rendered the seed; swapping in localStorage mid-
+  // hydration leaves stale attributes (e.g. progress-bar widths) behind. Wait
+  // until hydration finishes so the swap is a normal reactive update.
+  if (import.meta.client && useNuxtApp().isHydrating) onNuxtReady(loadFromStorage)
+  else loadFromStorage()
 
   const plans = computed(() => rawPlans.value)
   const planById = (id: string) => rawPlans.value.find(p => p.id === id)

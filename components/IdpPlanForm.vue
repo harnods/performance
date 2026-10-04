@@ -6,7 +6,8 @@
 -->
 <script setup lang="ts">
 import {
-  MpFlex, MpText, MpButton, MpInput, MpIcon, MpRadio, MpTooltip,
+  MpFlex, MpText, MpButton, MpInput, MpRadio,
+  MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem,
   MpFormControl, MpFormLabel, MpFormErrorMessage, MpFormHelpText,
   MpTable, MpTableContainer, MpTableHead, MpTableBody, MpTableRow, MpTableCell,
   toast, css,
@@ -211,6 +212,7 @@ const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' 
 // stretching (docs/patterns/table.md's numeric-cols idiom).
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
+
 const subText = css({ fontSize: '12px', color: 'text.secondary' })
 const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3', paddingTop: '4' })
 </script>
@@ -246,6 +248,7 @@ const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
           width="100%"
           search-on-field
           allow-custom-value
+          custom-value-label="objective"
           :maxlength="NAME_MAX"
         />
         <MpFormErrorMessage>{{ errors.objective }}</MpFormErrorMessage>
@@ -349,7 +352,7 @@ const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
             <MpTableRow>
               <MpTableCell as="th" :class="headCell">Action plan</MpTableCell>
               <MpTableCell as="th" :class="headCell">Category</MpTableCell>
-              <MpTableCell as="th" :class="headCell">Relation</MpTableCell>
+              <MpTableCell as="th" :class="headCell">Relates to</MpTableCell>
               <MpTableCell as="th" :class="headCell">Period</MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
@@ -365,19 +368,24 @@ const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
               <MpTableCell as="td" :class="cell">{{ a.category }}</MpTableCell>
               <MpTableCell as="td" :class="cell">
                 <MpFlex v-if="a.relatedTo === 'competency' && a.relatedCompetency" direction="column" gap="0">
-                  <span :class="subText">Competency</span>
                   <span>{{ a.relatedCompetency }}</span>
+                  <span :class="subText">Competency item</span>
                 </MpFlex>
                 <span v-else>-</span>
               </MpTableCell>
               <MpTableCell as="td" :class="cell">{{ formatDate(a.startDate) }} – {{ formatDate(a.dueDate) }}</MpTableCell>
               <MpTableCell as="td" :class="actionCell">
-                <MpTooltip label="Edit" use-portal>
-                  <MpButton variant="ghost" size="sm" left-icon="edit" aria-label="Edit action plan" @click="openEdit(i)" />
-                </MpTooltip>
-                <MpTooltip label="Remove" use-portal>
-                  <MpButton variant="ghost" size="sm" left-icon="delete" aria-label="Remove action plan" @click="removeActionPlan(i)" />
-                </MpTooltip>
+                <MpPopover is-close-on-select use-portal placement="bottom-end">
+                  <MpPopoverTrigger>
+                    <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Action plan actions" />
+                  </MpPopoverTrigger>
+                  <MpPopoverContent :class="css({ minWidth: '160px' })">
+                    <MpPopoverList>
+                      <MpPopoverListItem @click="openEdit(i)">Edit</MpPopoverListItem>
+                      <MpPopoverListItem @click="removeActionPlan(i)"><span :class="css({ color: 'text.danger' })">Delete</span></MpPopoverListItem>
+                    </MpPopoverList>
+                  </MpPopoverContent>
+                </MpPopover>
               </MpTableCell>
             </MpTableRow>
           </MpTableBody>

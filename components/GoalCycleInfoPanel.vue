@@ -143,7 +143,7 @@ const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
     <div :class="formCol">
       <MpFormControl id="info-cycle-name" :is-invalid="errors.name">
         <MpFlex align="center" justify="space-between">
-          <MpFlex align="center" gap="1">
+          <MpFlex align="center" gap="0">
             <MpFormLabel>Goal cycle name</MpFormLabel>
             <MpText size="label" :class="css({ color: 'text.danger' })">*</MpText>
           </MpFlex>
@@ -154,7 +154,7 @@ const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
       </MpFormControl>
 
       <MpFormControl id="info-cycle-period" :is-invalid="errors.period">
-        <MpFlex align="center" gap="1">
+        <MpFlex align="center" gap="0">
           <MpFormLabel>Goal period</MpFormLabel>
           <MpText size="label" :class="css({ color: 'text.danger' })">*</MpText>
         </MpFlex>
