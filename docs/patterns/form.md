@@ -157,12 +157,11 @@ grade and Job class are independent: neither narrows the other's list.
   14/20 `text.secondary` (`EMPLOYEE_FILTER_CAPTION`). The copy is the same in every state
   (no filter, one filter, several, Edit), so nothing appears, disappears or moves as rows
   change:
-  "Limit this cycle to specific employees. With no filter, all employees with {Employment
-  status} status are included" (`employeeFilterCaption`). The first sentence says what the
-  field does. The second names the status picked in the Employment status field above
-  ("…with Probation status…"), so "no filter" reads concretely, not as a reference to
-  another field. If no status is picked, it falls back to "the selected employment status".
-  (uxw-mekari caption rule: no closing period; with 2 sentences, only the first gets one.)
+  "Only employees who match these filters are included in this cycle". One sentence that
+  says what the field does, nothing about the "no filter" case. Don't name the Employment
+  status here: "all employees with Probation status are included" read as a promise about
+  who the cycle covers, which was misleading.
+  (uxw-mekari caption rule: no closing period.)
   Don't add state-specific helper lines or notes below the rows. Put the extra detail in the
   caption, or in a tooltip if only some people need it (see Edit).
 

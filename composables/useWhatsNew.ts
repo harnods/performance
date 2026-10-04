@@ -32,7 +32,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Feature',
         area: 'Create new cycle (Evaluation) · Employee filter',
-        detail: 'Multiple employee filters (PRD "Multiple Filters for Evaluation Cycle Employee Selection"): combine any of 6 types (Organization, Branch, Job position, Job level, plus new Job grade and Job class) via an "Add filter ▾" dropdown that lists only unused types. Rows are separated by an "and" divider (AND across filters, OR within one), each added row has a remove button with a "Remove" tooltip, and one fixed caption under the label names the picked Employment status. Values start empty ("Select {filter}"), the field lists picked names, an empty filter blocks Save with "You must select at least one {filter}", and on Edit (?mode=edit) the section is read-only with a hover tooltip explaining why.',
+        detail: 'Multiple employee filters (PRD "Multiple Filters for Evaluation Cycle Employee Selection"): combine any of 6 types (Organization, Branch, Job position, Job level, plus new Job grade and Job class) via an "Add filter ▾" dropdown that lists only unused types. Rows are separated by an "and" divider (AND across filters, OR within one), each added row has a remove button with a "Remove" tooltip, and one fixed caption under the label ("Only employees who match these filters are included in this cycle") says what the filter does. Values start empty ("Select {filter}"), the field lists picked names, an empty filter blocks Save with "You must select at least one {filter}", and on Edit (?mode=edit) the section is read-only with a hover tooltip explaining why.',
         files: ['pages/reviews/review-cycles/create.vue', 'docs/patterns/form.md', 'docs/patterns/buttons.md'],
       },
       {

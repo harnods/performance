@@ -47,9 +47,9 @@ export const COACHMARKS: CoachmarkDef[] = [
     id: 'eval-filter-caption',
     route: CYCLE_CREATE,
     when: isEvaluation,
-    find: () => [...(employeeFilter()?.querySelectorAll('p') ?? [])].find(el => ownText(el).startsWith('Limit this cycle to specific employees')) ?? null,
+    find: () => [...(employeeFilter()?.querySelectorAll('p') ?? [])].find(el => ownText(el) === 'Only employees who match these filters are included in this cycle') ?? null,
     title: 'Caption',
-    description: 'New: one caption under the label says what the filter does and who is included without one (named after the Employment status picked above). It stays in the same place in every state.',
+    description: 'New: one caption under the label says what the filter does. It stays the same, in the same place, in every state.',
   },
   {
     id: 'eval-filter-value-field',

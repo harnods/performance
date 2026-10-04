@@ -76,13 +76,10 @@ const FILTER_DIMENSIONS = [
   { value: 'job-class', label: 'Job class' },
 ]
 interface FilterRow { id: number, dimension: string, values: string[] }
-// Copy (uxw-mekari caption rule: no closing period; with 2 sentences, only the
-// first gets one). Same text and spot in every state — Create, with or without
-// filters, Edit. It names the status picked in Employment status above, so the
-// "no filter" scope reads concretely ("…with Probation status…").
-const employmentStatusLabel = computed(() => employmentStatusOptions.find(o => o.value === employmentStatus.value)?.label)
-const employeeFilterCaption = computed(() =>
-  `Limit this cycle to specific employees. With no filter, all employees with ${employmentStatusLabel.value ? `${employmentStatusLabel.value} status` : 'the selected employment status'} are included`)
+// Copy (uxw-mekari caption rule: no closing period). One sentence saying what the
+// field does; same text and spot in every state — Create, with or without
+// filters, Edit.
+const EMPLOYEE_FILTER_CAPTION = 'Only employees who match these filters are included in this cycle'
 const FILTER_LOCKED_TOOLTIP = "Employee filters can't be changed after the cycle is created"
 let filterSeq = 0
 // PRD D4: on Edit the whole Employee filter section is read-only. The prototype
@@ -479,7 +476,7 @@ function onSave() {
                PRD logic: AND across filters ("narrows this down"), OR within one
                filter's values (the trigger lists them by name). -->
           <MpText :class="[filterHint, css({ marginBottom: '2' })]">
-            {{ employeeFilterCaption }}
+            {{ EMPLOYEE_FILTER_CAPTION }}
           </MpText>
           <div :class="filterRowsWrap">
             <template v-for="(row, i) in filterRows" :key="row.id">
