@@ -9,11 +9,12 @@ the viewport is deliberately reserved for dev affordances so it reads as "not pa
 product" at a glance. Real actions live in `#page-header-actions`, a filter bar, or a
 table's action column — see [`header-bar.md`](header-bar.md) and [`buttons.md`](buttons.md).
 
-Four exist today:
+Six exist today:
 
 | Where | What it previews |
 |---|---|
-| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. |
+| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
+| `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB: **Show Import** toggle (off by default; shows/hides the header Import button via `useIdpImportFlag`) + the coachmark controls. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
@@ -181,6 +182,10 @@ Current IDP coachmarks:
 | Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
+| IDP list | Import button | New; only visible when Show Import is on |
+| Import page | "Download the data template" step | New stepped import page |
+| Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
+| Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
 ## Rules
 

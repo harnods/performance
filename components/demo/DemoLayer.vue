@@ -8,9 +8,11 @@
 */
 import DevCoachmark from './DevCoachmark.vue'
 import IdpDevTools from './IdpDevTools.vue'
+import IdpListDevTools from './IdpListDevTools.vue'
 import { COACHMARKS, type CoachmarkDef } from './coachmarks'
 
 const route = useRoute()
+const isIdpList = computed(() => /^\/talents\/idps\/?$/.test(route.path))
 const active = computed(() => COACHMARKS.filter(c => c.route.test(route.path)))
 
 // id → host <span> appended inside the anchor element.
@@ -59,6 +61,7 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
     <Teleport v-for="def in mounted" :key="def.id" :to="hosts.get(def.id)">
       <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
     </Teleport>
-    <IdpDevTools v-if="active.length" />
+    <IdpListDevTools v-if="isIdpList" />
+    <IdpDevTools v-else-if="active.length" />
   </div>
 </template>
