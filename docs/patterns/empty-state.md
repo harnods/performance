@@ -84,3 +84,9 @@ button while the batch is active. Reference: `goal-cycles/[id]/index.vue`.
 - Empty-state action button = **secondary**, not primary (the one deviation to fix: `goal-categories/index.vue:241` uses primary).
 - Reuse existing illustrations at 240px, `alt="" aria-hidden`.
 - Never render an empty table with just headers.
+
+## Inline blank slate (picker with no options)
+
+Not a separate block: use `PxSelectPopover`'s `empty-text` / `empty-action-*`
+props (see [`form.md`](form.md) §"Empty source list"). Reference:
+`components/IdpActionPlanModal.vue`.

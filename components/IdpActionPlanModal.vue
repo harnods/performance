@@ -14,6 +14,7 @@ import {
   MpFlex, MpText, MpButton, MpButtonGroup, MpInput, MpTextarea, MpCheckbox, MpIcon, MpRadio, MpBadge,
   MpFormControl, MpFormLabel, MpFormErrorMessage, MpDatePicker, MpUpload, toast, css,
 } from '@mekari/pixel3'
+import ActionPlanDevTools from '~/components/demo/ActionPlanDevTools.vue'
 import { ACTION_PLAN_CATEGORIES, type ActionPlanDraft, type ActionPlanRelatedTo } from '~/utils/idp'
 
 const props = defineProps<{
@@ -179,6 +180,7 @@ const competencyOptionCaption = css({ color: 'text.secondary', display: '-webkit
       <MpDrawerContent>
         <MpDrawerHeader>
           {{ isEdit ? 'Edit' : 'Add' }} action plan
+          <ActionPlanDevTools />
           <MpDrawerCloseButton @click="close" />
         </MpDrawerHeader>
         <MpDrawerBody>
@@ -256,6 +258,9 @@ const competencyOptionCaption = css({ color: 'text.secondary', display: '-webkit
                       v-model="relatedCompetency"
                       :options="competencyOptions"
                       placeholder="Select competency item"
+                      empty-text="No competency items yet"
+                      empty-action-label="Add competency item"
+                      empty-action-href="/talents/competencies/items?create=1"
                       width="100%"
                       search-on-field
                     >

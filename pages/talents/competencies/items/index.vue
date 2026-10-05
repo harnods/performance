@@ -19,13 +19,31 @@ import {
   MpModal, MpModalOverlay, MpModalContent, MpModalHeader, MpModalCloseButton, MpModalBody, MpModalFooter,
   MpButtonGroup, MpTooltip, toast, css,
 } from '@mekari/pixel3'
-import type { CompetencyItem, VerifyBulkDelete } from '~/utils/competencyItem'
+import { verifyBulkDelete, type CompetencyItem, type VerifyBulkDelete } from '~/utils/competencyItem'
 
 defineOptions({ name: 'CompetencyItemIndex' })
 definePageMeta({ title: 'Competency item', layout: 'default' })
 
 const router = useRouter()
-const { list, itemByUuid, deleteItems, verifyDelete } = useCompetencyItemStore()
+const route = useRoute()
+const { list: storeList, deleteItems } = useCompetencyItemStore()
+const { plans: idpPlans } = useIdpStore()
+
+// An IDP "applies" a competency item when any of its action plans relates to it
+// (relatedTo === 'competency'). Each IDP counts once, however many action plans
+// point at the item. Counts toward Applied and blocks deletion.
+const list = computed<CompetencyItem[]>(() => storeList.value.map((i) => {
+  const idps = idpPlans.value
+    .filter(p => p.actionPlans.some(a => a.relatedTo === 'competency' && a.relatedCompetency === i.name))
+    .map(p => p.name)
+  return { ...i, idp_plans: idps, applied: i.applied + idps.length, deletion: i.deletion && !idps.length }
+}))
+// "Applied to" labels: the kinds of record using the item (groups, IDPs).
+const appliedTo = (i: CompetencyItem) => [
+  i.competency_management_groups.length && 'Competency group',
+  i.idp_plans?.length && 'IDP',
+].filter(Boolean) as string[]
+const itemByUuid = (uuid: string) => list.value.find(i => i.uuid === uuid)
 
 // Production shows the blank slate only when there are no items AND no keyword.
 const keyword = ref('')
@@ -89,7 +107,11 @@ function toggleSelectAll() {
 }
 function clearSelection() { selected.value = new Set() }
 function onKeydown(e: KeyboardEvent) { if (e.key === 'Escape' && selectedCount.value) clearSelection() }
-onMounted(() => window.addEventListener('keydown', onKeydown))
+onMounted(() => {
+  window.addEventListener('keydown', onKeydown)
+  // Deep link from the IDP action plan picker's "Add competency item".
+  if (route.query.create === '1') openForm('')
+})
 onUnmounted(() => window.removeEventListener('keydown', onKeydown))
 // Selected ids that no longer exist (deleted, scenario switch) drop out.
 watch(list, (l) => {
@@ -130,21 +152,24 @@ const unableDeleteDetail = computed(() => {
   if (type === 'bulk-all') detail.desc = 'You cannot delete this item because it is applied in '
   return detail
 })
-function deleteTextSingle(isPool: number, isGroup: number) {
-  if (isPool && isGroup) return 'these succession plan & group'
-  if (isPool) return 'succession plan'
-  return 'competency group, please check the following'
+function joinAnd(parts: string[]) {
+  return parts.length > 1 ? `${parts.slice(0, -1).join(', ')} & ${parts[parts.length - 1]}` : parts[0] ?? ''
 }
-function deleteTextBulk(isPool: boolean, isGroup: boolean) {
-  if (isPool && isGroup) return 'succession plan & group'
-  if (isPool) return 'this succession plan'
-  return 'competency group'
+function deleteTextSingle(isGroup: number, isIdp: number) {
+  const parts = [isGroup && 'group', isIdp && 'IDP'].filter(Boolean) as string[]
+  if (parts.length > 1) return `these ${joinAnd(parts)}`
+  return parts[0] === 'group' ? 'competency group, please check the following' : parts[0]
+}
+function deleteTextBulk(isGroup: boolean, isIdp: boolean) {
+  const parts = [isGroup && 'group', isIdp && 'IDP'].filter(Boolean) as string[]
+  if (parts.length === 1) return parts[0] === 'group' ? 'competency group' : 'IDP'
+  return joinAnd(parts)
 }
 
 function deleteCompetency(item: CompetencyItem) {
   singleItem.value = item
   deleteUuids.value = [item.uuid]
-  if (item.succession_pool_deletion && item.deletion) isModalDelete.value = true
+  if (item.deletion && !item.idp_plans?.length) isModalDelete.value = true
   else {
     unableDeleteType.value = 'single'
     isModalUnableDelete.value = true
@@ -157,7 +182,7 @@ function onBulk(type: 'edit' | 'delete') {
     return
   }
   // MOCK of POST /competencies/available-delete-item
-  const data = verifyDelete(uuids)
+  const data = verifyBulkDelete(list.value.filter(i => uuids.includes(i.uuid)))
   bulkVerify.value = data
   deleteUuids.value = data.eligible.map(e => e.uuid)
   if (!data.not_eligible.length) isModalDelete.value = true
@@ -189,8 +214,11 @@ const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', whiteSpace: 'normal', overflowWrap: 'anywhere' })
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
-const numHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '120px', textAlign: 'right' })
-const numCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '120px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' })
+const descCol = css({ width: '240px', maxWidth: '240px' })
+// A real min-width: table cells ignore `min-width` on the cell itself.
+const appliedInner = css({ minWidth: '190px' })
+const appliedHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '220px', minWidth: '180px', paddingRight: '4', whiteSpace: 'nowrap' })
+const appliedCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '220px', minWidth: '180px', paddingRight: '4', whiteSpace: 'nowrap' })
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const nameCol = css({ width: '30%' })
@@ -206,6 +234,15 @@ const emptyTextWrap = css({ maxWidth: '420px' })
 const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
 const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
 const unableWidth = css({ width: '560px', maxWidth: '90vw' })
+const singleSections = computed(() => {
+  const it = singleItem.value
+  if (!it) return []
+  return [
+    { label: 'Group', qa: 'group', names: it.competency_management_groups },
+    { label: 'IDP', qa: 'idp', names: it.idp_plans ?? [] },
+  ].filter(sec => sec.names.length)
+})
+const bulletList = css({ listStyleType: 'disc', paddingLeft: '5', display: 'flex', flexDirection: 'column', gap: '1' })
 const bodyText = css({ color: 'text.default' })
 const listScroll = css({ display: 'flex', flexDirection: 'column', gap: '2', maxHeight: '400px', overflowY: 'auto' })
 const listGroupLabel = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default', fontWeight: '600' })
@@ -296,11 +333,11 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                   <span :class="thInner"><span>Item name</span><PxColumnSortMenu col-key="item_name" :sort-type="columnSortTypes.item_name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="headCell">
+              <MpTableCell as="th" class="sort-th" :class="[headCell, descCol]">
                 <span :class="thInner"><span>Description</span><PxColumnSortMenu col-key="description" :sort-type="columnSortTypes.description" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="numHead">
-                <span :class="thInner"><span>Applied</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              <MpTableCell as="th" class="sort-th" :class="appliedHead">
+                <span :class="[thInner, appliedInner]"><span>Applied to</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
@@ -313,8 +350,15 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                   <span>{{ item.name }}</span>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ item.description || '-' }}</MpTableCell>
-              <MpTableCell as="td" :class="numCell">{{ item.applied || '-' }}</MpTableCell>
+              <MpTableCell as="td" :class="[cell, descCol]">{{ item.description || '-' }}</MpTableCell>
+              <MpTableCell as="td" :class="appliedCell">
+                <div :class="appliedInner">
+                  <ul v-if="appliedTo(item).length > 1" :class="bulletList">
+                    <li v-for="label in appliedTo(item)" :key="label">{{ label }}</li>
+                  </ul>
+                  <template v-else>{{ appliedTo(item)[0] ?? '-' }}</template>
+                </div>
+              </MpTableCell>
               <MpTableCell as="td" :class="actionCell">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
@@ -402,37 +446,29 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
           <div :class="listScroll">
             <template v-if="unableDeleteType === 'single' && singleItem">
               <MpText :class="bodyText">
-                {{ unableDeleteDetail.desc }}{{ deleteTextSingle(singleItem.succession_pool_jobs.length, singleItem.competency_management_groups.length) }}:
+                {{ unableDeleteDetail.desc }}{{ deleteTextSingle(singleItem.competency_management_groups.length, singleItem.idp_plans?.length ?? 0) }}:
               </MpText>
-              <div v-if="singleItem.succession_pool_jobs.length">
-                <MpText v-if="singleItem.competency_management_groups.length" :class="listGroupLabel">Succession plan:</MpText>
-                <MpFlex v-for="(job, idx) in singleItem.succession_pool_jobs" :key="idx" align="center" gap="2" :data-qa="`view-talent-competency-item-index-succession-job-${idx}`">
-                  <MpIcon name="indicator-circle" size="sm" /><MpText :class="bodyText">{{ job }}</MpText>
-                </MpFlex>
-              </div>
-              <div v-if="singleItem.competency_management_groups.length">
-                <MpText v-if="singleItem.succession_pool_jobs.length" :class="listGroupLabel">Group:</MpText>
-                <MpFlex v-for="(group, idx) in singleItem.competency_management_groups" :key="idx" align="center" gap="2" :data-qa="`view-talent-competency-item-index-group-${idx}`">
-                  <MpIcon name="indicator-circle" size="sm" /><MpText :class="bodyText">{{ group }}</MpText>
-                </MpFlex>
+              <div v-for="sec in singleSections" :key="sec.label">
+                <MpText v-if="singleSections.length > 1" :class="listGroupLabel">{{ sec.label }}:</MpText>
+                <ul :class="bulletList">
+                  <li v-for="(name, idx) in sec.names" :key="idx" :data-qa="`view-talent-competency-item-index-${sec.qa}-${idx}`"><MpText :class="bodyText">{{ name }}</MpText></li>
+                </ul>
               </div>
             </template>
             <template v-else-if="bulkVerify">
-              <MpText :class="bodyText">{{ unableDeleteDetail.desc }}{{ deleteTextBulk(bulkVerify.has_succession, bulkVerify.has_group) }}:</MpText>
-              <div v-for="item in bulkVerify.not_eligible" :key="item.uuid">
-                <MpFlex v-for="pool in item.succession_pools" :key="pool" align="center" gap="2">
-                  <MpIcon name="indicator-circle" size="sm" /><MpText :class="bodyText">{{ item.name }} - Succession plan of {{ pool }}</MpText>
-                </MpFlex>
-                <MpFlex v-for="group in item.competency_management_groups" :key="group" align="center" gap="2">
-                  <MpIcon name="indicator-circle" size="sm" /><MpText :class="bodyText">{{ item.name }} - {{ group }}</MpText>
-                </MpFlex>
-              </div>
+              <MpText :class="bodyText">{{ unableDeleteDetail.desc }}{{ deleteTextBulk(bulkVerify.has_group, bulkVerify.has_idp) }}:</MpText>
+              <ul :class="bulletList">
+                <template v-for="item in bulkVerify.not_eligible" :key="item.uuid">
+                  <li v-for="group in item.competency_management_groups" :key="`g-${group}`"><MpText :class="bodyText">{{ item.name }} - {{ group }}</MpText></li>
+                  <li v-for="idp in item.idps" :key="`i-${idp}`"><MpText :class="bodyText">{{ item.name }} - IDP of {{ idp }}</MpText></li>
+                </template>
+              </ul>
             </template>
           </div>
         </MpModalBody>
         <MpModalFooter>
           <div :class="footerRow">
-            <MpButton v-if="unableDeleteDetail.cancelOnly" variant="primary" @click="closeDeleteModals">Okay</MpButton>
+            <MpButton v-if="unableDeleteDetail.cancelOnly" variant="primary" @click="closeDeleteModals">OK, understand</MpButton>
             <template v-else>
               <MpButton variant="ghost" @click="closeDeleteModals">Cancel</MpButton>
               <MpButton variant="danger" @click="confirmDelete">Delete {{ deleteUuids.length }} eligible item{{ deleteUuids.length === 1 ? '' : 's' }}</MpButton>
