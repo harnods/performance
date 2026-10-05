@@ -13,12 +13,14 @@ These exist today:
 
 | Where | What it previews |
 |---|---|
-| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. |
+| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
+| `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB: **Show Import** toggle (off by default; shows/hides the header Import button via `useIdpImportFlag`) + the coachmark controls. |
 | `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 | `components/manage-user/RolesFormScenarioControl.vue` (Settings → Manage users → Roles → Add / Edit role) | **Version 1 (Default)** (Access + Permission list) vs **Version 2 — Action columns** (View / Create / Edit / Delete checkbox columns). One axis, flat list. State in `useManageUserStore().rolesFormVersion`. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
+| `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
 
 ## The FAB is fixed — copy it exactly
 
@@ -194,6 +196,10 @@ Current IDP coachmarks:
 | Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
+| IDP list | Import button | New; only visible when Show Import is on |
+| Import page | "Download the data template" step | New stepped import page |
+| Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
+| Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
 Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 
@@ -216,3 +222,6 @@ Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 - State in a module-scope composable; defaults mirror the real seed.
 - A forced state fakes its own preconditions, reusing the real rule's constants.
 - Fabricated data is tagged and cannot navigate to a detail page it doesn't have.
+- Inside a drawer/modal (which covers the page's FAB corner), use a 32px round
+  `background.inverse` `sliders` button in the header, left of the X
+  (`absolute`, `right: 56px`), with a `bottom-end` popover. Same dev-only rule.

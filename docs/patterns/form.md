@@ -799,3 +799,14 @@ Reference: `components/manage-user/RolesForm.vue`.
 - No cards / no divider lines between sections — spacing + row border-bottom.
 - Toggle/checkbox/radio use built-in label + `#description` slots.
 - See [`buttons.md`](buttons.md) for footer CTAs, [`page-form.md`](page-form.md) for page-vs-drawer.
+
+## Empty source list in `PxSelectPopover`
+
+When the options list is empty (nothing to search), pass `empty-text`,
+`empty-action-label` and `empty-action-href`. The popover shows the centred
+`text.secondary` message, a divider, then a centred `text.link` row
+`+ <label>` (same shape as the creatable "Add “…”" row) that opens the href in
+a new tab, with no bottom padding under the link row (the list's 8px is dropped). Reference: Competency item select in `components/IdpActionPlanModal.vue`
+("No competency items yet" / "Add competency item"). A radio that reveals a
+select has **no label** on that select, a 4px gap under the radio and a 32px
+indent (`marginLeft: '8'`); `IdpPlanForm.vue`'s future job position follows it.
