@@ -15,6 +15,7 @@ Six exist today:
 |---|---|
 | `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
 | `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB: **Show Import** toggle (off by default; shows/hides the header Import button via `useIdpImportFlag`) + the coachmark controls. |
+| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
@@ -130,13 +131,16 @@ talenta-review copies nothing demo-related.
   a `route` regex, a `find()` that locates an element **already in the product
   markup** (an `MpFormLabel`'s `<controlId>-label` id, an exact own-text match
   on a `th`/title, or a scoped selector like `.idp-view-modal`), plus `title`,
-  `description` and `placement`.
+  `description` and `placement`, and an optional `when(route)` for a query
+  condition (the evaluation entries only show on `?purpose=evaluation`).
 - `components/demo/DemoLayer.vue` is mounted **once in `app.vue`**. It
   filters the registry by route, watches the DOM (MutationObserver, one scan
   per frame, so tables, drawers and modals that mount later get their
   pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
-  and teleports a `DevCoachmark` into it. It also renders `IdpDevTools` on any
-  route that has coachmarks.
+  and teleports a `DevCoachmark` into it. It also renders the module's dev
+  tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
+  `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
+  `route.fullPath`, so a query change (e.g. `?mode=edit`) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
   prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
 - **Not auto-imported:** `nuxt.config.ts` registers components with
@@ -149,6 +153,12 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
+- **Never append a pulse inline inside a flex/grid row.** It becomes an extra
+  item that takes a gap slot and shifts its siblings (it pushed the filter row's
+  remove button out and widened the "and" divider). Set `corner: true` on the
+  entry instead: the host is absolutely positioned at the anchor's top-right
+  corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
+  static, so layout is untouched.
 
 ### Look and behaviour
 
@@ -158,7 +168,10 @@ talenta-review copies nothing demo-related.
   title, a 14px `text.secondary` description, and a right-aligned **Hide**
   button (`MpButton variant="secondary"`) that hides that one coachmark.
   There's no eyebrow label.
-- **`IdpDevTools`** is the FAB panel. It has a **Coachmarks** group with a
+- **`IdpDevTools`** / **`EvaluationCycleDevTools`** are the FAB panels (one per
+  module, picked by `DemoLayer` from the route). A module's own scenario switches
+  go in a **Scenario** group above Coachmarks, using the same label-before-toggle
+  row + 12px hint (e.g. "Edit cycle (read-only)"). Every panel has a **Coachmarks** group with a
   **Show coachmarks** toggle, an "n hidden" count and a **Reset coachmarks**
   textlink. Reset shows every hidden coachmark again and turns them back on.
 - State lives in `components/demo/useDevCoachmarks.ts`. It's module-scope and
@@ -187,12 +200,22 @@ Current IDP coachmarks:
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
+Current evaluation cycle coachmarks (Create new cycle → Employee filter):
+
+| When | Anchor | What it explains |
+|---|---|---|
+| Always | "Employee filter" label | Several filter types instead of one; AND across filters, OR within; new Job grade / Job class |
+| Always | The caption under the label | One fixed caption says who's included |
+| Create, once a filter type is picked | First value field (`.mp-gap_24px [data-pixel-component="MpInputGroup"]`), `corner: true` | Search in the field, named values, popover as wide as the field, infinite scroll |
+| After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
+| Edit (`?mode=edit`) | "Employee filter" label | Locked fields explain why on hover; production says nothing |
+
 ## Rules
 
 - Floating FAB = dev only. Never for product actions.
 - Fixed bottom-right, 24px, 48px circle, `background.inverse`, `sliders` icon,
-  popover `placement="top-end"`. **Exception:** `IdpDevTools` sits
-  **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
+  popover `placement="top-end"`. **Exception:** the demo-layer panels
+  (`IdpDevTools`, `EvaluationCycleDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
   collides with a page's own bottom-right scenario FAB.
 - Multi-group panel: no `is-close-on-select`; always a `Reset` + a `Default` choice.
 - State in a module-scope composable; defaults mirror the real seed.

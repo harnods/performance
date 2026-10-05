@@ -13,7 +13,7 @@ Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls 
 
 Cancel/dismiss = ghost is 100% consistent across every form, drawer footer, and modal footer.
 
-> "Add another row" has two idioms in the repo: ghost `MpButton left-icon="add-circular"` (CycleGeneralForm, CycleMethodDrawer) vs a bare `<button>` text-link (`addLink = css({ color:'text.link', fontSize:'14px', lineHeight:'20px' })`). Prefer the **ghost `MpButton`** for consistency.
+> "Add another row" has two idioms in the repo: ghost `MpButton left-icon="add-circular"` (CycleGeneralForm, CycleMethodDrawer) vs a bare `<button>` text-link (`addLink = css({ color:'text.link', fontSize:'14px', lineHeight:'20px' })`). Prefer the **ghost `MpButton`** for consistency. Exception: adding a whole **filter row** ("Add filter") is a `variant="secondary" right-icon="chevrons-down"` dropdown button whose popover lists the filter types left to add. See [form.md](form.md) "Repeatable filter rows".
 
 ## Save vs Save changes
 
@@ -85,10 +85,16 @@ the icon from `Create program` in a redesign pass and later put it back; don't
 let one variant carry the icon while a sibling instance of the identical
 button/action doesn't.
 
+**Exception — dropdown "Add X ▾":** when the button opens a menu to choose
+*what* to add (the evaluation cycle's "Add filter", whose popover lists the
+filter types left), it takes `right-icon="chevrons-down"` and **no** left
+`add` icon. The chevron is the affordance, and two icons on one short label
+read as clutter. See [form.md](form.md) "Repeatable filter rows".
+
 ## Rules
 
 - Cancel/dismiss = ghost, always. Primary = rightmost.
 - Edit forms say "Save changes"; create forms say "Save".
 - Never disable the primary submit — validate + toast instead.
 - Secondary = black border + black text on neutral.
-- A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action.
+- A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action. Exception: a dropdown "Add X ▾" gets only `right-icon="chevrons-down"`.
