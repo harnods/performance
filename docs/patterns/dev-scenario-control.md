@@ -9,7 +9,7 @@ the viewport is deliberately reserved for dev affordances so it reads as "not pa
 product" at a glance. Real actions live in `#page-header-actions`, a filter bar, or a
 table's action column — see [`header-bar.md`](header-bar.md) and [`buttons.md`](buttons.md).
 
-Four exist today:
+These exist today:
 
 | Where | What it previews |
 |---|---|
@@ -17,6 +17,7 @@ Four exist today:
 | `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
+| `components/manage-user/RolesFormScenarioControl.vue` (Settings → Manage users → Roles → Add / Edit role) | **Version 1 (Default)** (Access + Permission list) vs **Version 2 — Action columns** (View / Create / Edit / Delete checkbox columns). One axis, flat list. State in `useManageUserStore().rolesFormVersion`. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 
 ## The FAB is fixed — copy it exactly

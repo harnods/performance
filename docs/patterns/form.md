@@ -705,6 +705,87 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 
 A field can be locally valid but still violate a rule that depends on state outside the form (e.g. `AddGoalDrawer.vue`'s weight field: 1–100 is locally fine, but a `weightMandatory` cycle also needs it to land the owner's total on exactly 100%). Validate this *inside* the form component itself, gated on a prop the caller passes in (`weightMandatory` + `alreadyUsedWeight`), not in the `@save` handler after the fact — a handler-level check runs too late: the drawer's own `save()` already emits `'update:isOpen', false` in the same breath as `'save'`, so by the time a parent-side check could reject it, the drawer has already closed. Fold the extra rule into the same `errors.*` + `MpFormErrorMessage` used for local validation, and block `emit('save', …)` from firing at all. Because the drawer can be long, also scroll the offending field into view (`document.getElementById(fieldId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })` inside `nextTick`) so an error on a field the user didn't touch (scrolled past, off the visible area) isn't silently invisible. Do **not** fall back to a `toast.notify()` for this — a toast next to a drawer that already closed reads as "it saved, but here's a warning," when what actually happened is it didn't save at all.
 
+## Permission matrix (parent/child checkbox table)
+
+A role's permissions render as a 2-column `MpTable` (`:is-hoverable="false"`): **Access** (40%,
+the parent `MpCheckbox`, `:is-indeterminate` when only some children are on) and **Permission**
+(a `View` checkbox + one checkbox per child, each with its caption in `#description`, 16px apart).
+A parent with no children shows just its description as `MpText size="label" color="text.secondary"`.
+The Permission cell stacks 3+ lines, so the whole table is `verticalAlign: 'top'`. Checking a
+child also checks the parent's View; unchecking View clears its children. Reference:
+`components/manage-user/RolesForm.vue` (migrated from production's flex-row layout).
+
+**Purpose-scoped permissions (Review cycle — PRD "Custom Role Improvement" S1).** The
+scoped group renders as its own row ("Review cycle" checkbox, empty Permission cell)
+followed by **one table sub-row per cycle purpose** — Performance, Competency, Evaluation —
+not an accordion and no summary text. Each sub-row:
+- **Access cell**: the purpose `MpCheckbox`, indented **32px** from the group checkbox
+  (`paddingLeft: '40px'` = the cell's own 8px + 32px). Checked = every permission granted
+  for that purpose; some = indeterminate. Clicking it grants/clears all of them.
+- **Permission cell**: the group's normal View / Add / Edit / Delete checkboxes (Report is its own group — below),
+  with the purpose spelled out in each `#description` ("View performance review cycles and
+  their progress." — `SCOPED_PERMISSION_DESCRIPTIONS` in `utils/manageUser.ts`).
+- **Evaluation only**: once any Evaluation permission is on, one `MpCheckbox` per employment
+  status (Contract / Probation / Internship) appears **16px** below the Evaluation checkbox
+  (`gap: '16px'` on the cell's flex column — explicit px, the spacing token renders slightly
+  off), indented **32px** (the reveal indent), 12px apart. **No title** above them — the
+  options read as Evaluation's children. It's a plain `div role="group"
+  aria-label="Employment status"` (not `MpFormControl`, whose id would land on every
+  checkbox). Granting Evaluation starts with every status ticked; **unticking the last
+  status removes Evaluation** (evaluation access needs ≥1 status), which hides the group.
+- **No line under the group row** ("Review cycle"): every cell of a row that has sub-rows
+  below it gets `borderBottomColor: 'transparent'`. Dividers between purpose sub-rows start
+  at the 32px indent: the Access cell's border goes transparent and a 1px `linear-gradient`
+  background (`calc(100% - 40px)`, right-bottom) draws it. The last purpose row keeps the
+  normal full-width row border.
+- The table is `tableLayout: 'fixed'` so Access keeps its 40% (the status checkboxes live
+  there), and cells get `whiteSpace: 'normal'` so descriptions wrap instead of clipping.
+- Production's "child implies View" rule applies per purpose; unticking View for a purpose
+  clears that purpose from every other permission.
+- **Group checkbox**: fully checked → clears every purpose, permission and status; otherwise
+  grants all. Compute the next value **once** before looping the nodes — re-reading
+  "is everything on?" inside the loop flips after the first node changes and leaves the
+  rest ticked.
+
+**Report (PRD S2).** Its own group, below Review cycle — not a child of Review cycle. No
+View row: the Permission cell holds **Standard report** (production's review-cycle report,
+same id) and **9-Box report**. Below it, indented sub-rows like Review cycle's:
+- **"Same scope as Review cycle"** `MpCheckbox` (a checkbox, not the PRD's switch, so the
+  page keeps one control type), on by default. Its `#description` shows what it tracks —
+  `scopeSummary()` of Review cycle's current purposes ("Performance, Evaluation (Contract,
+  Internship)"; statuses only when not all) or "No Review cycle purpose selected yet".
+- Unticking it starts a custom scope **from Review cycle's current one** and reveals one
+  purpose sub-row each (purpose checkbox + the same Employment Status checkboxes under
+  Evaluation). Permission cell empty — the scope applies to both report types.
+- A granted Report with a custom scope and no purpose blocks Save
+  ("Select at least one purpose for Report", toast).
+- Stored on every Report grant as `scope` + `same_as_review_cycle`; migrated roles get all
+  purposes/statuses and `same_as_review_cycle: true`, 9-Box unchecked (PRD S5).
+
+**Dashboard (PRD S3).** One group checkbox, no scope picker. The Permission cell adds a
+second `text.secondary` line under the description: "Scoped to Review cycle: …". With no
+Review cycle purpose the checkbox is **`is-disabled`** and the line explains why
+("Select a Review cycle purpose first…"); clearing Review cycle's last purpose also unticks
+it (`watch`).
+
+**Version 2 — one checkbox column per action (dev scenario, `rolesFormVersion`).** Same
+rows and Access column, but the Permission column splits into **View / Create / Edit /
+Delete** (`ACTION_COLUMNS`, 12% each; the Report column went away when Report became its
+own section, header and checkbox centred via a
+`display: flex; justifyContent: center` wrapper). Cells hold a **bare `MpCheckbox`** with an
+`aria-label` ("Edit performance review cycle") — no label, no description; a cell with no
+matching permission stays empty. Children map to columns by name (`Add` → Create, `Edit`,
+`Delete`; the parent itself → View). Children that aren't an action (Manage Goal's company /
+organization goals, Report's Standard / 9-Box) become indented Access-only sub-rows under
+their group, with the same no-line-under-group rule; Report's scope rows follow them, action
+cells empty. Dashboard's scope note moves into its Access checkbox's `#description` (no
+description column in V2). In V2 an unscoped group checkbox reflects its whole row
+(all → checked, some → indeterminate, click → all on / all off), unlike V1's production
+rule. Switched by `components/manage-user/RolesFormScenarioControl.vue`
+([`dev-scenario-control.md`](dev-scenario-control.md)).
+
+Reference: `components/manage-user/RolesForm.vue`.
+
 ## Rules
 
 - Field = `MpFormControl` + `MpFormLabel` (+ `MpFormErrorMessage`). Required via `:is-required`.

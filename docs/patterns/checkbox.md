@@ -52,6 +52,11 @@ button. (See [`form.md`](form.md).)
 The row-select checkbox is part of the **first content column** — it lives **inside the first
 cell**, together with that cell's content. There is **no dedicated checkbox-only column**.
 
+> **Not the same thing:** a *permission matrix* whose columns **are** the data (View / Create /
+> Edit / Delete) uses bare, centred, `aria-label`led checkboxes in each action column.
+> That's a value grid, not row selection — see [`form.md`](form.md) → "Permission matrix"
+> (Version 2). The rule above is only about the row-select checkbox.
+
 ```vue
 <!-- ✅ checkbox lives inside the first (Goal) cell -->
 <MpTableCell as="td" :class="[tightCell, colDivider]">
