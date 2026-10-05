@@ -38,6 +38,11 @@ const list = computed<CompetencyItem[]>(() => storeList.value.map((i) => {
     .map(p => p.name)
   return { ...i, idp_plans: idps, applied: i.applied + idps.length, deletion: i.deletion && !idps.length }
 }))
+// "Applied to" labels: the kinds of record using the item (groups, IDPs).
+const appliedTo = (i: CompetencyItem) => [
+  i.competency_management_groups.length && 'Competency group',
+  i.idp_plans?.length && 'IDP',
+].filter(Boolean) as string[]
 const itemByUuid = (uuid: string) => list.value.find(i => i.uuid === uuid)
 
 // Production shows the blank slate only when there are no items AND no keyword.
@@ -209,8 +214,8 @@ const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', whiteSpace: 'normal', overflowWrap: 'anywhere' })
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
-const numHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '120px', textAlign: 'right' })
-const numCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '120px', textAlign: 'right', fontVariantNumeric: 'tabular-nums' })
+const appliedHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '200px', whiteSpace: 'nowrap' })
+const appliedCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '200px', whiteSpace: 'nowrap' })
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const nameCol = css({ width: '30%' })
@@ -328,8 +333,8 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
               <MpTableCell as="th" class="sort-th" :class="headCell">
                 <span :class="thInner"><span>Description</span><PxColumnSortMenu col-key="description" :sort-type="columnSortTypes.description" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="numHead">
-                <span :class="thInner"><span>Applied</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+              <MpTableCell as="th" class="sort-th" :class="appliedHead">
+                <span :class="thInner"><span>Applied to</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
@@ -343,7 +348,12 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                 </MpFlex>
               </MpTableCell>
               <MpTableCell as="td" :class="cell">{{ item.description || '-' }}</MpTableCell>
-              <MpTableCell as="td" :class="numCell">{{ item.applied || '-' }}</MpTableCell>
+              <MpTableCell as="td" :class="appliedCell">
+                <ul v-if="appliedTo(item).length > 1" :class="bulletList">
+                  <li v-for="label in appliedTo(item)" :key="label">{{ label }}</li>
+                </ul>
+                <template v-else>{{ appliedTo(item)[0] ?? '-' }}</template>
+              </MpTableCell>
               <MpTableCell as="td" :class="actionCell">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>

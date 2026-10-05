@@ -50,7 +50,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Feature',
         area: 'Competency items · IDP linkage',
-        detail: 'Applied now counts IDPs whose action plans link the item (once per IDP). A linked item cannot be deleted; "Unable to delete" lists Group and IDP as bullets (succession plans no longer block) with an "OK, understand" button. ?create=1 opens the Create modal.',
+        detail: 'Applied now counts IDPs whose action plans link the item (once per IDP). A linked item cannot be deleted; "Unable to delete" lists Group and IDP as bullets (succession plans no longer block) with an "OK, understand" button. ?create=1 opens the Create modal. Applied column renamed "Applied to": shows Competency group / IDP (bullets when both) instead of a count.',
         files: ['pages/talents/competencies/items/index.vue', 'utils/competencyItem.ts', 'docs/patterns/modal.md'],
       },
     ],
