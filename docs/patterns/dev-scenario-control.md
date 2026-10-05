@@ -17,6 +17,7 @@ Four exist today:
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
+| `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
 
 ## The FAB is fixed — copy it exactly
 
@@ -192,3 +193,6 @@ Current IDP coachmarks:
 - State in a module-scope composable; defaults mirror the real seed.
 - A forced state fakes its own preconditions, reusing the real rule's constants.
 - Fabricated data is tagged and cannot navigate to a detail page it doesn't have.
+- Inside a drawer/modal (which covers the page's FAB corner), use a 32px round
+  `background.inverse` `sliders` button in the header, left of the X
+  (`absolute`, `right: 56px`), with a `bottom-end` popover. Same dev-only rule.

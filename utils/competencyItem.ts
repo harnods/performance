@@ -44,6 +44,8 @@ export interface CompetencyItem {
   competency_management_groups: string[]
   /** Job names of succession pools using it, shown in "Unable to delete". */
   succession_pool_jobs: string[]
+  /** IDP names (plans) with an action plan linked to it. Filled client-side from the IDP store. */
+  idp_plans?: string[]
   /** applied === 0 */
   deletion: boolean
   /** succession_pool_jobs is empty */
@@ -71,12 +73,13 @@ export interface PaginationMeta {
   total: number
 }
 
-interface VerifyItem { id: number; uuid: string; name: string; competency_management_groups: string[]; succession_pools: string[] }
+interface VerifyItem { id: number; uuid: string; name: string; competency_management_groups: string[]; succession_pools: string[]; idps: string[] }
 export interface VerifyBulkDelete {
   eligible: VerifyItem[]
   not_eligible: VerifyItem[]
   has_group: boolean
   has_succession: boolean
+  has_idp: boolean
 }
 
 // GET /rating-scales — system defaults (database/seeds/CompetencyManagementDefaultRatingScalesSeeder.php).
@@ -153,12 +156,14 @@ export function verifyBulkDelete(items: CompetencyItemRecord[]): VerifyBulkDelet
     id: i.id, uuid: i.uuid, name: i.name,
     competency_management_groups: i.competency_management_groups,
     succession_pools: i.succession_pool_jobs,
+    idps: i.idp_plans ?? [],
   })
-  const blocked = items.filter(i => i.competency_management_groups.length || i.succession_pool_jobs.length)
+  const blocked = items.filter(i => i.competency_management_groups.length || i.idp_plans?.length)
   return {
     eligible: items.filter(i => !blocked.includes(i)).map(toVerify),
     not_eligible: blocked.map(toVerify),
     has_group: blocked.some(i => i.competency_management_groups.length > 0),
-    has_succession: blocked.some(i => i.succession_pool_jobs.length > 0),
+    has_succession: false, // succession plans no longer block deletion
+    has_idp: blocked.some(i => (i.idp_plans?.length ?? 0) > 0),
   }
 }

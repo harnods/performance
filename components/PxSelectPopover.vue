@@ -37,6 +37,12 @@ const props = defineProps<{
   // value. Nothing is committed per keystroke. Used for open vocabularies
   // (IDP objective, action-plan category). See docs/patterns/form.md.
   allowCustomValue?: boolean
+  // Source list is empty (nothing to search): centred message + divider + blue
+  // link row, same shape as the "Results not found" + Add row. The link opens
+  // `emptyActionHref` in a new tab. See docs/patterns/form.md.
+  emptyText?: string
+  emptyActionLabel?: string
+  emptyActionHref?: string
   /** @deprecated The Add row no longer names the type. */
   customValueLabel?: string
   // Character cap for the `searchOnField` input, so a free-text field can carry
@@ -207,6 +213,10 @@ const createCandidate = computed(() => {
 const noResults = css({ padding: '8px 12px', fontSize: '14px', lineHeight: '20px', color: 'text.secondary', textAlign: 'left', width: '100%' })
 const createItem = css({ justifyContent: 'center', paddingBlock: '16px' })
 const createItemDivider = css({ borderTop: '1px solid', borderTopColor: 'border.default' })
+// The list's own 8px bottom padding sits under the link row; drop it so the link row ends flush.
+const emptyList = css({ paddingBottom: '0 !important' })
+const emptyCentered = css({ textAlign: 'center', paddingBlock: '16px' })
+const emptyLink = css({ display: 'block', width: '100%', textAlign: 'center', paddingBlock: '16px', fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.link', textDecoration: 'none', _hover: { textDecoration: 'underline' } })
 const createText = css({ width: '100%', textAlign: 'center', color: 'text.link' })
 
 // searchOnField's trigger swaps MpSelect for a real MpInputGroup/MpInput field
@@ -265,10 +275,14 @@ const fieldGroupClass = css({ cursor: 'text' })
              unchanged. Harmless for the non-searchOnField list (nothing
              there depends on focus). -->
         <div :class="listWrap" class="px-select-list" @mousedown.prevent>
-        <MpPopoverList>
+        <MpPopoverList :class="!options.length && emptyText ? emptyList : undefined">
           <!-- Non-interactive row, padded exactly like MpPopoverListItem.
                Creatable selects skip it: the "Add" link is the whole answer. -->
-          <div v-if="!filteredOptions.length && !createCandidate" :class="noResults">No results found</div>
+          <template v-if="!options.length && emptyText">
+            <div :class="[noResults, emptyCentered]">{{ emptyText }}</div>
+            <a v-if="emptyActionLabel && emptyActionHref" :href="emptyActionHref" target="_blank" rel="noopener" :class="[emptyLink, createItemDivider]">+ {{ emptyActionLabel }}</a>
+          </template>
+          <div v-else-if="!filteredOptions.length && !createCandidate" :class="noResults">No results found</div>
           <template v-for="(grp, gi) in groupedOptions" :key="`g-${gi}`">
             <div v-if="grp.group" :class="groupHeader">{{ grp.group }}</div>
             <MpPopoverListItem

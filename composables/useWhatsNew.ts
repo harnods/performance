@@ -26,6 +26,36 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '05 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Add action plan drawer · Competency item picker',
+        detail: 'Empty source list shows "No competency items yet" + a "+ Add competency item" link (opens Create competency item in a new tab) via new PxSelectPopover empty-text/empty-action props. Dev-tools icon next to the X forces Filled vs Empty competency items.',
+        files: ['components/IdpActionPlanModal.vue', 'components/PxSelectPopover.vue', 'components/demo/ActionPlanDevTools.vue', 'docs/patterns/form.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Create plan · Future job position',
+        detail: 'Select is indented 32px under its radio, label removed, placeholder "Select job position".',
+        files: ['components/IdpPlanForm.vue'],
+      },
+    ],
+  },
+  {
+    date: '05 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Competency items · IDP linkage',
+        detail: 'Applied now counts IDPs whose action plans link the item (once per IDP). A linked item cannot be deleted; "Unable to delete" lists Group and IDP as bullets (succession plans no longer block) with an "OK, understand" button. ?create=1 opens the Create modal.',
+        files: ['pages/talents/competencies/items/index.vue', 'utils/competencyItem.ts', 'docs/patterns/modal.md'],
+      },
+    ],
+  },
+  {
     date: '02 Oct 2026',
     module: 'IDPs',
     items: [
