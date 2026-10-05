@@ -24,7 +24,7 @@ const props = withDefaults(defineProps<{
 }>(), {
   tips: () => [],
   maxMb: 10,
-  submitText: 'Upload',
+  submitText: 'Import',
 })
 
 const router = useRouter()

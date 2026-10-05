@@ -32,7 +32,7 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Feature',
         area: 'IDP list · Import',
-        detail: 'Secondary Import button in the page header (hidden by default; "Show Import" toggle in the new bottom-right dev tools, with coachmarks; the import page dev tools, bottom-left, force "file too large" / "wrong format" errors) opens /talents/idps/import: stepped layout (1 Download template, 2 Fill in, 3 Upload) with dropzone, Cancel / Upload (mocked).',
+        detail: 'Secondary Import button in the page header (hidden by default; "Show Import" toggle in the new bottom-right dev tools, with coachmarks; the import page dev tools, bottom-left, force "file too large" / "wrong format" errors) opens /talents/idps/import: stepped layout (1 Download template, 2 Fill in, 3 Upload) with dropzone, Cancel / Import (mocked).',
         files: ['pages/talents/idps/index.vue', 'pages/talents/idps/import.vue', 'components/StepImportPage.vue', 'components/demo/IdpListDevTools.vue', 'components/demo/IdpDevTools.vue', 'components/demo/coachmarks.ts', 'composables/useIdpImportFlag.ts', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
       },
       {

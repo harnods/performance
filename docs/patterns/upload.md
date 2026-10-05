@@ -219,7 +219,7 @@ by 1px `border.default` lines:
 1. **Download the data template**: description + secondary `Download template` button.
 2. **Fill in the data in the template file**: bullet list of guidelines.
 3. **Upload spreadsheet**: the dropzone above (240px, hint `.xlsx only with max size 10mb`; swaps to a file
-   row once picked; row errors in an error banner), then **Cancel** (ghost) / **Upload**
+   row once picked; row errors in an error banner), then **Cancel** (ghost) / **Import**
    (primary) right-aligned.
 
 Each step's number badge and title sit in one row, **vertically centred** (`align="center"`); the step body sits 4px (`gap="1"`) below the title and is indented 48px (badge + gap) to line up under the title. Inline errors follow the copy rule `[cause]. Please [fix]`, no trailing period: `File size is over 10 MB. Please upload a smaller file`, `File must be in .xlsx format. Please upload a different file`, empty submit `You must upload spreadsheet`.
