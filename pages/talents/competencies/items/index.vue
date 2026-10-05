@@ -214,8 +214,11 @@ const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', whiteSpace: 'normal', overflowWrap: 'anywhere' })
 const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
-const appliedHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '200px', whiteSpace: 'nowrap' })
-const appliedCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '200px', whiteSpace: 'nowrap' })
+const descCol = css({ width: '240px', maxWidth: '240px' })
+// A real min-width: table cells ignore `min-width` on the cell itself.
+const appliedInner = css({ minWidth: '190px' })
+const appliedHead = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '220px', minWidth: '180px', paddingRight: '4', whiteSpace: 'nowrap' })
+const appliedCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle', width: '220px', minWidth: '180px', paddingRight: '4', whiteSpace: 'nowrap' })
 const actionHead = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const actionCell = css({ paddingTop: '2', paddingBottom: '2', width: '1%', whiteSpace: 'nowrap', verticalAlign: 'middle' })
 const nameCol = css({ width: '30%' })
@@ -330,11 +333,11 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                   <span :class="thInner"><span>Item name</span><PxColumnSortMenu col-key="item_name" :sort-type="columnSortTypes.item_name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="headCell">
+              <MpTableCell as="th" class="sort-th" :class="[headCell, descCol]">
                 <span :class="thInner"><span>Description</span><PxColumnSortMenu col-key="description" :sort-type="columnSortTypes.description" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
               <MpTableCell as="th" class="sort-th" :class="appliedHead">
-                <span :class="thInner"><span>Applied to</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
+                <span :class="[thInner, appliedInner]"><span>Applied to</span><PxColumnSortMenu col-key="applied" :sort-type="columnSortTypes.applied" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span>
               </MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
@@ -347,12 +350,14 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                   <span>{{ item.name }}</span>
                 </MpFlex>
               </MpTableCell>
-              <MpTableCell as="td" :class="cell">{{ item.description || '-' }}</MpTableCell>
+              <MpTableCell as="td" :class="[cell, descCol]">{{ item.description || '-' }}</MpTableCell>
               <MpTableCell as="td" :class="appliedCell">
-                <ul v-if="appliedTo(item).length > 1" :class="bulletList">
-                  <li v-for="label in appliedTo(item)" :key="label">{{ label }}</li>
-                </ul>
-                <template v-else>{{ appliedTo(item)[0] ?? '-' }}</template>
+                <div :class="appliedInner">
+                  <ul v-if="appliedTo(item).length > 1" :class="bulletList">
+                    <li v-for="label in appliedTo(item)" :key="label">{{ label }}</li>
+                  </ul>
+                  <template v-else>{{ appliedTo(item)[0] ?? '-' }}</template>
+                </div>
               </MpTableCell>
               <MpTableCell as="td" :class="actionCell">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">

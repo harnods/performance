@@ -761,6 +761,6 @@ exists, a 14px `text.secondary` line says so instead of the table.
 ### "Applied to" column (competency items)
 
 Text, not a number: `Competency group` and/or `IDP`. One kind → plain text; both →
-a bullet list (`listStyleType: 'disc'`); none → `-`. Left-aligned, 200px, no wrap.
+a bullet list (`listStyleType: 'disc'`); none → `-`. Left-aligned, min 190px (inner wrapper, since cells ignore min-width), no wrap; Description capped at 240px.
 Sorting still orders by the number of linked records. Reference:
 `pages/talents/competencies/items/index.vue`.
