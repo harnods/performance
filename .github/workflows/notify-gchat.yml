@@ -1,0 +1,29 @@
+name: Notify Google Chat
+on:
+  deployment_status:
+  workflow_dispatch:
+
+jobs:
+  notify:
+    if: >
+      github.event_name == 'deployment_status' &&
+      github.event.deployment_status.state == 'success' &&
+      github.event.deployment.environment == 'Production'
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      deployments: read
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.deployment.sha }}
+          fetch-depth: 0
+      - run: node .github/scripts/notify.mjs
+        env:
+          GCHAT_WEBHOOK_URL: ${{ secrets.GCHAT_WEBHOOK_URL }}
+          SITE_URL: ${{ vars.SITE_URL }}
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          REPO: ${{ github.repository }}
+          DEPLOY_ID: ${{ github.event.deployment.id }}
+          DEPLOY_SHA: ${{ github.event.deployment.sha }}
+          ENV_URL: ${{ github.event.deployment_status.environment_url }}
