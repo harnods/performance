@@ -26,6 +26,36 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '06 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Version 2 permission table',
+        detail: 'Version 2 is now a full-width collapsible module tree (Figma "Table / Custom role performance"): 440px Permission column + View / Create / Edit / Delete columns, consistent 24px indent per level, parent boxes reflect their subtree. Turning on an "Apply … settings" toggle removes the caret and hides the node\'s children. Prototype state only (not in the submitted payload).',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 permission table',
+        detail: 'Table is now full width: Module (renamed from Access) is a fixed 440px, Permission fills the rest. Report\'s "Same scope as review cycle module" is a toggle (same as Version 2), review purposes read "Performance / Competency / Evaluation review", and the Dashboard checkbox is always enabled. Version 2\'s toggles are renamed "Same scope as … module".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 Report & Dashboard',
+        detail: 'Review cycle, Report and Dashboard fold with a caret. Report rows: Standard report (same-scope toggle 8px below its title; off → unchecked purpose checkboxes aligned with the toggle title, no borders), 9-Box report and Goals — each View + Create. Dashboard rows: Performance review and Goals mirror Review cycle\'s Performance and Manage Goal permissions.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Report & Dashboard naming and scope',
+        detail: 'Renamed (all versions) Standard report → Review results, 9-Box report → 9-box matrix, Goals → Goals result (now ordered Review results, Goals result, 9-box matrix). The toggle reads "Same scope as review cycle module setting" with no caption. Version 1 dividers are full width everywhere, and Dashboard\'s Performance review gets the same toggle + scope checkboxes as Review results. Version 2 is middle-aligned now (no 3-line cell).',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/table.md'],
+      },
+    ],
+  },
+  {
     date: '05 Oct 2026',
     module: 'IDPs',
     items: [

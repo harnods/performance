@@ -15,7 +15,7 @@
 -->
 <script setup lang="ts">
 import {
-  MpFlex, MpText, MpButton, MpInput, MpTextarea, MpInputTag, MpCheckbox,
+  MpFlex, MpText, MpButton, MpIcon, MpInput, MpTextarea, MpInputTag, MpCheckbox, MpToggle,
   MpFormControl, MpFormLabel, MpFormErrorMessage,
   MpTable, MpTableContainer, MpTableHead, MpTableBody, MpTableRow, MpTableCell,
   MpModal, MpModalOverlay, MpModalContent, MpModalHeader, MpModalCloseButton, MpModalBody, MpModalFooter,
@@ -27,6 +27,8 @@ import {
   type CyclePurpose, type PermissionScope,
 } from '~/utils/manageUser'
 
+import RolesPermissionTreeV2 from '~/components/manage-user/RolesPermissionTreeV2.vue'
+
 defineOptions({ name: 'RolesForm' })
 
 // `scope` is set only on purpose-scoped groups (Review cycle) — PROPOSED, PRD S1.
@@ -36,7 +38,7 @@ interface PermissionParent extends PermissionNode { children: PermissionNode[], 
 const route = useRoute()
 const router = useRouter()
 const { permissions: permissionsSettings, branches, roleById, createRole, updateRole, deleteRole, rolesFormVersion } = useManageUserStore()
-// Dev scenario: v1 = Access + Permission list, v2 = one checkbox column per action.
+// Dev scenario: v1 = Access + Permission list, v2 = module tree with one checkbox column per action (own component).
 const isV2 = computed(() => rolesFormVersion.value === 'v2')
 
 const DESCRIPTION_MAX = 255
@@ -55,6 +57,7 @@ const form = ref({
 const touched = ref({ name: false, description: false })
 // PROPOSED (PRD S2): one scope for the whole Report group, by default Review cycle's.
 const reportScope = ref<PermissionScope>({ purposes: [], employment_statuses: [], same_as_review_cycle: true })
+const dashboardScope = ref<PermissionScope>({ purposes: [], employment_statuses: [], same_as_review_cycle: true })
 const isModalDelete = ref(false)
 
 // ─── Load (fetchPermissions → fetchRole) ────────────────────────────────────
@@ -189,6 +192,8 @@ const isPurposeAll = (item: PermissionParent, p: CyclePurpose) => permissionRows
 const isPurposeSome = (item: PermissionParent, p: CyclePurpose) => permissionRows(item).some(r => hasPurpose(r.node, p))
 
 /** Description with the purpose spelled out, e.g. "View performance review cycles and their progress." */
+/** Display name of a Review cycle purpose row: "Performance review". */
+const purposeLabel = (p: { label: string }) => `${p.label} review`
 const scopedDescription = (row: PermissionRow, p: { value: CyclePurpose, label: string }) =>
   SCOPED_PERMISSION_DESCRIPTIONS[row.node.id]?.(p.label.toLowerCase()) ?? row.description
 
@@ -225,59 +230,106 @@ const reviewCycleScope = computed<PermissionScope>(() => {
   const purposes = ALL_PURPOSES.filter(p => isPurposeSome(item, p))
   return { purposes, employment_statuses: purposes.includes('evaluation') ? [...evaluationStatuses(item)] : [] }
 })
-const hasReviewCyclePurpose = computed(() => reviewCycleScope.value.purposes.length > 0)
-/** "Performance, Evaluation (Contract, Internship)" — statuses only when not all of them. */
-function scopeSummary(scope: PermissionScope) {
-  return CYCLE_PURPOSES.filter(p => scope.purposes.includes(p.value)).map((p) => {
-    if (p.value !== 'evaluation' || scope.employment_statuses.length === ALL_STATUSES.length) return p.label
-    const labels = EVALUATION_EMPLOYMENT_STATUSES.filter(s => scope.employment_statuses.includes(s.value)).map(s => s.label)
-    return `${p.label} (${labels.join(', ')})`
-  }).join(', ')
-}
-const reviewCycleScopeText = computed(() => (hasReviewCyclePurpose.value ? scopeSummary(reviewCycleScope.value) : 'No Review cycle purpose selected yet'))
 
-// ─── Report scope (PRD S2) ──────────────────────────────────────────────────
+// ─── Report / Dashboard scope (PRD S2 / S3) ──────────────────────────────────────────────────
 const isReport = (item: PermissionParent) => item.id === REPORT_PERMISSION_ID
-const isReportCustom = computed(() => !reportScope.value.same_as_review_cycle)
-function onReportSameScope(value: boolean) {
-  // Customizing starts from what it was tracking.
-  if (!value) reportScope.value = { ...reviewCycleScope.value, same_as_review_cycle: false }
-  else reportScope.value = { purposes: [], employment_statuses: [], same_as_review_cycle: true }
-}
-const hasReportPurpose = (p: CyclePurpose) => reportScope.value.purposes.includes(p)
-function toggleReportPurpose(p: CyclePurpose, value: boolean) {
-  const scope = reportScope.value
+type ScopeGroup = 'report' | 'dashboard'
+const scopeRef = (g: ScopeGroup) => (g === 'report' ? reportScope : dashboardScope)
+const isScopeCustom = (g: ScopeGroup) => !scopeRef(g).value.same_as_review_cycle
+// Switching the toggle either way starts from nothing selected.
+const onSameScope = (g: ScopeGroup, value: boolean) => { scopeRef(g).value = { purposes: [], employment_statuses: [], same_as_review_cycle: value } }
+const hasScopePurpose = (g: ScopeGroup, p: CyclePurpose) => scopeRef(g).value.purposes.includes(p)
+function toggleScopePurpose(g: ScopeGroup, p: CyclePurpose, value: boolean) {
+  const scope = scopeRef(g).value
   scope.purposes = ALL_PURPOSES.filter(x => (x === p ? value : scope.purposes.includes(x)))
   if (p === 'evaluation') scope.employment_statuses = value ? [...ALL_STATUSES] : []
 }
-const hasReportStatus = (status: string) => reportScope.value.employment_statuses.includes(status)
-function toggleReportStatus(status: string, value: boolean) {
-  const next = ALL_STATUSES.filter(s => (s === status ? value : hasReportStatus(s)))
-  if (next.length) reportScope.value.employment_statuses = next
-  else toggleReportPurpose('evaluation', false)
+const hasScopeStatus = (g: ScopeGroup, status: string) => scopeRef(g).value.employment_statuses.includes(status)
+function toggleScopeStatus(g: ScopeGroup, status: string, value: boolean) {
+  const next = ALL_STATUSES.filter(s => (s === status ? value : hasScopeStatus(g, s)))
+  if (next.length) scopeRef(g).value.employment_statuses = next
+  else toggleScopePurpose(g, 'evaluation', false)
 }
-/** Report scope rows under the group: "Use the same scope…" + (custom) one per purpose. */
-const reportScopeRowCount = computed(() => 1 + (isReportCustom.value ? CYCLE_PURPOSES.length : 0))
-const isReportGranted = (item: PermissionParent) => item.checked || item.children.some(c => c.checked)
+// Review results (Report) and Performance review (Dashboard) own the scoped checkboxes.
+const scopedRowGranted = (g: ScopeGroup) => {
+  const row = g === 'report' ? REPORT_ROWS[0] : dashboardRows.value[0]
+  return !!row && rowKeys(g, row).some(k => subOn.value[k])
+}
 const reportScopeError = computed(() => {
-  const item = form.value.permissions.find(isReport)
-  if (!item || !isReportGranted(item) || !isReportCustom.value) return ''
-  return reportScope.value.purposes.length ? '' : 'Select at least one purpose for Report'
+  const bad = (['report', 'dashboard'] as ScopeGroup[]).find(g => scopedRowGranted(g) && isScopeCustom(g) && !scopeRef(g).value.purposes.length)
+  return bad ? `Select at least one purpose for ${bad === 'report' ? 'Review results' : 'Dashboard'}` : ''
 })
-const effectiveReportScope = (): PermissionScope => (isReportCustom.value
-  ? { ...reportScope.value, purposes: [...reportScope.value.purposes], employment_statuses: [...reportScope.value.employment_statuses] }
+const effectiveScope = (g: ScopeGroup): PermissionScope => (isScopeCustom(g)
+  ? { ...scopeRef(g).value, purposes: [...scopeRef(g).value.purposes], employment_statuses: [...scopeRef(g).value.employment_statuses] }
   : { ...reviewCycleScope.value, same_as_review_cycle: true })
 
-// ─── Dashboard (PRD S3): always Review cycle's scope; off until it has a purpose ─
-const isDashboard = (item: PermissionParent) => item.id === DASHBOARD_PERMISSION_ID
-const isGroupDisabled = (item: PermissionParent) => isDashboard(item) && !hasReviewCyclePurpose.value
-const dashboardNote = computed(() => (hasReviewCyclePurpose.value
-  ? `Scoped to Review cycle: ${reviewCycleScopeText.value}.`
-  : 'Select a Review cycle purpose first. Dashboard always follows Review cycle\'s scope.'))
-watch(hasReviewCyclePurpose, (has) => {
-  const dashboard = form.value.permissions.find(isDashboard)
-  if (!has && dashboard) dashboard.checked = false
+// ─── Collapsible groups + Report / Dashboard sub-rows (Version 1) ───────────
+// Review cycle, Report and Dashboard have rows beneath the group row, with a caret to fold them.
+const collapsedGroups = ref<Record<number, boolean>>({})
+const isCollapsible = (item: PermissionParent) => item.scoped || isReport(item) || isDashboard(item)
+const isGroupOpen = (item: PermissionParent) => !collapsedGroups.value[item.id]
+const hasOpenSubRows = (item: PermissionParent) => isCollapsible(item) && isGroupOpen(item)
+const toggleGroup = (item: PermissionParent) => { collapsedGroups.value[item.id] = !collapsedGroups.value[item.id] }
+
+/** A module row beneath Report / Dashboard, each with its own permission checkboxes. */
+interface SubPerm { key: string, label: string, description: string }
+interface SubRow { key: string, label: string, perms: SubPerm[], scoped?: boolean }
+const viewCreate = (view: string, create: string): SubPerm[] => [
+  { key: 'view', label: 'View', description: view },
+  { key: 'create', label: 'Create', description: create },
+]
+const REPORT_ROWS: SubRow[] = [
+  { key: 'results', label: 'Review results', scoped: true, perms: viewCreate('View and export review results.', 'Generate review results.') },
+  { key: 'goals', label: 'Goals result', perms: viewCreate('View goals results.', 'Generate goals results.') },
+  { key: 'ninebox', label: '9-box matrix', perms: viewCreate('View the 9-box matrix and its configuration.', 'Generate the 9-box matrix.') },
+]
+// Dashboard's rows mirror other groups' permissions: Performance review = Review cycle's
+// Performance row, Goals = Manage Goal's. They keep their own checkbox state.
+const dashboardRows = computed<SubRow[]>(() => {
+  const cycle = reviewCycleItem.value
+  const goals = form.value.permissions.find(p => p.name === 'Manage Goal')
+  return [
+    { key: 'performance', label: 'Performance review', scoped: true, perms: cycle ? permissionRows(cycle).map(r => ({ key: String(r.node.id), label: r.label, description: scopedDescription(r, { value: 'performance', label: 'Performance' }) })) : [] },
+    { key: 'goals', label: 'Goals', perms: goals ? permissionRows(goals).map(r => ({ key: String(r.node.id), label: r.label, description: r.description })) : [] },
+  ]
 })
+const subRowsOf = (item: PermissionParent): SubRow[] => (isReport(item) ? REPORT_ROWS : isDashboard(item) ? dashboardRows.value : [])
+const subGroup = (item: PermissionParent) => (isReport(item) ? 'report' : 'dashboard')
+const subOn = ref<Record<string, boolean>>({})
+const subKey = (group: string, row: SubRow, perm: SubPerm) => `${group}:${row.key}:${perm.key}`
+const rowKeys = (group: string, row: SubRow) => row.perms.map(p => subKey(group, row, p))
+const groupKeys = (item: PermissionParent) => subRowsOf(item).flatMap(r => rowKeys(subGroup(item), r))
+function subState(keys: string[]) {
+  const on = keys.filter(k => subOn.value[k]).length
+  return { checked: on === keys.length && on > 0, indeterminate: on > 0 && on < keys.length }
+}
+const setSub = (keys: string[], value: boolean) => keys.forEach((k) => { subOn.value[k] = value })
+
+// The sub-row checkboxes live locally; map them onto the store's permissions on load / submit.
+function hydrateSubState() {
+  const report = form.value.permissions.find(isReport)
+  REPORT_ROWS.forEach((row) => {
+    if (report?.children.find(c => c.name === row.label)?.checked) subOn.value[subKey('report', row, row.perms[0])] = true
+  })
+  const dashboard = form.value.permissions.find(isDashboard)
+  const first = dashboardRows.value[0]
+  if (dashboard?.checked && first?.perms[0]) subOn.value[subKey('dashboard', first, first.perms[0])] = true
+}
+function applySubState() {
+  const report = form.value.permissions.find(isReport)
+  if (report) {
+    report.children.forEach((child) => {
+      const row = REPORT_ROWS.find(r => r.label === child.name)
+      if (row) child.checked = rowKeys('report', row).some(k => subOn.value[k])
+    })
+    report.checked = groupKeys(report).some(k => subOn.value[k])
+  }
+  const dashboard = form.value.permissions.find(isDashboard)
+  if (dashboard) dashboard.checked = groupKeys(dashboard).some(k => subOn.value[k])
+}
+
+// ─── Dashboard (PRD S3): always Review cycle's scope ─────────────────────────
+const isDashboard = (item: PermissionParent) => item.id === DASHBOARD_PERMISSION_ID
 
 // One set of Employment Status checkboxes for the whole Evaluation row.
 function evaluationStatuses(item: PermissionParent): string[] {
@@ -294,51 +346,31 @@ function toggleStatus(item: PermissionParent, status: string, value: boolean) {
   else permissionRows(item).forEach(r => setPurpose(r.node, 'evaluation', false))
 }
 
-// ─── V2: one checkbox column per action ─────────────────────────────────────
-type ActionColumn = 'view' | 'create' | 'edit' | 'delete'
-// No Report column: Report is its own section now (PRD S2), so nothing maps to it.
-const ACTION_COLUMNS: { key: ActionColumn, label: string }[] = [
-  { key: 'view', label: 'View' },
-  { key: 'create', label: 'Create' },
-  { key: 'edit', label: 'Edit' },
-  { key: 'delete', label: 'Delete' },
-]
-const CHILD_COLUMN: Record<string, ActionColumn> = { Add: 'create', Edit: 'edit', Delete: 'delete' }
-const rowColumn = (row: PermissionRow) => (row.isView ? 'view' : CHILD_COLUMN[row.node.name])
-const columnRow = (item: PermissionParent, col: ActionColumn) => permissionRows(item).find(r => rowColumn(r) === col)
-/** Children that aren't an action (Manage Goal's company / organization goals) get their own sub-rows. */
-const unmappedRows = (item: PermissionParent) => permissionRows(item).filter(r => !rowColumn(r))
-const hasSubRows = (item: PermissionParent) => item.scoped || isReport(item) || (isV2.value && unmappedRows(item).length > 0)
-// Unscoped group checkbox in V2 reflects every checkbox in its row.
-const isRowAll = (item: PermissionParent) => permissionRows(item).every(r => r.node.checked)
-const isRowSome = (item: PermissionParent) => permissionRows(item).some(r => r.node.checked)
-function toggleRow(item: PermissionParent) {
-  const value = !isRowAll(item)
-  item.checked = value
-  item.children.forEach((child) => { child.checked = value })
-}
-
-// Group checkbox — scoped groups behave the same in both versions.
-const groupChecked = (item: PermissionParent) => (isV2.value && !item.scoped ? isRowAll(item) : isParentChecked(item))
-const groupIndeterminate = (item: PermissionParent) => (isV2.value && !item.scoped ? isRowSome(item) && !isRowAll(item) : isParentIndeterminate(item))
-function onGroupChange(item: PermissionParent, index: number, value: boolean) {
-  if (isV2.value && !item.scoped) toggleRow(item)
+// Group checkbox — V1 only; Version 2 is its own component (RolesPermissionTreeV2).
+const hasSubRowState = (item: PermissionParent) => isReport(item) || isDashboard(item)
+const groupChecked = (item: PermissionParent) => (hasSubRowState(item) ? subState(groupKeys(item)).checked : isParentChecked(item))
+const groupIndeterminate = (item: PermissionParent) => (hasSubRowState(item) ? subState(groupKeys(item)).indeterminate : isParentIndeterminate(item))
+const onGroupChange = (item: PermissionParent, index: number, value: boolean) => {
+  if (hasSubRowState(item)) setSub(groupKeys(item), !subState(groupKeys(item)).checked)
   else checkParent(index, value)
 }
 
+hydrateSubState() // after fetchRole: reads the computed rows defined above
+
 function generatePayload() {
+  applySubState()
   const permissionData: Record<number, boolean> = {}
   const permissionScopes: Record<number, PermissionScope> = {}
   form.value.permissions.forEach((parent) => {
     if (parent.checked) {
       permissionData[parent.id] = true
       if (parent.scope) permissionScopes[parent.id] = { ...parent.scope }
-      if (isReport(parent)) permissionScopes[parent.id] = effectiveReportScope()
-      if (isDashboard(parent)) permissionScopes[parent.id] = { ...reviewCycleScope.value }
+      if (isReport(parent)) permissionScopes[parent.id] = effectiveScope('report')
+      if (isDashboard(parent)) permissionScopes[parent.id] = effectiveScope('dashboard')
       parent.children.forEach((child) => {
         permissionData[child.id] = child.checked || false
         if (child.checked && child.scope) permissionScopes[child.id] = { ...child.scope }
-        if (child.checked && isReport(parent)) permissionScopes[child.id] = effectiveReportScope()
+        if (child.checked && isReport(parent)) permissionScopes[child.id] = effectiveScope('report')
       })
     }
   })
@@ -384,7 +416,9 @@ function confirmDelete() {
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const gridArea = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '6' })
-const formColumn = css({ gridColumn: { base: 'span 12 / span 12', lg: 'span 6 / span 6' }, maxWidth: { lg: '656px' }, display: 'flex', flexDirection: 'column' })
+// The permission table runs the full content width; the detail fields keep the form column's width.
+const fullColumn = css({ gridColumn: 'span 12 / span 12', display: 'flex', flexDirection: 'column' })
+const detailWidth = css({ width: '100%', maxWidth: '656px' })
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginBottom: '3' })
 const sectionHeaderNext = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '10', marginBottom: '3' })
@@ -394,27 +428,23 @@ const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
 // Access column stacks View + up to 4 children (≥3 lines) → whole table top.
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top', whiteSpace: 'normal', overflowWrap: 'anywhere' })
-const accessCol = css({ width: '40%' })
-const actionCol = css({ width: '12%', textAlign: 'center' })
-const actionCheckbox = css({ display: 'flex', justifyContent: 'center' })
+const accessCol = css({ width: '440px' })
 // Fixed layout so Access keeps its 40% (the Employment Status checkboxes live there).
 const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
-// A group row with sub-rows below it has no line under it.
-const noDivider = css({ borderBottomColor: 'transparent' })
 const permissionList = css({ display: 'flex', flexDirection: 'column', gap: '4' })
-// Purpose sub-rows sit 32px in from the group checkbox. Their divider starts at
-// that indent too (drawn on the Access cell); the last purpose row keeps the
-// table's normal full-width row border.
-const purposeCell = css({ paddingLeft: '40px' }) // cell's own 8px + 32px indent
-const indentedDivider = css({
-  borderBottomColor: 'transparent',
-  backgroundImage: 'linear-gradient(var(--mp-colors-border-default), var(--mp-colors-border-default))',
-  backgroundSize: 'calc(100% - 40px) 1px',
-  backgroundPosition: 'right bottom',
-  backgroundRepeat: 'no-repeat',
-})
+// Every Module cell is [20px caret slot][checkbox]; sub-rows step in 24px (same as Version 2).
+// Row dividers are always full width.
+const moduleLine = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
+const caretSlot = css({ width: '20px', height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' })
+const caretButton = css({ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '24px', cursor: 'pointer', color: 'text.secondary' })
+const subIndent = css({ paddingLeft: '24px' })
+const moduleStack = css({ display: 'flex', flexDirection: 'column', minWidth: '0' })
+const toggleBlock = css({ marginTop: '2' })
+// Report scope checkboxes: aligned with the toggle's title (control width + gap).
+const scopeIndent = css({ paddingLeft: '42px', marginTop: '4' })
 const purposeAccess = css({ display: 'flex', flexDirection: 'column', gap: '16px' })
 // Employment Status: 32px in from the Evaluation checkbox (docs/patterns/form.md reveal indent).
+const statusLabel = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
 const statusGroup = css({ display: 'flex', flexDirection: 'column', gap: '12px', paddingLeft: '32px' })
 const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', gap: '3', marginTop: '8' })
 const dangerText = css({ color: 'text.danger' })
@@ -423,12 +453,12 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
 
 <template>
   <div :class="gridArea">
-    <form :class="formColumn" novalidate @submit.prevent="handleFormSubmit">
+    <form :class="fullColumn" novalidate @submit.prevent="handleFormSubmit">
       <!-- Role detail -->
-      <div :class="sectionHeader">
+      <div :class="[sectionHeader, detailWidth]">
         <MpText as="h2" :class="h2Class">Role detail</MpText>
       </div>
-      <div :class="fields">
+      <div :class="[fields, detailWidth]">
         <MpFormControl id="roleName" is-required :is-invalid="!!nameError">
           <MpFormLabel>Name</MpFormLabel>
           <MpInput v-model="form.name" data-qa="settings-roles-form-input-name" @blur="touched.name = true" />
@@ -465,51 +495,46 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
         <MpText as="h2" :class="h2Class">Permissions</MpText>
         <MpText size="label" color="text.secondary">Only people who have a specific role can change permissions.</MpText>
       </div>
-      <MpTableContainer>
+      <RolesPermissionTreeV2 v-if="isV2" />
+      <MpTableContainer v-else>
         <MpTable :is-hoverable="false" :class="fixedTable">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" :class="[headCell, accessCol]">Access</MpTableCell>
-              <template v-if="isV2">
-                <MpTableCell v-for="col in ACTION_COLUMNS" :key="`h-${col.key}`" as="th" :class="[headCell, actionCol]">{{ col.label }}</MpTableCell>
-              </template>
-              <MpTableCell v-else as="th" :class="headCell">Permission</MpTableCell>
+              <MpTableCell as="th" :class="[headCell, accessCol]">Module</MpTableCell>
+              <MpTableCell as="th" :class="headCell">Permission</MpTableCell>
             </MpTableRow>
           </MpTableHead>
           <MpTableBody>
             <template v-for="(item, idx) in form.permissions" :key="`p-${idx}`">
               <MpTableRow :data-qa="`view-settings-roles-form-permission-${idx}`">
-                <MpTableCell as="td" :class="[cell, accessCol, hasSubRows(item) && noDivider]">
-                  <MpCheckbox
-                    :id="`parent-${idx}`"
-                    :is-checked="groupChecked(item)"
-                    :is-indeterminate="groupIndeterminate(item)"
-                    :is-disabled="isGroupDisabled(item)"
-                    :data-qa="`view-settings-roles-form-permission-parent-${idx}`"
-                    @update:is-checked="(v: boolean) => onGroupChange(item, idx, v)"
-                  >
-                    {{ item.name }}
-                    <!-- V2 has no description column: Dashboard's scope note sits under its label -->
-                    <template v-if="isV2 && isDashboard(item)" #description>{{ dashboardNote }}</template>
-                  </MpCheckbox>
+                <MpTableCell as="td" :class="[cell, accessCol]">
+                  <div :class="moduleLine">
+                    <span :class="caretSlot">
+                      <button
+                        v-if="isCollapsible(item)"
+                        type="button"
+                        :class="caretButton"
+                        :aria-label="`${isGroupOpen(item) ? 'Collapse' : 'Expand'} ${item.name}`"
+                        :aria-expanded="isGroupOpen(item)"
+                        @click="toggleGroup(item)"
+                      >
+                        <MpIcon :name="isGroupOpen(item) ? 'caret-down' : 'caret-right'" size="sm" />
+                      </button>
+                    </span>
+                    <MpCheckbox
+                      :id="`parent-${idx}`"
+                      :is-checked="groupChecked(item)"
+                      :is-indeterminate="groupIndeterminate(item)"
+                      :data-qa="`view-settings-roles-form-permission-parent-${idx}`"
+                      @update:is-checked="(v: boolean) => onGroupChange(item, idx, v)"
+                    >
+                      {{ item.name }}
+                    </MpCheckbox>
+                  </div>
                 </MpTableCell>
-                <!-- V2: one checkbox per action column -->
-                <template v-if="isV2">
-                  <MpTableCell v-for="col in ACTION_COLUMNS" :key="`c-${idx}-${col.key}`" as="td" :class="[cell, actionCol, hasSubRows(item) && noDivider]">
-                    <div v-if="!item.scoped && columnRow(item, col.key)" :class="actionCheckbox">
-                      <MpCheckbox
-                        :id="`action-${idx}-${col.key}`"
-                        :is-checked="columnRow(item, col.key)!.node.checked"
-                        :is-disabled="isGroupDisabled(item)"
-                        :aria-label="`${col.label} ${item.name}`"
-                        @update:is-checked="(v: boolean) => onCheckedRow(columnRow(item, col.key)!, v, idx)"
-                      />
-                    </div>
-                  </MpTableCell>
-                </template>
-                <MpTableCell v-else as="td" :class="[cell, hasSubRows(item) && noDivider]">
+                <MpTableCell as="td" :class="[cell]">
                   <template v-if="!item.scoped">
-                    <div v-if="item.children.length" :class="permissionList">
+                    <div v-if="item.children.length && !isReport(item)" :class="permissionList">
                       <MpCheckbox
                         v-for="row in permissionRows(item)"
                         :id="`child-${idx}-${row.node.id}`"
@@ -522,18 +547,16 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         <template #description>{{ row.description }}</template>
                       </MpCheckbox>
                     </div>
-                    <MpFlex v-else direction="column" gap="1">
-                      <MpText size="label" color="text.secondary">{{ item.description }}</MpText>
-                      <MpText v-if="isDashboard(item)" size="label" color="text.secondary">{{ dashboardNote }}</MpText>
-                    </MpFlex>
                   </template>
                 </MpTableCell>
               </MpTableRow>
 
               <!-- PROPOSED (PRD S1): one sub-row per cycle purpose -->
-              <template v-if="item.scoped">
+              <template v-if="item.scoped && isGroupOpen(item)">
                 <MpTableRow v-for="(p, pi) in CYCLE_PURPOSES" :key="`p-${idx}-${p.value}`" :data-qa="`view-settings-roles-form-purpose-${p.value}`">
-                  <MpTableCell as="td" :class="[cell, accessCol, purposeCell, pi < CYCLE_PURPOSES.length - 1 && indentedDivider]">
+                  <MpTableCell as="td" :class="[cell, accessCol]">
+                    <div :class="[moduleLine, subIndent]">
+                    <span :class="caretSlot" />
                     <div :class="purposeAccess">
                       <MpCheckbox
                         :id="`purpose-${idx}-${p.value}`"
@@ -541,7 +564,7 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         :is-indeterminate="isPurposeSome(item, p.value) && !isPurposeAll(item, p.value)"
                         @update:is-checked="togglePurpose(item, p.value)"
                       >
-                        {{ p.label }}
+                        {{ purposeLabel(p) }}
                       </MpCheckbox>
                       <!-- Only Evaluation is scoped by employment status (PRD §5.1) -->
                       <div
@@ -551,6 +574,7 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         aria-label="Employment status"
                         :class="statusGroup"
                       >
+                        <span :class="statusLabel">Employee status</span>
                         <MpCheckbox
                           v-for="s in EVALUATION_EMPLOYMENT_STATUSES"
                           :id="`employment-status-${idx}-${s.value}`"
@@ -562,20 +586,9 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         </MpCheckbox>
                       </div>
                     </div>
+                    </div>
                   </MpTableCell>
-                  <template v-if="isV2">
-                    <MpTableCell v-for="col in ACTION_COLUMNS" :key="`pc-${idx}-${p.value}-${col.key}`" as="td" :class="[cell, actionCol]">
-                      <div v-if="columnRow(item, col.key)" :class="actionCheckbox">
-                        <MpCheckbox
-                          :id="`purpose-${idx}-${p.value}-${col.key}`"
-                          :is-checked="hasPurpose(columnRow(item, col.key)!.node, p.value)"
-                          :aria-label="`${col.label} ${p.label.toLowerCase()} ${item.name.toLowerCase()}`"
-                          @update:is-checked="(v: boolean) => togglePurposePermission(item, columnRow(item, col.key)!, p.value, v)"
-                        />
-                      </div>
-                    </MpTableCell>
-                  </template>
-                  <MpTableCell v-else as="td" :class="cell">
+                  <MpTableCell as="td" :class="cell">
                     <div :class="permissionList">
                       <MpCheckbox
                         v-for="row in permissionRows(item)"
@@ -592,70 +605,78 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                 </MpTableRow>
               </template>
 
-              <!-- V2: children that aren't an action (Manage Goal, Report) become sub-rows -->
-              <template v-if="isV2 && !item.scoped">
-                <MpTableRow v-for="(row, ri) in unmappedRows(item)" :key="`u-${idx}-${row.node.id}`">
-                  <MpTableCell as="td" :class="[cell, accessCol, purposeCell, (ri < unmappedRows(item).length - 1 || isReport(item)) && indentedDivider]">
-                    <MpCheckbox
-                      :id="`child-${idx}-${row.node.id}`"
-                      :is-checked="row.node.checked"
-                      @update:is-checked="(v: boolean) => onCheckedRow(row, v, idx)"
-                    >
-                      {{ row.label }}
-                    </MpCheckbox>
-                  </MpTableCell>
-                  <MpTableCell v-for="col in ACTION_COLUMNS" :key="`uc-${idx}-${row.node.id}-${col.key}`" as="td" :class="[cell, actionCol]" />
-                </MpTableRow>
-              </template>
-
-              <!-- PROPOSED (PRD S2): Report scope — Review cycle's by default, or its own -->
-              <template v-if="isReport(item)">
-                <MpTableRow :data-qa="'view-settings-roles-form-report-scope'">
-                  <MpTableCell as="td" :class="[cell, accessCol, purposeCell, reportScopeRowCount > 1 && indentedDivider]">
-                    <MpCheckbox
-                      :id="`report-same-scope-${idx}`"
-                      :is-checked="!!reportScope.same_as_review_cycle"
-                      @update:is-checked="onReportSameScope"
-                    >
-                      Same scope as Review cycle
-                      <template #description>{{ reviewCycleScopeText }}</template>
-                    </MpCheckbox>
-                  </MpTableCell>
-                  <template v-if="isV2">
-                    <MpTableCell v-for="col in ACTION_COLUMNS" :key="`rs-${col.key}`" as="td" :class="[cell, actionCol]" />
-                  </template>
-                  <MpTableCell v-else as="td" :class="cell" />
-                </MpTableRow>
-                <template v-if="isReportCustom">
-                  <MpTableRow v-for="(p, pi) in CYCLE_PURPOSES" :key="`rp-${p.value}`" :data-qa="`view-settings-roles-form-report-purpose-${p.value}`">
-                    <MpTableCell as="td" :class="[cell, accessCol, purposeCell, pi < CYCLE_PURPOSES.length - 1 && indentedDivider]">
-                      <div :class="purposeAccess">
+              <!-- Report (PRD S2) / Dashboard (PRD S3): one row per module, each with its own permissions -->
+              <template v-if="hasSubRowState(item) && isGroupOpen(item)">
+                <MpTableRow
+                  v-for="(row, ri) in subRowsOf(item)"
+                  :key="`sub-${idx}-${row.key}`"
+                  :data-qa="`view-settings-roles-form-${subGroup(item)}-${row.key}`"
+                >
+                  <MpTableCell as="td" :class="[cell, accessCol]">
+                    <div :class="[moduleLine, subIndent]">
+                      <span :class="caretSlot" />
+                      <div :class="moduleStack">
                         <MpCheckbox
-                          :id="`report-purpose-${p.value}`"
-                          :is-checked="hasReportPurpose(p.value)"
-                          @update:is-checked="(v: boolean) => toggleReportPurpose(p.value, v)"
+                          :id="`sub-${subGroup(item)}-${row.key}`"
+                          :is-checked="subState(rowKeys(subGroup(item), row)).checked"
+                          :is-indeterminate="subState(rowKeys(subGroup(item), row)).indeterminate"
+                          @update:is-checked="(v: boolean) => setSub(rowKeys(subGroup(item), row), v)"
                         >
-                          {{ p.label }}
+                          {{ row.label }}
                         </MpCheckbox>
-                        <div v-if="p.value === 'evaluation' && hasReportPurpose('evaluation')" role="group" aria-label="Employment status" :class="statusGroup">
-                          <MpCheckbox
-                            v-for="s in EVALUATION_EMPLOYMENT_STATUSES"
-                            :id="`report-employment-status-${s.value}`"
-                            :key="`report-status-${s.value}`"
-                            :is-checked="hasReportStatus(s.value)"
-                            @update:is-checked="(v: boolean) => toggleReportStatus(s.value, v)"
-                          >
-                            {{ s.label }}
-                          </MpCheckbox>
-                        </div>
+                        <!-- Scoped rows (Review results / Dashboard's Performance review): Review cycle's scope by default, or their own purposes -->
+                        <template v-if="row.scoped">
+                          <div :class="toggleBlock">
+                            <MpToggle
+                              :id="`${subGroup(item)}-same-scope-${idx}`"
+                              :is-checked="!!scopeRef(subGroup(item)).value.same_as_review_cycle"
+                              @update:is-checked="(v: boolean) => onSameScope(subGroup(item), v)"
+                            >
+                              Same scope as review cycle module setting
+                            </MpToggle>
+                          </div>
+                          <div v-if="isScopeCustom(subGroup(item))" :class="[purposeAccess, scopeIndent]" :data-qa="`view-settings-roles-form-${subGroup(item)}-scope`">
+                            <template v-for="p in CYCLE_PURPOSES" :key="`rp-${p.value}`">
+                              <MpCheckbox
+                                :id="`${subGroup(item)}-purpose-${p.value}`"
+                                :is-checked="hasScopePurpose(subGroup(item), p.value)"
+                                @update:is-checked="(v: boolean) => toggleScopePurpose(subGroup(item), p.value, v)"
+                              >
+                                {{ purposeLabel(p) }}
+                              </MpCheckbox>
+                              <div v-if="p.value === 'evaluation' && hasScopePurpose(subGroup(item), 'evaluation')" role="group" aria-label="Employment status" :class="statusGroup">
+                                <span :class="statusLabel">Employee status</span>
+                                <MpCheckbox
+                                  v-for="s in EVALUATION_EMPLOYMENT_STATUSES"
+                                  :id="`${subGroup(item)}-employment-status-${s.value}`"
+                                  :key="`${subGroup(item)}-status-${s.value}`"
+                                  :is-checked="hasScopeStatus(subGroup(item), s.value)"
+                                  @update:is-checked="(v: boolean) => toggleScopeStatus(subGroup(item), s.value, v)"
+                                >
+                                  {{ s.label }}
+                                </MpCheckbox>
+                              </div>
+                            </template>
+                          </div>
+                        </template>
                       </div>
-                    </MpTableCell>
-                    <template v-if="isV2">
-                      <MpTableCell v-for="col in ACTION_COLUMNS" :key="`rpc-${p.value}-${col.key}`" as="td" :class="[cell, actionCol]" />
-                    </template>
-                    <MpTableCell v-else as="td" :class="cell" />
-                  </MpTableRow>
-                </template>
+                    </div>
+                  </MpTableCell>
+                  <MpTableCell as="td" :class="cell">
+                    <div :class="permissionList">
+                      <MpCheckbox
+                        v-for="perm in row.perms"
+                        :id="`sub-${subGroup(item)}-${row.key}-${perm.key}`"
+                        :key="subKey(subGroup(item), row, perm)"
+                        :is-checked="!!subOn[subKey(subGroup(item), row, perm)]"
+                        @update:is-checked="(v: boolean) => { subOn[subKey(subGroup(item), row, perm)] = v }"
+                      >
+                        {{ perm.label }}
+                        <template #description>{{ perm.description }}</template>
+                      </MpCheckbox>
+                    </div>
+                  </MpTableCell>
+                </MpTableRow>
               </template>
             </template>
           </MpTableBody>

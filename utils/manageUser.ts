@@ -173,14 +173,14 @@ export const PERMISSIONS: Permission[] = [
     ],
   },
   // PROPOSED (PRD S2): Report moves out of Review cycle into its own scoped
-  // section. Standard report is production's Review cycle → Report (unchanged).
+  // section. Review results (formerly Standard report) is production's Review cycle → Report (unchanged).
   {
     id: 6,
     name: 'Report',
     description: 'View and export review cycle reports.',
     child_permissions: [
-      { id: 14, name: 'Standard report', description: 'View and export review cycle reports.' },
-      { id: 15, name: '9-Box report', description: 'View the 9-Box report and its configuration.' },
+      { id: 14, name: 'Review results', description: 'View and export review results.' },
+      { id: 15, name: '9-box matrix', description: 'View the 9-box matrix and its configuration.' },
     ],
   },
   // PROPOSED (PRD S3): new permission — production's Dashboard has no check.

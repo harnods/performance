@@ -764,3 +764,48 @@ Text, not a number: `Competency group` and/or `IDP`. One kind → plain text; bo
 a bullet list (`listStyleType: 'disc'`); none → `-`. Left-aligned, min 190px (inner wrapper, since cells ignore min-width), no wrap; Description capped at 240px.
 Sorting still orders by the number of linked records. Reference:
 `pages/talents/competencies/items/index.vue`.
+
+## Permission tree table (Roles form, Version 2)
+
+`components/manage-user/RolesPermissionTreeV2.vue` — a collapsible module tree with one
+checkbox column per action. A Default table (no outer border), **`verticalAlign: 'middle'`**
+(the tallest cell, a label + its "Same scope as … module setting" toggle, is 2 lines).
+
+- **Full content width**: the form column widens to `span 12` in this version; the detail
+  fields keep their 656px max. First column (Permission) is a fixed **440px**
+  (`table-layout: fixed`); View / Create / Edit / Delete share the rest, centred.
+- **Indent is 24px per depth level, identical at every level.** Each row reserves a 20px
+  caret slot (empty on leaves) so sibling checkboxes line up. Indent classes must be
+  literal `css()` values — Panda extracts them at build time, computed values silently
+  don't apply.
+- **Parent boxes reflect their subtree** (checked / indeterminate); clicking one sets the
+  whole subtree for that action. The first header cell is plain text ("Module"), no checkbox.
+- **Backgrounds**: top-level group rows (bold title) use `background.surface`; every row
+  beneath them uses `background.neutral` — on every cell (Permission + all action columns).
+- **An expanded parent hides its action checkboxes** (its children carry them); collapsed,
+  or with its "Same scope as … module" toggle on, it shows them and they cover the subtree.
+- **"Same scope as … module setting" toggle** (no caption): when on, the row loses its caret and its children are
+  hidden; its own boxes then stand for the whole subtree. Off, the children show again.
+
+### Roles form Version 1 (Module + Permission list)
+
+Same shell as above: full content width, `table-layout: fixed`, **Module** column fixed at
+**440px**, **Permission** fills the rest. Review cycle purposes read "Performance review",
+"Competency review", "Evaluation review".
+
+- **Carets**: Review cycle, Report and Dashboard fold their sub-rows with a caret (same
+  20px caret slot as Version 2). Every Module cell is `[caret slot][checkbox]`, so
+  checkboxes line up with or without a caret; sub-rows step in 24px.
+- **Report** rows: Review results, Goals result, 9-box matrix — each View + Create (Create's
+  description says "Generate …"). **Review results** carries the "Same scope as review
+  cycle module setting" `MpToggle` (no caption) 8px under its title (see
+  [`toggle.md`](toggle.md)). Toggle off → the purpose checkboxes (Performance / Competency /
+  Evaluation review, + employment statuses) appear inside the same cell, aligned with the
+  toggle title (42px in), all unchecked, no row borders between them.
+- **Dashboard** rows: Performance review (same permissions as Review cycle's Performance
+  row, plus the same toggle + scope checkboxes as Review results, with its own state) and
+  Goals (same permissions as Manage Goal).
+- Wherever Evaluation review is selected, its employment-status checkboxes sit under a
+  14px / 600 **"Employee status"** label (all three places: Review cycle, Review results, Dashboard).
+- **Dividers are always full width** — group rows and sub-rows alike (no indented lines).
+- The Dashboard checkbox is always enabled.
