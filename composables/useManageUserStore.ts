@@ -23,6 +23,14 @@ const quotaExtra = ref(clone(QUOTA_SEED))
 export type RolesFormVersion = 'v1' | 'v2'
 const rolesFormVersion = ref<RolesFormVersion>('v1')
 
+export interface RoleUiState {
+  v2?: { granted: Record<string, boolean>, applied: Record<string, boolean> }
+  subOn?: Record<string, boolean>
+  reportScope?: PermissionScope
+  dashboardScope?: PermissionScope
+  dashboardGoalsSameScope?: boolean
+}
+
 export interface RolePayload {
   name: string
   description: string
@@ -32,6 +40,8 @@ export interface RolePayload {
   permission_scopes: Record<number, PermissionScope>
   role_id?: number
   branches: number[]
+  /** Prototype only: form state the permission ids can't express (Version 2 tree, Report / Dashboard sub-rows, scope toggles). Restored on Edit. */
+  ui_state?: RoleUiState
 }
 
 export class AssignRoleError extends Error {
@@ -69,6 +79,7 @@ export function useManageUserStore() {
       company_id: 102938,
       role_branches: payload.branches.map(branch_id => ({ branch_id })),
       permission_roles: payloadToPermissionRoles(payload.permissions, payload.permission_scopes),
+      ui_state: payload.ui_state,
     }
     roles.value = [...roles.value, role]
     return role
@@ -76,7 +87,7 @@ export function useManageUserStore() {
 
   function updateRole(payload: RolePayload) {
     roles.value = roles.value.map(r => (r.id === payload.role_id
-      ? { ...r, name: payload.name, description: payload.description, role_branches: payload.branches.map(branch_id => ({ branch_id })), permission_roles: payloadToPermissionRoles(payload.permissions, payload.permission_scopes) }
+      ? { ...r, name: payload.name, description: payload.description, role_branches: payload.branches.map(branch_id => ({ branch_id })), permission_roles: payloadToPermissionRoles(payload.permissions, payload.permission_scopes), ui_state: payload.ui_state }
       : r))
     // Assigned rows show the role name.
     roleUsers.value = roleUsers.value.map(u => (u.role_id === payload.role_id ? { ...u, role_name: payload.name, roles: { name: payload.name } } : u))

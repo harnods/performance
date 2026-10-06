@@ -31,7 +31,7 @@
 //
 // Permission names are inferred from the FE's hasAccess() slugs
 // (review-cycle.*, review-setting.*, manage-users.*, manage-*-goals) plus the
-// two names Form.vue special-cases ('Manage Goal', 'Edit Result'). The real
+// two names Form.vue special-cases ('Goals', 'Edit Result'). The real
 // list comes from the BE permissions seeder.
 // ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
 import { TALENTS, BRANCHES } from '~/utils/talents'
@@ -97,6 +97,8 @@ export interface RoleDetail extends RoleRow {
   role_branches: { branch_id: number }[]
   /** Parent ids appear as-is; child ids carry their parent in permissions.parent_permission_id. */
   permission_roles: { permission_id: number; permissions: { parent_permission_id: number | null }; scope?: PermissionScope }[]
+  /** Prototype only — see RolePayload.ui_state. */
+  ui_state?: import('~/composables/useManageUserStore').RoleUiState
 }
 
 export interface Branch { id: number; name: string }
@@ -172,6 +174,18 @@ export const PERMISSIONS: Permission[] = [
       { id: 13, name: 'Delete', description: 'Delete review cycles.' },
     ],
   },
+  {
+    id: 3,
+    name: 'Goals',
+    description: 'View goals.',
+    child_permissions: [
+      { id: 31, name: 'Create', description: 'Create goals.' },
+      { id: 32, name: 'Edit', description: 'Edit goals.' },
+      { id: 34, name: 'Delete', description: 'Delete goals.' },
+      // Hidden by Form.vue (child.name === 'Edit Result') but still part of the payload.
+      { id: 33, name: 'Edit Result', description: 'Edit goal results after the cycle ends.' },
+    ],
+  },
   // PROPOSED (PRD S2): Report moves out of Review cycle into its own scoped
   // section. Review results (formerly Standard report) is production's Review cycle → Report (unchanged).
   {
@@ -198,17 +212,6 @@ export const PERMISSIONS: Permission[] = [
       { id: 21, name: 'Add', description: 'Create templates and configurations.' },
       { id: 22, name: 'Edit', description: 'Edit templates and configurations.' },
       { id: 23, name: 'Delete', description: 'Delete templates and configurations.' },
-    ],
-  },
-  {
-    id: 3,
-    name: 'Manage Goal',
-    description: 'Manage goals on behalf of others.',
-    child_permissions: [
-      { id: 31, name: 'Manage company goals', description: 'Create, edit and delete company goals.' },
-      { id: 32, name: 'Manage organization goals', description: 'Create, edit and delete organization goals.' },
-      // Hidden by Form.vue (child.name === 'Edit Result') but still part of the payload.
-      { id: 33, name: 'Edit Result', description: 'Edit goal results after the cycle ends.' },
     ],
   },
   {
@@ -247,14 +250,14 @@ export const ROLES_SEED: RoleDetail[] = [
   { id: 2, name: 'Employee', description: 'Default access for every employee: own reviews, goals and IDP.', company_id: 0, role_branches: [], permission_roles: [] },
   { id: 3, name: 'HR Admin', description: 'Runs review cycles and maintains review settings for all branches.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([1, 11, 12, 13, 6, 14, 2, 21, 22, 23, 5]) },
   { id: 4, name: 'Performance Admin', description: 'Creates and edits review cycles. Cannot delete them.', company_id: 102938, role_branches: [{ branch_id: 2 }], permission_roles: allPermissionRoles([1, 11, 12, 6, 14]) },
-  { id: 5, name: 'Goal Admin', description: 'Manages company and organization goals.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([3, 31, 32]) },
+  { id: 5, name: 'Goal Admin', description: 'Manages company and organization goals.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([3, 31, 32, 34]) },
   { id: 6, name: 'User Manager', description: 'Assigns roles to employees and reviews the activity log.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([4, 41, 42]) },
   { id: 7, name: 'Branch HR — Bandung', description: 'Review cycle access limited to the Bandung branch.', company_id: 102938, role_branches: [{ branch_id: 1 }], permission_roles: allPermissionRoles([1, 12, 6, 14]) },
   { id: 8, name: 'Report Viewer', description: 'Read-only access to review cycle reports and dashboards.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([1, 6, 14, 5]) },
   { id: 9, name: 'Talent Committee', description: '', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([5]) },
   { id: 10, name: 'Settings Admin', description: 'Maintains templates, reminders and 9 box configurations.', company_id: 102938, role_branches: [], permission_roles: allPermissionRoles([2, 21, 22]) },
   // Edge case: long name + long description (wrapping).
-  { id: 11, name: 'Regional Performance & Talent Development Coordinator (Java & Bali)', description: 'Coordinates review cycles, calibration preparation and goal setting across every branch in the Java and Bali region, including reporting to the national HR leadership team every quarter.', company_id: 102938, role_branches: [{ branch_id: 1 }, { branch_id: 2 }], permission_roles: allPermissionRoles([1, 11, 12, 6, 14, 3, 31, 32]) },
+  { id: 11, name: 'Regional Performance & Talent Development Coordinator (Java & Bali)', description: 'Coordinates review cycles, calibration preparation and goal setting across every branch in the Java and Bali region, including reporting to the national HR leadership team every quarter.', company_id: 102938, role_branches: [{ branch_id: 1 }, { branch_id: 2 }], permission_roles: allPermissionRoles([1, 11, 12, 6, 14, 3, 31, 32, 34]) },
 ]
 
 // ─── Role users (Employee tab) ──────────────────────────────────────────────

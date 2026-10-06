@@ -804,8 +804,12 @@ Same shell as above: full content width, `table-layout: fixed`, **Module** colum
   toggle title (42px in), all unchecked, no row borders between them.
 - **Dashboard** rows: Performance review (same permissions as Review cycle's Performance
   row, plus the same toggle + scope checkboxes as Review results, with its own state) and
-  Goals (same permissions as Manage Goal).
+  Goals (same permissions as the Goals module: View / Create / Edit / Delete), with its own "Same scope as goals module setting" toggle (on by default; caption lists the Goals permissions selected so far, hidden while none are).
 - Wherever Evaluation review is selected, its employment-status checkboxes sit under a
   14px / 600 **"Employee status"** label (all three places: Review cycle, Review results, Dashboard).
 - **Dividers are always full width** — group rows and sub-rows alike (no indented lines).
 - The Dashboard checkbox is always enabled.
+
+### Roles form, Version 1: parent rows
+
+In the Version 1 permission table, each parent (module) row (Review cycle, Goals, Report, Dashboard, Review setting, Manage users) has a **semibold (600) title**. No background tone: parent and sub-rows share the neutral background.

@@ -12,6 +12,8 @@ import {
 } from '@mekari/pixel3'
 
 defineOptions({ name: 'RolesPermissionTreeV2' })
+// Who is editing and what they may grant (Super Admin: all; delegated user: own scope; others: nothing).
+const actor = useRoleActor()
 
 type Action = 'view' | 'create' | 'edit' | 'delete'
 const ACTIONS: { key: Action, label: string }[] = [
@@ -28,7 +30,8 @@ interface TreeNode {
   children?: TreeNode[]
   /** "Same scope as … module" — when on, the node's own checkboxes cover the whole subtree. */
   toggleLabel?: string
-  toggleDefault?: boolean
+  /** All-or-nothing module (the backend can't store partial access): every action cell beneath it is ticked / unticked together. */
+  allOrNothing?: boolean
 }
 
 const ALL: Action[] = ['view', 'create', 'edit', 'delete']
@@ -47,7 +50,7 @@ const purposes = (prefix: string, actions: Action[]): TreeNode[] => [
 const TREE: TreeNode[] = [
   { key: 'review-cycle', label: 'Review cycle', actions: ALL, children: purposes('rc', ALL) },
   {
-    key: 'goals', label: 'Goals', actions: ALL,
+    key: 'goals', label: 'Goals', actions: ALL, allOrNothing: true,
     children: [
       { key: 'goals-company', label: 'Company goals', actions: ALL },
       { key: 'goals-organization', label: 'Organization goals', actions: ALL },
@@ -81,7 +84,6 @@ const TREE: TreeNode[] = [
       {
         key: 'dashboard-goals', label: 'Goals', actions: VIEW,
         toggleLabel: 'Same scope as goals module setting',
-        toggleDefault: true,
         children: [
           { key: 'dashboard-goals-company', label: 'Company goals', actions: VIEW },
           { key: 'dashboard-goals-organization', label: 'Organization goals', actions: VIEW },
@@ -99,10 +101,18 @@ const cellKey = (node: TreeNode, action: Action) => `${node.key}:${action}`
 
 ;(function seedToggles(nodes: TreeNode[]) {
   nodes.forEach((n) => {
-    if (n.toggleLabel) applied.value[n.key] = !!n.toggleDefault
+    if (n.toggleLabel) applied.value[n.key] = true
     if (n.children) seedToggles(n.children)
   })
 })(TREE)
+
+// The parent form owns the saved selection so it survives Save → Edit (and a Version 1 / 2 switch).
+const model = defineModel<{ granted: Record<string, boolean>, applied: Record<string, boolean> }>()
+if (model.value) {
+  granted.value = { ...model.value.granted }
+  applied.value = { ...applied.value, ...model.value.applied }
+}
+watch([granted, applied], () => { model.value = { granted: { ...granted.value }, applied: { ...applied.value } } }, { deep: true })
 
 /** A node whose toggle is on stands for its whole subtree: no caret, no children. */
 const hasChildren = (node: TreeNode) => !!node.children?.length && !applied.value[node.key]
@@ -123,8 +133,22 @@ const rows = computed(() => {
   return out
 })
 
+// ─── What the acting user may grant ──────────────────────────────────────────
+// Reason one cell is locked ('' = free). Node keys encode the module, purpose and
+// employment status (e.g. "rc-evaluation-intern", "report-9box", "dashboard-rc").
+function nodeReason(node: TreeNode, action: Action) {
+  if (node.key.startsWith('dashboard')) return actor.dashboardReason()
+  const purpose = /-(competency|performance|evaluation)$/.exec(node.key)?.[1]
+  const status = /-evaluation-(\w+)$/.exec(node.key)?.[1]
+  return actor.actionReason(action)
+    || (node.key === 'report-9box' ? actor.reportReason('9-box matrix') : '')
+    || (purpose ? actor.purposeReason(purpose) : '')
+    || (status ? actor.statusReason(status) : '')
+}
+
 // ─── Checkbox state (a parent's box reflects its whole subtree) ─────────────
-const cellsOf = (node: TreeNode, action: Action) => subtree(node).filter(n => n.actions.includes(action))
+// Only cells the acting user may grant count: a parent's box ticks / unticks just those.
+const cellsOf = (node: TreeNode, action: Action) => subtree(node).filter(n => n.actions.includes(action) && !nodeReason(n, action))
 function cellState(node: TreeNode, action: Action) {
   const cells = cellsOf(node, action)
   const on = cells.filter(n => granted.value[cellKey(n, action)]).length
@@ -133,13 +157,59 @@ function cellState(node: TreeNode, action: Action) {
 function setCell(node: TreeNode, action: Action, value: boolean) {
   cellsOf(node, action).forEach((n) => { granted.value[cellKey(n, action)] = value })
 }
+// All-or-nothing modules (Goals): the backend stores either every action or none, so any box beneath
+// the owner ticks / unticks all of them together. A hover tooltip says why.
+const AON_HINT = 'Goals access is all or nothing'
+const aonOwner: Record<string, TreeNode> = {}
+;(function mapOwners(nodes: TreeNode[], owner?: TreeNode) {
+  nodes.forEach((n) => {
+    const o = n.allOrNothing ? n : owner
+    if (o) aonOwner[n.key] = o
+    if (n.children) mapOwners(n.children, o)
+  })
+})(TREE)
+const aonHint = (node: TreeNode) => (aonOwner[node.key] ? AON_HINT : '')
+/** No partial grants: if the user can't grant every cell beneath the owner, the whole group is locked. */
+const aonReason = (node: TreeNode) => {
+  const owner = aonOwner[node.key]
+  return owner ? everyNode(owner).flatMap(n => n.actions.map(a => nodeReason(n, a))).find(Boolean) ?? '' : ''
+}
+function setAllOrNothing(owner: TreeNode, value: boolean) {
+  everyNode(owner).forEach((n) => { n.actions.forEach((a) => { granted.value[cellKey(n, a)] = value }) })
+}
+
+/** A box is locked when nothing beneath it can be granted; the first reason found explains it. */
+function cellReason(node: TreeNode, action: Action) {
+  if (aonReason(node)) return aonReason(node)
+  if (cellsOf(node, action).length) return ''
+  return subtree(node).filter(n => n.actions.includes(action)).map(n => nodeReason(n, action)).find(Boolean) ?? ''
+}
+const grantableActions = (node: TreeNode) => ACTIONS.filter(a => node.actions.includes(a.key) && cellsOf(node, a.key).length)
 function moduleState(node: TreeNode) {
-  const states = ACTIONS.filter(a => node.actions.includes(a.key)).map(a => cellState(node, a.key))
-  const checked = states.every(s => s.checked)
+  const states = grantableActions(node).map(a => cellState(node, a.key))
+  const checked = states.length > 0 && states.every(s => s.checked)
   return { checked, indeterminate: !checked && states.some(s => s.checked || s.indeterminate) }
 }
-const setModule = (node: TreeNode, value: boolean) => node.actions.forEach(a => setCell(node, a, value))
+// Create / Edit / Delete need View: ticking one also ticks View; unticking View clears the rest.
+function toggleCell(node: TreeNode, action: Action, value: boolean) {
+  if (aonOwner[node.key]) return setAllOrNothing(aonOwner[node.key]!, value)
+  setCell(node, action, value)
+  if (action !== 'view' && value && node.actions.includes('view')) setCell(node, 'view', true)
+  if (action === 'view' && !value) node.actions.forEach(a => setCell(node, a, false))
+}
+const setModule = (node: TreeNode, value: boolean) => (aonOwner[node.key] ? setAllOrNothing(aonOwner[node.key]!, value) : node.actions.forEach(a => setCell(node, a, value)))
+const moduleReason = (node: TreeNode) => aonReason(node) || (grantableActions(node).length ? '' : node.actions.map(a => cellReason(node, a)).find(Boolean) ?? '')
 
+// Caption under the "Same scope" toggle: the parts of the referenced module (Review cycle / Goals)
+// that have something granted. Empty until the user picks something there, and then no caption.
+const everyNode = (n: TreeNode): TreeNode[] => [n, ...(n.children ?? []).flatMap(everyNode)]
+const isGranted = (n: TreeNode) => everyNode(n).some(d => ACTIONS.some(a => granted.value[cellKey(d, a.key)]))
+function scopeCaption(node: TreeNode) {
+  const name = /as (.+?) module/.exec(node.toggleLabel ?? '')?.[1]
+  const source = TREE.find(t => t.label.toLowerCase() === name)
+  const included = (source?.children ?? []).filter(isGranted).map(c => c.label.toLowerCase())
+  return included.length ? `Includes ${new Intl.ListFormat('en').format(included)}` : ''
+}
 const toggleOpen = (node: TreeNode) => { collapsed.value[node.key] = !collapsed.value[node.key] }
 // On: the node's own boxes stand for everything beneath it (see `subtree`).
 const setApplied = (node: TreeNode, value: boolean) => { applied.value[node.key] = value }
@@ -170,7 +240,9 @@ const line = css({ display: 'flex', alignItems: 'flex-start', gap: '2' })
 const caretSlot = css({ width: '20px', height: '24px', flexShrink: 0, display: 'flex', alignItems: 'center', justifyContent: 'center' })
 const caretButton = css({ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '24px', cursor: 'pointer', color: 'text.secondary' })
 const groupLabel = css({ fontWeight: '600' })
-const toggleBlock = css({ marginTop: '2' })
+// The table cell is nowrap; let the toggle label and caption wrap inside the Module column.
+const moduleBody = css({ flex: '1', minWidth: '0' })
+const toggleBlock = css({ marginTop: '2', whiteSpace: 'normal' })
 </script>
 
 <template>
@@ -201,18 +273,21 @@ const toggleBlock = css({ marginTop: '2' })
                 </button>
               </span>
               <div>
-                <MpCheckbox
+                <ManageUserRolesLock :reason="moduleReason(node) || aonHint(node)"><MpCheckbox :is-disabled="!!moduleReason(node)"
                   :id="`roles-v2-module-${node.key}`"
                   :is-checked="moduleState(node).checked"
                   :is-indeterminate="moduleState(node).indeterminate"
                   @update:is-checked="(v: boolean) => setModule(node, v)"
                 >
                   <span :class="depth === 0 && groupLabel">{{ node.label }}</span>
-                </MpCheckbox>
+                </MpCheckbox></ManageUserRolesLock>
                 <div v-if="node.toggleLabel" :class="toggleBlock">
-                  <MpToggle :id="`roles-v2-apply-${node.key}`" :is-checked="applied[node.key]" @update:is-checked="(v: boolean) => setApplied(node, v)">
-                    {{ node.toggleLabel }}
-                  </MpToggle>
+                  <ManageUserRolesLock :reason="moduleReason(node)">
+                    <MpToggle :id="`roles-v2-apply-${node.key}`" :is-checked="applied[node.key]" :is-disabled="!!moduleReason(node)" @update:is-checked="(v: boolean) => setApplied(node, v)">
+                      {{ node.toggleLabel }}
+                      <template v-if="applied[node.key] && !moduleReason(node) && scopeCaption(node)" #description>{{ scopeCaption(node) }}</template>
+                    </MpToggle>
+                  </ManageUserRolesLock>
                 </div>
               </div>
             </div>
@@ -220,13 +295,13 @@ const toggleBlock = css({ marginTop: '2' })
           <MpTableCell v-for="a in ACTIONS" :key="`${node.key}-${a.key}`" as="td" :class="[cell, actionCol, depth === 0 ? groupCell : childCell]">
             <!-- An open parent hands its boxes to its children -->
             <div v-if="node.actions.includes(a.key) && !isOpen(node)" :class="actionBox">
-              <MpCheckbox
+              <ManageUserRolesLock :reason="cellReason(node, a.key) || aonHint(node)"><MpCheckbox :is-disabled="!!cellReason(node, a.key)"
                 :id="`roles-v2-${node.key}-${a.key}`"
                 :is-checked="cellState(node, a.key).checked"
                 :is-indeterminate="cellState(node, a.key).indeterminate"
                 :aria-label="`${a.label} ${node.label}`"
-                @update:is-checked="(v: boolean) => setCell(node, a.key, v)"
-              />
+                @update:is-checked="(v: boolean) => toggleCell(node, a.key, v)"
+              /></ManageUserRolesLock>
             </div>
           </MpTableCell>
         </MpTableRow>

@@ -10,7 +10,7 @@ import { MpIcon, MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, M
 
 const { rolesFormVersion } = useManageUserStore()
 
-const scenarioFab = css({ position: 'fixed', right: '24px', bottom: '24px', zIndex: '100' })
+const scenarioFab = css({ position: 'fixed', left: '24px', bottom: '24px', zIndex: '100' })
 const scenarioFabButton = css({
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: '48px', height: '48px', borderRadius: 'full',
@@ -23,7 +23,7 @@ const scenarioFabButton = css({
 
 <template>
   <div :class="scenarioFab">
-    <MpPopover is-close-on-select use-portal placement="top-end">
+    <MpPopover is-close-on-select use-portal placement="top-start">
       <MpPopoverTrigger>
         <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
           <MpIcon name="sliders" size="sm" color="icon.inverse" />

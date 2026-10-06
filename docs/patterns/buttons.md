@@ -98,3 +98,7 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 - Never disable the primary submit — validate + toast instead.
 - Secondary = black border + black text on neutral.
 - A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action. Exception: a dropdown "Add X ▾" gets only `right-icon="chevrons-down"`.
+
+## Disabled by permission: "Add role"
+
+When the user can't create roles, the header "Add role" button (and the empty-state one) is `is-disabled` with a tooltip: "Contact your admin to get access to add roles". A disabled button fires no mouse events, so the `MpButton` sits inside a `div` inside an `MpTooltip` (`:is-manual="canManageRoles" :is-open="false"` turns it off for users who can). See [`checkbox.md`](checkbox.md) › Locked by permission.

@@ -31,6 +31,30 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       {
         category: 'Feature',
+        area: 'Role form · Delegated user',
+        detail: 'Permission checkboxes are locked by who is editing (new useRoleActor): Rizal (Super Admin) grants anything; Rio is a delegated user who can only grant what his own role holds (mock: Performance + Evaluation purposes, Probation + Contract statuses, no Delete, no 9-box report, no Dashboard); everyone else gets every checkbox locked and a disabled "Add role" button with the tooltip "Contact your admin to get access to add roles". Each locked checkbox explains why on hover (RolesLock). The Roles list button is renamed from "Add new role" to "Add role".',
+        files: ['composables/useRoleActor.ts', 'components/manage-user/RolesLock.vue', 'components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'pages/settings/manage-users/roles/index.vue', 'docs/patterns/checkbox.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Goals and View rules',
+        detail: 'Manage Goal is now Goals (View / Create / Edit / Delete), listed after Review cycle, and is all-or-nothing in both versions: ticking any Goals box ticks all of them, with a "Goals access is all or nothing" tooltip. Dashboard > Goals gets a "Same scope as goals module setting" toggle. Create / Edit / Delete now also tick View (and unticking View clears them) everywhere else. "Same scope" toggles default on with a caption that is hidden until something is selected; Version 2 toggles are disabled when the module is locked. Version 1 parent rows have a semibold title.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Save then Edit',
+        detail: 'Editing a saved role now restores the selection (it opened blank, mainly in Version 2). The form saves a ui_state blob with the role (Version 2 tree, Report / Dashboard rows, scope toggles) and restores it on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools',
+        detail: 'The roles form scenario control moved to the bottom-left, like the IDP dev tools.',
+        files: ['components/manage-user/RolesFormScenarioControl.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
         area: 'Role form · Version 2 permission table',
         detail: 'Version 2 is now a full-width collapsible module tree (Figma "Table / Custom role performance"): 440px Permission column + View / Create / Edit / Delete columns, consistent 24px indent per level, parent boxes reflect their subtree. Turning on an "Apply … settings" toggle removes the caret and hides the node\'s children. Prototype state only (not in the submitted payload).',
         files: ['components/manage-user/RolesPermissionTreeV2.vue', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md', 'docs/patterns/dev-scenario-control.md'],

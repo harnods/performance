@@ -27,6 +27,7 @@ import {
   type CyclePurpose, type PermissionScope,
 } from '~/utils/manageUser'
 
+import type { RoleUiState } from '~/composables/useManageUserStore'
 import RolesPermissionTreeV2 from '~/components/manage-user/RolesPermissionTreeV2.vue'
 
 defineOptions({ name: 'RolesForm' })
@@ -40,6 +41,9 @@ const router = useRouter()
 const { permissions: permissionsSettings, branches, roleById, createRole, updateRole, deleteRole, rolesFormVersion } = useManageUserStore()
 // Dev scenario: v1 = Access + Permission list, v2 = module tree with one checkbox column per action (own component).
 const isV2 = computed(() => rolesFormVersion.value === 'v2')
+// Only the Super Admin persona (Rizal Candra) can change permissions; everyone else gets locked checkboxes.
+// Who is editing and what they may grant (Super Admin: all; delegated user: own scope; others: nothing).
+const actor = useRoleActor()
 
 const DESCRIPTION_MAX = 255
 const ROLES_PATH = '/settings/manage-users/roles'
@@ -59,6 +63,8 @@ const touched = ref({ name: false, description: false })
 const reportScope = ref<PermissionScope>({ purposes: [], employment_statuses: [], same_as_review_cycle: true })
 const dashboardScope = ref<PermissionScope>({ purposes: [], employment_statuses: [], same_as_review_cycle: true })
 const isModalDelete = ref(false)
+// Version 2 tree selection (see RoleUiState); kept here so it round-trips through Save → Edit.
+const v2State = ref<RoleUiState['v2']>()
 
 // ─── Load (fetchPermissions → fetchRole) ────────────────────────────────────
 const emptyScope = (): PermissionScope => ({ purposes: [], employment_statuses: [] })
@@ -126,9 +132,9 @@ function onBranchChange(data: { text?: string }[]) {
 const branchPlaceholder = computed(() => (form.value.branch_id.length === branches.length ? 'All' : 'Select'))
 
 // ─── Permission checkboxes (production rules) ───────────────────────────────
-// Production hides the View row for 'Manage Goal' and the 'Edit Result' child.
+// Production hides the 'Edit Result' child.
 // Report (PRD S2) has no View either — its checkboxes are the two report types.
-const showView = (item: PermissionParent) => item.name !== 'Manage Goal' && item.id !== REPORT_PERMISSION_ID
+const showView = (item: PermissionParent) => item.id !== REPORT_PERMISSION_ID
 const visibleChildren = (item: PermissionParent) => item.children.filter(child => child.name !== 'Edit Result')
 
 /** The Permission column's rows: View (the parent itself) + its visible children. */
@@ -161,7 +167,20 @@ function onCheckedChildren(child: PermissionNode, value: boolean, indexParent: n
   child.checked = value
   if (value) form.value.permissions[indexParent].checked = value
 }
+// Goals is all-or-nothing in the backend: every action box ticks / unticks together (hover tooltip says so).
+const AON_HINT = 'Goals access is all or nothing'
+const isAllOrNothing = (item: PermissionParent) => item.name === 'Goals'
+const aonLockReason = (item: PermissionParent) => (isAllOrNothing(item) ? permissionRows(item).map(r => actor.permissionReason(r.label)).find(Boolean) ?? '' : '')
+/** Why a permission row is disabled ('' = free). */
+const rowReason = (item: PermissionParent, row: PermissionRow) => (isDashboard(item) ? actor.dashboardReason() : aonLockReason(item) || actor.permissionReason(row.label))
+const rowTip = (item: PermissionParent, row: PermissionRow) => rowReason(item, row) || (isAllOrNothing(item) ? AON_HINT : '')
 function onCheckedRow(row: PermissionRow, value: boolean, index: number) {
+  const item = form.value.permissions[index]
+  if (item && isAllOrNothing(item)) {
+    item.checked = value
+    item.children.forEach((child) => { child.checked = value })
+    return
+  }
   if (row.isView) onCheckedView(index, value)
   else onCheckedChildren(row.node, value, index)
 }
@@ -188,7 +207,10 @@ const isFull = (node: PermissionNode) => !!node.scope
 const isScopedAll = (item: PermissionParent) => scopedNodes(item).every(isFull)
 const isScopedSome = (item: PermissionParent) => scopedNodes(item).some(n => n.checked)
 
-const isPurposeAll = (item: PermissionParent, p: CyclePurpose) => permissionRows(item).every(r => hasPurpose(r.node, p))
+// Rows the acting user is allowed to hand out (a delegated user can't grant Delete, etc.).
+const grantableRows = (item: PermissionParent) => permissionRows(item).filter(r => !actor.permissionReason(r.label))
+const grantableStatuses = computed(() => ALL_STATUSES.filter(s => !actor.statusReason(s)))
+const isPurposeAll = (item: PermissionParent, p: CyclePurpose) => grantableRows(item).every(r => hasPurpose(r.node, p))
 const isPurposeSome = (item: PermissionParent, p: CyclePurpose) => permissionRows(item).some(r => hasPurpose(r.node, p))
 
 /** Description with the purpose spelled out, e.g. "View performance review cycles and their progress." */
@@ -202,14 +224,14 @@ function setPurpose(node: PermissionNode, p: CyclePurpose, value: boolean) {
   if (!scope) return
   scope.purposes = ALL_PURPOSES.filter(x => (x === p ? value : scope.purposes.includes(x)))
   // Evaluation starts on "All employment status"; removing it clears the statuses.
-  if (p === 'evaluation') scope.employment_statuses = value ? (scope.employment_statuses.length ? scope.employment_statuses : [...ALL_STATUSES]) : []
+  if (p === 'evaluation') scope.employment_statuses = value ? (scope.employment_statuses.length ? scope.employment_statuses : [...grantableStatuses.value]) : []
   node.checked = scope.purposes.length > 0
 }
 // Purpose checkbox (Access column) — grants/removes every permission for that purpose.
 function togglePurpose(item: PermissionParent, p: CyclePurpose) {
   const value = !isPurposeAll(item, p)
   const statuses = p === 'evaluation' ? evaluationStatuses(item) : []
-  permissionRows(item).forEach(r => setPurpose(r.node, p, value))
+  grantableRows(item).forEach(r => setPurpose(r.node, p, value))
   if (p === 'evaluation' && value && statuses.length) applyEvaluationStatuses(item, statuses)
 }
 // Permission checkbox inside a purpose row. Production's "child implies View"
@@ -242,7 +264,7 @@ const hasScopePurpose = (g: ScopeGroup, p: CyclePurpose) => scopeRef(g).value.pu
 function toggleScopePurpose(g: ScopeGroup, p: CyclePurpose, value: boolean) {
   const scope = scopeRef(g).value
   scope.purposes = ALL_PURPOSES.filter(x => (x === p ? value : scope.purposes.includes(x)))
-  if (p === 'evaluation') scope.employment_statuses = value ? [...ALL_STATUSES] : []
+  if (p === 'evaluation') scope.employment_statuses = value ? [...grantableStatuses.value] : []
 }
 const hasScopeStatus = (g: ScopeGroup, status: string) => scopeRef(g).value.employment_statuses.includes(status)
 function toggleScopeStatus(g: ScopeGroup, status: string, value: boolean) {
@@ -259,6 +281,17 @@ const reportScopeError = computed(() => {
   const bad = (['report', 'dashboard'] as ScopeGroup[]).find(g => scopedRowGranted(g) && isScopeCustom(g) && !scopeRef(g).value.purposes.length)
   return bad ? `Select at least one purpose for ${bad === 'report' ? 'Review results' : 'Dashboard'}` : ''
 })
+// Caption under the "Same scope" toggle: what the group inherits from Review cycle right now.
+function sameScopeCaption(g: ScopeGroup) {
+  const { purposes, employment_statuses: statuses } = effectiveScope(g)
+  if (!purposes.length) return ''
+  const list = purposes.map((p) => {
+    const label = CYCLE_PURPOSES.find(x => x.value === p)?.label ?? p
+    const names = p === 'evaluation' ? statuses.map(v => EVALUATION_EMPLOYMENT_STATUSES.find(x => x.value === v)?.label ?? v) : []
+    return names.length ? `${label} (${names.join(', ')})` : label
+  })
+  return list.join(', ')
+}
 const effectiveScope = (g: ScopeGroup): PermissionScope => (isScopeCustom(g)
   ? { ...scopeRef(g).value, purposes: [...scopeRef(g).value.purposes], employment_statuses: [...scopeRef(g).value.employment_statuses] }
   : { ...reviewCycleScope.value, same_as_review_cycle: true })
@@ -273,7 +306,7 @@ const toggleGroup = (item: PermissionParent) => { collapsedGroups.value[item.id]
 
 /** A module row beneath Report / Dashboard, each with its own permission checkboxes. */
 interface SubPerm { key: string, label: string, description: string }
-interface SubRow { key: string, label: string, perms: SubPerm[], scoped?: boolean }
+interface SubRow { key: string, label: string, perms: SubPerm[], scoped?: boolean, sameGoals?: boolean }
 const viewCreate = (view: string, create: string): SubPerm[] => [
   { key: 'view', label: 'View', description: view },
   { key: 'create', label: 'Create', description: create },
@@ -284,14 +317,23 @@ const REPORT_ROWS: SubRow[] = [
   { key: 'ninebox', label: '9-box matrix', perms: viewCreate('View the 9-box matrix and its configuration.', 'Generate the 9-box matrix.') },
 ]
 // Dashboard's rows mirror other groups' permissions: Performance review = Review cycle's
-// Performance row, Goals = Manage Goal's. They keep their own checkbox state.
+// Performance row, Goals = the Goals module's. They keep their own checkbox state.
 const dashboardRows = computed<SubRow[]>(() => {
   const cycle = reviewCycleItem.value
-  const goals = form.value.permissions.find(p => p.name === 'Manage Goal')
+  const goals = form.value.permissions.find(p => p.name === 'Goals')
   return [
     { key: 'performance', label: 'Performance review', scoped: true, perms: cycle ? permissionRows(cycle).map(r => ({ key: String(r.node.id), label: r.label, description: scopedDescription(r, { value: 'performance', label: 'Performance' }) })) : [] },
-    { key: 'goals', label: 'Goals', perms: goals ? permissionRows(goals).map(r => ({ key: String(r.node.id), label: r.label, description: r.description })) : [] },
+    { key: 'goals', label: 'Goals', sameGoals: true, perms: goals ? permissionRows(goals).map(r => ({ key: String(r.node.id), label: r.label, description: r.description })) : [] },
   ]
+})
+// Dashboard › Goals follows the Goals module by default (same idea as Review cycle's scope toggle).
+const dashboardGoalsSameScope = ref(true)
+const goalsItem = computed(() => form.value.permissions.find(p => p.name === 'Goals'))
+const goalsScopeCaption = computed(() => {
+  const g = goalsItem.value
+  const on = g ? permissionRows(g).filter(r => r.node.checked).map(r => r.label.toLowerCase()) : []
+  const text = on.length ? new Intl.ListFormat('en').format(on) : ''
+  return text.charAt(0).toUpperCase() + text.slice(1)
 })
 const subRowsOf = (item: PermissionParent): SubRow[] => (isReport(item) ? REPORT_ROWS : isDashboard(item) ? dashboardRows.value : [])
 const subGroup = (item: PermissionParent) => (isReport(item) ? 'report' : 'dashboard')
@@ -302,6 +344,16 @@ const groupKeys = (item: PermissionParent) => subRowsOf(item).flatMap(r => rowKe
 function subState(keys: string[]) {
   const on = keys.filter(k => subOn.value[k]).length
   return { checked: on === keys.length && on > 0, indeterminate: on > 0 && on < keys.length }
+}
+// Create / Edit / Delete need View (the row's first permission): ticking one also ticks View; unticking View clears the rest.
+const isDashboardGoals = (group: string, row: SubRow) => group === 'dashboard' && row.key === 'goals'
+function setSubPerm(group: string, row: SubRow, perm: SubPerm, value: boolean) {
+  if (isDashboardGoals(group, row)) { row.perms.forEach((p) => { subOn.value[subKey(group, row, p)] = value }); return }
+  const view = row.perms[0]
+  subOn.value[subKey(group, row, perm)] = value
+  if (!view) return
+  if (value && perm !== view) subOn.value[subKey(group, row, view)] = true
+  if (!value && perm === view) row.perms.forEach((p) => { subOn.value[subKey(group, row, p)] = false })
 }
 const setSub = (keys: string[], value: boolean) => keys.forEach((k) => { subOn.value[k] = value })
 
@@ -330,6 +382,15 @@ function applySubState() {
 
 // ─── Dashboard (PRD S3): always Review cycle's scope ─────────────────────────
 const isDashboard = (item: PermissionParent) => item.id === DASHBOARD_PERMISSION_ID
+// Why a Report / Dashboard sub-row is locked for the acting user ('' = free).
+const subRowReason = (group: string, row: SubRow) => (group === 'dashboard' ? actor.dashboardReason() : actor.reportReason(row.label))
+// A group's own checkbox covers every row beneath it, so it stays locked while any of them is.
+const parentReason = (item: PermissionParent) => {
+  if (isDashboard(item)) return actor.dashboardReason()
+  if (isReport(item)) return REPORT_ROWS.map(r => actor.reportReason(r.label)).find(Boolean) ?? ''
+  const rows = permissionRows(item).map(r => actor.permissionReason(r.label)).find(Boolean)
+  return rows || (item.scoped ? CYCLE_PURPOSES.map(p => actor.purposeReason(p.value)).find(Boolean) ?? '' : '')
+}
 
 // One set of Employment Status checkboxes for the whole Evaluation row.
 function evaluationStatuses(item: PermissionParent): string[] {
@@ -355,6 +416,15 @@ const onGroupChange = (item: PermissionParent, index: number, value: boolean) =>
   else checkParent(index, value)
 }
 
+// Saved UI-only state (Version 2 tree, Report / Dashboard sub-rows, scope toggles); needs the refs defined above.
+const savedUi = isEdit.value && roleId.value != null ? roleById(roleId.value)?.ui_state : undefined
+if (savedUi) {
+  v2State.value = savedUi.v2
+  if (savedUi.subOn) subOn.value = { ...savedUi.subOn }
+  if (savedUi.reportScope) reportScope.value = savedUi.reportScope
+  if (savedUi.dashboardScope) dashboardScope.value = savedUi.dashboardScope
+  if (savedUi.dashboardGoalsSameScope != null) dashboardGoalsSameScope.value = savedUi.dashboardGoalsSameScope
+}
 hydrateSubState() // after fetchRole: reads the computed rows defined above
 
 function generatePayload() {
@@ -381,6 +451,13 @@ function generatePayload() {
     permission_scopes: permissionScopes,
     role_id: form.value.role_id ? form.value.role_id : undefined,
     branches: form.value.branch_id,
+    ui_state: {
+      v2: v2State.value,
+      subOn: { ...subOn.value },
+      reportScope: reportScope.value,
+      dashboardScope: dashboardScope.value,
+      dashboardGoalsSameScope: dashboardGoalsSameScope.value,
+    },
   }
 }
 
@@ -429,6 +506,8 @@ const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'top', whiteSpace: 'normal', overflowWrap: 'anywhere' })
 const accessCol = css({ width: '440px' })
+// Parent (module) rows: semibold title.
+const groupLabel = css({ fontWeight: '600' })
 // Fixed layout so Access keeps its 40% (the Employment Status checkboxes live there).
 const fixedTable = css({ tableLayout: 'fixed', width: '100%' })
 const permissionList = css({ display: 'flex', flexDirection: 'column', gap: '4' })
@@ -439,7 +518,8 @@ const caretSlot = css({ width: '20px', height: '24px', flexShrink: 0, display: '
 const caretButton = css({ display: 'flex', alignItems: 'center', justifyContent: 'center', width: '20px', height: '24px', cursor: 'pointer', color: 'text.secondary' })
 const subIndent = css({ paddingLeft: '24px' })
 const moduleStack = css({ display: 'flex', flexDirection: 'column', minWidth: '0' })
-const toggleBlock = css({ marginTop: '2' })
+// The table cell is nowrap; let the toggle label and caption wrap inside the Module column.
+const toggleBlock = css({ marginTop: '2', whiteSpace: 'normal' })
 // Report scope checkboxes: aligned with the toggle's title (control width + gap).
 const scopeIndent = css({ paddingLeft: '42px', marginTop: '4' })
 const purposeAccess = css({ display: 'flex', flexDirection: 'column', gap: '16px' })
@@ -495,7 +575,7 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
         <MpText as="h2" :class="h2Class">Permissions</MpText>
         <MpText size="label" color="text.secondary">Only people who have a specific role can change permissions.</MpText>
       </div>
-      <RolesPermissionTreeV2 v-if="isV2" />
+      <RolesPermissionTreeV2 v-if="isV2" v-model="v2State" />
       <MpTableContainer v-else>
         <MpTable :is-hoverable="false" :class="fixedTable">
           <MpTableHead>
@@ -521,31 +601,31 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         <MpIcon :name="isGroupOpen(item) ? 'caret-down' : 'caret-right'" size="sm" />
                       </button>
                     </span>
-                    <MpCheckbox
+                    <ManageUserRolesLock :reason="parentReason(item) || (isAllOrNothing(item) ? AON_HINT : '')"><MpCheckbox :is-disabled="!!(parentReason(item))"
                       :id="`parent-${idx}`"
                       :is-checked="groupChecked(item)"
                       :is-indeterminate="groupIndeterminate(item)"
                       :data-qa="`view-settings-roles-form-permission-parent-${idx}`"
                       @update:is-checked="(v: boolean) => onGroupChange(item, idx, v)"
                     >
-                      {{ item.name }}
-                    </MpCheckbox>
+                      <span :class="groupLabel">{{ item.name }}</span>
+                    </MpCheckbox></ManageUserRolesLock>
                   </div>
                 </MpTableCell>
                 <MpTableCell as="td" :class="[cell]">
                   <template v-if="!item.scoped">
                     <div v-if="item.children.length && !isReport(item)" :class="permissionList">
-                      <MpCheckbox
+                      <ManageUserRolesLock :reason="rowTip(item, row)"
                         v-for="row in permissionRows(item)"
+                        :key="`row-${idx}-${row.node.id}`"><MpCheckbox :is-disabled="!!rowReason(item, row)"
                         :id="`child-${idx}-${row.node.id}`"
-                        :key="`row-${idx}-${row.node.id}`"
                         :is-checked="row.node.checked"
                         :data-qa="`view-settings-roles-form-permission-child-${idx}-${row.node.id}`"
                         @update:is-checked="(v: boolean) => onCheckedRow(row, v, idx)"
                       >
                         {{ row.label }}
                         <template #description>{{ row.description }}</template>
-                      </MpCheckbox>
+                      </MpCheckbox></ManageUserRolesLock>
                     </div>
                   </template>
                 </MpTableCell>
@@ -558,14 +638,14 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                     <div :class="[moduleLine, subIndent]">
                     <span :class="caretSlot" />
                     <div :class="purposeAccess">
-                      <MpCheckbox
+                      <ManageUserRolesLock :reason="actor.purposeReason(p.value)"><MpCheckbox :is-disabled="!!(actor.purposeReason(p.value))"
                         :id="`purpose-${idx}-${p.value}`"
                         :is-checked="isPurposeAll(item, p.value)"
                         :is-indeterminate="isPurposeSome(item, p.value) && !isPurposeAll(item, p.value)"
                         @update:is-checked="togglePurpose(item, p.value)"
                       >
                         {{ purposeLabel(p) }}
-                      </MpCheckbox>
+                      </MpCheckbox></ManageUserRolesLock>
                       <!-- Only Evaluation is scoped by employment status (PRD §5.1) -->
                       <div
                         v-if="p.value === 'evaluation' && isPurposeSome(item, 'evaluation')"
@@ -575,31 +655,31 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                         :class="statusGroup"
                       >
                         <span :class="statusLabel">Employee status</span>
-                        <MpCheckbox
+                        <ManageUserRolesLock :reason="actor.statusReason(s.value)"
                           v-for="s in EVALUATION_EMPLOYMENT_STATUSES"
+                          :key="`status-${idx}-${s.value}`"><MpCheckbox :is-disabled="!!(actor.statusReason(s.value))"
                           :id="`employment-status-${idx}-${s.value}`"
-                          :key="`status-${idx}-${s.value}`"
                           :is-checked="hasStatus(item, s.value)"
                           @update:is-checked="(v: boolean) => toggleStatus(item, s.value, v)"
                         >
                           {{ s.label }}
-                        </MpCheckbox>
+                        </MpCheckbox></ManageUserRolesLock>
                       </div>
                     </div>
                     </div>
                   </MpTableCell>
                   <MpTableCell as="td" :class="cell">
                     <div :class="permissionList">
-                      <MpCheckbox
+                      <ManageUserRolesLock :reason="actor.permissionReason(row.label) || actor.purposeReason(p.value)"
                         v-for="row in permissionRows(item)"
+                        :key="`purpose-${idx}-${p.value}-${row.node.id}`"><MpCheckbox :is-disabled="!!(actor.permissionReason(row.label) || actor.purposeReason(p.value))"
                         :id="`purpose-${idx}-${p.value}-${row.node.id}`"
-                        :key="`purpose-${idx}-${p.value}-${row.node.id}`"
                         :is-checked="hasPurpose(row.node, p.value)"
                         @update:is-checked="(v: boolean) => togglePurposePermission(item, row, p.value, v)"
                       >
                         {{ row.label }}
                         <template #description>{{ scopedDescription(row, p) }}</template>
-                      </MpCheckbox>
+                      </MpCheckbox></ManageUserRolesLock>
                     </div>
                   </MpTableCell>
                 </MpTableRow>
@@ -616,14 +696,14 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                     <div :class="[moduleLine, subIndent]">
                       <span :class="caretSlot" />
                       <div :class="moduleStack">
-                        <MpCheckbox
+                        <ManageUserRolesLock :reason="subRowReason(subGroup(item), row)"><MpCheckbox :is-disabled="!!(subRowReason(subGroup(item), row))"
                           :id="`sub-${subGroup(item)}-${row.key}`"
                           :is-checked="subState(rowKeys(subGroup(item), row)).checked"
                           :is-indeterminate="subState(rowKeys(subGroup(item), row)).indeterminate"
                           @update:is-checked="(v: boolean) => setSub(rowKeys(subGroup(item), row), v)"
                         >
                           {{ row.label }}
-                        </MpCheckbox>
+                        </MpCheckbox></ManageUserRolesLock>
                         <!-- Scoped rows (Review results / Dashboard's Performance review): Review cycle's scope by default, or their own purposes -->
                         <template v-if="row.scoped">
                           <div :class="toggleBlock">
@@ -633,47 +713,54 @@ const confirmWidth = css({ width: '400px', maxWidth: '90vw' })
                               @update:is-checked="(v: boolean) => onSameScope(subGroup(item), v)"
                             >
                               Same scope as review cycle module setting
+                              <template v-if="!isScopeCustom(subGroup(item)) && sameScopeCaption(subGroup(item))" #description>{{ sameScopeCaption(subGroup(item)) }}</template>
                             </MpToggle>
                           </div>
                           <div v-if="isScopeCustom(subGroup(item))" :class="[purposeAccess, scopeIndent]" :data-qa="`view-settings-roles-form-${subGroup(item)}-scope`">
                             <template v-for="p in CYCLE_PURPOSES" :key="`rp-${p.value}`">
-                              <MpCheckbox
+                              <ManageUserRolesLock :reason="actor.purposeReason(p.value)"><MpCheckbox :is-disabled="!!(actor.purposeReason(p.value))"
                                 :id="`${subGroup(item)}-purpose-${p.value}`"
                                 :is-checked="hasScopePurpose(subGroup(item), p.value)"
                                 @update:is-checked="(v: boolean) => toggleScopePurpose(subGroup(item), p.value, v)"
                               >
                                 {{ purposeLabel(p) }}
-                              </MpCheckbox>
+                              </MpCheckbox></ManageUserRolesLock>
                               <div v-if="p.value === 'evaluation' && hasScopePurpose(subGroup(item), 'evaluation')" role="group" aria-label="Employment status" :class="statusGroup">
                                 <span :class="statusLabel">Employee status</span>
-                                <MpCheckbox
+                                <ManageUserRolesLock :reason="actor.statusReason(s.value)"
                                   v-for="s in EVALUATION_EMPLOYMENT_STATUSES"
+                                  :key="`${subGroup(item)}-status-${s.value}`"><MpCheckbox :is-disabled="!!(actor.statusReason(s.value))"
                                   :id="`${subGroup(item)}-employment-status-${s.value}`"
-                                  :key="`${subGroup(item)}-status-${s.value}`"
                                   :is-checked="hasScopeStatus(subGroup(item), s.value)"
                                   @update:is-checked="(v: boolean) => toggleScopeStatus(subGroup(item), s.value, v)"
                                 >
                                   {{ s.label }}
-                                </MpCheckbox>
+                                </MpCheckbox></ManageUserRolesLock>
                               </div>
                             </template>
                           </div>
                         </template>
+                        <div v-else-if="row.sameGoals" :class="toggleBlock">
+                          <MpToggle id="dashboard-same-scope-goals" v-model:is-checked="dashboardGoalsSameScope">
+                            Same scope as goals module setting
+                            <template v-if="dashboardGoalsSameScope && goalsScopeCaption" #description>{{ goalsScopeCaption }}</template>
+                          </MpToggle>
+                        </div>
                       </div>
                     </div>
                   </MpTableCell>
                   <MpTableCell as="td" :class="cell">
                     <div :class="permissionList">
-                      <MpCheckbox
+                      <ManageUserRolesLock :reason="subRowReason(subGroup(item), row) || actor.permissionReason(perm.label) || (isDashboardGoals(subGroup(item), row) ? AON_HINT : '')"
                         v-for="perm in row.perms"
+                        :key="subKey(subGroup(item), row, perm)"><MpCheckbox :is-disabled="!!(subRowReason(subGroup(item), row) || actor.permissionReason(perm.label))"
                         :id="`sub-${subGroup(item)}-${row.key}-${perm.key}`"
-                        :key="subKey(subGroup(item), row, perm)"
                         :is-checked="!!subOn[subKey(subGroup(item), row, perm)]"
-                        @update:is-checked="(v: boolean) => { subOn[subKey(subGroup(item), row, perm)] = v }"
+                        @update:is-checked="(v: boolean) => setSubPerm(subGroup(item), row, perm, v)"
                       >
                         {{ perm.label }}
                         <template #description>{{ perm.description }}</template>
-                      </MpCheckbox>
+                      </MpCheckbox></ManageUserRolesLock>
                     </div>
                   </MpTableCell>
                 </MpTableRow>

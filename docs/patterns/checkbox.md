@@ -327,3 +327,27 @@ const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
   department selected → `GoalBulkActionsMenu` inline in that department's own accordion header.
   2+ departments selected → `GoalFloatingBulkBar`, fixed to the bottom of the viewport.
 - `GoalBulkActionsMenu` is the one shared Actions popover — never re-inline its markup.
+
+## Locked by permission (role form)
+
+On Add / Edit role, the checkboxes a user may not grant are `is-disabled`, and hovering one shows an `MpTooltip` saying why. Who can grant what comes from `composables/useRoleActor.ts`:
+
+| User | Can grant |
+|---|---|
+| Rizal Candra (Super Admin) | Everything |
+| Rio Priyono (delegated, Manage Users: Add/Edit) | Only what his own role holds. MOCK scope: Performance + Evaluation purposes, Probation + Contract statuses, no Delete, no 9-box report, no Dashboard |
+| Everyone else | Nothing (every checkbox locked; "Add role" is disabled too, see [`buttons.md`](buttons.md)) |
+
+Tooltip copy (sentence case, no period): "Your role doesn't include this review purpose" / "…this employment status" / "…this permission" / "…this report type" / "…dashboard access"; "Only a Super Admin can change role permissions" for users with no access.
+
+- A disabled checkbox fires no mouse events, so each one sits inside `components/manage-user/RolesLock.vue` (tooltip around a `div`; `:is-manual="!reason" :is-open="false"` switches it off when unlocked).
+- A parent checkbox only ticks / unticks the cells the user may grant (Version 2 tree); it locks only when nothing beneath it can be granted. In Version 1 a group's own checkbox stays locked while any row beneath it is.
+- The persona lives in localStorage, so the lock resolves after mount (the server renders the default user).
+
+## Create / Edit / Delete imply View (role form)
+
+On Add / Edit role, ticking Create, Edit or Delete also ticks View on the same row (a user must be able to view to change). Unticking View clears the other actions. This holds everywhere the actions appear: Version 1's permission lists, the purpose rows, the Report / Dashboard sub-rows, and Version 2's action columns (`toggleCell` in `RolesPermissionTreeV2.vue`; a parent's cell applies it to every cell beneath it).
+
+## All-or-nothing module: Goals (role form, Versions 1 and 2)
+
+The backend stores Goals access as all or nothing, so the four action boxes are locked together: ticking or unticking any Goals box (any action, Goals itself, Company goals or Organization goals) sets every one of them. The boxes stay enabled and look normal; hovering one shows an `MpTooltip`: "Goals access is all or nothing" (`aonHint` in `RolesPermissionTreeV2.vue`, wired through `RolesLock`). A user who can't grant every Goals action (a delegated user without Delete) gets the whole group disabled with the usual lock tooltip, since a partial grant isn't possible. A module opts in with `allOrNothing: true` on its tree node. Version 1 does the same for the Goals permission list and Dashboard › Goals' rows (`isAllOrNothing`, `rowReason` / `rowTip` and `setSubPerm` in `RolesForm.vue`). This replaces the "Create / Edit / Delete imply View" rule inside that module.

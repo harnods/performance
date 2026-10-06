@@ -63,6 +63,8 @@ watch(totalPages, (n) => { if (currentPage.value > n) currentPage.value = n })
 
 const isDefaultRole = (role: RoleRow) => role.company_id === 0
 
+const { canManageRoles } = useRoleActor()
+const ADD_ROLE_LOCKED_TIP = 'Contact your admin to get access to add roles'
 function goToAdd() { router.push('/settings/manage-users/roles/add') }
 function goToEdit(role: RoleRow) { router.push(`/settings/manage-users/roles/edit/${role.id}`) }
 
@@ -103,7 +105,12 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
 
 <template>
   <Teleport to="#page-header-actions" defer>
-    <MpButton variant="primary" left-icon="add" data-qa="roles-index-create" @click="goToAdd">Add new role</MpButton>
+    <!-- A disabled button fires no mouse events, so the tooltip hangs off a wrapper. -->
+    <MpTooltip :label="ADD_ROLE_LOCKED_TIP" :is-manual="canManageRoles" :is-open="false" use-portal>
+      <div>
+        <MpButton variant="primary" left-icon="add" data-qa="roles-index-create" :is-disabled="!canManageRoles" @click="goToAdd">Add role</MpButton>
+      </div>
+    </MpTooltip>
   </Teleport>
 
   <!-- No roles at all → blank slate replaces filter + table -->
@@ -113,7 +120,11 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
       <MpText :class="emptyTitle">No roles yet</MpText>
       <MpText size="label" :class="captionText">Create a new role to begin.</MpText>
     </MpFlex>
-    <MpButton variant="secondary" left-icon="add" @click="goToAdd">Add new role</MpButton>
+    <MpTooltip :label="ADD_ROLE_LOCKED_TIP" :is-manual="canManageRoles" :is-open="false" use-portal>
+      <div>
+        <MpButton variant="secondary" left-icon="add" :is-disabled="!canManageRoles" @click="goToAdd">Add role</MpButton>
+      </div>
+    </MpTooltip>
   </MpFlex>
 
   <div v-else :class="page">

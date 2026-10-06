@@ -775,8 +775,7 @@ own section, header and checkbox centred via a
 `display: flex; justifyContent: center` wrapper). Cells hold a **bare `MpCheckbox`** with an
 `aria-label` ("Edit performance review cycle") — no label, no description; a cell with no
 matching permission stays empty. Children map to columns by name (`Add` → Create, `Edit`,
-`Delete`; the parent itself → View). Children that aren't an action (Manage Goal's company /
-organization goals, Report's Standard / 9-Box) become indented Access-only sub-rows under
+`Delete`; the parent itself → View). The **Goals** module (renamed from Manage Goal, listed right after Review cycle) is plain View / Create / Edit / Delete. Children that aren't an action (Report's Review results / 9-Box) become indented Access-only sub-rows under
 their group, with the same no-line-under-group rule; Report's scope rows follow them, action
 cells empty. Dashboard's scope note moves into its Access checkbox's `#description` (no
 description column in V2). In V2 an unscoped group checkbox reflects its whole row
@@ -810,3 +809,7 @@ a new tab, with no bottom padding under the link row (the list's 8px is dropped)
 ("No competency items yet" / "Add competency item"). A radio that reveals a
 select has **no label** on that select, a 4px gap under the radio and a 32px
 indent (`marginLeft: '8'`); `IdpPlanForm.vue`'s future job position follows it.
+
+### Role form: Save → Edit keeps the selection
+
+The permission ids can't express everything the form shows (Version 2's tree cells and toggles, Report / Dashboard sub-row checkboxes, the "Same scope" toggles). The form therefore saves a `ui_state` blob with the role (`useManageUserStore`'s `RolePayload.ui_state`) and restores it on Edit. Version 2's `RolesPermissionTreeV2` takes it as a `v-model`, so the selection also survives switching between Version 1 and 2 while editing. Prototype only: production would persist these as real permissions.
