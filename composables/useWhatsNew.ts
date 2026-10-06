@@ -56,6 +56,24 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: '06 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Import IDP · two-step wizard',
+        detail: 'The import page is now a two-step wizard with a hand-rolled stepper. Step 1 picks employees with the shared SelectEmployeesDrawer: a list of 10 with "Showing 10 of 26 employees. Load more", a search field (name or employee ID) once there are more than 10, and a 6-of-12-column width. Continue shows a 3-second "Generating template..." spinner when more than 25 employees are picked. Step 2 has the download / fill in / upload steps with the competency import\'s dropzone, a Cancel / Back / Import footer (MpButtonGroup), and the empty-selection error shows only on a Continue click. All wording audited (Continue instead of Next, "Add employees", XLSX file errors, new toasts); max file size is now 5 MB.',
+        files: ['components/StepImportPage.vue', 'pages/talents/idps/import.vue', 'docs/patterns/upload.md', 'docs/patterns/pagination.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Import page',
+        detail: 'On step 2 the dev tools gain a Scenario group (Default / Loading state, which keeps step 2 on the loader) next to Error states; both show only on step 2 (new importScenario / importStep flags).',
+        files: ['components/demo/IdpDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '05 Oct 2026',
     module: 'IDPs',
     items: [

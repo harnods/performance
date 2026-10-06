@@ -209,22 +209,45 @@ Order, in a 552px column with 24px gaps:
 The download, upload and processing are mocked in the prototype. A file whose name contains
 "error" demos the row-error banner.
 
-## Import page (IDP): stepped layout
+## Import page (IDP): two-step wizard
 
 A list page's header gets a **secondary** `Import` (`left-icon="upload"`) button left of
 the primary CTA. It opens a dedicated route (`/talents/idps/import`) rendering
-`components/StepImportPage.vue`: an intro sentence, then three numbered steps separated
-by 1px `border.default` lines:
+`components/StepImportPage.vue`, a **two-step wizard**. Only step 1's **employee list section** (heading, search, list, add button) sits in **6 of the 12 layout columns** on desktop (`span 6 / span 6` at `lg`, full width below), like a form column. The stepper, both footers and all of step 2 keep a 720px max-width column:
 
-1. **Download the data template**: description + secondary `Download template` button.
-2. **Fill in the data in the template file**: bullet list of guidelines.
-3. **Upload spreadsheet**: the dropzone above (240px, hint `.xlsx only with max size 10mb`; swaps to a file
-   row once picked; row errors in an error banner), then **Cancel** (ghost) / **Import**
-   (primary) right-aligned.
+**Stepper** (hand-rolled, Pixel has no stepper component or pattern): 32px circles joined by a 2px brand line that runs from circle to circle at their centre. Each label is absolutely positioned 8px under its circle (step 1 left-aligned, step 2 right-aligned to the edge) so a long label never widens the circle's column and pushes the line away. Current step: brand 2px ring, brand number,
+semibold brand label. Done: filled brand circle with a white check, regular brand label.
+Upcoming: `border.default` ring, `text.secondary` number and label. Brand colour is
+`var(--mp-colors-border-brand)` (the semantic brand tokens aren't emitted here).
 
-Each step's number badge and title sit in one row, **vertically centred** (`align="center"`); the step body sits 4px (`gap="1"`) below the title and is indented 48px (badge + gap) to line up under the title. Inline errors follow the copy rule `[cause]. Please [fix]`, no trailing period: `File size is over 10 MB. Please upload a smaller file`, `File must be in .xlsx format. Please upload a different file`, empty submit `You must upload spreadsheet`.
+**Step 1 · Select employees.** H3 "Employees" + caption "Select the employees you want to import IDPs for". A secondary `+ Select employees` button ("Add employees" once there are picks) opens the shared
+`SelectEmployeesDrawer` (the same two-column picker used for goals and cycle members).
+Once picked, the people show as a list above the button: avatar, name, `code | title |
+department`, and a ghost `minus-circular` remove button per row, 1px `border.default` between
+rows. The list loads progressively (see [`pagination.md`](pagination.md) › Progressive "Load more"): 10 rows first, then the caption "Showing 10 of 26 employees." with a text link "Load more" that appends the next 10. The caption **always shows** (even for 3 employees: "Showing 3 of 3 employees."); once everything is shown only the "Load more" link goes away, there is nothing left to load. The first row has no top padding. **With more than 10 picks** a search field ("Search employee name or employee ID", 360px, `search` left addon) sits **20px below** the "Select the employees you want to import IDPs for" caption (16px margin + the 4px flex gap); it matches name or employee ID, resets "Load more" to 10, and the caption counts the filtered list. No match shows "No employees found" / "Recheck the keywords you have typed and try searching again." The field disappears (and clears) once the list drops to 10 or fewer. The button stays under the list
+to add more (it re-opens the drawer pre-filled). Footer: **Cancel** (ghost) / **Continue**
+(primary), right-aligned (multi-step form, so Continue, not Next); **Continue** with nobody picked (only on click; picking or removing anyone clears it again) shows `You must select at least one
+employee` under the button (never disabled).
+
+**Loader.** When more than 25 employees are picked, **Continue** first shows a centred `MpSpinner` (`size="md"`; Pixel only has `sm` and `md`, an unknown size renders nothing) with the caption "Generating template..." under it for 3 seconds (mocked), in place of the form, then step 2. 25 or fewer go straight to step 2.
+
+**Footers** use `MpButtonGroup` (the same group as drawer / modal footers), right-aligned: step 1 = **Cancel** (ghost) + **Continue** (primary); step 2 = **Cancel** (ghost) + **Back** (secondary) + **Import** (primary). **Back** returns to step 1 with the picked employees kept; the chosen file and any row errors are cleared.
+
+**Step 2 · Upload file.** The step-1 circle turns into a check. An intro line ("Follow these
+steps to import IDPs."), then three numbered steps separated by 1px `border.default`
+lines:
+
+1. **Download the IDP template**: "Use this template so your IDP data is in the right format." + secondary `Download template`.
+2. **Fill in the template**: bullets (follow the column guidelines, fill in all required
+   fields, "Each row is one action plan. Rows with the same employee ID are grouped into one IDP.").
+3. **Upload the file**: no description, straight to the
+   dropzone above, **the same markup and styles as `CompetencyUploadResults.vue`** (56px upload glyph, `paddingBottom: 6` / `paddingInline: 4` blank slate, title + hint, **without** the competency one's 1px divider under the hint), 240px tall here instead of 360px (title "Drop your file here or Browse", hint "File must be in XLSX
+   format with a maximum of 5 MB"; Pixel's `MpDropzone` was tried and dropped: it sizes to its content, its icon is oversized and it has no vertical padding; swaps to a file row once picked; row errors in
+   an error banner), then the footer above.
+
+Each step's number badge and title sit in one row, **vertically centred** (`align="center"`); the step body sits 4px (`gap="1"`) below the title and is indented 48px (badge + gap) to line up under the title. Inline errors follow the copy rule `[cause]. Please [fix]`, no trailing period: `File size is over 5 MB. Please upload a smaller file`, `File must be in XLSX format. Please upload a different file`, empty submit `You must upload a file`. Toasts: `File uploaded` ("Your IDPs are being imported.") and `IDP import failed` ("Fix the rows listed below and upload the file again.").
 
 The step badge is a 32px round `blue.50` circle with a brand-coloured
-(`var(--mp-colors-border-brand)`) number (the semantic brand tokens aren't emitted here); step title is H3 (16/600/24), descriptions 14/20 `text.secondary`. Max width 720px.
+(`var(--mp-colors-border-brand)`) number; step title is H3 (16/600/24), descriptions 14/20 `text.secondary`.
 Reference: `pages/talents/idps/import.vue`. Competency items still use the older
 `UploadPage` (single column).
