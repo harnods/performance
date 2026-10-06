@@ -705,6 +705,10 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 
 A field can be locally valid but still violate a rule that depends on state outside the form (e.g. `AddGoalDrawer.vue`'s weight field: 1–100 is locally fine, but a `weightMandatory` cycle also needs it to land the owner's total on exactly 100%). Validate this *inside* the form component itself, gated on a prop the caller passes in (`weightMandatory` + `alreadyUsedWeight`), not in the `@save` handler after the fact — a handler-level check runs too late: the drawer's own `save()` already emits `'update:isOpen', false` in the same breath as `'save'`, so by the time a parent-side check could reject it, the drawer has already closed. Fold the extra rule into the same `errors.*` + `MpFormErrorMessage` used for local validation, and block `emit('save', …)` from firing at all. Because the drawer can be long, also scroll the offending field into view (`document.getElementById(fieldId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })` inside `nextTick`) so an error on a field the user didn't touch (scrolled past, off the visible area) isn't silently invisible. Do **not** fall back to a `toast.notify()` for this — a toast next to a drawer that already closed reads as "it saved, but here's a warning," when what actually happened is it didn't save at all.
 
+### Saved Employee filters on the cycle detail page
+
+Read-only view of the saved Employee filter (`pages/reviews/review-cycles/[id]/index.vue`, info rows). Shown as its own **Employee filter** row directly below **Employment status**: with 2+ filters, one bullet (`ul`, disc, `size="label"`) per filter as `Parameter: Value`, multiple values comma-separated; with a single filter, one plain line, no bullet. Cycles with no saved filter show the status only. Labels (not ids) are saved at create time.
+
 ## Rules
 
 - Field = `MpFormControl` + `MpFormLabel` (+ `MpFormErrorMessage`). Required via `:is-required`.

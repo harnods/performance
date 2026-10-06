@@ -26,6 +26,18 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '06 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Evaluation cycle details · Employee filter',
+        detail: 'Saving an evaluation cycle now persists its employment status and employee filters (value labels, not ids). The cycle detail page shows an "Employee filter" row directly below Employment status: one "Parameter: Value" bullet per filter when there are 2+, a single plain line for one filter, no row when none.',
+        files: ['composables/useReviewCyclesStore.ts', 'pages/reviews/review-cycles/create.vue', 'pages/reviews/review-cycles/[id]/index.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
     date: '04 Oct 2026',
     module: 'Review cycles',
     items: [

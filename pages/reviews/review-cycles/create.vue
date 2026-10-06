@@ -386,6 +386,7 @@ const footerBar = css({
 function onCancel() {
   router.push('/reviews/review-cycles')
 }
+const { addEvaluationCycle } = useReviewCyclesStore()
 function onSave() {
   submitted.value = true
   if (isEvaluation.value && !isEdit.value && hasFilterError.value) {
@@ -401,6 +402,18 @@ function onSave() {
     || weightTotalInvalid.value
     || (isMultiple.value && (reviewEveryInvalid.value || reviewWindowInvalid.value))
   ) return
+  if (isEvaluation.value && !isEdit.value) {
+    addEvaluationCycle({
+      name: cycleName.value.trim(),
+      employmentStatus: employmentStatusOptions.find(o => o.value === employmentStatus.value)?.label ?? '',
+      employeeFilters: filterRows.value
+        .filter(r => r.dimension !== 'none' && r.values.length)
+        .map(r => ({
+          label: dimensionLabel(r.dimension),
+          values: r.values.map(v => REMOTE_LISTS[r.dimension]?.find(o => o.value === v)?.label ?? v),
+        })),
+    })
+  }
   toast.notify({
     id: 'review-cycle-created',
     position: 'top-center',

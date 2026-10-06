@@ -162,10 +162,20 @@ interface InfoRow {
   editable?: boolean
   boldValue?: boolean
   subValues?: string[]
+  // Rendered as a bulleted list under the value.
+  bullets?: string[]
   // When set, the value renders as gray status badges (one per entry) instead
   // of plain text — used for the configured Review methods.
   badges?: string[]
 }
+
+const { cycles: savedCycles } = useReviewCyclesStore()
+const savedCycle = computed(() => savedCycles.value.find(c => c.name === cycleName.value))
+// Saved filters shown in their own Employee filter row below Employment status: "Parameter: Value" bullets when the
+// cycle has 2+ filters, a single plain line when it has one.
+const employmentFilterLines = computed(() =>
+  (savedCycle.value?.employeeFilters ?? []).map(f => `${f.label}: ${f.values.join(', ')}`),
+)
 
 const infoRows = computed<InfoRow[]>(() => {
   const purpose = cyclePurpose.value
@@ -173,7 +183,12 @@ const infoRows = computed<InfoRow[]>(() => {
   const rows: InfoRow[] = [
     { label: 'Cycle name', value: cycleName.value, editable: true },
     { label: 'Purpose', value: purposeLabel[purpose] || 'Evaluation review' },
-    { label: 'Employment status', value: isEval ? employmentStatus.value : (purpose === 'performance' ? 'Permanent' : 'All status') },
+    { label: 'Employment status', value: isEval ? (savedCycle.value?.employmentStatus ?? employmentStatus.value) : (purpose === 'performance' ? 'Permanent' : 'All status') },
+    ...(isEval && employmentFilterLines.value.length
+      ? [employmentFilterLines.value.length > 1
+          ? { label: 'Employee filter', value: '', bullets: employmentFilterLines.value }
+          : { label: 'Employee filter', value: employmentFilterLines.value[0]! }]
+      : []),
     { label: 'Review period', value: currentScenario.value.reviewPeriodValue, subValues: currentScenario.value.reviewPeriodSubs },
   ]
   if (isEval) {
@@ -1219,6 +1234,13 @@ function confirmDeleteTimeframe() {
           <template v-else>
             <MpFlex v-if="row.badges?.length" gap="1" wrap="wrap">
               <MpBadge v-for="b in row.badges" :key="b" for="tableStatus" type="announcement">{{ b }}</MpBadge>
+            </MpFlex>
+            <MpFlex v-else-if="row.bullets?.length" direction="column" :class="css({ gap: '1' })">
+              <ul :class="css({ listStyleType: 'disc', paddingLeft: '5', margin: '0' })">
+                <li v-for="b in row.bullets" :key="b">
+                  <MpText size="label" :class="[valueText, css({ lineHeight: '20px' })]">{{ b }}</MpText>
+                </li>
+              </ul>
             </MpFlex>
             <MpFlex v-else-if="row.subValues?.length" direction="column" :class="css({ gap: '0' })">
               <MpText size="label" :weight="row.boldValue ? 'semiBold' : undefined" :class="[valueText, css({ lineHeight: '20px' })]">{{ row.value }}</MpText>
