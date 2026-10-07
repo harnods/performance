@@ -153,7 +153,7 @@ as an action plan's **Category** or a plan's **Objective**), pass
 ## Repeatable filter rows ("Add filter")
 
 When a form lets the user stack several **filter dimensions**, each with its own values
-(evaluation cycle create's **Employee filter**, `pages/reviews/review-cycles/create.vue`,
+(evaluation cycle create's **Employee filter**, `components/EvaluationCycleForm.vue`,
 built from PRD "Multiple Filters for Evaluation Cycle Employee Selection"), render one
 row per filter inside the same `MpFormControl` + label.
 
@@ -249,21 +249,36 @@ grade and Job class are independent: neither narrows the other's list.
   the picker and render the message yourself.
 
 ### Edit (PRD D4): read-only
-- The whole section is disabled: the outer `MpFormControl :is-disabled`, plus
-  `is-disabled` on every dimension and value field. There's no "Add filter" and no remove
-  buttons. The "and" dividers stay, so the saved logic is readable.
+Edit cycle is a real page, `pages/reviews/review-cycles/[id]/edit.vue` (the detail page's
+"Edit cycle" button opens it). It renders the same `EvaluationCycleForm` as Create with
+`mode="edit"`, pre-filled from the saved cycle. **Employment status and the whole Employee
+filter section are locked**, and nothing else is.
+- **Employment status:** the outer `MpFormControl :is-disabled` plus `is-disabled` on its
+  `PxSelectPopover`. It shows the cycle's own status (saved, else its seeded scenario in
+  `utils/evaluationCycleScenarios.ts`). A status outside the standard list (Part-timer) gets
+  its own option so the locked field still reads right.
+- **Employee filter:** the outer `MpFormControl :is-disabled`, plus
+  `is-disabled` on every dimension and value field. The rows are the cycle's saved filters
+  (a cycle saved without filters shows "No filter applied"). There's no "Add filter" and no
+  remove buttons. The "and" dividers stay, so the saved logic is readable. On Edit the
+  Job grade / Job class pickers get their full list, so a saved pick beyond the first page
+  still shows its name.
 - **No info note under the fields.** The reason goes in an `MpTooltip` shown when you
   hover any disabled field: "Employee filters can't be changed after the cycle is created"
-  (`FILTER_LOCKED_TOOLTIP`). Each field's wrapper `div` sits inside the tooltip, because a
-  disabled input fires no mouse events itself. MpTooltip has no `is-disabled`, so it's
-  switched off outside Edit with `:is-manual="!isEdit" :is-open="false"`. That keeps a
+  (`FILTER_LOCKED_TOOLTIP`) and "Employment status can't be changed after the cycle is
+  created" (`STATUS_LOCKED_TOOLTIP`). Each field's wrapper `div` sits inside the tooltip,
+  because a disabled input fires no mouse events itself. MpTooltip has no `is-disabled`, so
+  it's switched off outside Edit with `:is-manual="!isEdit" :is-open="false"`. That keeps a
   single template for both modes.
 - **Disabled fields look the same**, whether `PxSelectPopover` (a native `<select>`) or
   `DashMultiSelectSearch` (an `MpInput`): Pixel's `text.disabled` / `background.disabled` /
   `border.disabled`. The browser's own `select:disabled { opacity: 0.7 }` used to fade the
   select further. `assets/css/main.css` resets it (`.mp-select__control:disabled
   { opacity: 1 }`), app-wide.
-  The prototype previews this with `?mode=edit` (sample saved filters).
+- Title "Edit cycle", footer "Cancel" / **"Save changes"** (see [`buttons.md`](buttons.md)).
+  Save shows the "Review cycle updated" toast and returns to the cycle's detail page, as
+  does Cancel. A saved cycle already has its methods set up, so the default Manager review
+  counts as configured and doesn't block Save.
 
 ## Grid & spacing (`CycleGeneralForm.vue:341-348`)
 
@@ -784,6 +799,11 @@ rule. Switched by `components/manage-user/RolesFormScenarioControl.vue`
 ([`dev-scenario-control.md`](dev-scenario-control.md)).
 
 Reference: `components/manage-user/RolesForm.vue`.
+=======
+### Saved Employee filters on the cycle detail page
+
+Read-only view of the saved Employee filter (`pages/reviews/review-cycles/[id]/index.vue`, info rows). Shown as its own **Employee filter** row directly below **Employment status**: with 2+ filters, one bullet (`ul`, disc, `size="label"`) per filter as `Parameter: Value`, multiple values comma-separated; with a single filter, one plain line, no bullet. Cycles with no saved filter show the status only. Labels (not ids) are saved at create time.
+>>>>>>> upstream/main
 
 ## Rules
 

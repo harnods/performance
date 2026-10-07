@@ -2,13 +2,11 @@
 /*
   ─── DEMO ONLY — do not port to talenta-review / production ───
   IDP list dev tools: bottom-RIGHT FAB (docs/patterns/dev-scenario-control.md).
-  - Show Import: shows/hides the Import button on the IDP list. Off by default.
   - Coachmarks: same controls as IdpDevTools (this FAB replaces it on the list page).
 */
 import { MpFlex, MpIcon, MpToggle, MpTextlink, MpPopover, MpPopoverTrigger, MpPopoverContent, css } from '@mekari/pixel3'
 import { useDevCoachmarks } from './useDevCoachmarks'
 
-const { showImport } = useIdpImportFlag()
 const { isEnabled, hiddenCount, reset } = useDevCoachmarks()
 
 const devFab = css({ position: 'fixed', right: '24px', bottom: '24px', zIndex: '100' })
@@ -39,14 +37,6 @@ const hint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary'
       <MpPopoverContent>
         <div :class="panel">
           <span :class="panelTitle">Dev tools</span>
-          <div :class="group">
-            <span :class="groupLabel">Features</span>
-            <MpFlex as="span" align="center" justify="space-between" gap="2">
-              <span :class="rowLabel">Show Import</span>
-              <MpToggle id="dev-show-idp-import" :is-checked="showImport" @update:is-checked="showImport = $event" />
-            </MpFlex>
-            <span :class="hint">Off = production (no Import button). On = the version with Import.</span>
-          </div>
           <div :class="group">
             <span :class="groupLabel">Coachmarks</span>
             <MpFlex as="span" align="center" justify="space-between" gap="2">

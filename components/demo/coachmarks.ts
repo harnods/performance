@@ -42,8 +42,8 @@ const IDP_DETAIL_OR_FORM = /^\/talents\/idps\/[^/]+/
 
 // ─── Evaluation cycle: Create new cycle → Employee filter ────────────────────
 const CYCLE_CREATE = /^\/reviews\/review-cycles\/create\/?$/
+const CYCLE_EDIT = /^\/reviews\/review-cycles\/[^/]+\/edit\/?$/
 const isEvaluation = (r: RouteLocationNormalizedLoaded) => r.query.purpose === 'evaluation'
-const isEvaluationEdit = (r: RouteLocationNormalizedLoaded) => isEvaluation(r) && r.query.mode === 'edit'
 const employeeFilter = () => document.getElementById('employee-filter-label')?.parentElement ?? null
 
 export const COACHMARKS: CoachmarkDef[] = [
@@ -159,7 +159,7 @@ export const COACHMARKS: CoachmarkDef[] = [
   {
     id: 'eval-filter-value-field',
     route: CYCLE_CREATE,
-    when: r => isEvaluation(r) && r.query.mode !== 'edit',
+    when: isEvaluation,
     // The first value field itself; pinned to its corner so the row's layout
     // (value field → 24px → remove button) is untouched.
     find: () => employeeFilter()?.querySelector('.mp-gap_24px [data-pixel-component="MpInputGroup"]') ?? null,
@@ -177,10 +177,10 @@ export const COACHMARKS: CoachmarkDef[] = [
   },
   {
     id: 'eval-filter-edit-locked',
-    route: CYCLE_CREATE,
-    when: isEvaluationEdit,
+    route: CYCLE_EDIT,
+    when: isEvaluation,
     find: () => document.getElementById('employee-filter-label'),
     title: 'Locked on Edit, with a reason',
-    description: 'Changed: production also disables this section on Edit, but says nothing. Hovering a locked field now shows why it can\'t be changed.',
+    description: 'Changed: production also disables this section on Edit, but says nothing. Hovering a locked field (Employee filter, and now Employment status) shows why it can\'t be changed.',
   },
 ]

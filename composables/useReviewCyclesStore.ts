@@ -110,6 +110,13 @@ export interface ReviewCycle {
   total: number
   done: number
   config?: ReviewCycleConfig
+  employmentStatus?: string
+  employeeFilters?: SavedEmployeeFilter[]
+}
+
+export interface SavedEmployeeFilter {
+  label: string
+  values: string[]
 }
 
 const STORAGE_KEY = 'talenta-review-cycles-db'
@@ -204,6 +211,26 @@ export function useReviewCyclesStore() {
     return created
   }
 
+  // Persist an evaluation cycle from the Evaluation create form (the filters and
+  // employment status shown on the cycle's detail page).
+  function addEvaluationCycle(input: { name: string, employmentStatus: string, employeeFilters: SavedEmployeeFilter[] }): ReviewCycle {
+    const created: ReviewCycle = {
+      id: `cycle-${cycles.value.length}-${slugify(input.name)}`,
+      name: input.name,
+      purpose: 'evaluation',
+      repeat: 'Repeats automatically',
+      nextStart: null,
+      repeatCaption: `Based on ${input.employmentStatus.toLowerCase()} duration`,
+      total: 0,
+      done: 0,
+      employmentStatus: input.employmentStatus,
+      employeeFilters: input.employeeFilters,
+    }
+    cycles.value = [...cycles.value, created]
+    persist()
+    return created
+  }
+
   function deleteCycle(id: string) {
     cycles.value = cycles.value.filter(c => c.id !== id)
     persist()
@@ -225,5 +252,5 @@ export function useReviewCyclesStore() {
     persist()
   }
 
-  return { cycles, addCycle, deleteCycle, renameCycle, getById, resetToSeed }
+  return { cycles, addCycle, addEvaluationCycle, deleteCycle, renameCycle, getById, resetToSeed }
 }

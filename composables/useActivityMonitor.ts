@@ -13,6 +13,8 @@ export interface MonitorProcess {
   id: string
   kind: MonitorKind
   fileName: string
+  /** Shown under the file name once an import completes (e.g. "IDP import"); falls back to "Completed". */
+  description?: string
   status: MonitorStatus
   progress: number // 0–100
 }
@@ -24,6 +26,8 @@ const openSignal = ref(0)
 // Which tab the header should show when it opens (set by the job that asked).
 const requestedTab = ref<MonitorKind>('import')
 let seq = 0
+// Per-job "it finished" callbacks (kept out of the reactive list: functions are not state).
+const onCompleteById = new Map<string, () => void>()
 
 // Simulated background progress so the monitor visibly ticks to done — this is a
 // prototype (no real upload backend), same "fire the job, don't block" shape a
@@ -34,14 +38,19 @@ function simulate(id: string) {
     if (!cur) { clearInterval(timer); return }
     const next = Math.min(100, cur.progress + 20)
     processes.value = processes.value.map(p => (p.id === id ? { ...p, progress: next, status: next >= 100 ? 'completed' : 'processing' } : p))
-    if (next >= 100) clearInterval(timer)
+    if (next >= 100) {
+      clearInterval(timer)
+      onCompleteById.get(id)?.()
+      onCompleteById.delete(id)
+    }
   }, 900)
 }
 
 export function useActivityMonitor() {
-  function add(kind: MonitorKind, fileName: string): MonitorProcess {
-    const proc: MonitorProcess = { id: `${kind}-${++seq}`, kind, fileName, status: 'processing', progress: 0 }
+  function add(kind: MonitorKind, fileName: string, description?: string, onComplete?: () => void): MonitorProcess {
+    const proc: MonitorProcess = { id: `${kind}-${++seq}`, kind, fileName, description, status: 'processing', progress: 0 }
     processes.value = [proc, ...processes.value]
+    if (onComplete) onCompleteById.set(proc.id, onComplete)
     if (import.meta.client) simulate(proc.id)
     // Surface the monitor immediately, on the matching tab, so the user sees it.
     requestedTab.value = kind
@@ -50,7 +59,8 @@ export function useActivityMonitor() {
   }
   // Upload results → an import job. Generate template → a download job (the
   // finished template is then downloadable straight from the monitor).
-  function addImport(fileName: string) { return add('import', fileName) }
+  /** `onComplete` runs once when the job finishes successfully (e.g. to create the imported records). */
+  function addImport(fileName: string, description?: string, onComplete?: () => void) { return add('import', fileName, description, onComplete) }
   function addDownload(fileName: string) { return add('download', fileName) }
   function clear(kind: MonitorKind) { processes.value = processes.value.filter(p => p.kind !== kind) }
   function clearAll() { processes.value = [] }

@@ -156,13 +156,36 @@ Empty state notice for pages with no assignments yet.
 
 ---
 
+## 🔴 Initiative + Document (ask on EVERY pull request)
+
+The Google Chat deploy notification (`.github/scripts/notify.mjs`) prints the
+**Initiative** name and **Document** link read from `.github/initiative.json`:
+
+```json
+{ "name": "IDP & Competency Integration", "prd": "https://…" }
+```
+
+**Before you open or update a pull request**, check that file:
+- If `name` or `prd` is empty, or it still holds the previous initiative's values
+  and this PR is for a different one → **ask the user** for the initiative name and
+  the document link (don't guess, don't reuse old values silently).
+- If the user confirms the existing values still apply, leave the file alone.
+- Write the answers to `.github/initiative.json` and include that file in the PR.
+
+Not required on individual commits — only per PR.
+
+---
+
 ## 🔴 Changelog — "What's new (internal)" (update on EVERY commit + push)
 
 There is an engineer-facing changelog in the user menu (top-right → **What's new
 (internal)**), backed by `composables/useWhatsNew.ts` (rendered by
 `components/WhatsNewDrawer.vue`). **Whenever you commit and push a user-facing
 change, you MUST add it here in the same commit** — treat it as part of "done",
-not an afterthought.
+not an afterthought. The deploy notification turns the **new items of this
+changelog into the bullet summary** it posts to Google Chat (first sentence of
+each `detail`, cut at the first "(", ";" or ":" and trimmed to ~90 chars), so write `detail` with the plain-language
+change up front.
 
 Rules:
 - **One entry per `module` per `date`.** If an entry with the same `date` +
