@@ -8,10 +8,12 @@
 */
 import DevCoachmark from './DevCoachmark.vue'
 import IdpDevTools from './IdpDevTools.vue'
+import IdpListDevTools from './IdpListDevTools.vue'
 import EvaluationCycleDevTools from './EvaluationCycleDevTools.vue'
 import { COACHMARKS, type CoachmarkDef } from './coachmarks'
 
 const route = useRoute()
+const isIdpList = computed(() => /^\/talents\/idps\/?$/.test(route.path))
 const active = computed(() => COACHMARKS.filter(c => c.route.test(route.path) && (c.when?.(route) ?? true)))
 // Each module brings its own dev tools panel; IDP's is the default.
 const isEvaluationCycle = computed(() => route.path.startsWith('/reviews/review-cycles'))
@@ -68,6 +70,7 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
       <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
     </Teleport>
     <EvaluationCycleDevTools v-if="active.length && isEvaluationCycle" />
+    <IdpListDevTools v-else-if="isIdpList" />
     <IdpDevTools v-else-if="active.length" />
   </div>
 </template>

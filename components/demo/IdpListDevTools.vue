@@ -1,21 +1,17 @@
 <script setup lang="ts">
 /*
   ─── DEMO ONLY — do not port to talenta-review / production ───
-  IDP dev tools: a floating dev-only control (docs/patterns/dev-scenario-control.md)
-  for demoing what the prototype changes vs production. Bottom-LEFT, so it
-  never collides with a page's own bottom-right scenario FAB.
-  - Show coachmarks: hides/shows every DevCoachmark pulse.
-  - Reset coachmarks: brings back the ones hidden from their own Hide button.
+  IDP list dev tools: bottom-RIGHT FAB (docs/patterns/dev-scenario-control.md).
+  - Show Import: shows/hides the Import button on the IDP list. Off by default.
+  - Coachmarks: same controls as IdpDevTools (this FAB replaces it on the list page).
 */
-import { MpFlex, MpIcon, MpToggle, MpRadio, MpTextlink, MpPopover, MpPopoverTrigger, MpPopoverContent, css } from '@mekari/pixel3'
+import { MpFlex, MpIcon, MpToggle, MpTextlink, MpPopover, MpPopoverTrigger, MpPopoverContent, css } from '@mekari/pixel3'
 import { useDevCoachmarks } from './useDevCoachmarks'
 
+const { showImport } = useIdpImportFlag()
 const { isEnabled, hiddenCount, reset } = useDevCoachmarks()
-const { importError } = useIdpImportFlag()
-const isImportPage = computed(() => /^\/talents\/idps\/import\/?$/.test(useRoute().path))
 
-// ─── Styles: FAB copied from the goals scenario control, mirrored to the left ─
-const devFab = css({ position: 'fixed', left: '24px', bottom: '24px', zIndex: '100' })
+const devFab = css({ position: 'fixed', right: '24px', bottom: '24px', zIndex: '100' })
 const devFabButton = css({
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: '48px', height: '48px', borderRadius: 'full',
@@ -34,7 +30,7 @@ const hint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary'
 
 <template>
   <div :class="devFab">
-    <MpPopover use-portal placement="top-start">
+    <MpPopover use-portal placement="top-end">
       <MpPopoverTrigger>
         <button type="button" :class="devFabButton" aria-label="Dev tools">
           <MpIcon name="sliders" size="sm" color="icon.inverse" />
@@ -43,19 +39,20 @@ const hint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary'
       <MpPopoverContent>
         <div :class="panel">
           <span :class="panelTitle">Dev tools</span>
-          <div v-if="isImportPage" :class="group">
-            <span :class="groupLabel">Error states</span>
-            <MpRadio name="dev-import-error" value="none" :is-checked="importError === 'none'" @update:is-checked="importError = 'none'">None (default)</MpRadio>
-            <MpRadio name="dev-import-error" value="too-large" :is-checked="importError === 'too-large'" @update:is-checked="importError = 'too-large'">File is too large</MpRadio>
-            <MpRadio name="dev-import-error" value="wrong-format" :is-checked="importError === 'wrong-format'" @update:is-checked="importError = 'wrong-format'">File format is incorrect</MpRadio>
+          <div :class="group">
+            <span :class="groupLabel">Features</span>
+            <MpFlex as="span" align="center" justify="space-between" gap="2">
+              <span :class="rowLabel">Show Import</span>
+              <MpToggle id="dev-show-idp-import" :is-checked="showImport" @update:is-checked="showImport = $event" />
+            </MpFlex>
+            <span :class="hint">Off = production (no Import button). On = the version with Import.</span>
           </div>
           <div :class="group">
             <span :class="groupLabel">Coachmarks</span>
             <MpFlex as="span" align="center" justify="space-between" gap="2">
               <span :class="rowLabel">Show coachmarks</span>
-              <MpToggle id="dev-show-coachmarks" :is-checked="isEnabled" @update:is-checked="isEnabled = $event" />
+              <MpToggle id="dev-show-coachmarks-list" :is-checked="isEnabled" @update:is-checked="isEnabled = $event" />
             </MpFlex>
-            <span :class="hint">Pulses mark what's new vs production. Click one to read it.</span>
             <MpFlex align="center" justify="space-between" gap="2">
               <span :class="hint">{{ hiddenCount }} hidden</span>
               <MpTextlink as="button" @click="reset">Reset coachmarks</MpTextlink>

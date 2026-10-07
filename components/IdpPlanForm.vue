@@ -327,13 +327,14 @@ const footerBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
         </div>
       </MpFormControl>
 
-      <MpFormControl v-if="focus === 1" id="idp-future-position" is-required :is-invalid="!!errors.futureJobPosition">
-        <MpFormLabel>Select job position</MpFormLabel>
+      <!-- No label: the Future job position radio above names it (same as the
+           Competency item select in the action plan drawer). 32px indent. -->
+      <MpFormControl v-if="focus === 1" id="idp-future-position" :class="css({ marginLeft: '8' })" :is-invalid="!!errors.futureJobPosition">
         <PxSelectPopover
           v-model="futureJobPosition"
           :options="jobPositionOptions"
-          placeholder="Select future job position"
-          :class="selectWidth"
+          placeholder="Select job position"
+          width="100%"
           searchable
           search-placeholder="Search job position..."
           is-clearable

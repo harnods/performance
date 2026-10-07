@@ -38,6 +38,48 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: '05 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'IDP list · Import',
+        detail: 'Secondary Import button in the page header (hidden by default; "Show Import" toggle in the new bottom-right dev tools, with coachmarks; the import page dev tools, bottom-left, force "file too large" / "wrong format" errors) opens /talents/idps/import: stepped layout (1 Download template, 2 Fill in, 3 Upload) with dropzone, Cancel / Import (mocked).',
+        files: ['pages/talents/idps/index.vue', 'pages/talents/idps/import.vue', 'components/StepImportPage.vue', 'components/demo/IdpListDevTools.vue', 'components/demo/IdpDevTools.vue', 'components/demo/coachmarks.ts', 'composables/useIdpImportFlag.ts', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Add action plan drawer · Competency item picker',
+        detail: 'Empty source list shows "No competency items yet" + a "+ Add competency item" link (opens Create competency item in a new tab) via new PxSelectPopover empty-text/empty-action props. Dev-tools icon next to the X forces Filled vs Empty competency items.',
+        files: ['components/IdpActionPlanModal.vue', 'components/PxSelectPopover.vue', 'components/demo/ActionPlanDevTools.vue', 'docs/patterns/form.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Create plan · Future job position',
+        detail: 'Select is indented 32px under its radio, label removed, placeholder "Select job position".',
+        files: ['components/IdpPlanForm.vue'],
+      },
+    ],
+  },
+  {
+    date: '05 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Competency items · IDP linkage',
+        detail: 'Applied now counts IDPs whose action plans link the item (once per IDP). A linked item cannot be deleted; "Unable to delete" lists Group and IDP as bullets (succession plans no longer block) with an "OK, understand" button. ?create=1 opens the Create modal. Applied column renamed "Applied to": shows Competency group / IDP (bullets when both) instead of a count.',
+        files: ['pages/talents/competencies/items/index.vue', 'utils/competencyItem.ts', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Competency items · Dev coachmarks',
+        detail: 'Pulse coachmarks on the table headers flag what differs from production: "Applied to" column and the narrower Description column.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '04 Oct 2026',
     module: 'Review cycles',
     items: [

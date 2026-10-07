@@ -35,6 +35,9 @@ function byText(root: ParentNode | null | undefined, selector: string, text: str
 // ─── IDPs ─────────────────────────────────────────────────────────────────────
 const FORM = /^\/talents\/idps\/(create|[^/]+\/edit)\/?$/
 const DETAIL = /^\/talents\/idps\/(?!create)[^/]+\/?$/
+const IDP_LIST = /^\/talents\/idps\/?$/
+const IDP_IMPORT = /^\/talents\/idps\/import\/?$/
+const ITEMS = /^\/talents\/competencies\/items\/?$/
 const IDP_DETAIL_OR_FORM = /^\/talents\/idps\/[^/]+/
 
 // ─── Evaluation cycle: Create new cycle → Employee filter ────────────────────
@@ -104,6 +107,38 @@ export const COACHMARKS: CoachmarkDef[] = [
     title: 'Relates to info',
     description: 'New: shows what this action plan relates to, with View details opening the Competency item detail drawer.',
     placement: 'left',
+  },
+  {
+    id: 'items-applied-to-column',
+    route: ITEMS,
+    find: () => byText(document, 'th span', 'Applied to'),
+    title: 'Applied to column',
+    description: 'Changed: renamed from "Applied". Shows which kinds of record use the item (Competency group and/or IDP, as a bullet list when both) instead of a count. Production shows a number. Sorting still orders by how many records are linked.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'items-description-width',
+    route: ITEMS,
+    find: () => byText(document, 'th span', 'Description'),
+    title: 'Narrower Description column',
+    description: 'Changed: Description is capped at 240px so the wider Applied to column fits. Long descriptions wrap onto more lines.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'idp-list-import-button',
+    route: IDP_LIST,
+    find: () => byText(document.getElementById('page-header-actions'), 'button, span, p', 'Import'),
+    title: 'Import button',
+    description: 'New: a secondary Import button in the page header opens the import page, where a spreadsheet of IDPs is uploaded. Production has no Import. Turn it on or off from the dev tools.',
+    placement: 'bottom-end',
+  },
+  {
+    id: 'idp-import-steps',
+    route: IDP_IMPORT,
+    find: () => byText(document, 'p, span, div', 'Download the data template'),
+    title: 'Import page',
+    description: 'New page: three steps (download the template, fill it in, upload the .xlsx) like the production import pages, but stepped. Download and upload are mocked. A file named "error" shows the row-error banner.',
+    placement: 'right-start',
   },
   {
     id: 'eval-filter-multiple',

@@ -22,6 +22,7 @@ definePageMeta({ title: 'Individual development plan', layout: 'default' })
 
 const router = useRouter()
 const { plans } = useIdpStore()
+const { showImport } = useIdpImportFlag() // dev flag, off by default
 
 const talentById = (id: string) => TALENTS.find(t => t.id === id)
 
@@ -99,6 +100,7 @@ const colCount = computed(() => 5 + optionalColumns.filter(c => visible.value[c.
 
 function openDetail(id: string) { router.push(`/talents/idps/${id}`) }
 function openCreate() { router.push('/talents/idps/create') }
+function openImport() { router.push('/talents/idps/import') }
 
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const page = css({ display: 'flex', flexDirection: 'column', gap: '5' })
@@ -137,7 +139,10 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
 
 <template>
   <Teleport to="#page-header-actions" defer>
-    <MpButton variant="primary" left-icon="add" @click="openCreate">Create program</MpButton>
+    <MpFlex align="center" gap="2">
+      <MpButton v-if="showImport" variant="secondary" left-icon="upload" @click="openImport">Import</MpButton>
+      <MpButton variant="primary" left-icon="add" @click="openCreate">Create program</MpButton>
+    </MpFlex>
   </Teleport>
 
   <!-- Nothing created yet → full empty state replaces the filter bar + table

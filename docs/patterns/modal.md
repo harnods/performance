@@ -115,3 +115,13 @@ for similar two-column "view one record" modals:
   a drawer mounted by the parent page is fine.
 - Explicit px for spacing, because tokens `5` and `6` render 20.8px and
   24.96px in this build.
+
+## "Unable to delete" (blocked by usage)
+
+Body: one sentence ("…because it is included in these group & IDP:"),
+then the blocking records as a **real bullet list** (`<ul>` with `listStyleType: 'disc'`,
+`paddingLeft: '5'`, gap `1`), never `indicator-circle` icons. When blocked by
+more than one kind, group them under 14/600 labels ("Group:", "IDP:"); with a single kind the labels are omitted. Footer: one primary "OK, understand".
+Succession plans do not block deletion. Reference: `pages/talents/competencies/items/index.vue`. A competency item counts
+each IDP that links it from an action plan in **Applied**, and is blocked from
+deletion while linked.
