@@ -27,6 +27,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '07 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Chore',
+        area: 'IDP list · Import',
+        detail: 'The Import button in the page header now always shows. Removed the "Show Import" toggle and the showImport dev flag; the list dev tools keep only the coachmark controls.',
+        files: ['pages/talents/idps/index.vue', 'components/demo/IdpListDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Import hand-off',
+        detail: 'Clicking Import on step 2 now goes back to the IDP list with an "Import started" toast and opens the header activity monitor on the Import tab, with the job progressing (same hand-off as the competency upload). The "Generating template..." loader is now 2 seconds and centres in the same 720px column as the stepper, and the employee picker drawer\'s confirm button reads Save instead of Continue. Completed rows in the header activity monitor now show a filled green check, a semibold file name and a description line. When the import job completes, one mock IDP per picked employee is added to the IDP list (the file itself is not read). The step 1 employee list is now 6 of 12 columns from tablet width (768px) up and capped at 656px (the form-column width), so it no longer stretches on wide screens.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'composables/useActivityMonitor.ts', 'utils/idpImportMock.ts', 'docs/patterns/upload.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
     module: 'Review cycles',
     items: [
       {
@@ -52,6 +70,24 @@ export const CHANGELOG: ChangelogEntry[] = [
         area: 'Evaluation cycle details · Employee filter',
         detail: 'Saving an evaluation cycle now persists its employment status and employee filters (value labels, not ids). The cycle detail page shows an "Employee filter" row directly below Employment status: one "Parameter: Value" bullet per filter when there are 2+, a single plain line for one filter, no row when none.',
         files: ['composables/useReviewCyclesStore.ts', 'pages/reviews/review-cycles/create.vue', 'pages/reviews/review-cycles/[id]/index.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
+    date: '06 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Import IDP · two-step wizard',
+        detail: 'The import page is now a two-step wizard with a hand-rolled stepper. Step 1 picks employees with the shared SelectEmployeesDrawer: a list of 10 with "Showing 10 of 26 employees. Load more", a search field (name or employee ID) once there are more than 10, and a 6-of-12-column width. Continue shows a 3-second "Generating template..." spinner when more than 25 employees are picked. Step 2 has the download / fill in / upload steps with the competency import\'s dropzone, a Cancel / Back / Import footer (MpButtonGroup), and the empty-selection error shows only on a Continue click. All wording audited (Continue instead of Next, "Add employees", XLSX file errors, new toasts); max file size is now 5 MB.',
+        files: ['components/StepImportPage.vue', 'pages/talents/idps/import.vue', 'docs/patterns/upload.md', 'docs/patterns/pagination.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Import page',
+        detail: 'On step 2 the dev tools gain a Scenario group (Default / Loading state, which keeps step 2 on the loader) next to Error states; both show only on step 2 (new importScenario / importStep flags).',
+        files: ['components/demo/IdpDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
       },
     ],
   },

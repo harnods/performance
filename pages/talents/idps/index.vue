@@ -22,7 +22,6 @@ definePageMeta({ title: 'Individual development plan', layout: 'default' })
 
 const router = useRouter()
 const { plans } = useIdpStore()
-const { showImport } = useIdpImportFlag() // dev flag, off by default
 
 const talentById = (id: string) => TALENTS.find(t => t.id === id)
 
@@ -140,7 +139,7 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
 <template>
   <Teleport to="#page-header-actions" defer>
     <MpFlex align="center" gap="2">
-      <MpButton v-if="showImport" variant="secondary" left-icon="upload" @click="openImport">Import</MpButton>
+      <MpButton variant="secondary" left-icon="upload" @click="openImport">Import</MpButton>
       <MpButton variant="primary" left-icon="add" @click="openCreate">Create program</MpButton>
     </MpFlex>
   </Teleport>
