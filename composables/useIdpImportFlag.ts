@@ -1,7 +1,5 @@
-// Dev flag (docs/patterns/dev-scenario-control.md): whether the IDP list shows the
-// Import button. Hidden by default; toggled from the IDP list dev tools.
-// Module-scope so the page and the dev tools share it. In-memory only.
-const showImport = ref(false)
+// Dev flags (docs/patterns/dev-scenario-control.md) for the IDP import page.
+// Module-scope so the page and the dev tools share them. In-memory only.
 // Forces the import dropzone into an error state (dev tools): none = real behaviour.
 export type IdpImportError = 'none' | 'too-large' | 'wrong-format'
 const importError = ref<IdpImportError>('none')
@@ -15,5 +13,5 @@ const importScenario = ref<IdpImportScenario>('default')
 const importStep = ref<1 | 2>(1)
 
 export function useIdpImportFlag() {
-  return { showImport, importError, importScenario, importStep }
+  return { importError, importScenario, importStep }
 }

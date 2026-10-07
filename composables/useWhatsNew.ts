@@ -27,6 +27,24 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '07 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Chore',
+        area: 'IDP list · Import',
+        detail: 'The Import button in the page header now always shows. Removed the "Show Import" toggle and the showImport dev flag; the list dev tools keep only the coachmark controls.',
+        files: ['pages/talents/idps/index.vue', 'components/demo/IdpListDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Import hand-off',
+        detail: 'Clicking Import on step 2 now goes back to the IDP list with an "Import started" toast and opens the header activity monitor on the Import tab, with the job progressing (same hand-off as the competency upload). The "Generating template..." loader is now 2 seconds and centres in the same 720px column as the stepper, and the employee picker drawer\'s confirm button reads Save instead of Continue. Completed rows in the header activity monitor now show a filled green check, a semibold file name and a description line. When the import job completes, one mock IDP per picked employee is added to the IDP list (the file itself is not read). The step 1 employee list is now 6 of 12 columns from tablet width (768px) up and capped at 656px (the form-column width), so it no longer stretches on wide screens.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'composables/useActivityMonitor.ts', 'utils/idpImportMock.ts', 'docs/patterns/upload.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
     module: 'Review cycles',
     items: [
       {

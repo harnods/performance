@@ -12,6 +12,7 @@ import {
   MpTooltip, MpSpinner, toast, css,
 } from '@mekari/pixel3'
 import { EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { buildImportedIdpDrafts } from '~/utils/idpImportMock'
 
 defineOptions({ name: 'StepImportPage' })
 
@@ -29,6 +30,9 @@ const props = withDefaults(defineProps<{
 })
 
 const router = useRouter()
+const { addImport } = useActivityMonitor()
+const { createPlan } = useIdpStore()
+const { currentUserId } = useCurrentUser()
 
 // ─── Wizard ─────────────────────────────────────────────────────────────────
 const step = ref<1 | 2>(1)
@@ -45,9 +49,9 @@ const selectionError = computed(() => (nextAttempted.value && !selectedIds.value
 watch(selectedIds, () => { nextAttempted.value = false })
 function onEmployeesContinue(ids: string[]) { selectedIds.value = ids }
 function removeEmployee(id: string) { selectedIds.value = selectedIds.value.filter(x => x !== id) }
-// Big selections take a moment to prepare the template (mocked): show a 3-second loader first.
+// Big selections take a moment to prepare the template (mocked): show a 2-second loader first.
 const GENERATE_THRESHOLD = 25
-const GENERATE_MS = 3000
+const GENERATE_MS = 2000
 const isGenerating = ref(false)
 // The dev tools' "Loading state" scenario keeps step 2 on the loader.
 const showLoader = computed(() => isGenerating.value || (step.value === 2 && importScenario.value === 'loading'))
@@ -130,7 +134,7 @@ function clearFile() {
   fileInvalidReason.value = ''
   if (fileInput.value) fileInput.value.value = ''
 }
-function submit() {
+async function submit() {
   errorRows.value = []
   if (!hasFile.value) { fileInvalidReason.value = 'You must upload a file'; return }
   if (fileName.value.toLowerCase().includes('error')) {
@@ -139,8 +143,14 @@ function submit() {
     clearFile()
     return
   }
-  toast.notify({ id: 'import-success', position: 'top-center', variant: 'success', title: 'File uploaded', description: 'Your IDPs are being imported.' })
-  router.push(props.redirectUrl)
+  const name = fileName.value
+  const ids = [...selectedIds.value]
+  toast.notify({ id: 'import-started', position: 'top-center', variant: 'success', title: 'Import started', description: 'Track the progress in the Import tab.' })
+  await router.push(props.redirectUrl)
+  // Hand off to the header activity monitor (docs/patterns/upload.md) AFTER the page change: it opens on the Import tab and
+  // shows the job progressing. Opening it mid-navigation fails (the popover anchors to a header that is re-rendering).
+  // When the job completes, the mock IDPs appear on the list: one per employee picked on step 1 (prototype: the file is never read).
+  addImport(name, 'IDP import', () => buildImportedIdpDrafts(ids).forEach(d => createPlan(d, currentUserId.value)))
 }
 // Back keeps the picked employees; the file and its errors are cleared.
 function goBack() { clearFile(); errorRows.value = []; step.value = 1 }
@@ -158,11 +168,11 @@ const h3Class = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', c
 const bulletList = css({ listStyleType: 'disc', paddingLeft: '20px' })
 const fileRow = css({ padding: '16px', borderRadius: 'md', border: '1px solid', borderColor: 'border.default' })
 
-// Layout guide: only the employee list (step 1) sits in 6 of the 12 columns on desktop (full width below lg); the stepper, both footers and step 2 keep a 720px column.
-const grid = css({ display: 'grid', gridTemplateColumns: 'repeat(12, 1fr)', gap: '6' })
+// Layout guide: only the employee list (step 1) sits in 6 of the 12 columns from md (768px) up, capped at 656px like the form column in docs/patterns/form.md (full width below md); the stepper, both footers and step 2 keep a 720px column.
+const grid = css({ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: '6' })
 // Literal 20px: the spacing token `5` is 20.8px.
 const sectionGap = css({ gap: '20px' })
-const sixCol = css({ gridColumn: { base: 'span 12 / span 12', lg: 'span 6 / span 6' }, minWidth: '0' })
+const sixCol = css({ gridColumn: { base: 'span 12 / span 12', md: 'span 6 / span 6' }, maxWidth: { md: '656px' }, minWidth: '0' })
 const narrow = css({ width: '100%', maxWidth: '720px' })
 
 // Dropzone: copied from components/CompetencyUploadResults.vue (same icon and spacing, minus its divider line); 240px tall here instead of 360px.
@@ -238,7 +248,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
     </div>
 
     <!-- Generating the template (more than 25 employees) -->
-    <MpFlex v-if="showLoader" direction="column" align="center" justify="center" gap="4" role="status" aria-live="polite" :class="loadingWrap">
+    <MpFlex v-if="showLoader" direction="column" align="center" justify="center" gap="4" role="status" aria-live="polite" :class="[loadingWrap, narrow]">
       <MpSpinner size="md" />
       <MpText size="label" color="text.secondary">Generating template...</MpText>
     </MpFlex>
@@ -298,6 +308,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
         drawer-id="drawer-import-employees"
         title="Select employees"
         description="Select the employees you want to import IDPs for."
+        confirm-label="Save"
         :initial-selected="selectedIds"
         @continue="onEmployeesContinue"
       />
