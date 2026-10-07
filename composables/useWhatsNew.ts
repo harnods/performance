@@ -26,6 +26,24 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '07 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Edit cycle (Evaluation)',
+        detail: 'Added the Edit cycle page for evaluation cycles (/reviews/review-cycles/:id/edit), opened from the cycle detail page\'s "Edit cycle" button. It reuses the Create form, pre-filled from the saved cycle, with Employment status and Employee filter locked (hover explains why). Save changes returns to the detail page with a "Review cycle updated" toast.',
+        files: ['pages/reviews/review-cycles/[id]/edit.vue', 'components/EvaluationCycleForm.vue', 'pages/reviews/review-cycles/create.vue', 'pages/reviews/review-cycles/[id]/index.vue', 'utils/evaluationCycleScenarios.ts', 'docs/patterns/form.md', 'docs/patterns/page-form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Create new cycle · Dev tools',
+        detail: 'Removed the "Edit cycle (read-only)" scenario (the ?mode=edit preview) from the evaluation-cycle dev tools, now that Edit cycle is a real page. The locked-on-Edit coachmark moved to the edit page.',
+        files: ['components/demo/EvaluationCycleDevTools.vue', 'components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '06 Oct 2026',
     module: 'Review cycles',
     items: [

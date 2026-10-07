@@ -40,6 +40,7 @@ import {
   css,
 } from '@mekari/pixel3'
 import type { ReviewMember } from '~/composables/useReviewers'
+import { CYCLE_SCENARIOS, type CycleScenario } from '~/utils/evaluationCycleScenarios'
 
 definePageMeta({
   layout: 'default',
@@ -56,47 +57,7 @@ const purposeLabel: Record<string, string> = {
   evaluation: 'Evaluation review',
 }
 
-// ── Per-cycle scenario config (evaluation review) ──
-// Each evaluation cycle pins one employment status + review-period shape + dataset.
-interface CycleScenario {
-  employmentStatus: string
-  reviewPeriodValue: string
-  reviewPeriodSubs: string[]
-  datasetKey: string
-}
-const MULTI_SUBS = ['Review every 2 months', 'Review window 3 days']
-const SINGLE_SUBS = ['Review start 7 days before end date']
-// Today = 15 Jun 2026. Each cycle demonstrates a distinct, date-consistent state:
-// a review can only be Completed/Expired once its window has passed, In progress while
-// its window is open, and Not started/Upcoming while its window is still in the future.
-const CYCLE_SCENARIOS: Record<string, CycleScenario> = {
-  // Probation · multiple period · IN PROGRESS (early windows done, final still upcoming)
-  'Probation Evaluation – Batch Jan 2026': {
-    employmentStatus: 'Probation', reviewPeriodValue: 'Multiple review period', reviewPeriodSubs: MULTI_SUBS, datasetKey: 'probation-jan',
-  },
-  // Probation · multiple period · COMPLETED (all windows in the past, all submitted)
-  'Probation Evaluation – Batch Sep 2025': {
-    employmentStatus: 'Probation', reviewPeriodValue: 'Multiple review period', reviewPeriodSubs: MULTI_SUBS, datasetKey: 'probation-sep',
-  },
-  // Contract · single period · COMPLETED (window 5–10 Jun has closed: submitted or expired)
-  'Contract Evaluation – Batch Mar 2026': {
-    employmentStatus: 'Contract', reviewPeriodValue: 'Single review period', reviewPeriodSubs: SINGLE_SUBS, datasetKey: 'contract-mar',
-  },
-  // Contract · single period · UPCOMING (window 25–30 Sep is in the future → nothing started)
-  'Contract Evaluation – Batch Jun 2026': {
-    employmentStatus: 'Contract', reviewPeriodValue: 'Single review period', reviewPeriodSubs: SINGLE_SUBS, datasetKey: 'contract-jun',
-  },
-  // Part-timer · single period · EMPTY (no employees with this status yet → no timeframe)
-  'Part-timer Evaluation – Batch Jun 2026': {
-    employmentStatus: 'Part-timer', reviewPeriodValue: 'Single review period', reviewPeriodSubs: SINGLE_SUBS, datasetKey: 'none',
-  },
-  // Probation · multiple period · IN PROGRESS, 13 separate review timeframes (one per
-  // monthly cohort) — demonstrates the "In progress" accordion's timeframe-group
-  // pagination (TIMEFRAME_GROUP_PAGE_SIZE = 10) actually kicking in.
-  'Probation Evaluation – Batch Apr 2026': {
-    employmentStatus: 'Probation', reviewPeriodValue: 'Multiple review period', reviewPeriodSubs: MULTI_SUBS, datasetKey: 'probation-apr',
-  },
-}
+// ── Per-cycle scenario config (evaluation review) — see utils/evaluationCycleScenarios.ts ──
 const currentScenario = computed<CycleScenario>(() =>
   CYCLE_SCENARIOS[cycleName.value] || CYCLE_SCENARIOS['Probation Evaluation – Batch Jan 2026']
 )
@@ -1201,7 +1162,12 @@ function confirmDeleteTimeframe() {
 <template>
   <Teleport v-if="cyclePurpose === 'evaluation'" to="#page-header-actions" defer>
     <MpButton variant="secondary" right-icon="newtab">Approval settings</MpButton>
-    <MpButton variant="secondary">Edit cycle</MpButton>
+    <MpButton
+      variant="secondary"
+      @click="navigateTo({ path: `/reviews/review-cycles/${route.params.id}/edit`, query: { name: cycleName, purpose: 'evaluation' } })"
+    >
+      Edit cycle
+    </MpButton>
   </Teleport>
 
   <MpFlex v-if="cyclePurpose === 'evaluation'" direction="column" gap="6">

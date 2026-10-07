@@ -15,7 +15,7 @@ Six exist today:
 |---|---|
 | `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
 | `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB: **Show Import** toggle (off by default; shows/hides the header Import button via `useIdpImportFlag`) + the coachmark controls. |
-| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
+| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle + Edit cycle, `?purpose=evaluation`, via `DemoLayer`) | The **Coachmarks** group only. There's no scenario switch: Edit cycle is a real page (`/reviews/review-cycles/:id/edit`), so nothing is faked. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
@@ -140,7 +140,7 @@ talenta-review copies nothing demo-related.
   and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
   `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
-  `route.fullPath`, so a query change (e.g. `?mode=edit`) updates the pulses.
+  `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
   prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
 - **Not auto-imported:** `nuxt.config.ts` registers components with
@@ -171,7 +171,7 @@ talenta-review copies nothing demo-related.
 - **`IdpDevTools`** / **`EvaluationCycleDevTools`** are the FAB panels (one per
   module, picked by `DemoLayer` from the route). A module's own scenario switches
   go in a **Scenario** group above Coachmarks, using the same label-before-toggle
-  row + 12px hint (e.g. "Edit cycle (read-only)"). Every panel has a **Coachmarks** group with a
+  row + 12px hint (e.g. IDP's "Show Import"). Every panel has a **Coachmarks** group with a
   **Show coachmarks** toggle, an "n hidden" count and a **Reset coachmarks**
   textlink. Reset shows every hidden coachmark again and turns them back on.
 - State lives in `components/demo/useDevCoachmarks.ts`. It's module-scope and
@@ -208,7 +208,7 @@ Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 | Always | The caption under the label | One fixed caption says who's included |
 | Create, once a filter type is picked | First value field (`.mp-gap_24px [data-pixel-component="MpInputGroup"]`), `corner: true` | Search in the field, named values, popover as wide as the field, infinite scroll |
 | After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
-| Edit (`?mode=edit`) | "Employee filter" label | Locked fields explain why on hover; production says nothing |
+| Edit cycle page (`/reviews/review-cycles/:id/edit`) | "Employee filter" label | Locked fields (Employee filter, and Employment status) explain why on hover; production says nothing |
 
 ## Rules
 
