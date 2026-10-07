@@ -156,10 +156,10 @@ Empty state notice for pages with no assignments yet.
 
 ---
 
-## 🔴 Initiative + PRD (ask on EVERY pull request)
+## 🔴 Initiative + Document (ask on EVERY pull request)
 
 The Google Chat deploy notification (`.github/scripts/notify.mjs`) prints the
-**Initiative** name and **PRD** link read from `.github/initiative.json`:
+**Initiative** name and **Document** link read from `.github/initiative.json`:
 
 ```json
 { "name": "IDP & Competency Integration", "prd": "https://…" }
@@ -168,7 +168,7 @@ The Google Chat deploy notification (`.github/scripts/notify.mjs`) prints the
 **Before you open or update a pull request**, check that file:
 - If `name` or `prd` is empty, or it still holds the previous initiative's values
   and this PR is for a different one → **ask the user** for the initiative name and
-  the PRD link (don't guess, don't reuse old values silently).
+  the document link (don't guess, don't reuse old values silently).
 - If the user confirms the existing values still apply, leave the file alone.
 - Write the answers to `.github/initiative.json` and include that file in the PR.
 
