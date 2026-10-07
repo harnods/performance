@@ -799,11 +799,10 @@ rule. Switched by `components/manage-user/RolesFormScenarioControl.vue`
 ([`dev-scenario-control.md`](dev-scenario-control.md)).
 
 Reference: `components/manage-user/RolesForm.vue`.
-=======
+
 ### Saved Employee filters on the cycle detail page
 
 Read-only view of the saved Employee filter (`pages/reviews/review-cycles/[id]/index.vue`, info rows). Shown as its own **Employee filter** row directly below **Employment status**: with 2+ filters, one bullet (`ul`, disc, `size="label"`) per filter as `Parameter: Value`, multiple values comma-separated; with a single filter, one plain line, no bullet. Cycles with no saved filter show the status only. Labels (not ids) are saved at create time.
->>>>>>> upstream/main
 
 ## Rules
 
