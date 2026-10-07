@@ -1,4 +1,5 @@
 import { execSync } from "node:child_process";
+import { readFileSync } from "node:fs";
 
 const { GCHAT_WEBHOOK_URL, SITE_URL, GH_TOKEN, REPO, DEPLOY_ID, DEPLOY_SHA, ENV_URL } = process.env;
 const site = (SITE_URL || ENV_URL || "").replace(/\/$/, "");
@@ -35,34 +36,81 @@ const pageRoute = (p) => {
   if (!m) return null;
   return "/" + m[1].replace(/\/index$/, "").replace(/^index$/, "");
 };
-const componentGroup = (p) => {
-  const m = p.match(/^(?:app\/)?components\/([^/]+)\//);
-  return m ? `/${m[1].toLowerCase()}` : null;
+// Pages touched by this deploy (shared + demo files are intentionally not listed)
+const routes = [...new Set(relevant.map((f) => pageRoute(f.path)).filter((r) => r !== null))];
+
+// --- What changed: new items in the "What's new (internal)" changelog since the last deploy
+const CHANGELOG_FILE = "composables/useWhatsNew.ts";
+const readChangelog = (ref) => {
+  try {
+    const src = ref ? sh(`git show ${ref}:${CHANGELOG_FILE}`) : "";
+    const m = src.match(/export const CHANGELOG[^=]*=\s*(\[[\s\S]*?\n\])\n/);
+    return m ? new Function(`return ${m[1]}`)() : [];
+  } catch {
+    return [];
+  }
 };
+const seen = new Set(
+  readChangelog(base).flatMap((e) => e.items.map((i) => `${e.module}|${i.detail}`)),
+);
+const newItems = readChangelog(DEPLOY_SHA).flatMap((e) =>
+  e.items
+    .filter((i) => !seen.has(`${e.module}|${i.detail}`))
+    .map((i) => ({ module: e.module, ...i })),
+);
+// Prototype-only scaffolding (dev coachmarks / dev tools) isn't a product change
+const DEV_ONLY = /coachmark|dev ?tools/i;
+const added = newItems.filter((i) => !DEV_ONLY.test(i.area));
 
-const groups = {};
-for (const f of relevant) {
-  const key = pageRoute(f.path) ?? componentGroup(f.path) ?? "Shared (not page-specific)";
-  (groups[key] ||= []).push(f);
-}
-
-const icon = { A: "+ new     ", M: "~ modified", D: "- deleted ", R: "~ renamed " };
-const body = Object.entries(groups)
-  .map(([key, fs]) => {
-    const title = key.startsWith("/") ? `*${key}*  <${site}${key}|open>` : `*${key}*`;
-    return `${title}\n${fs.map((f) => `   ${icon[f.status] ?? "~ changed "}  ${f.path}`).join("\n")}`;
-  })
-  .join("\n\n");
+const short = (t, max = 90) => {
+  // Lead clause only: stop at the first sentence end, "(", ";" or ":"
+  const lead = t.split(/(?<=[.!?])\s+|\s\(|;|:\s/)[0].trim();
+  if (lead.length <= max) return lead;
+  return lead.slice(0, max).replace(/\s+\S*$/, "") + "…";
+};
 
 const commits = sh(`git log --format=%an%x09%s ${base}..${DEPLOY_SHA}`).split("\n").filter(Boolean);
 const authors = [...new Set(commits.map((c) => c.split("\t")[0]))].join(", ");
+
+let changes;
+if (newItems.length) {
+  const byModule = {};
+  for (const i of added) (byModule[i.module] ||= []).push(i);
+  changes = Object.entries(byModule)
+    .map(([module, items]) =>
+      `*${module}*\n${items.map((i) => `  • [${i.category}] ${i.area}: ${short(i.detail)}`).join("\n")}`,
+    )
+    .join("\n\n");
+} else {
+  // No changelog entry: fall back to commit subjects (skip merge commits)
+  const subjects = commits
+    .map((c) => c.split("\t")[1])
+    .filter((s) => s && !/^Merge /.test(s))
+    .map((s) => s.replace(/^\w+(\([^)]*\))?!?:\s*/, ""));
+  changes = subjects.map((s) => `  • ${s}`).join("\n");
+}
+
+// --- Initiative + PRD (maintained in .github/initiative.json, asked per PR via CLAUDE.md)
+let initiative = {};
+try {
+  initiative = JSON.parse(readFileSync(".github/initiative.json", "utf8"));
+} catch {}
+const initiativeLines =
+  (initiative.name ? `*Initiative:* ${initiative.name}\n` : "") +
+  (initiative.prd ? `*PRD:* <${initiative.prd}|Open PRD>\n` : "");
+
 const date = new Date().toLocaleDateString("en-US", {
   weekday: "short", month: "short", day: "numeric", year: "numeric",
 });
 
+const pagesLine = routes.length
+  ? `\n\n*Pages:* ${routes.map((r) => `<${site}${r}|${r || "/"}>`).join("  ·  ")}`
+  : "";
+
 let text =
   `*Performance prototype deployed* · ${date}\n` +
-  `Live at: ${site}\n----------\n${body}\n\n` +
+  initiativeLines +
+  `Live at: ${site}\n----------\n${changes || "  • Prototype tooling updates only"}${pagesLine}\n\n` +
   `${commits.length} commit(s) by ${authors} · <https://github.com/${REPO}/compare/${base}...${DEPLOY_SHA}|View diff>`;
 if (text.length > 4000) text = text.slice(0, 3950) + "\n…(truncated)";
 
