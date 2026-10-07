@@ -27,6 +27,72 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '07 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Goals',
+        detail: 'Goals is split into Organization goals and Company goals, each granted on its own. Within one goal type, View, Create, Edit and Delete tick and clear together, and hovering a box says "Goals access applies to View, Create, Edit and Delete together". The Goals checkbox above them sets both types. Version 1 keeps the split in ui_state.goalsOn; the payload still grants Goals when either type is on.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Module search',
+        detail: 'A search field above the permission table filters modules by name, in both versions. A match on a row inside a module (e.g. Company goals) shows that module, opened; no match shows "No result found".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Dashboard',
+        detail: 'Dashboard is view only and stays locked until Review cycle has a review type. Its one row is now named Review cycle, with a single View box ("View dashboard for review cycles."). The Dashboard › Goals row and its toggle are removed in both versions, and emptying Review cycle clears Dashboard.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · 9-box matrix',
+        detail: 'The 9-box matrix has its own scope toggle and review types, like Review results. The toggle reads "Same scope as review cycle module setting". Its scope is saved with the 9-box permission and restored on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/table.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Goals result',
+        detail: 'Goals result is all or nothing, like the Goals module. Ticking or unticking View or Create sets both, in both versions, and hovering says "Goals result access applies to View and Create together".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Version 2 Report',
+        detail: 'Review results no longer has an extra Review cycle row beneath it. Its "Same scope" toggle sits directly under its title, and roles saved before still load.',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Copy',
+        detail: 'Review Settings and Manage Users use production\'s copy word for word. In Version 1, "Employee status" is renamed "Employment status" and sits 4px above its checkboxes.',
+        files: ['utils/manageUser.ts', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Default persona',
+        detail: 'The role form opens as Super Admin Rizal Candra on its first open per page load. Switching to Rio from View as still works until the next reload.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/checkbox.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Role form',
+        detail: 'Add / Edit role has one dev tools button, bottom-left, holding the Version 1 / 2 switch and the coachmark controls. RolesFormScenarioControl is removed.',
+        files: ['components/demo/RolesFormDevTools.vue', 'components/demo/DemoLayer.vue', 'pages/settings/manage-users/roles/add.vue', 'pages/settings/manage-users/roles/edit/[id].vue', 'docs/patterns/dev-scenario-control.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Coachmarks',
+        detail: 'Role form coachmarks for module search, Review cycle, Goals, Report, the Same scope toggle, 9-box matrix and Dashboard. Pulses no longer change any layout on any page: the host is out of flow and zero-size.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
     module: 'IDPs',
     items: [
       {

@@ -28,7 +28,9 @@ export interface RoleUiState {
   subOn?: Record<string, boolean>
   reportScope?: PermissionScope
   dashboardScope?: PermissionScope
-  dashboardGoalsSameScope?: boolean
+  nineboxScope?: PermissionScope
+  /** Version 1 Goals: which goal types are granted (each one all or nothing). */
+  goalsOn?: Record<string, boolean>
 }
 
 export interface RolePayload {

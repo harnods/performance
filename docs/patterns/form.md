@@ -795,7 +795,7 @@ their group, with the same no-line-under-group rule; Report's scope rows follow 
 cells empty. Dashboard's scope note moves into its Access checkbox's `#description` (no
 description column in V2). In V2 an unscoped group checkbox reflects its whole row
 (all → checked, some → indeterminate, click → all on / all off), unlike V1's production
-rule. Switched by `components/manage-user/RolesFormScenarioControl.vue`
+rule. Switched by the Scenario group in `components/demo/RolesFormDevTools.vue`
 ([`dev-scenario-control.md`](dev-scenario-control.md)).
 
 Reference: `components/manage-user/RolesForm.vue`.

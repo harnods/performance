@@ -13,6 +13,5 @@ definePageMeta({
 <template>
   <div>
     <ManageUserRolesForm />
-    <ManageUserRolesFormScenarioControl />
   </div>
 </template>

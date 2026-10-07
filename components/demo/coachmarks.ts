@@ -46,6 +46,13 @@ const CYCLE_EDIT = /^\/reviews\/review-cycles\/[^/]+\/edit\/?$/
 const isEvaluation = (r: RouteLocationNormalizedLoaded) => r.query.purpose === 'evaluation'
 const employeeFilter = () => document.getElementById('employee-filter-label')?.parentElement ?? null
 
+// ─── Settings: Add / Edit role → Permissions ─────────────────────────────────
+const ROLE_FORM = /^\/settings\/manage-users\/roles\/(add|edit\/[^/]+)\/?$/
+// A label in the permission table: inside Version 2's tree row when it's on screen,
+// else the first match in Version 1's table body (group titles come before sub-rows).
+const roleLabel = (v2Key: string, text: string) =>
+  byText(document.querySelector(`[data-qa="roles-v2-row-${v2Key}"]`) ?? document.querySelector('form tbody'), 'span, p', text)
+
 export const COACHMARKS: CoachmarkDef[] = [
   {
     id: 'idp-form-informal-education',
@@ -182,5 +189,63 @@ export const COACHMARKS: CoachmarkDef[] = [
     find: () => document.getElementById('employee-filter-label'),
     title: 'Locked on Edit, with a reason',
     description: 'Changed: production also disables this section on Edit, but says nothing. Hovering a locked field (Employee filter, and now Employment status) shows why it can\'t be changed.',
+  },
+  {
+    id: 'role-form-module-search',
+    route: ROLE_FORM,
+    // The search field itself, pinned to its corner so the input's layout is untouched.
+    find: () => document.getElementById('roles-permission-search')?.closest('[data-pixel-component="MpInputGroup"]') ?? null,
+    corner: true,
+    title: 'Search modules',
+    description: 'New: type a module name to filter the permission table. A match on a row inside a module (e.g. Company goals or Evaluation review) shows that module, opened. Production has no search.',
+    placement: 'bottom-end',
+  },
+  {
+    id: 'role-form-goals-together',
+    route: ROLE_FORM,
+    find: () => roleLabel('goals', 'Goals'),
+    title: 'Goals split by goal type',
+    description: 'Changed: Goals now has Organization goals and Company goals beneath it, and each can be granted on its own. Within one goal type, View, Create, Edit and Delete are selected and cleared together, because the backend stores that access as all or nothing. Hover a Goals box to see why. Production has one set of Goals permissions with each action picked on its own.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-review-cycle-types',
+    route: ROLE_FORM,
+    find: () => roleLabel('review-cycle', 'Review cycle'),
+    title: 'Review cycle split by review type',
+    description: 'Changed: Review cycle permissions are now set per review type (Performance, Competency and Evaluation review), and Evaluation review can be limited to certain employment statuses. Production has one set of Review cycle permissions that covers every cycle.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-report-module',
+    route: ROLE_FORM,
+    find: () => roleLabel('report', 'Report'),
+    title: 'Report is its own module',
+    description: 'Changed: Report moved out of Review cycle into a module of its own, split by report type (Review results, Goals result and 9-box matrix), each with View and Create. Production has Report as one permission inside Review cycle.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-ninebox',
+    route: ROLE_FORM,
+    find: () => roleLabel('report-9box', '9-box matrix'),
+    title: '9-box matrix has its own permission',
+    description: 'Changed: the 9-box matrix is granted separately from the other reports, with its own "Same scope" toggle, so it can cover different review types than Review results. Production grants it as part of the single review cycle Report permission, with no 9-box check at all.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-same-scope-toggle',
+    route: ROLE_FORM,
+    find: () => roleLabel('report-results', 'Same scope as review cycle module setting'),
+    title: 'Same scope toggle',
+    description: 'New, on by default. On: this row covers the same review types (and employment statuses) as the Review cycle module, and follows it when that changes. Off: pick the review types for this row yourself; they start unselected.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-dashboard',
+    route: ROLE_FORM,
+    find: () => roleLabel('dashboard', 'Dashboard'),
+    title: 'Dashboard permission',
+    description: 'New: not in production yet. Production has no Dashboard permission. Here a role can be given view access to the dashboard, scoped by review type like Review cycle. It stays locked until at least one review type is picked in Review cycle, and clears if Review cycle is emptied.',
+    placement: 'right-start',
   },
 ]

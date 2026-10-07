@@ -13,6 +13,5 @@ definePageMeta({
 <template>
   <div>
     <ManageUserRolesForm :key="$route.params.id as string" />
-    <ManageUserRolesFormScenarioControl />
   </div>
 </template>

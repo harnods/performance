@@ -204,24 +204,25 @@ export const PERMISSIONS: Permission[] = [
     description: 'Monitor review cycle progress: total reviewers, review tasks and cycle overview.',
     child_permissions: [],
   },
+  // Review Settings / Manage Users: production copy, verbatim (incl. title case).
   {
     id: 2,
-    name: 'Review setting',
-    description: 'View templates, reminders and 9 box configurations.',
+    name: 'Review Settings',
+    description: 'Can view template index and reminder settings.',
     child_permissions: [
-      { id: 21, name: 'Add', description: 'Create templates and configurations.' },
-      { id: 22, name: 'Edit', description: 'Edit templates and configurations.' },
-      { id: 23, name: 'Delete', description: 'Delete templates and configurations.' },
+      { id: 21, name: 'Add', description: 'Can add a new template.' },
+      { id: 22, name: 'Edit', description: 'Can edit template, duplicate template and change reminder settings.' },
+      { id: 23, name: 'Delete', description: 'Can delete template.' },
     ],
   },
   {
     id: 4,
-    name: 'Manage users',
-    description: 'View roles, role assignments and the activity log.',
+    name: 'Manage Users',
+    description: 'Can view list and user list.',
     child_permissions: [
-      { id: 41, name: 'Add', description: 'Create roles and assign them to employees.' },
-      { id: 42, name: 'Edit', description: 'Edit roles and role assignments.' },
-      { id: 43, name: 'Delete', description: 'Delete roles and remove role assignments.' },
+      { id: 41, name: 'Add', description: 'Can add new role and assign role to user.' },
+      { id: 42, name: 'Edit', description: 'Can edit role and existing user role.' },
+      { id: 43, name: 'Delete', description: 'Can delete role and user access.' },
     ],
   },
 ]

@@ -18,7 +18,7 @@ These exist today:
 | `components/demo/EvaluationCycleDevTools.vue` (Create new cycle + Edit cycle, `?purpose=evaluation`, via `DemoLayer`) | The **Coachmarks** group only. There's no scenario switch: Edit cycle is a real page (`/reviews/review-cycles/:id/edit`), so nothing is faked. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
-| `components/manage-user/RolesFormScenarioControl.vue` (Settings → Manage users → Roles → Add / Edit role) | **Bottom-left.** **Version 1 (Default)** (Access + Permission list) vs **Version 2 — Action columns** (full-width module tree, View / Create / Edit / Delete columns — see `table.md` › Permission tree table). One axis, flat list. State in `useManageUserStore().rolesFormVersion`. |
+| `components/demo/RolesFormDevTools.vue` (Settings → Manage users → Roles → Add / Edit role, via `DemoLayer`) | The page's **only** dev control, **bottom-left**. **Scenario** group (`MpRadio`): **Version 1 (Default)** (Module + Permission list) vs **Version 2 — Action columns** (full-width module tree, View / Create / Edit / Delete columns — see `table.md` › Permission tree table), state in `useManageUserStore().rolesFormVersion`; then the **Coachmarks** group. Replaces the old `RolesFormScenarioControl` + separate coachmark FAB. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 | `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
 
@@ -140,7 +140,9 @@ talenta-review copies nothing demo-related.
   pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
   and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
-  `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
+  `/reviews/review-cycles`, `RolesFormDevTools` on Add / Edit role (always, since
+  it also holds the Version switch), `IdpListDevTools` on the IDP list,
+  `IdpDevTools` everywhere else. It rescans on
   `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
   prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
@@ -154,6 +156,12 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
+- **A pulse never changes the product's layout.** Every host is out of flow and
+  zero-size (`position: absolute`, `width/height: 0`, left at its static spot right
+  after the anchor's text), and the dot floats inside it (`left: 4px`, centred on a
+  20px line). The anchor's width, height, padding and row height are identical with
+  coachmarks on or off, and no stray space appears before the dot. Check it by
+  hiding the hosts and comparing `getBoundingClientRect()`.
 - **Never append a pulse inline inside a flex/grid row.** It becomes an extra
   item that takes a gap slot and shifts its siblings (it pushed the filter row's
   remove button out and widened the "and" divider). Set `corner: true` on the
@@ -211,12 +219,30 @@ Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 | After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
 | Edit cycle page (`/reviews/review-cycles/:id/edit`) | "Employee filter" label | Locked fields (Employee filter, and Employment status) explain why on hover; production says nothing |
 
+Current role form coachmarks (Settings → Manage users → Roles → Add / Edit role):
+
+| Anchor | What it explains |
+|---|---|
+| "Search module name..." field (`#roles-permission-search`'s `MpInputGroup`), `corner: true` | New module search; a match on a row inside a module shows that module, opened |
+| "Review cycle" module title | Permissions set per review type; Evaluation review limited by employment status |
+| "Goals" module title | Organization / Company goals granted separately; within one, all four actions go together |
+| "Report" module title | Report is its own module (it was inside Review cycle), split by report type |
+| "Same scope as review cycle module setting" toggle (Review results) | What on and off do |
+| "9-box matrix" row | Granted separately from the other reports (production: part of the single Report permission) |
+| "Dashboard" module title | New permission, not in production yet; view only, scoped by review type |
+
+Each anchor is found by `roleLabel(v2Key, text)`: inside Version 2's `roles-v2-row-<key>` row when it's on screen, else the first exact-text `span` / `p` in Version 1's table body.
+
 ## Rules
 
+- **One dev-tools FAB per page, bottom-left.** A page's scenario switches and its
+  coachmark controls live in the same panel (Scenario group above Coachmarks);
+  never a second FAB beside it. (`IdpListDevTools` bottom-right is a legacy exception
+  on a page with no other FAB.)
 - Floating FAB = dev only. Never for product actions.
 - Fixed bottom-right, 24px, 48px circle, `background.inverse`, `sliders` icon,
   popover `placement="top-end"`. **Exception:** the demo-layer panels
-  (`IdpDevTools`, `EvaluationCycleDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
+  (`IdpDevTools`, `EvaluationCycleDevTools`, `RolesFormDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
   collides with a page's own bottom-right scenario FAB.
 - Multi-group panel: no `is-close-on-select`; always a `Reset` + a `Default` choice.
 - State in a module-scope composable; defaults mirror the real seed.
