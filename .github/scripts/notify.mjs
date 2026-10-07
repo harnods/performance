@@ -90,14 +90,14 @@ if (newItems.length) {
   changes = subjects.map((s) => `  • ${s}`).join("\n");
 }
 
-// --- Initiative + PRD (maintained in .github/initiative.json, asked per PR via CLAUDE.md)
+// --- Initiative + Document (maintained in .github/initiative.json, asked per PR via CLAUDE.md)
 let initiative = {};
 try {
   initiative = JSON.parse(readFileSync(".github/initiative.json", "utf8"));
 } catch {}
 const initiativeLines =
   (initiative.name ? `*Initiative:* ${initiative.name}\n` : "") +
-  (initiative.prd ? `*PRD:* <${initiative.prd}|Open PRD>\n` : "");
+  (initiative.prd ? `*Document:* <${initiative.prd}|Open document>\n` : "");
 
 const date = new Date().toLocaleDateString("en-US", {
   weekday: "short", month: "short", day: "numeric", year: "numeric",
