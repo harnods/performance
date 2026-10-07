@@ -16,7 +16,7 @@ Three rail groups separated by dividers, assembled as `allGroups = [group1, grou
 - `group2` (`:48-80`) — Reviews / Goals / Talents — section items with `children` (level-2 submenu).
 - `group3` (`:82-93`) — Settings.
 
-A level-2 child can itself have `children` → renders as an **accordion** (e.g. Talents → Competencies with 5 sub-pages, `:68-77`). Dividers inside a panel: `{ divider: true }`.
+A level-2 child can itself have `children` → renders as an **accordion** (e.g. Talents → Competencies with 5 sub-pages; Inbox → Awaiting approval; Settings → Manage users → Roles / Assign roles / Activity logs). The **first** sub-page is the default: clicking the parent links to it (`childLink`), so order the children with the landing page first — and add a `pages/<parent>/index.vue` with `definePageMeta({ redirect })` to it so the bare parent URL lands there too (`pages/settings/manage-users/index.vue`). Dividers inside a panel: `{ divider: true }`.
 
 Special cases:
 - **Goals** swaps its children based on cookie `goals-new-interface` between `goalsChildrenNew` / `goalsChildrenCurrent` (`:28-46,58-61`).

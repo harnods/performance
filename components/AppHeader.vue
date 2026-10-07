@@ -43,11 +43,13 @@ const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
 const { resetToSeed: resetReviewerWeights } = useReviewerWeightsStore()
 const { clearRecorded: clearActivityLog } = useGoalActivityStore()
+const { resetDemo: resetManageUsers } = useManageUserStore()
 function resetDemoData() {
   resetToSeed()
   resetGoalsToSeed()
   resetReviewerWeights()
   clearActivityLog()
+  resetManageUsers()
   toast.notify({
     id: 'demo-data-reset',
     position: 'top-center',

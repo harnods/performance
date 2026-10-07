@@ -94,7 +94,16 @@ const group3: NavItem[] = [
   {
     icon: 'settings', label: 'Settings',
     children: [
-      { label: 'Manage users', path: '/settings/manage-users' },
+      // Accordion, same shape as Inbox → Awaiting approval. Roles is first, so
+      // clicking "Manage users" lands on it (production: manage-user '' → roles).
+      {
+        label: 'Manage users',
+        children: [
+          { label: 'Roles', path: '/settings/manage-users/roles' },
+          { label: 'Assign roles', path: '/settings/manage-users/assign-role' },
+          { label: 'Activity logs', path: '/settings/manage-users/activity-log' },
+        ],
+      },
       { label: 'Templates', path: '/settings/templates' },
       { label: 'Reminders', path: '/settings/reminders' },
       { label: 'Payroll groups', path: '/settings/payroll-groups' },

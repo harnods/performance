@@ -764,3 +764,86 @@ Text, not a number: `Competency group` and/or `IDP`. One kind → plain text; bo
 a bullet list (`listStyleType: 'disc'`); none → `-`. Left-aligned, min 190px (inner wrapper, since cells ignore min-width), no wrap; Description capped at 240px.
 Sorting still orders by the number of linked records. Reference:
 `pages/talents/competencies/items/index.vue`.
+
+## Permission tree table (Roles form, Version 2)
+
+`components/manage-user/RolesPermissionTreeV2.vue` — a collapsible module tree with one
+checkbox column per action. A Default table (no outer border), **`verticalAlign: 'middle'`**
+(the tallest cell, a label + its "Same scope as … module setting" toggle, is 2 lines).
+
+- **Full content width**: the form column widens to `span 12` in this version; the detail
+  fields keep their 656px max. First column (Permission) is a fixed **440px**
+  (`table-layout: fixed`); View / Create / Edit / Delete share the rest, centred.
+- **Indent is 24px per depth level, identical at every level.** Each row reserves a 20px
+  caret slot (empty on leaves) so sibling checkboxes line up. Indent classes must be
+  literal `css()` values — Panda extracts them at build time, computed values silently
+  don't apply.
+- **Parent boxes reflect their subtree** (checked / indeterminate); clicking one sets the
+  whole subtree for that action. The first header cell is plain text ("Module"), no checkbox.
+- **Backgrounds**: top-level group rows (bold title) use `background.surface`; every row
+  beneath them uses `background.neutral` — on every cell (Permission + all action columns).
+- **An expanded parent hides its action checkboxes** (its children carry them); collapsed,
+  or with its "Same scope as … module" toggle on, it shows them and they cover the subtree.
+- **"Same scope as … module setting" toggle** (no caption): when on, the row loses its caret and its children are
+  hidden; its own boxes then stand for the whole subtree. Off, the children show again.
+- **Report**: Review results and 9-box matrix carry the toggle **directly under their own
+  title** — no extra "Review cycle" level in between; off, the review types sit straight
+  beneath them. Goals result has no toggle. Dashboard's child is named "Review cycle" and
+  carries its toggle the same way.
+
+### Roles form Version 1 (Module + Permission list)
+
+Same shell as above: full content width, `table-layout: fixed`, **Module** column fixed at
+**440px**, **Permission** fills the rest. Review cycle purposes read "Performance review",
+"Competency review", "Evaluation review".
+
+- **Carets**: Review cycle, Goals, Report and Dashboard fold their sub-rows with a caret (same
+  20px caret slot as Version 2). Every Module cell is `[caret slot][checkbox]`, so
+  checkboxes line up with or without a caret; sub-rows step in 24px.
+- **Report** rows: Review results, Goals result, 9-box matrix — each View + Create (Create's
+  description says "Generate …"). **Review results** carries the "Same scope as review
+  cycle module setting" `MpToggle` (no caption) 8px under its title (see
+  [`toggle.md`](toggle.md)). Toggle off → the purpose checkboxes (Performance / Competency /
+  Evaluation review, + employment statuses) appear inside the same cell, aligned with the
+  toggle title (42px in), all unchecked, no row borders between them.
+- **Dashboard** is **view only**: one row, **Review cycle** (same name as Version 2), with a
+  single **View** checkbox ("View dashboard for review cycles.")
+  **Locked until Review cycle has a review type** (PRD S3): with nothing picked in Review
+  cycle, the Dashboard boxes are disabled with the tooltip "Select at least one review type
+  in Review cycle first", and emptying Review cycle later clears them. Same in Version 2
+  (any Review cycle cell granted unlocks it). plus the same toggle + scope
+  checkboxes as Review results, with its own state. There is no Dashboard › Goals row (in
+  Version 2 either).
+- **Goals** rows: **Organization goals**, then **Company goals**, each listing View / Create /
+  Edit / Delete ("View organization goals." …). The Goals group row's Permission cell is
+  empty, like Review cycle's. Each goal type is granted on its own, but its four actions go
+  together, so every box in a sub-row reads the same (see [`checkbox.md`](checkbox.md) ›
+  All-or-nothing module). The Goals checkbox is indeterminate when one type is on.
+- **Review Settings** / **Manage Users** keep production's copy verbatim, title case
+  included ("Can view template index and reminder settings.", "Can add new role and assign
+  role to user." …), from `PERMISSIONS` in `utils/manageUser.ts`.
+- Wherever Evaluation review is selected, its employment-status checkboxes sit under a
+  14px / 600 **"Employment status"** label (all three places: Review cycle, Review results, Dashboard).
+  **4px** from the label to the first checkbox, **12px** between checkboxes (label + a nested
+  12px-gap list inside a 4px-gap column).
+- **Dividers are always full width** — group rows and sub-rows alike (no indented lines).
+- **9-box matrix is scoped too** (PRD S2): it carries its own "Same scope as review cycle
+  module setting" toggle + purpose pickers, independent of Review results (`nineboxScope`;
+  Version 2: `report-9box` gets the toggle and purpose children). Goals result has none, and
+  is all or nothing like the Goals module: View and Create tick together (see
+  [`checkbox.md`](checkbox.md) › All-or-nothing module).
+
+### Roles form: module search (Versions 1 and 2)
+
+A **"Search module name..."** field sits above the permission table, right-aligned, 280px,
+`MpInputGroup` + search `MpInputLeftAddon` (the filter-bar idiom, [`filter-bar.md`](filter-bar.md)),
+`marginBottom: '3'`. It filters top-level modules: a module shows when its name **or any row
+beneath it** matches (e.g. "company" → Goals, opened on Company goals). A match beneath a
+collapsed group opens it while the search holds; in Version 2 a match hidden behind an "on"
+"Same scope" toggle shows only its top row. No match → one centred row, "No result found.
+You can try searching different keywords." (same as the Roles list). The search is UI only,
+not part of the payload.
+
+### Roles form, Version 1: parent rows
+
+In the Version 1 permission table, each parent (module) row (Review cycle, Goals, Report, Dashboard, Review Settings, Manage Users) has a **semibold (600) title**. No background tone: parent and sub-rows share the neutral background.
