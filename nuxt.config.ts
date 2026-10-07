@@ -1,4 +1,7 @@
 export default defineNuxtConfig({
+  // Auth0 login is client-side only (SPA flow) — with SSR on, protected pages would be
+  // rendered before the client-side login redirect.
+  ssr: false,
   compatibilityDate: '2025-05-28',
   devtools: { enabled: false },
   css: ['~/assets/css/main.css'],
@@ -10,6 +13,14 @@ export default defineNuxtConfig({
     public: {
       // Demo affordances on/off (NUXT_PUBLIC_DEMO_MODE=false to hide).
       demoMode: true,
+      // Auth0 — set NUXT_PUBLIC_AUTH0_DOMAIN / NUXT_PUBLIC_AUTH0_CLIENT_ID in .env locally,
+      // and as Bitbucket deployment variables in CI (passed to the Dockerfile as build args).
+      auth0Domain: process.env.NUXT_PUBLIC_AUTH0_DOMAIN || '',
+      auth0ClientId: process.env.NUXT_PUBLIC_AUTH0_CLIENT_ID || '',
+      // Dev-only convenience — must be exactly "true" to skip login under `npm run dev`.
+      // Stripped from production builds via the import.meta.dev check in
+      // middleware/auth.global.ts, regardless of how this env var is set.
+      skipAuthLocal: process.env.NUXT_PUBLIC_SKIP_AUTH_LOCAL === 'true',
     },
   },
   routeRules: {
