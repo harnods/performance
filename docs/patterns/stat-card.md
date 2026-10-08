@@ -228,3 +228,13 @@ const statusTotal  = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20p
 const statusGroup  = css({ flexDirection: 'row', alignItems: 'center', gap: '8', paddingLeft: '4' })
 const statusItem   = css({ display: 'flex', alignItems: 'center', gap: '3', flex: '1', minWidth: '0' })
 ```
+
+## Quota meter box (single usage figure + action)
+
+A usage-against-limit panel above a list (Assign role's "User management quota",
+`components/manage-user/QuotaInfo.vue`): one bordered box (`border.default`, radius `lg`,
+padding `6`), left = title (16/600) + "N **of** M quota" (tabular-nums; N in `text.danger`
+when over) + `MpProgress variant="linear" size="sm"` + a `text.secondary` caption, divided by a
+1px right border from a `variant="secondary"` action button ("Upgrade quota" — the page's
+primary CTA stays in the header). Bar colour: `information` below the limit, `negative` at or
+over it. A state banner (`MpBanner is-inline`) sits above the box, shown once per state via a cookie.

@@ -21,7 +21,7 @@ const { isVisible, hide } = useDevCoachmarks()
 // ─── Styles ───────────────────────────────────────────────────────────────
 const trigger = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
-  width: '16px', height: '16px', marginLeft: '6px', verticalAlign: 'middle',
+  width: '16px', height: '16px', verticalAlign: 'top',
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', flexShrink: '0',
   borderRadius: 'full',
   _focusVisible: { boxShadow: '0 0 0 3px var(--mp-colors-border-brand)' },

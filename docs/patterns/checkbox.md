@@ -52,6 +52,11 @@ button. (See [`form.md`](form.md).)
 The row-select checkbox is part of the **first content column** — it lives **inside the first
 cell**, together with that cell's content. There is **no dedicated checkbox-only column**.
 
+> **Not the same thing:** a *permission matrix* whose columns **are** the data (View / Create /
+> Edit / Delete) uses bare, centred, `aria-label`led checkboxes in each action column.
+> That's a value grid, not row selection — see [`form.md`](form.md) → "Permission matrix"
+> (Version 2). The rule above is only about the row-select checkbox.
+
 ```vue
 <!-- ✅ checkbox lives inside the first (Goal) cell -->
 <MpTableCell as="td" :class="[tightCell, colDivider]">
@@ -322,3 +327,35 @@ const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
   department selected → `GoalBulkActionsMenu` inline in that department's own accordion header.
   2+ departments selected → `GoalFloatingBulkBar`, fixed to the bottom of the viewport.
 - `GoalBulkActionsMenu` is the one shared Actions popover — never re-inline its markup.
+
+## Locked by permission (role form)
+
+On Add / Edit role, the checkboxes a user may not grant are `is-disabled`, and hovering one shows an `MpTooltip` saying why. Who can grant what comes from `composables/useRoleActor.ts`:
+
+| User | Can grant |
+|---|---|
+| Rizal Candra (Super Admin) | Everything |
+| Rio Priyono (delegated, Manage Users: Add/Edit) | Only what his own role holds. MOCK scope: Performance + Evaluation purposes, Probation + Contract statuses, no Delete, no 9-box report, no Dashboard |
+| Everyone else | Nothing (every checkbox locked; "Add role" is disabled too, see [`buttons.md`](buttons.md)) |
+
+Tooltip copy (sentence case, no period): "Your role doesn't include this review purpose" / "…this employment status" / "…this permission" / "…this report type" / "…dashboard access"; "Only a Super Admin can change role permissions" for users with no access. Separately, for every user, Dashboard is locked with "Select at least one review type in Review cycle first" until Review cycle has a review type (PRD S3, see [`table.md`](table.md)).
+
+- A disabled checkbox fires no mouse events, so each one sits inside `components/manage-user/RolesLock.vue` (tooltip around a `div`; `:is-manual="!reason" :is-open="false"` switches it off when unlocked).
+- A parent checkbox only ticks / unticks the cells the user may grant (Version 2 tree); it locks only when nothing beneath it can be granted. In Version 1 a group's own checkbox stays locked while any row beneath it is.
+- The persona lives in localStorage, so the lock resolves after mount (the server renders the default user).
+- **The role form opens as Rizal (Super Admin).** On its first open per page load, `RolesForm` switches the header persona to Rizal (`setCurrentUser('rizal')`); switching to Rio from the header's "View as" afterwards sticks until the next reload. The app-wide default persona stays Rio.
+
+## Create / Edit / Delete imply View (role form)
+
+On Add / Edit role, ticking Create, Edit or Delete also ticks View on the same row (a user must be able to view to change). Unticking View clears the other actions. This holds everywhere the actions appear: Version 1's permission lists, the purpose rows, the Report / Dashboard sub-rows, and Version 2's action columns (`toggleCell` in `RolesPermissionTreeV2.vue`; a parent's cell applies it to every cell beneath it).
+
+## All-or-nothing module: Goals (role form, Versions 1 and 2)
+
+Goals is split by goal type: **Organization goals** and **Company goals** can each be granted on their own, but within one goal type the backend stores access as all or nothing, so its View / Create / Edit / Delete boxes are locked together: ticking or unticking any box of a goal type sets all four for that type. The Goals checkbox above them sets both types, and is indeterminate when only one is on. The boxes stay enabled and look normal; hovering one shows an `MpTooltip`: "Goals access applies to View, Create, Edit and Delete together" (`aonHint` in `RolesPermissionTreeV2.vue`, wired through `RolesLock`). A user who can't grant every action (a delegated user without Delete) gets the goal types disabled with the usual lock tooltip, since a partial grant isn't possible.
+
+- **Version 2:** a goal type opts in with `allOrNothing: true` on its tree node. A box on the Goals parent drives every all-or-nothing child (`aonOwners`), and the parent's own cells are kept in sync with its children (`syncAonParents`).
+- **Version 1:** the sub-rows keep their own state (`goalsOn` in `RolesForm.vue`, saved in `ui_state.goalsOn`). The production payload still has one Goals permission set, granted when either goal type is on (`applyGoalsState`). A role saved before the split opens with both types on.
+
+**Report › Goals result** follows the same rule: its View and Create go together (tick or untick either → both), with the tooltip "Goals result access applies to View and Create together". A user who can't grant one of them gets the row locked. Version 1: `allOrNothing` on the `REPORT_ROWS` entry (`setSubPerm`, `subRowReason`, `permTip`); Version 2: `allOrNothing: true` on `report-goals`. A parent only drives its children as all-or-nothing groups when **every** child is one (`aonParent`: Goals yes, Report no — Report's box still sets each row normally).
+
+This replaces the "Create / Edit / Delete imply View" rule inside Goals and Goals result.
