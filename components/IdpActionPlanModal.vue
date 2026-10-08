@@ -97,12 +97,12 @@ const errors = computed(() => ({
 
 function close() { emit('update:isOpen', false) }
 
-// docs/patterns/buttons.md — never disable the primary CTA; validate + toast.
+// docs/patterns/buttons.md — never disable the primary CTA. In this drawer an invalid Save shows the
+// inline field errors only, no error toast.
 function save() {
   submitted.value = true
   const relatedCompetencyMissing = relatedTo.value === 'competency' && !relatedCompetency.value
   if (!name.value.trim() || !category.value.trim() || !startDate.value || !dueDate.value || endNotAfterStart.value || relatedCompetencyMissing) {
-    toast.notify({ id: 'idp-action-plan-error', position: 'top-center', variant: 'error', title: "Please check the form's error" })
     return
   }
   emit('save', {

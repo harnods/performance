@@ -38,6 +38,7 @@ const FORM = /^\/talents\/idps\/(create|[^/]+\/edit)\/?$/
 const DETAIL = /^\/talents\/idps\/(?!create)[^/]+\/?$/
 const IDP_LIST = /^\/talents\/idps\/?$/
 const IDP_IMPORT = /^\/talents\/idps\/import\/?$/
+const IDP_IMPORT_OR_LIST = /^\/talents\/idps(\/import)?\/?$/
 const ITEMS = /^\/talents\/competencies\/items\/?$/
 const IDP_DETAIL_OR_FORM = /^\/talents\/idps\/[^/]+/
 
@@ -142,20 +143,72 @@ export const COACHMARKS: CoachmarkDef[] = [
     placement: 'bottom-end',
   },
   {
-    id: 'idp-import-steps',
-    route: IDP_IMPORT,
-    find: () => byText(document, 'p, span, div', 'Download the IDP template'),
-    title: 'Import page',
-    description: 'New page: a two-step wizard. Step 1 picks the employees to import IDPs for; step 2 has the numbered instructions (download the template, fill it in, upload the .xlsx). Download and upload are mocked. A file named "error" shows the row-error banner.',
-    placement: 'right-start',
-  },
-  {
     id: 'idp-import-dropzone-hint',
     route: IDP_IMPORT,
     find: () => [...document.querySelectorAll('span')].find(el => ownText(el) === '.xlsx only with max size 10mb') ?? null,
     title: 'Dropzone description',
     description: 'Changed: the hint now reads ".xlsx only with max size 10mb", and the limit really is 10 MB (it was 5 MB). A larger file shows "File size is over 10 MB. Please upload a smaller file".',
     placement: 'bottom-start',
+  },
+  // ─── Import IDP step 2 + action plan drawer (8 Oct 2026 changes) ───────────────
+  {
+    id: 'idp-import-template-monitor',
+    route: IDP_IMPORT,
+    find: () => byText(document, 'button', 'Download template'),
+    corner: true,
+    title: 'Template goes to the activity monitor',
+    description: 'Changed: Download template no longer shows a toast. It opens the header activity monitor on the Download tab, where the template is prepared and then ready to download from a download icon button.',
+    placement: 'right-start',
+  },
+  {
+    id: 'idp-import-monitor-download',
+    route: IDP_IMPORT_OR_LIST,
+    // The finished download row's icon button, inside the header activity monitor popover.
+    find: () => document.querySelector('[data-pixel-component="MpPopoverContent"] button[aria-label="Download"]'),
+    corner: true,
+    title: 'Download icon button',
+    description: 'Changed: a finished download in the activity monitor ends with a download icon button (tooltip "Download") instead of a "Download" text link. Applies to every download job.',
+    placement: 'left',
+  },
+  {
+    id: 'idp-import-drag-drop',
+    route: IDP_IMPORT,
+    find: () => byText(document, 'p, span', 'Drop your file here or'),
+    title: 'Drag and drop',
+    description: 'Changed: the dropzone stays highlighted while a file is dragged over it, a file dropped just outside it no longer opens in the browser, and dropping a file on the picked file replaces it.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'idp-import-file-row',
+    route: IDP_IMPORT,
+    // The picked file's name link (its own text is the .xlsx file name).
+    find: () => [...document.querySelectorAll('[data-pixel-component="MpTextlink"]')].find(b => /\.xlsx$/i.test(ownText(b))) ?? null,
+    title: 'Uploaded file',
+    description: 'Changed: the file name is a text link that downloads the uploaded file, and the remove button is a minus-circular icon with a "Remove" tooltip (it was an X).',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'idp-import-cancel-leave',
+    route: IDP_IMPORT,
+    // Step 2's Cancel: the one sharing a footer with Back (step 1 has no Back).
+    find: () => [...document.querySelectorAll('button')].find(b => ownText(b) === 'Cancel'
+      && !b.closest('[data-pixel-component="MpModalContent"]')
+      && [...(b.parentElement?.parentElement?.querySelectorAll('button') ?? [])].some(x => ownText(x) === 'Back')) ?? null,
+    corner: true,
+    title: 'Cancel asks first',
+    description: 'Changed: Cancel now sits alone on the left. It opens a "Leave this page?" confirmation anchored above it (no overlay): Cancel stays, Leave goes back to the IDP list. Back and Import are disabled while it is open.',
+    placement: 'top-start',
+  },
+  {
+    id: 'idp-drawer-no-error-toast',
+    route: IDP_DETAIL_OR_FORM,
+    // The action plan drawer's primary button (Add / Save).
+    find: () => [...(document.getElementById('ap-related-to-label')?.closest('[data-pixel-component="MpDrawerContent"]')?.querySelectorAll('button') ?? [])]
+      .find(b => ['Add', 'Save'].includes(ownText(b))) ?? null,
+    corner: true,
+    title: 'No error toast',
+    description: 'Changed: an invalid Add / Save shows only the inline field errors. The "Please check the form\'s error" toast no longer appears.',
+    placement: 'top-start',
   },
   {
     id: 'eval-filter-multiple',

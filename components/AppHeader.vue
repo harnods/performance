@@ -5,6 +5,8 @@ import {
   MpAvatar,
   MpText,
   MpTextlink,
+  MpButton,
+  MpTooltip,
   MpSpinner,
   MpPopover,
   MpPopoverTrigger,
@@ -32,8 +34,12 @@ const currentMonitorList = computed(() => (activeMonitorTab.value === 'import' ?
 // trigger, so the user sees progress and can grab the finished file.
 // Looked up by its aria-label, not a template ref: MpPopoverTrigger re-creates its slot child, so a
 // `ref` on the button stays null and the monitor never opened.
+// The trigger toggles, so only click it when the monitor is closed: a second job started while it is
+// already open (e.g. Download template twice) must switch the tab, not shut the monitor.
+const isMonitorOpen = ref(false)
 watch(openSignal, () => {
   activeMonitorTab.value = requestedTab.value
+  if (isMonitorOpen.value) return
   nextTick(() => document.querySelector<HTMLButtonElement>('button[aria-label="Activity monitor"]')?.click())
 })
 function downloadFromMonitor(fileName: string) {
@@ -258,7 +264,7 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
 
     <MpFlex align="center" gap="4">
       <!-- Activity monitor — background Import / Download jobs -->
-      <MpPopover placement="bottom-end" trigger="click" use-portal>
+      <MpPopover placement="bottom-end" trigger="click" use-portal @open="isMonitorOpen = true" @close="isMonitorOpen = false">
         <MpPopoverTrigger>
           <button type="button" :class="monitorTrigger" aria-label="Activity monitor">
             <span :class="{ 'monitor-icon-spin': activeCount > 0 }" :style="{ display: 'inline-flex' }">
@@ -285,7 +291,9 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
                   </span>
                 </div>
                 <span v-if="p.status === 'processing'" :class="monitorPct">{{ p.progress }}%</span>
-                <MpTextlink v-else-if="p.kind === 'download'" as="button" size="label" @click="downloadFromMonitor(p.fileName)">Download</MpTextlink>
+                <MpTooltip v-else-if="p.kind === 'download'" label="Download" use-portal>
+                  <MpButton variant="ghost" left-icon="download" aria-label="Download" @click="downloadFromMonitor(p.fileName)" />
+                </MpTooltip>
               </div>
             </div>
             <div v-else :class="monitorEmpty">No {{ activeMonitorTab }} in progress</div>

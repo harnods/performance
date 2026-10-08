@@ -41,6 +41,29 @@ Example: `TooManyEmployeesModal` (bulk goal owners) is shown the instant "Contin
 clicked in `SelectEmployeesDrawer` — see [`composables/useBulkOwnerGate.ts`](../../composables/useBulkOwnerGate.ts) —
 not after landing on the "New goals" page and clicking "Add goal".
 
+## Anchored confirm modal (no overlay)
+
+A leave-the-page confirmation can hang off the button that asked for it instead of
+sitting top-centre. This is the one allowed exception to the **80px top-centre** rule
+above (first user: the IDP import step 2's Cancel, `components/StepImportPage.vue`).
+
+- `MpModal` **without `MpModalOverlay`**: no dimming, the page stays visible. Don't pass
+  `is-centered`; pass `:is-block-scroll-on-mount="false"` so the page can still scroll.
+- No close button (`MpModalCloseButton` omitted): the footer's ghost **Cancel** is the
+  way out. Esc and a click outside also close it (Pixel's wrapper handles both).
+- Position the card yourself through `MpModalContent`'s `style`: `position: fixed`,
+  `margin: 0`, `left` = the trigger's left edge, `bottom` = `innerHeight - trigger.top + 4`
+  (**card bottom 4px above the trigger**), `top: auto`, `width: 400px`. Read the rect from
+  a wrapper `<span ref>` around the button (a ref on `MpButton` is the component, not the
+  element), when opening, and again on `scroll` (capture) and `resize` while open, so the
+  card stays glued to the button.
+- While it is open, **disable the page's other footer actions** (Back, Import) so the only
+  choices are the modal's.
+- Copy: title is the question ("Leave this page?"), body one sentence of what is lost,
+  footer ghost **Cancel** + the verb button (**Leave**).
+- **Pixel 3's `MpButton` has no `warning` variant** (primary, secondary, ghost, danger,
+  tertiary, textLink, unstyled), so a warning-weight action uses `variant="danger"`.
+
 ## Destructive confirmation modal
 
 For a "delete this thing" confirmation (not a bulk multi-select delete — see the

@@ -6,6 +6,7 @@
   new, and a Hide button. Rendered by DemoLayer from the registry in
   coachmarks.ts; toggled and reset from IdpDevTools.
 */
+import type { Ref } from 'vue'
 import { MpButton, MpPopover, MpPopoverTrigger, MpPopoverContent, css } from '@mekari/pixel3'
 import { useDevCoachmarks } from './useDevCoachmarks'
 
@@ -18,7 +19,28 @@ const props = withDefaults(defineProps<{
 
 const { isVisible, hide } = useDevCoachmarks()
 
+// The popover is portaled to <body>, so it isn't clipped by the page's scroll area: once its pulse
+// scrolls out of view it would stay put, floating over the header with nothing to point at. Close it
+// the moment the pulse leaves the visible area (IntersectionObserver accounts for every clipping
+// scroll container). Pixel only honours `isOpen` in manual mode (which turns off click-to-open), so
+// stay uncontrolled and flip the popover's own `isOpen` ref, which its `open` event hands us.
+// The observed wrapper is ours, not a ref inside MpPopoverTrigger (Pixel re-creates that slot
+// child, so a ref on it stays null).
+const popoverOpen = ref<Ref<boolean> | null>(null)
+function onPopoverOpen(e?: { isOpen?: Ref<boolean> }) { if (e?.isOpen) popoverOpen.value = e.isOpen }
+const root = ref<HTMLElement | null>(null)
+let observer: IntersectionObserver | undefined
+onMounted(() => {
+  if (!root.value || typeof IntersectionObserver === 'undefined') return
+  observer = new IntersectionObserver((entries) => {
+    if (!entries[entries.length - 1].isIntersecting && popoverOpen.value) popoverOpen.value.value = false
+  })
+  observer.observe(root.value)
+})
+onBeforeUnmount(() => observer?.disconnect())
+
 // ─── Styles ───────────────────────────────────────────────────────────────
+const wrapper = css({ display: 'inline-block', width: '16px', height: '16px', lineHeight: '0', verticalAlign: 'top' })
 const trigger = css({
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   width: '16px', height: '16px', verticalAlign: 'top',
@@ -42,7 +64,8 @@ const footer = css({ display: 'flex', justifyContent: 'flex-end', marginTop: '4p
 </script>
 
 <template>
-  <MpPopover v-if="isVisible(props.id)" use-portal :placement="placement">
+  <span v-if="isVisible(props.id)" ref="root" :class="wrapper">
+  <MpPopover use-portal :placement="placement" @open="onPopoverOpen">
     <MpPopoverTrigger>
       <button type="button" :class="trigger" :aria-label="`What's new: ${title}`" @click.stop>
         <span :class="dot" />
@@ -58,4 +81,5 @@ const footer = css({ display: 'flex', justifyContent: 'flex-end', marginTop: '4p
       </div>
     </MpPopoverContent>
   </MpPopover>
+  </span>
 </template>
