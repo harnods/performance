@@ -66,6 +66,12 @@ function onRelatedToCompetencyClick() {
   relatedTo.value = relatedTo.value === 'competency' ? null : 'competency'
   if (relatedTo.value !== 'competency') relatedCompetency.value = ''
 }
+// "Clear selection" (beside the Relates to label, only while something is selected): deselects the
+// radio and its picked item, same as clicking the checked radio again.
+function clearRelatedTo() {
+  relatedTo.value = null
+  relatedCompetency.value = ''
+}
 
 function reset(from: ActionPlanDraft | null) {
   name.value = from?.name ?? ''
@@ -151,6 +157,9 @@ function removeAttachment(i: number) {
 // ─── Styles (DT 2.4) ─────────────────────────────────────────────────────────
 const fields = css({ display: 'flex', flexDirection: 'column', gap: '5' })
 const labelRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between' })
+// Small (12px) text link: MpTextlink is pinned to 14px by Pixel's _base layer, so use the repo's
+// MpText-as-button link (`color="text.link"`, as on the IDP detail page) at label-small.
+const smallLink = css({ background: 'transparent', border: 'none', padding: '0', cursor: 'pointer', _hover: { textDecoration: 'underline' } })
 const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const twoCol = css({ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '6' })
 const helperText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', marginTop: '1' })
@@ -244,7 +253,10 @@ const competencyOptionCaption = css({ color: 'text.secondary', display: '-webkit
                  badge, not #description, flags it as "Coming soon" (see
                  docs/patterns/form.md's inline-MpBadge exception). -->
             <MpFormControl id="ap-related-to">
-              <MpFormLabel>Relates to</MpFormLabel>
+              <div :class="labelRow">
+                <MpFormLabel>Relates to</MpFormLabel>
+                <MpText v-if="relatedTo" as="button" type="button" size="label-small" color="text.link" :class="smallLink" @click="clearRelatedTo">Clear selection</MpText>
+              </div>
               <div :class="radioRow">
                 <div :class="competencyGroup">
                   <MpRadio :is-checked="relatedTo === 'competency'" @click="onRelatedToCompetencyClick">
@@ -318,7 +330,7 @@ const competencyOptionCaption = css({ color: 'text.secondary', display: '-webkit
             <span v-else />
             <MpButtonGroup>
               <MpButton variant="ghost" @click="close">Cancel</MpButton>
-              <MpButton variant="primary" @click="save">{{ isEdit ? 'Save' : 'Add' }}</MpButton>
+              <MpButton variant="primary" @click="save">{{ isEdit ? 'Save changes' : 'Add' }}</MpButton>
             </MpButtonGroup>
           </div>
         </MpDrawerFooter>

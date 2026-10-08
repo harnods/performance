@@ -204,10 +204,10 @@ export const COACHMARKS: CoachmarkDef[] = [
     route: IDP_DETAIL_OR_FORM,
     // The action plan drawer's primary button (Add / Save).
     find: () => [...(document.getElementById('ap-related-to-label')?.closest('[data-pixel-component="MpDrawerContent"]')?.querySelectorAll('button') ?? [])]
-      .find(b => ['Add', 'Save'].includes(ownText(b))) ?? null,
+      .find(b => ['Add', 'Save changes'].includes(ownText(b))) ?? null,
     corner: true,
     title: 'No error toast',
-    description: 'Changed: an invalid Add / Save shows only the inline field errors. The "Please check the form\'s error" toast no longer appears.',
+    description: 'Changed: an invalid Add / Save changes shows only the inline field errors. The "Please check the form\'s error" toast no longer appears.',
     placement: 'top-start',
   },
   {

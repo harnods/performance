@@ -167,7 +167,15 @@ talenta-review copies nothing demo-related.
     anchor's children. **Don't rely on the browser's "static position"**: in a flex
     container (every `MpFormLabel` is `display: flex`) an absolute child with no offsets
     lands at the left edge and covers the first letters of the label ("Employee", "Select
-    focus", "Relates to").
+    focus", "Relates to"). Never clamp the dot inside the anchor's box: a content-width
+    anchor (a label in a flex row) would pull it back over its last letters. Pulses are
+    re-placed on DOM changes, window resize **and** anchor resize (`ResizeObserver`), since
+    an anchor can narrow with no DOM mutation (a sibling link appearing in its row).
+  - **Table cells (`th` / `td`) are never made `position: relative`.** In a
+    `border-collapse` table a positioned cell paints its background over its own collapsed
+    border, so the header lost its bottom border. For a cell the zero-size host sits at its
+    static spot right after the text (a cell is block flow, so that's correct there), nudged
+    `margin-left: 4px` / `margin-top: 2px`.
   - **`corner: true`**: overlaps the anchor's top-right corner (`top/right: -8px`). Use it
     for anchors that are a box of their own (buttons such as the IDP list Import button,
     input fields).
@@ -226,7 +234,7 @@ Current IDP coachmarks:
 | Import page, step 2 | "Drop your file here or" | Drag & drop: steady highlight, stray drops blocked, drop on the file replaces it |
 | Import page, step 2 | Uploaded file name link | Name is a text link that downloads the file; minus-circular remove with "Remove" tooltip |
 | Import page, step 2 | Footer Cancel (`corner: true`) | Cancel alone on the left; anchored "Leave this page?" modal; Back / Import disabled while open |
-| Add / Edit action plan drawer | Add / Save button (`corner: true`) | Invalid save shows inline errors only, no error toast |
+| Add / Edit action plan drawer | Add / Save changes button (`corner: true`) | Invalid save shows inline errors only, no error toast |
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 

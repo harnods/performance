@@ -27,8 +27,44 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '08 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Competency items · Create / Edit item modal',
+        detail: 'The Create / Edit item modal now looks like production: white header with a 24px title, footer with a top border, "0/60" counter, an empty name shows only the inline error (no toast), and the rating scale table has a light rounded border, column dividers, 12px cells, lighter description text and small 20px edit icons.',
+        files: ['components/competency-item/ModalForm.vue', 'docs/patterns/table.md', 'docs/patterns/modal.md', 'docs/patterns/buttons.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
     module: 'IDPs',
     items: [
+      {
+        category: 'Fix',
+        area: 'IDP list · Filter bar',
+        detail: 'The IDP list now has the production filter dropdown beside All employee: one "Select filter" menu with Organization, Branch, Job Position, Job Level and Status Employee.',
+        files: ['pages/talents/idps/index.vue', 'docs/patterns/filter-bar.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'IDP list · IDP detail · Table sort',
+        detail: 'Sortable table headers on the IDP list and IDP detail now show their sort icon all the time, like production: click a header to sort ascending, click again for descending. Progress on the IDP list is no longer sortable, as in production.',
+        files: ['components/PxColumnSortToggle.vue', 'pages/talents/idps/index.vue', 'pages/talents/idps/[id]/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Edit action plan drawer',
+        detail: 'The primary button on Edit action plan now reads "Save changes" instead of "Save" (Add action plan still reads "Add").',
+        files: ['components/IdpActionPlanModal.vue'],
+      },
+      {
+        category: 'Feature',
+        area: 'Add / Edit action plan drawer · Relates to',
+        detail: 'A small "Clear selection" link now sits on the right of the Relates to label while an option is selected, and clears the selection (the radio and the picked competency item).',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
       {
         category: 'Fix',
         area: 'Add / Edit action plan drawer',
@@ -77,6 +113,18 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '08 Oct 2026',
     module: 'Internal tools',
     items: [
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'A table column header with a coachmark (e.g. Relates to) no longer loses its bottom border. Coachmarks on table cells now sit after the text without repositioning the cell.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer slide back over the end of a label that only takes its text width (e.g. Relates to beside Clear selection), and they move when the element they mark changes size.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
       {
         category: 'Chore',
         area: 'Dev coachmarks',

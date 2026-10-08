@@ -78,6 +78,13 @@ const tableOuterBorder = css({ borderWidth: '1px', borderStyle: 'solid', borderC
 ```
 
 > The rounded outer border is a **deliberate exception** to the "no outer border" golden rule — it frames the horizontal scroll region. Use it ONLY for Custom table. Default table stays flat.
+>
+> **Also used for:** the competency item modal's one-row **rating scale table**
+> (`components/competency-item/ModalForm.vue`), where production draws every cell bordered inside a
+> 6px-rounded frame. Same `tableOuterBorder` (but `border.default`, as light as the dividers) + a
+> right `colDivider` on every column but the last. It also keeps production's **12px cell padding**
+> (`padding: '3'`) and `gray.400` description text: a deliberate exception to the 8px golden rule,
+> to match production exactly.
 
 > **Not an exception:** a Default table sitting inside a dashboard **section card** (the
 > Goals dashboard's Needs update / Awaiting approval panels). The border there belongs to
@@ -141,6 +148,26 @@ const headCell = css({ paddingTop: '2', paddingBottom: '2', fontSize: '12px', fo
 
 If a table genuinely needs a different header look, that's a sign to check with the live Pixel MCP/design first — don't hand-tune font properties on a hunch.
 
+## Column sort — `PxColumnSortToggle` (production style, IDP pages)
+
+`components/PxColumnSortToggle.vue` copies talenta-review's header sort (`sortMixin`): the header
+**label + an always-visible sort icon** right after it, as one button. Click sorts **ascending**;
+clicking the same column again flips **asc ↔ desc** (it never clears). Icon: `sort-default`
+(`icon.secondary`) when unsorted, `sort-ascending` / `sort-descending` (`icon.default`) when active.
+Props `label`, `colKey`, `sortKey`, `sortDir`; emits `sortChange: [key, dir]`, same as
+`PxColumnSortMenu`, so the page's `sortKey` / `sortDir` / `onSortChange` wiring is unchanged:
+
+```vue
+<MpTableCell as="th" :class="headCell">
+  <PxColumnSortToggle label="Action plan" col-key="name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" />
+</MpTableCell>
+```
+
+Used on `talents/idps/index.vue` (Development plan, Objective, Employee + the optional columns;
+Focus and Progress are not sortable, as in production) and `talents/idps/[id]/index.vue` (Action
+plan, Category, Start date, Due date, Status). Use it where a page must match production; other
+tables keep the hover menu below.
+
 ## Column sort — `PxColumnSortMenu`
 
 `components/PxColumnSortMenu.vue` = hover-revealed header icon → popover. Props `colKey`, `sortType: 'text'|'number'|'date'`, `sortKey`, `sortDir`; emits `sortChange: [key, dir]`; clicking the active direction clears the sort. Wiring (`goal-cycles/index.vue:352`):
@@ -159,7 +186,7 @@ Hover-reveal needs an **unlayered** scoped rule to beat the component's `visibil
 .gc-sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
 ```
 
-> ⚠️ The Custom goal tables render a **static, non-functional** `<MpIcon name="sort-default" size="sm" />` that does nothing. When you build a sortable table, wire `PxColumnSortMenu` properly — don't copy the decorative icon. Working references: `goal-cycles/index.vue`, `talents/idps/index.vue`, `talents/idps/[id]/index.vue`, `talent-directory/[id].vue`.
+> ⚠️ The Custom goal tables render a **static, non-functional** `<MpIcon name="sort-default" size="sm" />` that does nothing. When you build a sortable table, wire `PxColumnSortMenu` properly — don't copy the decorative icon. Working references: `goal-cycles/index.vue`, `talent-directory/[id].vue` (the IDP pages use `PxColumnSortToggle`, above).
 
 ## Default row order — newest-first
 
