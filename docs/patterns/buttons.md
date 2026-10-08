@@ -9,7 +9,7 @@ Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls 
 - **primary** — the submit/confirm action. Always the **rightmost** button.
 - **secondary** — black border + black text on neutral fill. Used for in-form triggers ("Select employees", "Manage", "Select component"), select-styled popover triggers, and header utility buttons ("Help").
 - **ghost** — Cancel/dismiss (**always ghost, no exceptions**), icon-only actions (edit, close, add/remove-circular), and export.
-- **danger** — the destructive confirm button in a delete modal's footer, paired with `Cancel` (ghost). Dominant, 20+ files (`goal-cycles/index.vue:600`, `talents/competencies/index.vue:349`, `components/IdpDeleteModal.vue`). Never the row-level trigger that *opens* the confirm (that stays a ghost icon button or a `MpPopoverListItem` styled `color: 'text.danger'`) — `danger` is reserved for the modal's own final "yes, delete" action.
+- **danger** — also stands in for a "warning" action, since Pixel 3 has no `warning` variant (e.g. **Leave** in the anchored leave-page modal, [`modal.md`](modal.md)). The destructive confirm button in a delete modal's footer, paired with `Cancel` (ghost). Dominant, 20+ files (`goal-cycles/index.vue:600`, `talents/competencies/index.vue:349`, `components/IdpDeleteModal.vue`). Never the row-level trigger that *opens* the confirm (that stays a ghost icon button or a `MpPopoverListItem` styled `color: 'text.danger'`) — `danger` is reserved for the modal's own final "yes, delete" action.
 
 Cancel/dismiss = ghost is 100% consistent across every form, drawer footer, and modal footer.
 
@@ -95,7 +95,7 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 
 - Cancel/dismiss = ghost, always. Primary = rightmost.
 - Edit forms say "Save changes"; create forms say "Save".
-- Never disable the primary submit — validate + toast instead.
+- Never disable the primary submit — validate + toast instead. **Exception:** the IDP Add / Edit action plan drawer (`IdpActionPlanModal.vue`) shows the inline field errors only, with **no** error toast, on an invalid Save.
 - Secondary = black border + black text on neutral.
 - A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action. Exception: a dropdown "Add X ▾" gets only `right-icon="chevrons-down"`.
 

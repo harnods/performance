@@ -12,7 +12,6 @@ import IdpListDevTools from './IdpListDevTools.vue'
 import EvaluationCycleDevTools from './EvaluationCycleDevTools.vue'
 import RolesFormDevTools from './RolesFormDevTools.vue'
 import { COACHMARKS, type CoachmarkDef } from './coachmarks'
-import { css } from '@mekari/pixel3'
 
 const route = useRoute()
 const isIdpList = computed(() => /^\/talents\/idps\/?$/.test(route.path))
@@ -25,6 +24,33 @@ const isRoleForm = computed(() => /^\/settings\/manage-users\/roles\/(add|edit)/
 // id → host <span> appended inside the anchor element.
 const hosts = shallowRef(new Map<string, HTMLElement>())
 
+// A pulse must never change the size or layout of what it marks, and must stay glued to it while the
+// page scrolls: the host is out of flow (`position: absolute`) inside the anchor, which becomes the
+// containing block (`position: relative`), so it scrolls and clips with the anchor.
+//  - corner: overlaps the anchor's top-right corner (buttons, fields: anything with its own box).
+//  - default: just after the end of the anchor's last line of text, centred on that line. Measured,
+//    not left to the browser's "static position": in a flex label (every MpFormLabel) that lands at
+//    the container's left edge and covers the first letters of the label.
+const PULSE = 16
+function placeHost(host: HTMLElement, anchor: Element, corner: boolean) {
+  if (corner) {
+    Object.assign(host.style, { top: '-8px', right: '-8px', left: 'auto', zIndex: '2' })
+    return
+  }
+  const kids = [...anchor.childNodes].filter(n => n !== host)
+  let last: DOMRect | undefined
+  if (kids.length) {
+    const range = document.createRange()
+    range.setStartBefore(kids[0])
+    range.setEndAfter(kids[kids.length - 1])
+    last = [...range.getClientRects()].filter(r => r.width > 0 && r.height > 0).pop()
+  }
+  const box = anchor.getBoundingClientRect()
+  if (!last) { Object.assign(host.style, { top: '-8px', right: '-8px', left: 'auto', zIndex: '2' }); return }
+  const left = Math.min(last.right - box.left + 4, Math.max(0, box.width - PULSE))
+  Object.assign(host.style, { top: `${Math.round(last.top - box.top + (last.height - PULSE) / 2)}px`, left: `${Math.round(left)}px`, right: 'auto', zIndex: 'auto' })
+}
+
 function scan() {
   const next = new Map<string, HTMLElement>()
   for (const def of active.value) {
@@ -34,16 +60,11 @@ function scan() {
     if (!host) {
       host = document.createElement('span')
       host.dataset.demoCoachmark = def.id
-      // Out-of-flow, zero-size host at its static spot (right after the text): the pulse never adds
-      // width, height or a stray space to the anchor (demo only, layout untouched).
-      Object.assign(host.style, { display: 'inline', position: 'absolute', width: '0', height: '0' })
-      if (def.corner) {
-        // Out of the anchor's flow: no layout shift for its siblings.
-        if (getComputedStyle(anchor).position === 'static') (anchor as HTMLElement).style.position = 'relative'
-        Object.assign(host.style, { position: 'absolute', top: '-8px', right: '-8px', zIndex: '2', width: '16px', height: '16px' })
-      }
+      if (getComputedStyle(anchor).position === 'static') (anchor as HTMLElement).style.position = 'relative'
+      Object.assign(host.style, { position: 'absolute', display: 'block', width: `${PULSE}px`, height: `${PULSE}px`, lineHeight: '0' })
       anchor.appendChild(host)
     }
+    placeHost(host, anchor, !!def.corner)
     next.set(def.id, host)
   }
   // Drop hosts left behind on anchors that are still mounted but no longer match.
@@ -62,13 +83,11 @@ let observer: MutationObserver | undefined
 onMounted(() => {
   observer = new MutationObserver(queueScan)
   observer.observe(document.body, { childList: true, subtree: true })
+  window.addEventListener('resize', queueScan) // text may re-wrap, moving where a line ends
   queueScan()
 })
-onBeforeUnmount(() => { observer?.disconnect(); cancelAnimationFrame(frame) })
+onBeforeUnmount(() => { observer?.disconnect(); window.removeEventListener('resize', queueScan); cancelAnimationFrame(frame) })
 watch(() => route.fullPath, queueScan)
-
-// Inline pulses float just past the anchor's text, centred on the line, out of flow.
-const floating = css({ position: 'absolute', left: '4px', top: '2px', display: 'block', whiteSpace: 'nowrap' })
 
 const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) as CoachmarkDef[])
 </script>
@@ -76,9 +95,7 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
 <template>
   <div>
     <Teleport v-for="def in mounted" :key="def.id" :to="hosts.get(def.id)">
-      <span :class="def.corner ? undefined : floating">
-        <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
-      </span>
+      <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
     </Teleport>
     <RolesFormDevTools v-if="isRoleForm" />
     <EvaluationCycleDevTools v-else-if="active.length && isEvaluationCycle" />

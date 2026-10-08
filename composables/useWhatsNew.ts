@@ -31,6 +31,30 @@ export const CHANGELOG: ChangelogEntry[] = [
     items: [
       {
         category: 'Fix',
+        area: 'Add / Edit action plan drawer',
+        detail: 'An invalid Save in the action plan drawer now shows only the inline field errors, without the "Please check the form\'s error" toast.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Download template no longer shows a toast: it opens the header activity monitor on the Download tab with the template as a job, and a finished download row now ends with a download icon button (tooltip "Download") instead of a text link. The uploaded file\'s name is a text link that downloads the file, the remove button is a minus-circular icon with a "Remove" tooltip, and Back and Import are disabled while the Leave modal is open. Starting a second job while the monitor is already open no longer closes it.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2 footer',
+        detail: 'Cancel now sits alone at the far left of step 2, with Back and Import grouped at the right. Pressing Cancel opens a "Leave this page?" confirmation anchored just above the button (no overlay, no close button): "Your progress on this page will not be saved.", with Cancel to stay and Leave (a danger button, as Pixel has no warning variant) to go back to the IDP list.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/modal.md', 'docs/patterns/upload.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Drag and drop on the upload step is now solid: the dropzone stays highlighted while a file is dragged over its icon and text (it flickered off before), a file dropped just outside the zone no longer makes the browser open it and leave the page, and dropping a file on the picked file\'s row replaces it. Only the first file is used and it gets the same type and size checks.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
         area: 'Import IDP · Step 1',
         detail: 'The selected-employee list\'s load link now says how many it loads: "Load 10 more" while more than 10 are left, otherwise just the remaining ones (e.g. "Load 6 more"), with no trailing period. The Select employees drawer on this page now shows at most 10 employees per list (Employees and Selected employees), then "Load N more" (opt-in paginated prop; other pages that use the drawer are unchanged).',
         files: ['components/StepImportPage.vue', 'components/SelectEmployeesDrawer.vue', 'components/demo/coachmarks.ts', 'docs/patterns/pagination.md', 'docs/patterns/dev-scenario-control.md'],
@@ -53,6 +77,24 @@ export const CHANGELOG: ChangelogEntry[] = [
     date: '08 Oct 2026',
     module: 'Internal tools',
     items: [
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'New coachmarks for the 8 Oct changes: Download template going to the activity monitor, the monitor\'s download icon button, drag and drop, the uploaded file row, the step 2 Cancel confirmation, and the action plan drawer\'s missing error toast. Removed the "Import page" coachmark.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer sit on top of the first letters of a label (Employee, Select focus, Relates to). They were left to the browser\'s default position, which in a flex label is the left edge. Each dot is now placed from the measured end of its anchor\'s last line of text, so it stays attached to the element and scrolls with it.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'An open coachmark now closes when its pulse scrolls out of view, instead of staying behind floating over the header with nothing to point at. While the pulse is visible it still follows the page as you scroll.',
+        files: ['components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
       {
         category: 'Fix',
         area: 'Dev coachmarks',

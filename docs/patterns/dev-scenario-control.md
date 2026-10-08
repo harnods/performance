@@ -156,22 +156,35 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
-- **A pulse never changes the product's layout.** Every host is out of flow and
-  zero-size (`position: absolute`, `width/height: 0`, left at its static spot right
-  after the anchor's text), and the dot floats inside it (`left: 4px`, centred on a
-  20px line). The anchor's width, height, padding and row height are identical with
-  coachmarks on or off, and no stray space appears before the dot. Check it by
-  hiding the hosts and comparing `getBoundingClientRect()`.
-- **Never append a pulse inline inside a flex/grid row.** It becomes an extra
-  item that takes a gap slot and shifts its siblings (it pushed the filter row's
-  remove button out and widened the "and" divider). Set `corner: true` on the
-  entry instead: the host is absolutely positioned at the anchor's top-right
-  corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
-  static, so layout is untouched.
-  Use `corner: true` for anchors that are a box of their own (buttons such as the IDP
-  list Import button, input fields); everything else gets the default after-text spot.
+- **A pulse never changes the product's layout, and stays glued to what it marks.**
+  Every host is a 16px, out-of-flow span (`position: absolute`) inside the anchor, which
+  becomes the containing block (`position: relative` if it was static), so the pulse
+  scrolls and clips with the anchor and the anchor's width, height and padding are the
+  same with coachmarks on or off. Check it by hiding the hosts and comparing
+  `getBoundingClientRect()`. Two placements:
+  - **Default**: just after the end of the anchor's **last line of text**, centred on that
+    line, with a 4px gap. `DemoLayer.placeHost()` measures it with a `Range` over the
+    anchor's children. **Don't rely on the browser's "static position"**: in a flex
+    container (every `MpFormLabel` is `display: flex`) an absolute child with no offsets
+    lands at the left edge and covers the first letters of the label ("Employee", "Select
+    focus", "Relates to").
+  - **`corner: true`**: overlaps the anchor's top-right corner (`top/right: -8px`). Use it
+    for anchors that are a box of their own (buttons such as the IDP list Import button,
+    input fields).
+- **Never append a pulse inline inside a flex/grid row.** It becomes an extra item that
+  takes a gap slot and shifts its siblings (it pushed the filter row's remove button out
+  and widened the "and" divider).
 
 ### Look and behaviour
+
+- **An open coachmark closes when its pulse scrolls out of view.** The popover is portaled
+  to `<body>`, so the page's scroll area doesn't clip it: without this it stayed put,
+  floating over the header (or off-screen) with nothing to point at. `DevCoachmark`
+  watches its wrapper with an `IntersectionObserver` (it accounts for every clipping
+  scroll container) and flips the popover's own `isOpen` ref, which Pixel hands to the
+  `open` event. Pixel only honours the `isOpen` prop in `isManual` mode, which turns
+  off click-to-open, so it is not controlled through the prop. While the pulse is
+  visible the popover follows it as the page scrolls.
 
 - `DevCoachmark` renders an 8px **orange** dot (`orange.500`) with an animated
   ring (`px-coachmark-pulse` in `main.css`).
@@ -207,8 +220,13 @@ Current IDP coachmarks:
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
 | IDP list | Import button (`corner: true`) | New; always shown in the page header |
-| Import page | "Download the IDP template" step | New two-step import wizard |
 | Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb"; the limit is 10 MB (was 5 MB) |
+| Import page, step 2 | "Download template" button (`corner: true`) | No toast; the template goes to the activity monitor's Download tab |
+| Header activity monitor (Import page, IDP list) | A finished download row's icon button (`corner: true`) | Download icon button with a "Download" tooltip instead of a text link |
+| Import page, step 2 | "Drop your file here or" | Drag & drop: steady highlight, stray drops blocked, drop on the file replaces it |
+| Import page, step 2 | Uploaded file name link | Name is a text link that downloads the file; minus-circular remove with "Remove" tooltip |
+| Import page, step 2 | Footer Cancel (`corner: true`) | Cancel alone on the left; anchored "Leave this page?" modal; Back / Import disabled while open |
+| Add / Edit action plan drawer | Add / Save button (`corner: true`) | Invalid save shows inline errors only, no error toast |
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
