@@ -500,6 +500,14 @@ Use the built-in default slot for the label + `#description` slot for the captio
 
 ### A radio group with a disabled "coming soon" option reveals a field between the options
 
+**Clearing an optional radio group:** an optional group (nothing selected is valid) gets a small
+**"Clear selection"** link on the label row, right-aligned (`labelRow`), shown **only while
+something is selected**; it deselects the radio and clears any value revealed under it
+(`IdpActionPlanModal.vue`'s Relates to). Copy per the Mekari library: **Clear** (undo a
+selection), not "Remove" (take an item out of a list). It's 12px: `MpText as="button"
+size="label-small" color="text.link"`, because `MpTextlink` is pinned to 14px by Pixel's `_base`
+layer (its `size="label-small"` has no effect and a `css()` font size can't win).
+
 `IdpActionPlanModal.vue`'s "Relates to" field picks what this action plan
 develops — Competency (live) or Goal (not built yet) — as a two-option
 `MpRadio` group. Unlike the "reveal below the whole group" shape you might

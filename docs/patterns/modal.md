@@ -64,6 +64,14 @@ above (first user: the IDP import step 2's Cancel, `components/StepImportPage.vu
 - **Pixel 3's `MpButton` has no `warning` variant** (primary, secondary, ghost, danger,
   tertiary, textLink, unstyled), so a warning-weight action uses `variant="danger"`.
 
+## Production-matched full modal (competency item)
+
+`components/competency-item/ModalForm.vue` (full-size `MpModal`) copies production's Pixel 1 look
+instead of Pixel 3's grey header bar: `MpModalHeader` gets a white background with 14px / 16px
+padding and a **24px / 600** title, the body starts 20px lower, and `MpModalFooter` gets a 1px
+`border.default` top border with 20px / 24px padding. Use it only for screens migrated to match
+production; other full modals keep the Pixel 3 defaults.
+
 ## Destructive confirmation modal
 
 For a "delete this thing" confirmation (not a bulk multi-select delete — see the

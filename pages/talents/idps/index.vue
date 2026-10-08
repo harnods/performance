@@ -31,6 +31,28 @@ const employeeOptions = computed(() =>
   TALENTS.map(t => ({ value: t.id, label: t.name, description: t.jobPosition, photo: t.photo })),
 )
 
+// Nested filter, production's NestedMultiSelect (use-status-employee): one "Select filter" dropdown
+// beside the employee picker, with Organization / Branch / Job Position / Job Level / Status Employee.
+// Options are the distinct values among employees; within a dimension any picked value matches, across
+// dimensions every one must match.
+const NESTED_DIMENSIONS = [
+  { key: 'organization', label: 'Organization' },
+  { key: 'branch', label: 'Branch' },
+  { key: 'jobPosition', label: 'Job Position' },
+  { key: 'jobLevel', label: 'Job Level' },
+  { key: 'employmentType', label: 'Status Employee' },
+] as const
+type NestedKey = typeof NESTED_DIMENSIONS[number]['key']
+const filterDimensions = NESTED_DIMENSIONS.map(d => ({
+  key: d.key,
+  label: d.label,
+  options: [...new Set(TALENTS.map(t => t[d.key]).filter(Boolean))].sort().map(v => ({ id: v, name: v })),
+}))
+const nestedFilter = ref<Record<string, string[]>>({})
+function matchesNested(t: typeof TALENTS[number]) {
+  return Object.entries(nestedFilter.value).every(([key, ids]) => !ids?.length || ids.includes(t[key as NestedKey]))
+}
+
 // Optional columns, same set production hides behind its column-display button.
 const optionalColumns = [
   { key: 'branch', label: 'Branch' },
@@ -51,6 +73,7 @@ const rows = computed(() => [...plans.value].reverse().filter((p) => {
   const t = talentById(p.employeeId)
   if (!t) return false
   if (employee.value && t.id !== employee.value) return false
+  if (!matchesNested(t)) return false
   const q = search.value.trim().toLowerCase()
   if (!q) return true
   return p.name.toLowerCase().includes(q) || p.objective.toLowerCase().includes(q) || t.name.toLowerCase().includes(q)
@@ -59,11 +82,8 @@ const rows = computed(() => [...plans.value].reverse().filter((p) => {
 // ─── Column sort ─────────────────────────────────────────────────────────────
 const sortKey = ref('')
 const sortDir = ref<'asc' | 'desc'>('asc')
+// Production's header sort (PxColumnSortToggle): click sorts asc, click again flips to desc.
 function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
-const columnSortTypes: Record<string, 'text' | 'number'> = {
-  name: 'text', objective: 'text', employee: 'text',
-  branch: 'text', organization: 'text', jobLevel: 'text', employmentType: 'text', progress: 'number',
-}
 function sortValue(p: IdpPlan, key: string): string | number {
   const t = talentById(p.employeeId)
   if (key === 'name') return p.name
@@ -93,7 +113,7 @@ const totalPages = computed(() => Math.max(1, Math.ceil(totalRows.value / rowsPe
 const showingFrom = computed(() => (totalRows.value === 0 ? 0 : (currentPage.value - 1) * rowsPerPage.value + 1))
 const showingTo = computed(() => Math.min(currentPage.value * rowsPerPage.value, totalRows.value))
 const paged = computed(() => sorted.value.slice(showingFrom.value - 1, showingTo.value))
-watch([search, employee], () => { currentPage.value = 1 })
+watch([search, employee, nestedFilter], () => { currentPage.value = 1 }, { deep: true })
 
 const colCount = computed(() => 5 + optionalColumns.filter(c => visible.value[c.key]).length)
 
@@ -109,7 +129,6 @@ const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
 // (docs/patterns/table.md's "Header (th) styling" rule).
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
-const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 // Trailing action column shrinks to its content instead of stretching and
 // eating whitespace next to the button (docs/patterns/table.md's numeric-cols
 // idiom, reused here for the same reason).
@@ -183,6 +202,8 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
           </MpPopoverContent>
         </MpPopover>
 
+        <DashNestedFilter v-model="nestedFilter" :dimensions="filterDimensions" />
+
         <PxSelectPopover v-model="employee" :options="employeeOptions" placeholder="All employee" :width="'220px'" searchable search-placeholder="Search employee..." is-clearable />
       </MpFlex>
 
@@ -198,15 +219,15 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
         <MpTable :is-hoverable="false">
           <MpTableHead>
             <MpTableRow>
-              <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Development plan</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Objective</span><PxColumnSortMenu col-key="objective" :sort-type="columnSortTypes.objective" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+              <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Development plan" col-key="name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Objective" col-key="objective" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
               <MpTableCell as="th" :class="headCell">Focus</MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Employee</span><PxColumnSortMenu col-key="employee" :sort-type="columnSortTypes.employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell v-if="visible.branch" as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Branch</span><PxColumnSortMenu col-key="branch" :sort-type="columnSortTypes.branch" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell v-if="visible.organization" as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Organization</span><PxColumnSortMenu col-key="organization" :sort-type="columnSortTypes.organization" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell v-if="visible.jobLevel" as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Job level</span><PxColumnSortMenu col-key="jobLevel" :sort-type="columnSortTypes.jobLevel" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell v-if="visible.employmentType" as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Employment status</span><PxColumnSortMenu col-key="employmentType" :sort-type="columnSortTypes.employmentType" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-              <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Progress</span><PxColumnSortMenu col-key="progress" :sort-type="columnSortTypes.progress" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+              <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Employee" col-key="employee" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell v-if="visible.branch" as="th" :class="headCell"><PxColumnSortToggle label="Branch" col-key="branch" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell v-if="visible.organization" as="th" :class="headCell"><PxColumnSortToggle label="Organization" col-key="organization" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell v-if="visible.jobLevel" as="th" :class="headCell"><PxColumnSortToggle label="Job level" col-key="jobLevel" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell v-if="visible.employmentType" as="th" :class="headCell"><PxColumnSortToggle label="Employment status" col-key="employmentType" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+              <MpTableCell as="th" :class="headCell">Progress</MpTableCell>
               <MpTableCell as="th" :class="actionHead" />
             </MpTableRow>
           </MpTableHead>
@@ -287,8 +308,3 @@ const columnPanelLabel = css({ fontSize: '12px', fontWeight: '600', letterSpacin
   </div>
 </template>
 
-<style scoped>
-/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
-   PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
-.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
-</style>

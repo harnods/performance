@@ -31,8 +31,17 @@ const hosts = shallowRef(new Map<string, HTMLElement>())
 //  - default: just after the end of the anchor's last line of text, centred on that line. Measured,
 //    not left to the browser's "static position": in a flex label (every MpFormLabel) that lands at
 //    the container's left edge and covers the first letters of the label.
+//  - table cells (th / td) are the exception: a positioned cell in a border-collapse table paints its
+//    background over its own collapsed border (the header lost its bottom border). So the cell is
+//    left unpositioned and the zero-size host sits at its static spot, right after the cell's text
+//    (a cell is block flow, so the static position is correct there), nudged 4px right / 2px down.
 const PULSE = 16
+const isTableCell = (el: Element) => getComputedStyle(el).display === 'table-cell'
 function placeHost(host: HTMLElement, anchor: Element, corner: boolean) {
+  if (!corner && isTableCell(anchor)) {
+    Object.assign(host.style, { display: 'inline', width: '0', height: '0', top: 'auto', left: 'auto', right: 'auto', marginLeft: '4px', marginTop: '2px', zIndex: 'auto' })
+    return
+  }
   if (corner) {
     Object.assign(host.style, { top: '-8px', right: '-8px', left: 'auto', zIndex: '2' })
     return
@@ -47,7 +56,9 @@ function placeHost(host: HTMLElement, anchor: Element, corner: boolean) {
   }
   const box = anchor.getBoundingClientRect()
   if (!last) { Object.assign(host.style, { top: '-8px', right: '-8px', left: 'auto', zIndex: '2' }); return }
-  const left = Math.min(last.right - box.left + 4, Math.max(0, box.width - PULSE))
+  // Never clamp into the anchor's box: a content-width anchor (a label in a flex row) would push the
+  // dot back over its own last letters. Out of flow, so sitting past the box changes no layout.
+  const left = last.right - box.left + 4
   Object.assign(host.style, { top: `${Math.round(last.top - box.top + (last.height - PULSE) / 2)}px`, left: `${Math.round(left)}px`, right: 'auto', zIndex: 'auto' })
 }
 
@@ -60,11 +71,12 @@ function scan() {
     if (!host) {
       host = document.createElement('span')
       host.dataset.demoCoachmark = def.id
-      if (getComputedStyle(anchor).position === 'static') (anchor as HTMLElement).style.position = 'relative'
+      if (getComputedStyle(anchor).position === 'static' && (def.corner || !isTableCell(anchor))) (anchor as HTMLElement).style.position = 'relative'
       Object.assign(host.style, { position: 'absolute', display: 'block', width: `${PULSE}px`, height: `${PULSE}px`, lineHeight: '0' })
       anchor.appendChild(host)
     }
     placeHost(host, anchor, !!def.corner)
+    sizeObserver?.observe(anchor)
     next.set(def.id, host)
   }
   // Drop hosts left behind on anchors that are still mounted but no longer match.
@@ -80,13 +92,17 @@ function queueScan() {
   frame = requestAnimationFrame(() => { frame = 0; scan() })
 }
 let observer: MutationObserver | undefined
+// An anchor can change size without any DOM mutation (e.g. a label moved into a flex row narrows
+// when a sibling link appears or goes): re-place its pulse when it resizes.
+let sizeObserver: ResizeObserver | undefined
 onMounted(() => {
   observer = new MutationObserver(queueScan)
+  if (typeof ResizeObserver !== 'undefined') sizeObserver = new ResizeObserver(queueScan)
   observer.observe(document.body, { childList: true, subtree: true })
   window.addEventListener('resize', queueScan) // text may re-wrap, moving where a line ends
   queueScan()
 })
-onBeforeUnmount(() => { observer?.disconnect(); window.removeEventListener('resize', queueScan); cancelAnimationFrame(frame) })
+onBeforeUnmount(() => { observer?.disconnect(); sizeObserver?.disconnect(); window.removeEventListener('resize', queueScan); cancelAnimationFrame(frame) })
 watch(() => route.fullPath, queueScan)
 
 const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) as CoachmarkDef[])

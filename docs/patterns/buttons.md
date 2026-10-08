@@ -94,8 +94,8 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 ## Rules
 
 - Cancel/dismiss = ghost, always. Primary = rightmost.
-- Edit forms say "Save changes"; create forms say "Save".
-- Never disable the primary submit — validate + toast instead. **Exception:** the IDP Add / Edit action plan drawer (`IdpActionPlanModal.vue`) shows the inline field errors only, with **no** error toast, on an invalid Save.
+- Edit forms say "Save changes"; create forms say "Save". A drawer that **adds an item into a list on the page** (not saved on its own) says "Add" on create and "Save changes" on edit (IDP Add / Edit action plan drawer, `IdpActionPlanModal.vue`); per the copy library, Add = include into an existing context.
+- Never disable the primary submit — validate + toast instead. **Exceptions:** the IDP Add / Edit action plan drawer (`IdpActionPlanModal.vue`) and the competency item Create / Edit modal (`components/competency-item/ModalForm.vue`, matching production) show the inline field errors only, with **no** error toast, on an invalid save. The competency item modal's rating-table header edit icons are 20px ghost icon buttons (`size="sm"` capped to 20px with no padding, like production's `mp-button-icon size="sm" p="0"`), so the header row is as short as the body row.
 - Secondary = black border + black text on neutral.
 - A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action. Exception: a dropdown "Add X ▾" gets only `right-icon="chevrons-down"`.
 
