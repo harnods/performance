@@ -26,6 +26,42 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '08 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 1',
+        detail: 'The selected-employee list\'s load link now says how many it loads: "Load 10 more" while more than 10 are left, otherwise just the remaining ones (e.g. "Load 6 more"), with no trailing period. The Select employees drawer on this page now shows at most 10 employees per list (Employees and Selected employees), then "Load N more" (opt-in paginated prop; other pages that use the drawer are unchanged).',
+        files: ['components/StepImportPage.vue', 'components/SelectEmployeesDrawer.vue', 'components/demo/coachmarks.ts', 'docs/patterns/pagination.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Import hand-off',
+        detail: 'The "Import started" toast now lasts 3 seconds instead of Pixel\'s 5s default, so it no longer lingers until the (mocked) import finishes. The header activity monitor now really opens by itself on the Import tab after Import (the click on its trigger never fired because the template ref was always null).',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 2',
+        detail: 'The dropzone hint now reads ".xlsx only with max size 10mb", and the size limit is 10 MB instead of 5 MB (the "File size is over 10 MB" error follows). Coachmark added on the hint; the Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard.',
+        files: ['components/StepImportPage.vue', 'components/demo/coachmarks.ts', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'Internal tools',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'The IDP list Import button\'s coachmark now overlaps the button\'s top-right corner (corner: true) instead of sitting inline, so the button no longer grows. The Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard, and a new coachmark marks the dropzone hint.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '07 Oct 2026',
     module: 'Roles',
     items: [

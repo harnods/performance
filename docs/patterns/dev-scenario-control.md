@@ -137,8 +137,8 @@ talenta-review copies nothing demo-related.
 - `components/demo/DemoLayer.vue` is mounted **once in `app.vue`**. It
   filters the registry by route, watches the DOM (MutationObserver, one scan
   per frame, so tables, drawers and modals that mount later get their
-  pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
-  and teleports a `DevCoachmark` into it. It also renders the module's dev
+  pulses), appends an **absolutely positioned** host `<span data-demo-coachmark>`
+  inside each anchor, and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
   `/reviews/review-cycles`, `RolesFormDevTools` on Add / Edit role (always, since
   it also holds the Version switch), `IdpListDevTools` on the IDP list,
@@ -168,6 +168,8 @@ talenta-review copies nothing demo-related.
   entry instead: the host is absolutely positioned at the anchor's top-right
   corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
   static, so layout is untouched.
+  Use `corner: true` for anchors that are a box of their own (buttons such as the IDP
+  list Import button, input fields); everything else gets the default after-text spot.
 
 ### Look and behaviour
 
@@ -204,8 +206,9 @@ Current IDP coachmarks:
 | Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
-| IDP list | Import button | New; always shown in the page header |
-| Import page | "Download the data template" step | New stepped import page |
+| IDP list | Import button (`corner: true`) | New; always shown in the page header |
+| Import page | "Download the IDP template" step | New two-step import wizard |
+| Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb"; the limit is 10 MB (was 5 MB) |
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 

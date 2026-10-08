@@ -25,7 +25,7 @@ const props = withDefaults(defineProps<{
   submitText?: string
 }>(), {
   intro: 'Follow these steps to import IDPs.',
-  maxMb: 5,
+  maxMb: 10,
   submitText: 'Import',
 })
 
@@ -55,7 +55,7 @@ const GENERATE_MS = 2000
 const isGenerating = ref(false)
 // The dev tools' "Loading state" scenario keeps step 2 on the loader.
 const showLoader = computed(() => isGenerating.value || (step.value === 2 && importScenario.value === 'loading'))
-const fileTypeHint = computed(() => `File must be in XLSX format with a maximum of ${props.maxMb} MB`)
+const fileTypeHint = computed(() => `.xlsx only with max size ${props.maxMb}mb`)
 function goNext() {
   nextAttempted.value = true
   if (!selectedIds.value.length) return
@@ -78,7 +78,8 @@ const filteredEmployees = computed(() => {
 })
 const visibleEmployees = computed(() => filteredEmployees.value.slice(0, visibleCount.value))
 const remaining = computed(() => Math.max(0, filteredEmployees.value.length - visibleCount.value))
-function loadMore() { visibleCount.value += PAGE }
+// 10 at a time; when fewer than 10 are left, loads just the remaining ones.
+function loadMore() { visibleCount.value += Math.min(PAGE, remaining.value) }
 // Dev tools can force an error state on the dropzone (docs/patterns/dev-scenario-control.md).
 const { importError, importScenario, importStep } = useIdpImportFlag()
 watch(step, (n) => { importStep.value = n }, { immediate: true })
@@ -145,7 +146,7 @@ async function submit() {
   }
   const name = fileName.value
   const ids = [...selectedIds.value]
-  toast.notify({ id: 'import-started', position: 'top-center', variant: 'success', title: 'Import started', description: 'Track the progress in the Import tab.' })
+  toast.notify({ id: 'import-started', position: 'top-center', variant: 'success', duration: 3000, title: 'Import started', description: 'Track the progress in the Import tab.' })
   await router.push(props.redirectUrl)
   // Hand off to the header activity monitor (docs/patterns/upload.md) AFTER the page change: it opens on the Import tab and
   // shows the job progressing. Opening it mid-navigation fails (the popover anchors to a header that is re-rendering).
@@ -284,7 +285,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
             </div>
             <MpFlex v-if="filteredEmployees.length" align="center" gap="1" :class="loadMoreBar">
               <MpText size="label" :class="captionText">Showing {{ visibleEmployees.length }} of {{ filteredEmployees.length }} employees.</MpText>
-              <MpTextlink v-if="remaining > 0" as="button" size="label" @click="loadMore">Load more</MpTextlink>
+              <MpTextlink v-if="remaining > 0" as="button" size="label" @click="loadMore">Load {{ Math.min(PAGE, remaining) }} more</MpTextlink>
             </MpFlex>
           </div>
 
@@ -306,6 +307,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
       <SelectEmployeesDrawer
         v-model:is-open="drawerOpen"
         drawer-id="drawer-import-employees"
+        paginated
         title="Select employees"
         description="Select the employees you want to import IDPs for."
         confirm-label="Save"

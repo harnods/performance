@@ -68,7 +68,7 @@ Seen in
 `pages/goals/goal-cycles/[id]/index.vue` (owner rows), `components/ReviewerModals.vue`
 (`loadMoreAdd`), `components/AddGoalDrawer.vue`'s "Goal members" box
 (`components/AddGoalDrawer.vue:558-561` for the logic, `:1215-1240` for the markup), and
-`components/StepImportPage.vue`'s selected-employee list (IDP import step 1, caption "Showing 10 of 26 employees." + link "Load more", plus a search field once there are more than 10), and
+`components/StepImportPage.vue`'s selected-employee list (IDP import step 1, caption "Showing 10 of 26 employees." + link "Load 10 more" (no trailing period here; then "Load 6 more" for the last 6), plus a search field once there are more than 10; its picker drawer `components/SelectEmployeesDrawer.vue` does the same in both columns when the caller passes `paginated`), and
 `components/PxFilterScope.vue`'s checkbox list inside the "All filters" drawer — opt in per
 scope with a `paginated` prop (only the Goal owner scope sets it; every attribute-value scope
 stays a plain unpaginated list since those are always short) and re-derive the "Showing X of Y
@@ -97,7 +97,7 @@ function loadMore() { visibleCount.value += PAGE }
   the append-only counterpart of `currentPage = 1`.
 - The bar disappears once everything is revealed (`v-if="remaining > 0"`); it never
   renders as a disabled "Load 0 more". Exception: `StepImportPage.vue`'s employee list keeps the
-  "Showing X of Y employees." caption always and hides only the "Load more" link.
+  "Showing X of Y employees." caption always and hides only the "Load N more" link (no trailing period on this list or its picker drawer, unlike the other lists). The link always names how many it loads: `Math.min(PAGE, remaining)`, so 10 while more than 10 are left, otherwise just the remainder.
 
 ### In a table: append into a height-capped scroll region
 

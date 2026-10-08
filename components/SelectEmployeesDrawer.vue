@@ -33,6 +33,7 @@ import {
   MpBanner,
   MpBannerIcon,
   MpBannerDescription,
+  MpTextlink,
   css,
 } from '@mekari/pixel3'
 import { EMPLOYEES, employeeMeta } from '~/utils/employees'
@@ -53,6 +54,9 @@ const props = defineProps<{
    * Continue) instead of waiting for Continue — see useBulkOwnerGate's
    * MANUAL_CREATE_OWNER_LIMIT for the "New goals" case this exists for. */
   maxSelectable?: number
+  /** Show at most PAGE employees per list, then "Load N more" (append-only,
+   * docs/patterns/pagination.md). Off by default so other callers still list everyone. */
+  paginated?: boolean
 }>()
 const emit = defineEmits<{
   'update:isOpen': [boolean]
@@ -67,6 +71,10 @@ const included = computed(() => (props.includeIds ? new Set(props.includeIds) : 
 const resolvedExcludeNote = computed(() => props.excludeNote
   ?? `The goal owner${(props.excludeIds?.length ?? 0) > 1 ? 's' : ''} won't appear in the list below. They can't be their own contributor or viewer.`)
 
+// Progressive "Load more": 10 at a time; the last load brings just the remainder.
+const PAGE = 10
+const availableVisible = ref(PAGE)
+const selectedVisible = ref(PAGE)
 const selectedIds = ref<string[]>([])
 const availableSearch = ref('')
 const selectedSearch = ref('')
@@ -78,9 +86,13 @@ watch(() => props.isOpen, (open) => {
     availableSearch.value = ''
     selectedSearch.value = ''
     hasSelectionError.value = false
+    availableVisible.value = PAGE
+    selectedVisible.value = PAGE
   }
 })
 watch(selectedIds, () => { hasSelectionError.value = false })
+watch(availableSearch, () => { availableVisible.value = PAGE })
+watch(selectedSearch, () => { selectedVisible.value = PAGE })
 
 function matches(name: string, code: string, q: string) {
   const query = q.trim().toLowerCase()
@@ -98,6 +110,13 @@ const selectedEmployees = computed(() =>
     .filter((e): e is typeof EMPLOYEES[number] => Boolean(e))
     .filter(e => matches(e.name, e.code, selectedSearch.value)),
 )
+
+const shownAvailable = computed(() => props.paginated ? availableEmployees.value.slice(0, availableVisible.value) : availableEmployees.value)
+const shownSelected = computed(() => props.paginated ? selectedEmployees.value.slice(0, selectedVisible.value) : selectedEmployees.value)
+const availableRemaining = computed(() => Math.max(0, availableEmployees.value.length - shownAvailable.value.length))
+const selectedRemaining = computed(() => Math.max(0, selectedEmployees.value.length - shownSelected.value.length))
+function loadMoreAvailable() { availableVisible.value += Math.min(PAGE, availableRemaining.value) }
+function loadMoreSelected() { selectedVisible.value += Math.min(PAGE, selectedRemaining.value) }
 
 // Block the moment a user pick crosses the limit — don't wait for
 // "Continue" — so picking a second employee immediately hands off to the
@@ -187,6 +206,8 @@ const employeeName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.de
 const employeeMetaText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const addEmployeeIcon = css({ color: 'icon.brand', flexShrink: '0', marginLeft: 'auto' })
 const removeBtn = css({ background: 'transparent', border: 'none', padding: '2', cursor: 'pointer', color: 'icon.secondary', display: 'flex', flexShrink: '0' })
+const loadMoreBar = css({ display: 'flex', alignItems: 'center', gap: '1', paddingBlock: '3', paddingInline: '2', flexShrink: '0' })
+const loadMoreCaption = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary', paddingBlock: '4', textAlign: 'center' })
 </script>
 
@@ -220,7 +241,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                 </div>
                 <div :class="listScroll">
                   <button
-                    v-for="e in availableEmployees"
+                    v-for="e in shownAvailable"
                     :key="e.id"
                     type="button"
                     :class="employeeRowClickable"
@@ -234,6 +255,10 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                     <MpIcon name="add" size="sm" class="add-employee-icon" :class="addEmployeeIcon" />
                   </button>
                   <p v-if="!availableEmployees.length" :class="emptyText">No employees found</p>
+                  <div v-else-if="paginated && availableRemaining > 0" :class="loadMoreBar">
+                    <MpText size="label" :class="loadMoreCaption">Showing {{ shownAvailable.length }} of {{ availableEmployees.length }} employees.</MpText>
+                    <MpTextlink as="button" size="label" @click="loadMoreAvailable">Load {{ Math.min(PAGE, availableRemaining) }} more</MpTextlink>
+                  </div>
                 </div>
               </div>
             </div>
@@ -253,7 +278,7 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                   <button type="button" :class="listAction" @click="clearSelection">Clear selection</button>
                 </div>
                 <div :class="listScroll">
-                  <MpFlex v-for="e in selectedEmployees" :key="e.id" :class="employeeRow">
+                  <MpFlex v-for="e in shownSelected" :key="e.id" :class="employeeRow">
                     <PxAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
                     <MpFlex direction="column" gap="0" :class="css({ flex: '1' })">
                       <span :class="employeeName">{{ e.name }}</span>
@@ -264,6 +289,10 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                     </button>
                   </MpFlex>
                   <p v-if="!selectedIds.length" :class="emptyText">No employees selected yet</p>
+                  <div v-else-if="paginated && selectedRemaining > 0" :class="loadMoreBar">
+                    <MpText size="label" :class="loadMoreCaption">Showing {{ shownSelected.length }} of {{ selectedEmployees.length }} employees.</MpText>
+                    <MpTextlink as="button" size="label" @click="loadMoreSelected">Load {{ Math.min(PAGE, selectedRemaining) }} more</MpTextlink>
+                  </div>
                 </div>
               </div>
             </div>
