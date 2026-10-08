@@ -16,9 +16,10 @@ export interface CoachmarkDef {
   title: string
   description: string
   placement?: 'top' | 'bottom' | 'left' | 'right' | 'top-start' | 'bottom-start' | 'right-start'
-  /** Pin the pulse to the anchor's top-right corner (absolutely positioned) instead
-   *  of appending it inline — for anchors inside a flex layout, where an extra
-   *  inline child would take a gap slot and shift its siblings. */
+  /** Pin the pulse over the anchor's top-right corner instead of just after its
+   *  last text. Use it for anchors that are a box of their own (buttons, fields).
+   *  Either way the pulse is absolutely positioned: it never changes the size or
+   *  layout of the element it marks. */
   corner?: boolean
 }
 
@@ -128,6 +129,7 @@ export const COACHMARKS: CoachmarkDef[] = [
     id: 'idp-list-import-button',
     route: IDP_LIST,
     find: () => byText(document.getElementById('page-header-actions'), 'button, span, p', 'Import'),
+    corner: true,
     title: 'Import button',
     description: 'New: a secondary Import button in the page header opens the import page, where a spreadsheet of IDPs is uploaded. Production has no Import. Turn it on or off from the dev tools.',
     placement: 'bottom-end',
@@ -135,10 +137,18 @@ export const COACHMARKS: CoachmarkDef[] = [
   {
     id: 'idp-import-steps',
     route: IDP_IMPORT,
-    find: () => byText(document, 'p, span, div', 'Download the data template'),
+    find: () => byText(document, 'p, span, div', 'Download the IDP template'),
     title: 'Import page',
-    description: 'New page: three steps (download the template, fill it in, upload the .xlsx) like the production import pages, but stepped. Download and upload are mocked. A file named "error" shows the row-error banner.',
+    description: 'New page: a two-step wizard. Step 1 picks the employees to import IDPs for; step 2 has the numbered instructions (download the template, fill it in, upload the .xlsx). Download and upload are mocked. A file named "error" shows the row-error banner.',
     placement: 'right-start',
+  },
+  {
+    id: 'idp-import-dropzone-hint',
+    route: IDP_IMPORT,
+    find: () => [...document.querySelectorAll('span')].find(el => ownText(el) === '.xlsx only with max size 10mb') ?? null,
+    title: 'Dropzone description',
+    description: 'Changed: the hint now reads ".xlsx only with max size 10mb", and the limit really is 10 MB (it was 5 MB). A larger file shows "File size is over 10 MB. Please upload a smaller file".',
+    placement: 'bottom-start',
   },
   {
     id: 'eval-filter-multiple',

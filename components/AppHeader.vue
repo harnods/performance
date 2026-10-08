@@ -30,10 +30,11 @@ const currentMonitorList = computed(() => (activeMonitorTab.value === 'import' ?
 // When a job requests it (Process upload → Import, Request template → Download),
 // pop the monitor open on the matching tab by clicking its (uncontrolled)
 // trigger, so the user sees progress and can grab the finished file.
-const monitorTriggerBtn = ref<HTMLButtonElement | null>(null)
+// Looked up by its aria-label, not a template ref: MpPopoverTrigger re-creates its slot child, so a
+// `ref` on the button stays null and the monitor never opened.
 watch(openSignal, () => {
   activeMonitorTab.value = requestedTab.value
-  nextTick(() => monitorTriggerBtn.value?.click())
+  nextTick(() => document.querySelector<HTMLButtonElement>('button[aria-label="Activity monitor"]')?.click())
 })
 function downloadFromMonitor(fileName: string) {
   toast.notify({ id: 'monitor-download', position: 'top-center', variant: 'success', title: 'Template downloaded' })
@@ -257,7 +258,7 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
       <!-- Activity monitor — background Import / Download jobs -->
       <MpPopover placement="bottom-end" trigger="click" use-portal>
         <MpPopoverTrigger>
-          <button ref="monitorTriggerBtn" type="button" :class="monitorTrigger" aria-label="Activity monitor">
+          <button type="button" :class="monitorTrigger" aria-label="Activity monitor">
             <span :class="{ 'monitor-icon-spin': activeCount > 0 }" :style="{ display: 'inline-flex' }">
               <MpIcon name="refresh" :size="20" />
             </span>

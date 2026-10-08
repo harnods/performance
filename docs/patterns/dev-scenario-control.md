@@ -136,8 +136,8 @@ talenta-review copies nothing demo-related.
 - `components/demo/DemoLayer.vue` is mounted **once in `app.vue`**. It
   filters the registry by route, watches the DOM (MutationObserver, one scan
   per frame, so tables, drawers and modals that mount later get their
-  pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
-  and teleports a `DevCoachmark` into it. It also renders the module's dev
+  pulses), appends an **absolutely positioned** host `<span data-demo-coachmark>`
+  inside each anchor, and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
   `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
   `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
@@ -153,12 +153,18 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
-- **Never append a pulse inline inside a flex/grid row.** It becomes an extra
-  item that takes a gap slot and shifts its siblings (it pushed the filter row's
-  remove button out and widened the "and" divider). Set `corner: true` on the
-  entry instead: the host is absolutely positioned at the anchor's top-right
-  corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
-  static, so layout is untouched.
+- **A coachmark never changes the size or layout of what it marks.** The host is
+  always out of flow (`position: absolute`; the anchor gets `position: relative`
+  if it's static), so there's nothing to widen a button, push a flex/grid sibling
+  or add a gap slot (an inline pulse once pushed the filter row's remove button
+  out, and grew the Import button). Two placements:
+  - **Default**: just outside the anchor's last text, vertically centred (labels,
+    column headers, titles, captions, hints). Measured from the text, so a
+    full-width block still puts the pulse next to its words.
+  - **`corner: true`**: overlaps the anchor's top-right corner (`top/right: -8px`).
+    Use it for anything that is a box of its own: buttons, input fields.
+  Verify with `host.style.display = 'none'` and compare the anchor's
+  `getBoundingClientRect()`: it must not change.
 
 ### Look and behaviour
 
@@ -195,8 +201,9 @@ Current IDP coachmarks:
 | Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
-| IDP list | Import button | New; always shown in the page header |
-| Import page | "Download the data template" step | New stepped import page |
+| IDP list | Import button (`corner: true`) | New; always shown in the page header |
+| Import page | "Download the IDP template" step | New two-step import wizard |
+| Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb"; the limit is 10 MB (was 5 MB) |
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
