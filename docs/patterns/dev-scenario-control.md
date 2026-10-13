@@ -21,6 +21,7 @@ These exist today:
 | `components/demo/RolesFormDevTools.vue` (Settings → Manage users → Roles → Add / Edit role, via `DemoLayer`) | The page's **only** dev control, **bottom-left**. **Scenario** group (`MpRadio`): **Version 1 (Default)** (Module + Permission list) vs **Version 2 — Action columns** (full-width module tree, View / Create / Edit / Delete columns — see `table.md` › Permission tree table), state in `useManageUserStore().rolesFormVersion`; then the **Coachmarks** group. Replaces the old `RolesFormScenarioControl` + separate coachmark FAB. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 | `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
+| `components/demo/TemplateDevTools.vue` (Settings → Templates builder, via `DemoLayer`) | **Small 32px** round `sliders` button, fixed **bottom-left** (`left/bottom: 16px`) at `zIndex: 1450`, so it sits above the full-size builder modal (Pixel's modal layer is 1400) and under its popovers (1500). **Coachmarks** group only. Shown only while a template coachmark is mounted (the builder is open on a rating, percentage or point template); `DemoLayer` never falls back to `IdpDevTools` on this route. |
 
 ## The FAB is fixed — copy it exactly
 
@@ -262,6 +263,16 @@ Current role form coachmarks (Settings → Manage users → Roles → Add / Edit
 
 Each anchor is found by `roleLabel(v2Key, text)`: inside Version 2's `roles-v2-row-<key>` row when it's on screen, else the first exact-text `span` / `p` in Version 1's table body.
 
+Current template builder coachmarks (Settings → Templates → Add / View and edit template):
+
+| When | Anchor | What it explains |
+|---|---|---|
+| Rating, percentage or point type | "Legend label" field label | New: rename the "Legends" heading, pick or type a label, "Set as default" for new templates |
+| Percentage type | First legend row's "from" field (`MpInputGroup` with the `%` addon), `corner: true` | New: `%` addon on legend ranges, slightly wider fields |
+
+The list page mounts a hidden second `TemplateForm` (duplicate flow), so both anchors
+use `visible()` in `coachmarks.ts` to pick the element that is on screen.
+
 ## Rules
 
 - **One dev-tools FAB per page, bottom-left.** A page's scenario switches and its
@@ -280,3 +291,6 @@ Each anchor is found by `roleLabel(v2Key, text)`: inside Version 2's `roles-v2-r
 - Inside a drawer/modal (which covers the page's FAB corner), use a 32px round
   `background.inverse` `sliders` button in the header, left of the X
   (`absolute`, `right: 56px`), with a `bottom-end` popover. Same dev-only rule.
+- **Full-size modal exception** (`TemplateDevTools`): when the modal header is already
+  full of actions, keep the 32px button but pin it **bottom-left** (`fixed`, `16px`,
+  `zIndex: 1450`, above the modal's 1400) with a `top-start` popover.

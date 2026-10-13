@@ -59,6 +59,12 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'The clear (x) icon in the Legend label field is now filled instead of outlined.',
         files: ['components/PxSelectPopover.vue', 'docs/patterns/builder-modal.md', 'docs/patterns/form.md'],
       },
+      {
+        category: 'Chore',
+        area: 'Templates · Dev tools and coachmarks',
+        detail: 'Template builder gets coachmarks on the Legend label field and the % legend ranges, plus a small bottom-left dev tools button (above the modal) to show, hide or reset them.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/TemplateDevTools.vue', 'components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
     ],
   },
   {

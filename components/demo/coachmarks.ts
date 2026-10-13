@@ -55,7 +55,32 @@ const ROLE_FORM = /^\/settings\/manage-users\/roles\/(add|edit\/[^/]+)\/?$/
 const roleLabel = (v2Key: string, text: string) =>
   byText(document.querySelector(`[data-qa="roles-v2-row-${v2Key}"]`) ?? document.querySelector('form tbody'), 'span, p', text)
 
+// ─── Settings: Templates → builder (full-size modal) ─────────────────────────
+const TEMPLATES = /^\/settings\/templates\/?$/
+// The list page mounts a hidden second TemplateForm (duplicate flow): only mark the visible one.
+function visible(els: Iterable<Element>, match: (el: Element) => boolean = () => true): Element | null {
+  return [...els].find(el => (el as HTMLElement).offsetParent !== null && match(el)) ?? null
+}
+
 export const COACHMARKS: CoachmarkDef[] = [
+  {
+    id: 'template-legend-label',
+    route: TEMPLATES,
+    find: () => visible(document.querySelectorAll('label[id$="-template-legend-name-label"]')),
+    title: 'Legend label',
+    description: 'New: rename the "Legends" heading for this template. Pick a saved label or type a new one. "Set as default" makes it the starting label for every template you create. The label shows in the builder and the preview. Production always shows "Legends".',
+    placement: 'left',
+  },
+  {
+    id: 'template-legend-percent',
+    route: TEMPLATES,
+    // The first legend row's "from" field, pinned to its corner; only percentage templates have the % addon.
+    find: () => visible(document.querySelectorAll('[data-qa="view-settings-template-legend-0"] [data-pixel-component="MpInputGroup"]'), g => g.textContent?.includes('%') ?? false),
+    corner: true,
+    title: 'Percent sign on legend ranges',
+    description: 'New: for percentage templates, each legend range field shows a % sign, so it is clear the range is a percentage. The fields are slightly wider to fit it. Production shows plain numbers.',
+    placement: 'bottom-start',
+  },
   {
     id: 'idp-form-informal-education',
     route: FORM,
