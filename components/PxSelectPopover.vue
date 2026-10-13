@@ -48,6 +48,11 @@ const props = defineProps<{
   // Character cap for the `searchOnField` input, so a free-text field can carry
   // the same limit its character counter advertises.
   maxlength?: number
+  // Keep the current text when the field is focused (instead of clearing it to
+  // start a fresh search) and swap the chevron for an (x) while focused. The (x)
+  // empties the value and leaves the field focused so typing starts right away.
+  // Search only filters once the user has typed. See docs/patterns/form.md.
+  keepTextOnFocus?: boolean
 }>()
 
 const emit = defineEmits<{ (e: 'update:modelValue', v: string): void }>()
@@ -117,11 +122,20 @@ const fieldText = ref(selectedLabel.value)
 const isEditingField = ref(false)
 // Did the user type during this focus? Only then may an emptied field clear.
 const hasTyped = ref(false)
-watch(selectedLabel, (label) => { if (!isEditingField.value) fieldText.value = label })
+watch(selectedLabel, (label) => {
+  if (!isEditingField.value || (props.keepTextOnFocus && !hasTyped.value)) fieldText.value = label
+})
 function onFieldFocus() {
   isEditingField.value = true
   hasTyped.value = false
+  if (!props.keepTextOnFocus) fieldText.value = ''
+}
+// keepTextOnFocus: the (x). Empties the value; mousedown is prevented so the
+// input keeps focus, click is stopped so the popover trigger doesn't toggle.
+function onFieldClear() {
   fieldText.value = ''
+  hasTyped.value = true
+  emit('update:modelValue', '')
 }
 function onFieldBlur() {
   isEditingField.value = false
@@ -149,7 +163,9 @@ function onFieldClick(e: MouseEvent) {
   if (wasAlreadyFocused) e.stopPropagation()
 }
 
-const activeSearchTerm = computed(() => (onField.value && isEditingField.value ? fieldText.value.trim() : ''))
+const activeSearchTerm = computed(() =>
+  onField.value && isEditingField.value && (!props.keepTextOnFocus || hasTyped.value) ? fieldText.value.trim() : '',
+)
 const filteredOptions = computed(() =>
   !activeSearchTerm.value
     ? props.options
@@ -195,6 +211,7 @@ const itemCaption = css({ color: 'text.secondary' })
 const itemRow = css({ display: 'flex', alignItems: 'center', justifyContent: 'space-between', width: '100%', gap: '3' })
 
 function set(v: string) {
+  if (props.keepTextOnFocus) hasTyped.value = false
   emit('update:modelValue', v)
   fieldText.value = props.options.find(o => o.value === v)?.label ?? v
 }
@@ -224,6 +241,7 @@ const createText = css({ width: '100%', textAlign: 'center', color: 'text.link' 
 // search trigger) — clicking it opens the popover exactly like clicking the
 // old disabled select did, no extra wiring needed for that part.
 const fieldGroupClass = css({ cursor: 'text' })
+const clearBtn = css({ display: 'inline-flex', cursor: 'pointer' })
 </script>
 
 <template>
@@ -244,7 +262,12 @@ const fieldGroupClass = css({ cursor: 'text' })
               @mousedown="onFieldMouseDown"
               @click="onFieldClick"
             />
-            <MpInputRightAddon><MpIcon name="chevrons-down" /></MpInputRightAddon>
+            <MpInputRightAddon>
+              <span v-if="keepTextOnFocus && isEditingField && fieldText" :class="clearBtn" role="button" aria-label="Clear" @mousedown.prevent @click.stop="onFieldClear">
+                <MpIcon name="error" />
+              </span>
+              <MpIcon v-else name="chevrons-down" />
+            </MpInputRightAddon>
           </MpInputGroup>
         </MpFlex>
         <MpFlex v-else :class="isDisabled ? undefined : fieldClass">

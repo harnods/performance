@@ -26,6 +26,30 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '13 Oct 2026',
+    module: 'Settings',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Templates · list + builder',
+        detail: 'Migrated review templates from talenta-review (commit 010875214aba) as a static prototype on Pixel 3: list (search, Default badge, usage-cycle modal, status toggle, View and edit / Duplicate / Delete), full-size builder (categories + indicators with drag to reorder, weights, overall ratings, layered scoring, points, legends with MpColorPicker, free-text / negative indicators, score for goal only), preview, template library presets and the preset feedback modal. Mock data in utils/reviewTemplate.ts, shaped on talenta-noncore-api getTemplateDetail.',
+        files: ['pages/settings/templates.vue', 'components/template/*', 'components/cycle/RatingList.vue', 'components/cycle/PointList.vue', 'components/cycle/InputRatingPercent.vue', 'components/pending-action/ReviewFormBlock.vue', 'components/pending-action/SummaryFooter.vue', 'components/form/Ratings.vue', 'components/form/Points.vue', 'components/form/SliderBar.vue', 'components/LegendList.vue', 'composables/useReviewTemplateStore.ts', 'utils/reviewTemplate.ts', 'docs/patterns/builder-modal.md', 'docs/patterns/modal.md', 'docs/patterns/form.md', 'docs/patterns/page-form.md', 'docs/README.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Templates · Legend label',
+        detail: 'Rating / percentage / point templates get a "Legend label" select (default "Legends"): type a custom label or pick a saved one (remove button per saved label, "Default" badge). "Set as default" ("Applies to every template you create") makes it the starting label for new templates and is hidden when the selected label already is the default. Clicking the field keeps the label and swaps the chevron for an (x) to clear it; saving with no label shows "You must select legend label". Percentage legends get a % addon. PxSelectPopover gains keepTextOnFocus.',
+        files: ['components/template/TemplateForm.vue', 'components/LegendList.vue', 'components/template/LegendListForm.vue', 'components/PxSelectPopover.vue', 'composables/useReviewTemplateStore.ts', 'docs/patterns/builder-modal.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Templates · Builder layout and save feedback',
+        detail: 'Builder panes stack below 768px (was 1024px) instead of looking like mobile on narrower desktop windows. Saving with empty required fields shows inline errors only, no "Please check the form\'s error" toast.',
+        files: ['components/template/TemplateForm.vue', 'components/template/ModalForm.vue', 'docs/patterns/builder-modal.md'],
+      },
+    ],
+  },
+  {
     date: '05 Oct 2026',
     module: 'IDPs',
     items: [

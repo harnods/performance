@@ -73,6 +73,18 @@ Reference: [`pages/reviews/review-cycles/[id]/index.vue`](../../pages/reviews/re
 `removeEmployeeModalOpen` confirm modal in the same file and the `dangerText` popover
 item in [`components/GoalBulkActionsMenu.vue`](../../components/GoalBulkActionsMenu.vue).
 
+## Stacking modals — mount them as siblings
+
+A modal opened **inside another modal's content** crashes in this Pixel build
+(`element.getBoundingClientRect is not a function`, see
+[`avatar.md`](avatar.md)). Two or three modals open at once **do** work when
+they're mounted as **siblings** by the same component: the builder `MpModal`
+plus its preview, template-library list, preset detail and confirmations all sit
+side by side in `components/template/ModalForm.vue`, and open on top of each
+other fine. If a child component inside the modal owns the sub-modal in
+production (`TemplateForm` → `ModalPreview`), lift the mount to the modal's
+parent component and pass the data out (`defineExpose`).
+
 ## Reusing a gate modal across multiple entry points
 
 If several pages share the same "select something → continue" flow and the same
