@@ -11,7 +11,7 @@ import { MpFlex, MpIcon, MpToggle, MpRadio, MpTextlink, MpPopover, MpPopoverTrig
 import { useDevCoachmarks } from './useDevCoachmarks'
 
 const { isEnabled, hiddenCount, reset } = useDevCoachmarks()
-const { importError } = useIdpImportFlag()
+const { importError, importScenario, importStep } = useIdpImportFlag()
 const isImportPage = computed(() => /^\/talents\/idps\/import\/?$/.test(useRoute().path))
 
 // ─── Styles: FAB copied from the goals scenario control, mirrored to the left ─
@@ -43,7 +43,12 @@ const hint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary'
       <MpPopoverContent>
         <div :class="panel">
           <span :class="panelTitle">Dev tools</span>
-          <div v-if="isImportPage" :class="group">
+          <div v-if="isImportPage && importStep === 2" :class="group">
+            <span :class="groupLabel">Scenario</span>
+            <MpRadio name="dev-import-scenario" value="default" :is-checked="importScenario === 'default'" @update:is-checked="importScenario = 'default'">Default</MpRadio>
+            <MpRadio name="dev-import-scenario" value="loading" :is-checked="importScenario === 'loading'" @update:is-checked="importScenario = 'loading'">Loading state</MpRadio>
+          </div>
+          <div v-if="isImportPage && importStep === 2" :class="group">
             <span :class="groupLabel">Error states</span>
             <MpRadio name="dev-import-error" value="none" :is-checked="importError === 'none'" @update:is-checked="importError = 'none'">None (default)</MpRadio>
             <MpRadio name="dev-import-error" value="too-large" :is-checked="importError === 'too-large'" @update:is-checked="importError = 'too-large'">File is too large</MpRadio>

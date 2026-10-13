@@ -22,7 +22,7 @@ e.g. an 816px table needs `xl`, not `lg` + a width hack.
 
 When is a create/edit a full page, a drawer, or a modal? Established split:
 
-- **Full page** (`pages/.../create.vue`, default layout + breadcrumb + page title): top-level create/edit of a **primary entity** — Review cycle, Competency assignment, Succession plan. Uses `definePageMeta({ title, layout: 'default', breadcrumb })`, the 12-col grid ([`form.md`](form.md)), and an in-form footer bar for the primary CTA.
+- **Full page** (`pages/.../create.vue`, default layout + breadcrumb + page title): top-level create/edit of a **primary entity** — Review cycle, Competency assignment, Succession plan. An edit page can share the create page's form as a component (Evaluation cycle: `EvaluationCycleForm` with `mode="edit"`, `pages/reviews/review-cycles/[id]/edit.vue`) and lock fields that can't change after creation, see [`form.md`](form.md#edit-prd-d4-read-only). Uses `definePageMeta({ title, layout: 'default', breadcrumb })`, the 12-col grid ([`form.md`](form.md)), and an in-form footer bar for the primary CTA.
 - **Drawer** (`MpDrawer placement="right"`): a **nested/secondary** editor invoked from within a page — one review method, a goal, a goal category, employee picker. Opened **only via a "Manage" / "Select…" secondary button**, never automatically on a toggle.
 - **Read-only detail drawer**: a right `MpDrawer` (`size="md"`, header + close
   button, no footer) that shows details about something a record refers to.

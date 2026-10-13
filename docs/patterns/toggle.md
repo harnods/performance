@@ -39,3 +39,9 @@ off), rather than one static sentence that only makes sense in one state.
 
 Reference: `components/AddGoalDrawer.vue` (`owner-can-update-progress` toggle —
 `ownerCanUpdateProgressHint` / `ownerCanUpdateProgressActivateHint`).
+
+## "Same scope as … module setting" (role form)
+
+On Add / Edit role, the Review results / 9-box matrix / Dashboard "Same scope as review cycle module setting" toggle (each with its own state) (and the Version 2 tree's equivalents) is **on by default**. While on, a `#description` caption says what is included: Version 1 lists the current inherited scope ("Performance, Evaluation (Contract, Probation)"); Version 2 lists the parts of the referenced module that have something granted ("Includes performance review and evaluation review"). **With nothing selected yet there is no caption at all** — it appears once a purpose / module is picked. Turning it off removes the caption and reveals the custom purpose pickers. The permission table's cells are `nowrap`, so the toggle block sets `whiteSpace: 'normal'` and its container `minWidth: 0` — otherwise the caption runs under the action columns. Caption copy: sentence case, no period (period only after the first of two sentences).
+
+Version 2: when the acting user can't grant anything under a toggle's module (e.g. a delegated user and Dashboard), the "Same scope" toggle is disabled with the same lock tooltip as its checkboxes (`RolesLock`, see [`checkbox.md`](checkbox.md)) and its caption is hidden.

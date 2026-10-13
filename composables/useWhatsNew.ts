@@ -50,6 +50,318 @@ export const CHANGELOG: ChangelogEntry[] = [
     ],
   },
   {
+    date: '08 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Competency items · Create / Edit item modal',
+        detail: 'The Create / Edit item modal now looks like production: white header with a 24px title, footer with a top border, "0/60" counter, an empty name shows only the inline error (no toast), and the rating scale table has a light rounded border, column dividers, 12px cells, lighter description text and small 20px edit icons.',
+        files: ['components/competency-item/ModalForm.vue', 'docs/patterns/table.md', 'docs/patterns/modal.md', 'docs/patterns/buttons.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Fix',
+        area: 'IDP list · Filter bar',
+        detail: 'The IDP list now has the production filter dropdown beside All employee: one "Select filter" menu with Organization, Branch, Job Position, Job Level and Status Employee.',
+        files: ['pages/talents/idps/index.vue', 'docs/patterns/filter-bar.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'IDP list · IDP detail · Table sort',
+        detail: 'Sortable table headers on the IDP list and IDP detail now show their sort icon all the time, like production: click a header to sort ascending, click again for descending. Progress on the IDP list is no longer sortable, as in production.',
+        files: ['components/PxColumnSortToggle.vue', 'pages/talents/idps/index.vue', 'pages/talents/idps/[id]/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Edit action plan drawer',
+        detail: 'The primary button on Edit action plan now reads "Save changes" instead of "Save" (Add action plan still reads "Add").',
+        files: ['components/IdpActionPlanModal.vue'],
+      },
+      {
+        category: 'Feature',
+        area: 'Add / Edit action plan drawer · Relates to',
+        detail: 'A small "Clear selection" link now sits on the right of the Relates to label while an option is selected, and clears the selection (the radio and the picked competency item).',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Add / Edit action plan drawer',
+        detail: 'An invalid Save in the action plan drawer now shows only the inline field errors, without the "Please check the form\'s error" toast.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Download template no longer shows a toast: it opens the header activity monitor on the Download tab with the template as a job, and a finished download row now ends with a download icon button (tooltip "Download") instead of a text link. The uploaded file\'s name is a text link that downloads the file, the remove button is a minus-circular icon with a "Remove" tooltip, and Back and Import are disabled while the Leave modal is open. Starting a second job while the monitor is already open no longer closes it.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2 footer',
+        detail: 'Cancel now sits alone at the far left of step 2, with Back and Import grouped at the right. Pressing Cancel opens a "Leave this page?" confirmation anchored just above the button (no overlay, no close button): "Your progress on this page will not be saved.", with Cancel to stay and Leave (a danger button, as Pixel has no warning variant) to go back to the IDP list.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/modal.md', 'docs/patterns/upload.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Drag and drop on the upload step is now solid: the dropzone stays highlighted while a file is dragged over its icon and text (it flickered off before), a file dropped just outside the zone no longer makes the browser open it and leave the page, and dropping a file on the picked file\'s row replaces it. Only the first file is used and it gets the same type and size checks.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 1',
+        detail: 'The selected-employee list\'s load link now says how many it loads: "Load 10 more" while more than 10 are left, otherwise just the remaining ones (e.g. "Load 6 more"), with no trailing period. The Select employees drawer on this page now shows at most 10 employees per list (Employees and Selected employees), then "Load N more" (opt-in paginated prop; other pages that use the drawer are unchanged).',
+        files: ['components/StepImportPage.vue', 'components/SelectEmployeesDrawer.vue', 'components/demo/coachmarks.ts', 'docs/patterns/pagination.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Import hand-off',
+        detail: 'The "Import started" toast now lasts 3 seconds instead of Pixel\'s 5s default, so it no longer lingers until the (mocked) import finishes. The header activity monitor now really opens by itself on the Import tab after Import (the click on its trigger never fired because the template ref was always null).',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 2',
+        detail: 'The dropzone hint now reads ".xlsx only with max size 10mb", and the size limit is 10 MB instead of 5 MB (the "File size is over 10 MB" error follows). Coachmark added on the hint; the Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard.',
+        files: ['components/StepImportPage.vue', 'components/demo/coachmarks.ts', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'Internal tools',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'A table column header with a coachmark (e.g. Relates to) no longer loses its bottom border. Coachmarks on table cells now sit after the text without repositioning the cell.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer slide back over the end of a label that only takes its text width (e.g. Relates to beside Clear selection), and they move when the element they mark changes size.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'New coachmarks for the 8 Oct changes: Download template going to the activity monitor, the monitor\'s download icon button, drag and drop, the uploaded file row, the step 2 Cancel confirmation, and the action plan drawer\'s missing error toast. Removed the "Import page" coachmark.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer sit on top of the first letters of a label (Employee, Select focus, Relates to). They were left to the browser\'s default position, which in a flex label is the left edge. Each dot is now placed from the measured end of its anchor\'s last line of text, so it stays attached to the element and scrolls with it.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'An open coachmark now closes when its pulse scrolls out of view, instead of staying behind floating over the header with nothing to point at. While the pulse is visible it still follows the page as you scroll.',
+        files: ['components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'The IDP list Import button\'s coachmark now overlaps the button\'s top-right corner (corner: true) instead of sitting inline, so the button no longer grows. The Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard, and a new coachmark marks the dropzone hint.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Goals',
+        detail: 'Goals is split into Organization goals and Company goals, each granted on its own. Within one goal type, View, Create, Edit and Delete tick and clear together, and hovering a box says "Goals access applies to View, Create, Edit and Delete together". The Goals checkbox above them sets both types. Version 1 keeps the split in ui_state.goalsOn; the payload still grants Goals when either type is on.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Module search',
+        detail: 'A search field above the permission table filters modules by name, in both versions. A match on a row inside a module (e.g. Company goals) shows that module, opened; no match shows "No result found".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Dashboard',
+        detail: 'Dashboard is view only and stays locked until Review cycle has a review type. Its one row is now named Review cycle, with a single View box ("View dashboard for review cycles."). The Dashboard › Goals row and its toggle are removed in both versions, and emptying Review cycle clears Dashboard.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · 9-box matrix',
+        detail: 'The 9-box matrix has its own scope toggle and review types, like Review results. The toggle reads "Same scope as review cycle module setting". Its scope is saved with the 9-box permission and restored on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/table.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Goals result',
+        detail: 'Goals result is all or nothing, like the Goals module. Ticking or unticking View or Create sets both, in both versions, and hovering says "Goals result access applies to View and Create together".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Version 2 Report',
+        detail: 'Review results no longer has an extra Review cycle row beneath it. Its "Same scope" toggle sits directly under its title, and roles saved before still load.',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Copy',
+        detail: 'Review Settings and Manage Users use production\'s copy word for word. In Version 1, "Employee status" is renamed "Employment status" and sits 4px above its checkboxes.',
+        files: ['utils/manageUser.ts', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Default persona',
+        detail: 'The role form opens as Super Admin Rizal Candra on its first open per page load. Switching to Rio from View as still works until the next reload.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/checkbox.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Role form',
+        detail: 'Add / Edit role has one dev tools button, bottom-left, holding the Version 1 / 2 switch and the coachmark controls. RolesFormScenarioControl is removed.',
+        files: ['components/demo/RolesFormDevTools.vue', 'components/demo/DemoLayer.vue', 'pages/settings/manage-users/roles/add.vue', 'pages/settings/manage-users/roles/edit/[id].vue', 'docs/patterns/dev-scenario-control.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Coachmarks',
+        detail: 'Role form coachmarks for module search, Review cycle, Goals, Report, the Same scope toggle, 9-box matrix and Dashboard. Pulses no longer change any layout on any page: the host is out of flow and zero-size.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Chore',
+        area: 'IDP list · Import',
+        detail: 'The Import button in the page header now always shows. Removed the "Show Import" toggle and the showImport dev flag; the list dev tools keep only the coachmark controls.',
+        files: ['pages/talents/idps/index.vue', 'components/demo/IdpListDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Import hand-off',
+        detail: 'Clicking Import on step 2 now goes back to the IDP list with an "Import started" toast and opens the header activity monitor on the Import tab, with the job progressing (same hand-off as the competency upload). The "Generating template..." loader is now 2 seconds and centres in the same 720px column as the stepper, and the employee picker drawer\'s confirm button reads Save instead of Continue. Completed rows in the header activity monitor now show a filled green check, a semibold file name and a description line. When the import job completes, one mock IDP per picked employee is added to the IDP list (the file itself is not read). The step 1 employee list is now 6 of 12 columns from tablet width (768px) up and capped at 656px (the form-column width), so it no longer stretches on wide screens.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'composables/useActivityMonitor.ts', 'utils/idpImportMock.ts', 'docs/patterns/upload.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Edit cycle (Evaluation)',
+        detail: 'Added the Edit cycle page for evaluation cycles (/reviews/review-cycles/:id/edit), opened from the cycle detail page\'s "Edit cycle" button. It reuses the Create form, pre-filled from the saved cycle, with Employment status and Employee filter locked (hover explains why). Save changes returns to the detail page with a "Review cycle updated" toast.',
+        files: ['pages/reviews/review-cycles/[id]/edit.vue', 'components/EvaluationCycleForm.vue', 'pages/reviews/review-cycles/create.vue', 'pages/reviews/review-cycles/[id]/index.vue', 'utils/evaluationCycleScenarios.ts', 'docs/patterns/form.md', 'docs/patterns/page-form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Create new cycle · Dev tools',
+        detail: 'Removed the "Edit cycle (read-only)" scenario (the ?mode=edit preview) from the evaluation-cycle dev tools, now that Edit cycle is a real page. The locked-on-Edit coachmark moved to the edit page.',
+        files: ['components/demo/EvaluationCycleDevTools.vue', 'components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '06 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Evaluation cycle details · Employee filter',
+        detail: 'Saving an evaluation cycle now persists its employment status and employee filters (value labels, not ids). The cycle detail page shows an "Employee filter" row directly below Employment status: one "Parameter: Value" bullet per filter when there are 2+, a single plain line for one filter, no row when none.',
+        files: ['composables/useReviewCyclesStore.ts', 'pages/reviews/review-cycles/create.vue', 'pages/reviews/review-cycles/[id]/index.vue', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
+    date: '06 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Import IDP · two-step wizard',
+        detail: 'The import page is now a two-step wizard with a hand-rolled stepper. Step 1 picks employees with the shared SelectEmployeesDrawer: a list of 10 with "Showing 10 of 26 employees. Load more", a search field (name or employee ID) once there are more than 10, and a 6-of-12-column width. Continue shows a 3-second "Generating template..." spinner when more than 25 employees are picked. Step 2 has the download / fill in / upload steps with the competency import\'s dropzone, a Cancel / Back / Import footer (MpButtonGroup), and the empty-selection error shows only on a Continue click. All wording audited (Continue instead of Next, "Add employees", XLSX file errors, new toasts); max file size is now 5 MB.',
+        files: ['components/StepImportPage.vue', 'pages/talents/idps/import.vue', 'docs/patterns/upload.md', 'docs/patterns/pagination.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Import page',
+        detail: 'On step 2 the dev tools gain a Scenario group (Default / Loading state, which keeps step 2 on the loader) next to Error states; both show only on step 2 (new importScenario / importStep flags).',
+        files: ['components/demo/IdpDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '06 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Delegated user',
+        detail: 'Permission checkboxes are locked by who is editing (new useRoleActor): Rizal (Super Admin) grants anything; Rio is a delegated user who can only grant what his own role holds (mock: Performance + Evaluation purposes, Probation + Contract statuses, no Delete, no 9-box report, no Dashboard); everyone else gets every checkbox locked and a disabled "Add role" button with the tooltip "Contact your admin to get access to add roles". Each locked checkbox explains why on hover (RolesLock). The Roles list button is renamed from "Add new role" to "Add role".',
+        files: ['composables/useRoleActor.ts', 'components/manage-user/RolesLock.vue', 'components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'pages/settings/manage-users/roles/index.vue', 'docs/patterns/checkbox.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Goals and View rules',
+        detail: 'Manage Goal is now Goals (View / Create / Edit / Delete), listed after Review cycle, and is all-or-nothing in both versions: ticking any Goals box ticks all of them, with a "Goals access is all or nothing" tooltip. Dashboard > Goals gets a "Same scope as goals module setting" toggle. Create / Edit / Delete now also tick View (and unticking View clears them) everywhere else. "Same scope" toggles default on with a caption that is hidden until something is selected; Version 2 toggles are disabled when the module is locked. Version 1 parent rows have a semibold title.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Save then Edit',
+        detail: 'Editing a saved role now restores the selection (it opened blank, mainly in Version 2). The form saves a ui_state blob with the role (Version 2 tree, Report / Dashboard rows, scope toggles) and restores it on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools',
+        detail: 'The roles form scenario control moved to the bottom-left, like the IDP dev tools.',
+        files: ['components/manage-user/RolesFormScenarioControl.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 2 permission table',
+        detail: 'Version 2 is now a full-width collapsible module tree (Figma "Table / Custom role performance"): 440px Permission column + View / Create / Edit / Delete columns, consistent 24px indent per level, parent boxes reflect their subtree. Turning on an "Apply … settings" toggle removes the caret and hides the node\'s children. Prototype state only (not in the submitted payload).',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 permission table',
+        detail: 'Table is now full width: Module (renamed from Access) is a fixed 440px, Permission fills the rest. Report\'s "Same scope as review cycle module" is a toggle (same as Version 2), review purposes read "Performance / Competency / Evaluation review", and the Dashboard checkbox is always enabled. Version 2\'s toggles are renamed "Same scope as … module".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 Report & Dashboard',
+        detail: 'Review cycle, Report and Dashboard fold with a caret. Report rows: Standard report (same-scope toggle 8px below its title; off → unchecked purpose checkboxes aligned with the toggle title, no borders), 9-Box report and Goals — each View + Create. Dashboard rows: Performance review and Goals mirror Review cycle\'s Performance and Manage Goal permissions.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Report & Dashboard naming and scope',
+        detail: 'Renamed (all versions) Standard report → Review results, 9-Box report → 9-box matrix, Goals → Goals result (now ordered Review results, Goals result, 9-box matrix). The toggle reads "Same scope as review cycle module setting" with no caption. Version 1 dividers are full width everywhere, and Dashboard\'s Performance review gets the same toggle + scope checkboxes as Review results. Version 2 is middle-aligned now (no 3-line cell).',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/table.md'],
+      },
+    ],
+  },
+  {
     date: '05 Oct 2026',
     module: 'IDPs',
     items: [

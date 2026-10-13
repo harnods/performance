@@ -13,9 +13,9 @@ Set via `definePageMeta({ title })`. Rendered as the `<h1>` at `layouts/default.
 Simplest page declaration:
 
 ```vue
-<!-- pages/settings/manage-users.vue -->
+<!-- pages/settings/manage-users/roles/index.vue -->
 <script setup lang="ts">
-definePageMeta({ title: 'Manage Users' })
+definePageMeta({ title: 'Roles', layout: 'default' })
 </script>
 ```
 
@@ -37,7 +37,7 @@ So detail pages that omit a static `title` get it from `?timeframe=` / `?name=` 
 Set via `definePageMeta({ breadcrumb: { label, to } })`. Type: `{ label: string, to?: string | Record<string, unknown> }`.
 
 ```ts
-// pages/reviews/review-cycles/create.vue:26-30
+// pages/reviews/review-cycles/create.vue:4-8
 definePageMeta({
   title: 'Create new cycle',
   layout: 'default',

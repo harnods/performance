@@ -9,7 +9,7 @@ Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls 
 - **primary** — the submit/confirm action. Always the **rightmost** button.
 - **secondary** — black border + black text on neutral fill. Used for in-form triggers ("Select employees", "Manage", "Select component"), select-styled popover triggers, and header utility buttons ("Help").
 - **ghost** — Cancel/dismiss (**always ghost, no exceptions**), icon-only actions (edit, close, add/remove-circular), and export.
-- **danger** — the destructive confirm button in a delete modal's footer, paired with `Cancel` (ghost). Dominant, 20+ files (`goal-cycles/index.vue:600`, `talents/competencies/index.vue:349`, `components/IdpDeleteModal.vue`). Never the row-level trigger that *opens* the confirm (that stays a ghost icon button or a `MpPopoverListItem` styled `color: 'text.danger'`) — `danger` is reserved for the modal's own final "yes, delete" action.
+- **danger** — also stands in for a "warning" action, since Pixel 3 has no `warning` variant (e.g. **Leave** in the anchored leave-page modal, [`modal.md`](modal.md)). The destructive confirm button in a delete modal's footer, paired with `Cancel` (ghost). Dominant, 20+ files (`goal-cycles/index.vue:600`, `talents/competencies/index.vue:349`, `components/IdpDeleteModal.vue`). Never the row-level trigger that *opens* the confirm (that stays a ghost icon button or a `MpPopoverListItem` styled `color: 'text.danger'`) — `danger` is reserved for the modal's own final "yes, delete" action.
 
 Cancel/dismiss = ghost is 100% consistent across every form, drawer footer, and modal footer.
 
@@ -94,7 +94,11 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 ## Rules
 
 - Cancel/dismiss = ghost, always. Primary = rightmost.
-- Edit forms say "Save changes"; create forms say "Save".
-- Never disable the primary submit — validate + toast instead.
+- Edit forms say "Save changes"; create forms say "Save". A drawer that **adds an item into a list on the page** (not saved on its own) says "Add" on create and "Save changes" on edit (IDP Add / Edit action plan drawer, `IdpActionPlanModal.vue`); per the copy library, Add = include into an existing context.
+- Never disable the primary submit — validate + toast instead. **Exceptions:** the IDP Add / Edit action plan drawer (`IdpActionPlanModal.vue`) and the competency item Create / Edit modal (`components/competency-item/ModalForm.vue`, matching production) show the inline field errors only, with **no** error toast, on an invalid save. The competency item modal's rating-table header edit icons are 20px ghost icon buttons (`size="sm"` capped to 20px with no padding, like production's `mp-button-icon size="sm" p="0"`), so the header row is as short as the body row.
 - Secondary = black border + black text on neutral.
 - A "Create X"/"Add X" CTA gets `left-icon="add"` — keep it consistent across every instance of the same action. Exception: a dropdown "Add X ▾" gets only `right-icon="chevrons-down"`.
+
+## Disabled by permission: "Add role"
+
+When the user can't create roles, the header "Add role" button (and the empty-state one) is `is-disabled` with a tooltip: "Contact your admin to get access to add roles". A disabled button fires no mouse events, so the `MpButton` sits inside a `div` inside an `MpTooltip` (`:is-manual="canManageRoles" :is-open="false"` turns it off for users who can). See [`checkbox.md`](checkbox.md) › Locked by permission.

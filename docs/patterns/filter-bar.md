@@ -27,8 +27,12 @@ Many-filter pages add `wrap="wrap"` and nest a left `MpFlex gap="3"` cluster (ta
 > **Where the split goes.** Keep the one or two dimensions people filter by constantly
 > inline as `PxSelectPopover`s; push the rest into the drawer rather than growing the bar.
 > `PxAllFiltersDrawer` takes a `scopes` prop, so a page can narrow the default set to just
-> its own dimensions — `talents/idps/index.vue` keeps Branch / Organization / Employee
-> inline and passes only Job position, Job level and Employment status as scopes. `Clear`
+> its own dimensions.
+>
+> **IDP index (`talents/idps/index.vue`) matches production instead:** Column settings, then
+> `DashNestedFilter` (production's `NestedMultiSelect` with `use-status-employee`: Organization /
+> Branch / Job Position / Job Level / Status Employee, options = distinct employee values; any
+> value within a dimension, every dimension across), then the "All employee" picker, then search. `Clear`
 > must reset the drawer's state too (`advFilters`/`advScopes`), not only the inline selects,
 > and `advancedCount` (from `allFiltersCount`) feeds both the button's badge and whether
 > `Clear` shows at all.

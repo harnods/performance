@@ -5,6 +5,8 @@ import {
   MpAvatar,
   MpText,
   MpTextlink,
+  MpButton,
+  MpTooltip,
   MpSpinner,
   MpPopover,
   MpPopoverTrigger,
@@ -30,10 +32,15 @@ const currentMonitorList = computed(() => (activeMonitorTab.value === 'import' ?
 // When a job requests it (Process upload → Import, Request template → Download),
 // pop the monitor open on the matching tab by clicking its (uncontrolled)
 // trigger, so the user sees progress and can grab the finished file.
-const monitorTriggerBtn = ref<HTMLButtonElement | null>(null)
+// Looked up by its aria-label, not a template ref: MpPopoverTrigger re-creates its slot child, so a
+// `ref` on the button stays null and the monitor never opened.
+// The trigger toggles, so only click it when the monitor is closed: a second job started while it is
+// already open (e.g. Download template twice) must switch the tab, not shut the monitor.
+const isMonitorOpen = ref(false)
 watch(openSignal, () => {
   activeMonitorTab.value = requestedTab.value
-  nextTick(() => monitorTriggerBtn.value?.click())
+  if (isMonitorOpen.value) return
+  nextTick(() => document.querySelector<HTMLButtonElement>('button[aria-label="Activity monitor"]')?.click())
 })
 function downloadFromMonitor(fileName: string) {
   toast.notify({ id: 'monitor-download', position: 'top-center', variant: 'success', title: 'Template downloaded' })
@@ -43,11 +50,13 @@ const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
 const { resetToSeed: resetReviewerWeights } = useReviewerWeightsStore()
 const { clearRecorded: clearActivityLog } = useGoalActivityStore()
+const { resetDemo: resetManageUsers } = useManageUserStore()
 function resetDemoData() {
   resetToSeed()
   resetGoalsToSeed()
   resetReviewerWeights()
   clearActivityLog()
+  resetManageUsers()
   toast.notify({
     id: 'demo-data-reset',
     position: 'top-center',
@@ -87,9 +96,9 @@ const monitorTabActive = css({ color: 'text.link', fontWeight: '600', borderBott
 const monitorList = css({ display: 'flex', flexDirection: 'column', maxHeight: '280px', overflowY: 'auto' })
 const monitorItem = css({ display: 'flex', alignItems: 'center', gap: '3', paddingBlock: '3', paddingInline: '4', borderBottom: '1px solid', borderBottomColor: 'border.default.subtle' })
 const monitorIcon = css({ display: 'inline-flex', flexShrink: '0' })
-const monitorIconDone = css({ display: 'inline-flex', flexShrink: '0', color: 'var(--mp-icon-success, #1C8459)' })
+const monitorIconDone = css({ display: 'inline-flex', flexShrink: '0' })
 const monitorItemMeta = css({ display: 'flex', flexDirection: 'column', gap: '0', minWidth: '0', flex: '1' })
-const monitorFileName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })
+const monitorFileName = css({ fontSize: '14px', lineHeight: '20px', fontWeight: '600', color: 'text.default', whiteSpace: 'nowrap', overflow: 'hidden', textOverflow: 'ellipsis' })
 const monitorStatusText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 const monitorPct = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary', fontVariantNumeric: 'tabular-nums', flexShrink: '0' })
 const monitorEmpty = css({ paddingBlock: '8', paddingInline: '4', textAlign: 'center', fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
@@ -255,9 +264,9 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
 
     <MpFlex align="center" gap="4">
       <!-- Activity monitor — background Import / Download jobs -->
-      <MpPopover placement="bottom-end" trigger="click" use-portal>
+      <MpPopover placement="bottom-end" trigger="click" use-portal @open="isMonitorOpen = true" @close="isMonitorOpen = false">
         <MpPopoverTrigger>
-          <button ref="monitorTriggerBtn" type="button" :class="monitorTrigger" aria-label="Activity monitor">
+          <button type="button" :class="monitorTrigger" aria-label="Activity monitor">
             <span :class="{ 'monitor-icon-spin': activeCount > 0 }" :style="{ display: 'inline-flex' }">
               <MpIcon name="refresh" :size="20" />
             </span>
@@ -274,15 +283,17 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
             <div v-if="currentMonitorList.length" :class="monitorList">
               <div v-for="p in currentMonitorList" :key="p.id" :class="monitorItem">
                 <span v-if="p.status === 'processing'" :class="monitorIcon"><MpSpinner size="sm" /></span>
-                <span v-else :class="monitorIconDone"><MpIcon name="check" size="sm" /></span>
+                <span v-else :class="monitorIconDone"><MpIcon name="done" variant="fill" :size="24" color="icon.success" /></span>
                 <div :class="monitorItemMeta">
                   <span :class="monitorFileName">{{ p.fileName }}</span>
                   <span :class="monitorStatusText">
-                    {{ p.status === 'processing' ? 'Processing…' : p.kind === 'download' ? 'Ready to download' : 'Completed' }}
+                    {{ p.status === 'processing' ? 'Processing…' : p.kind === 'download' ? 'Ready to download' : (p.description ?? 'Completed') }}
                   </span>
                 </div>
                 <span v-if="p.status === 'processing'" :class="monitorPct">{{ p.progress }}%</span>
-                <MpTextlink v-else-if="p.kind === 'download'" as="button" size="label" @click="downloadFromMonitor(p.fileName)">Download</MpTextlink>
+                <MpTooltip v-else-if="p.kind === 'download'" label="Download" use-portal>
+                  <MpButton variant="ghost" left-icon="download" aria-label="Download" @click="downloadFromMonitor(p.fileName)" />
+                </MpTooltip>
               </div>
             </div>
             <div v-else :class="monitorEmpty">No {{ activeMonitorTab }} in progress</div>

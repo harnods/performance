@@ -9,15 +9,16 @@ the viewport is deliberately reserved for dev affordances so it reads as "not pa
 product" at a glance. Real actions live in `#page-header-actions`, a filter bar, or a
 table's action column — see [`header-bar.md`](header-bar.md) and [`buttons.md`](buttons.md).
 
-Six exist today:
+These exist today:
 
 | Where | What it previews |
 |---|---|
-| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
-| `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB: **Show Import** toggle (off by default; shows/hides the header Import button via `useIdpImportFlag`) + the coachmark controls. |
-| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle, `?purpose=evaluation`, via `DemoLayer`) | **Scenario → Edit cycle (read-only)** toggles `?mode=edit` (the page swaps to the saved-filter Edit state without a reload), plus the same **Coachmarks** group. Bottom-left, like IDP's. |
+| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds, **only while the wizard is on step 2** (`useIdpImportFlag().importStep`), a **Scenario** section (**Default** / **Loading state**, which keeps step 2 on the "Generating template..." loader via `useIdpImportFlag().importScenario`) and an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
+| `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB with the coachmark controls only (the header **Import** button always shows, no toggle). |
+| `components/demo/EvaluationCycleDevTools.vue` (Create new cycle + Edit cycle, `?purpose=evaluation`, via `DemoLayer`) | The **Coachmarks** group only. There's no scenario switch: Edit cycle is a real page (`/reviews/review-cycles/:id/edit`), so nothing is faked. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
+| `components/demo/RolesFormDevTools.vue` (Settings → Manage users → Roles → Add / Edit role, via `DemoLayer`) | The page's **only** dev control, **bottom-left**. **Scenario** group (`MpRadio`): **Version 1 (Default)** (Module + Permission list) vs **Version 2 — Action columns** (full-width module tree, View / Create / Edit / Delete columns — see `table.md` › Permission tree table), state in `useManageUserStore().rolesFormVersion`; then the **Coachmarks** group. Replaces the old `RolesFormScenarioControl` + separate coachmark FAB. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 | `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
 
@@ -136,11 +137,13 @@ talenta-review copies nothing demo-related.
 - `components/demo/DemoLayer.vue` is mounted **once in `app.vue`**. It
   filters the registry by route, watches the DOM (MutationObserver, one scan
   per frame, so tables, drawers and modals that mount later get their
-  pulses), appends a host `<span data-demo-coachmark>` **inside** each anchor,
-  and teleports a `DevCoachmark` into it. It also renders the module's dev
+  pulses), appends an **absolutely positioned** host `<span data-demo-coachmark>`
+  inside each anchor, and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
-  `/reviews/review-cycles`, `IdpDevTools` everywhere else. It rescans on
-  `route.fullPath`, so a query change (e.g. `?mode=edit`) updates the pulses.
+  `/reviews/review-cycles`, `RolesFormDevTools` on Add / Edit role (always, since
+  it also holds the Version switch), `IdpListDevTools` on the IDP list,
+  `IdpDevTools` everywhere else. It rescans on
+  `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
   prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
 - **Not auto-imported:** `nuxt.config.ts` registers components with
@@ -153,14 +156,43 @@ talenta-review copies nothing demo-related.
   rendered, scoped as tightly as you can.
 - A pulse inside a `<label>` is safe: clicking a button inside a label doesn't
   trigger the label's control.
-- **Never append a pulse inline inside a flex/grid row.** It becomes an extra
-  item that takes a gap slot and shifts its siblings (it pushed the filter row's
-  remove button out and widened the "and" divider). Set `corner: true` on the
-  entry instead: the host is absolutely positioned at the anchor's top-right
-  corner (`top/right: -8px`), and the anchor gets `position: relative` if it's
-  static, so layout is untouched.
+- **A pulse never changes the product's layout, and stays glued to what it marks.**
+  Every host is a 16px, out-of-flow span (`position: absolute`) inside the anchor, which
+  becomes the containing block (`position: relative` if it was static), so the pulse
+  scrolls and clips with the anchor and the anchor's width, height and padding are the
+  same with coachmarks on or off. Check it by hiding the hosts and comparing
+  `getBoundingClientRect()`. Two placements:
+  - **Default**: just after the end of the anchor's **last line of text**, centred on that
+    line, with a 4px gap. `DemoLayer.placeHost()` measures it with a `Range` over the
+    anchor's children. **Don't rely on the browser's "static position"**: in a flex
+    container (every `MpFormLabel` is `display: flex`) an absolute child with no offsets
+    lands at the left edge and covers the first letters of the label ("Employee", "Select
+    focus", "Relates to"). Never clamp the dot inside the anchor's box: a content-width
+    anchor (a label in a flex row) would pull it back over its last letters. Pulses are
+    re-placed on DOM changes, window resize **and** anchor resize (`ResizeObserver`), since
+    an anchor can narrow with no DOM mutation (a sibling link appearing in its row).
+  - **Table cells (`th` / `td`) are never made `position: relative`.** In a
+    `border-collapse` table a positioned cell paints its background over its own collapsed
+    border, so the header lost its bottom border. For a cell the zero-size host sits at its
+    static spot right after the text (a cell is block flow, so that's correct there), nudged
+    `margin-left: 4px` / `margin-top: 2px`.
+  - **`corner: true`**: overlaps the anchor's top-right corner (`top/right: -8px`). Use it
+    for anchors that are a box of their own (buttons such as the IDP list Import button,
+    input fields).
+- **Never append a pulse inline inside a flex/grid row.** It becomes an extra item that
+  takes a gap slot and shifts its siblings (it pushed the filter row's remove button out
+  and widened the "and" divider).
 
 ### Look and behaviour
+
+- **An open coachmark closes when its pulse scrolls out of view.** The popover is portaled
+  to `<body>`, so the page's scroll area doesn't clip it: without this it stayed put,
+  floating over the header (or off-screen) with nothing to point at. `DevCoachmark`
+  watches its wrapper with an `IntersectionObserver` (it accounts for every clipping
+  scroll container) and flips the popover's own `isOpen` ref, which Pixel hands to the
+  `open` event. Pixel only honours the `isOpen` prop in `isManual` mode, which turns
+  off click-to-open, so it is not controlled through the prop. While the pulse is
+  visible the popover follows it as the page scrolls.
 
 - `DevCoachmark` renders an 8px **orange** dot (`orange.500`) with an animated
   ring (`px-coachmark-pulse` in `main.css`).
@@ -171,7 +203,7 @@ talenta-review copies nothing demo-related.
 - **`IdpDevTools`** / **`EvaluationCycleDevTools`** are the FAB panels (one per
   module, picked by `DemoLayer` from the route). A module's own scenario switches
   go in a **Scenario** group above Coachmarks, using the same label-before-toggle
-  row + 12px hint (e.g. "Edit cycle (read-only)"). Every panel has a **Coachmarks** group with a
+  row + 12px hint (e.g. the import page's Loading state). Every panel has a **Coachmarks** group with a
   **Show coachmarks** toggle, an "n hidden" count and a **Reset coachmarks**
   textlink. Reset shows every hidden coachmark again and turns them back on.
 - State lives in `components/demo/useDevCoachmarks.ts`. It's module-scope and
@@ -195,8 +227,14 @@ Current IDP coachmarks:
 | Plan detail | "Relates to" column header | New column; competency name opens the detail drawer |
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
-| IDP list | Import button | New; only visible when Show Import is on |
-| Import page | "Download the data template" step | New stepped import page |
+| IDP list | Import button (`corner: true`) | New; always shown in the page header |
+| Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb"; the limit is 10 MB (was 5 MB) |
+| Import page, step 2 | "Download template" button (`corner: true`) | No toast; the template goes to the activity monitor's Download tab |
+| Header activity monitor (Import page, IDP list) | A finished download row's icon button (`corner: true`) | Download icon button with a "Download" tooltip instead of a text link |
+| Import page, step 2 | "Drop your file here or" | Drag & drop: steady highlight, stray drops blocked, drop on the file replaces it |
+| Import page, step 2 | Uploaded file name link | Name is a text link that downloads the file; minus-circular remove with "Remove" tooltip |
+| Import page, step 2 | Footer Cancel (`corner: true`) | Cancel alone on the left; anchored "Leave this page?" modal; Back / Import disabled while open |
+| Add / Edit action plan drawer | Add / Save changes button (`corner: true`) | Invalid save shows inline errors only, no error toast |
 | Competency items table | "Applied to" column header | Renamed from "Applied"; shows Competency group / IDP text instead of a count |
 | Competency items table | "Description" column header | Capped at 240px so Applied to fits |
 
@@ -208,14 +246,32 @@ Current evaluation cycle coachmarks (Create new cycle → Employee filter):
 | Always | The caption under the label | One fixed caption says who's included |
 | Create, once a filter type is picked | First value field (`.mp-gap_24px [data-pixel-component="MpInputGroup"]`), `corner: true` | Search in the field, named values, popover as wide as the field, infinite scroll |
 | After a failed Save | "You must select at least one …" | Empty filter blocks Save (PRD defers validation; PM to confirm) |
-| Edit (`?mode=edit`) | "Employee filter" label | Locked fields explain why on hover; production says nothing |
+| Edit cycle page (`/reviews/review-cycles/:id/edit`) | "Employee filter" label | Locked fields (Employee filter, and Employment status) explain why on hover; production says nothing |
+
+Current role form coachmarks (Settings → Manage users → Roles → Add / Edit role):
+
+| Anchor | What it explains |
+|---|---|
+| "Search module name..." field (`#roles-permission-search`'s `MpInputGroup`), `corner: true` | New module search; a match on a row inside a module shows that module, opened |
+| "Review cycle" module title | Permissions set per review type; Evaluation review limited by employment status |
+| "Goals" module title | Organization / Company goals granted separately; within one, all four actions go together |
+| "Report" module title | Report is its own module (it was inside Review cycle), split by report type |
+| "Same scope as review cycle module setting" toggle (Review results) | What on and off do |
+| "9-box matrix" row | Granted separately from the other reports (production: part of the single Report permission) |
+| "Dashboard" module title | New permission, not in production yet; view only, scoped by review type |
+
+Each anchor is found by `roleLabel(v2Key, text)`: inside Version 2's `roles-v2-row-<key>` row when it's on screen, else the first exact-text `span` / `p` in Version 1's table body.
 
 ## Rules
 
+- **One dev-tools FAB per page, bottom-left.** A page's scenario switches and its
+  coachmark controls live in the same panel (Scenario group above Coachmarks);
+  never a second FAB beside it. (`IdpListDevTools` bottom-right is a legacy exception
+  on a page with no other FAB.)
 - Floating FAB = dev only. Never for product actions.
 - Fixed bottom-right, 24px, 48px circle, `background.inverse`, `sliders` icon,
   popover `placement="top-end"`. **Exception:** the demo-layer panels
-  (`IdpDevTools`, `EvaluationCycleDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
+  (`IdpDevTools`, `EvaluationCycleDevTools`, `RolesFormDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
   collides with a page's own bottom-right scenario FAB.
 - Multi-group panel: no `is-close-on-select`; always a `Reset` + a `Default` choice.
 - State in a module-scope composable; defaults mirror the real seed.
