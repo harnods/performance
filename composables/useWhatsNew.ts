@@ -47,6 +47,30 @@ export const CHANGELOG: ChangelogEntry[] = [
         detail: 'Builder panes stack below 768px (was 1024px) instead of looking like mobile on narrower desktop windows. Saving with empty required fields shows inline errors only, no "Please check the form\'s error" toast.',
         files: ['components/template/TemplateForm.vue', 'components/template/ModalForm.vue', 'docs/patterns/builder-modal.md'],
       },
+      {
+        category: 'Fix',
+        area: 'Templates · Builder layout',
+        detail: 'Template builder shows the form and settings side by side again. An arrow generic (`<T>(v) =>`) in the script made Panda skip every css() call after it, so the layout styles were never generated. A new test (tests/panda-extraction.test.ts) fails if any .vue file loses css() calls this way.',
+        files: ['components/template/TemplateForm.vue', 'tests/panda-extraction.test.ts', 'tests/panda-extraction.config.mjs', 'docs/README.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Templates · Legend label',
+        detail: 'The clear (x) icon in the Legend label field is now filled instead of outlined.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/builder-modal.md', 'docs/patterns/form.md'],
+      },
+    ],
+  },
+  {
+    date: '13 Oct 2026',
+    module: 'Build & deploy',
+    items: [
+      {
+        category: 'Chore',
+        area: 'Google Chat deploy notification',
+        detail: 'A Document value that is not a URL (e.g. "-") now prints as plain text instead of a broken link. Initiative set to Template Settings.',
+        files: ['.github/scripts/notify.mjs', '.github/initiative.json'],
+      },
     ],
   },
   {

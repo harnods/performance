@@ -152,7 +152,7 @@ then **8px** below an `MpCheckbox` "Set as default" (one line).
 - The label replaces the "Legends" title in the builder section and in the preview summary card
   (`LegendList` `title` prop) and is part of the payload (`legend_name`).
 - **Field behaviour (`keep-text-on-focus`):** focusing the field keeps the selected label (no wipe to the
-  placeholder) and swaps the chevron for an `MpIcon name="error"` (x) **only while focused**. The (x) empties the
+  placeholder) and swaps the chevron for a filled `MpIcon name="error" variant="fill"` (x) **only while focused**. The (x) empties the
   value, keeps the field focused and the popover open, so typing a new label works straight away (the
   `Add “…”` row appears as usual). Blur restores the chevron. Removing the *currently selected* saved label from
   the popover also empties the field (placeholder shown); removing another label leaves the value alone.

@@ -62,7 +62,9 @@ interface TemplateFormState {
   legend_apply_next: boolean
 }
 
-const clone = <T>(v: T): T => JSON.parse(JSON.stringify(v))
+// A function declaration, not `<T>(v) =>`: Panda parses Vue scripts as TSX, where an arrow
+// generic reads as a JSX tag and silently drops every css() call after it.
+function clone<T>(v: T): T { return JSON.parse(JSON.stringify(v)) }
 const defaultRating = (): TemplateRating => ({ value: 0, name: '', to: null, from: 0 })
 const defaultPoints = (): TemplateRating => ({ value: '', name: '' })
 const defaultTemplateForm = (): TemplateFormState => ({

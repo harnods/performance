@@ -115,7 +115,7 @@ Behavior (`PxSelectPopover.vue`, `onField`):
 - Blurring without picking reverts the field to the current selection's label.
 - With `is-clearable`, deleting the text and blurring clears the value.
 - `keep-text-on-focus` (opt-in): focusing keeps the current text instead of clearing it; the trailing chevron
-  becomes an `MpIcon name="error"` (x) while the field is focused and filled. The (x) empties the value and
+  becomes a filled `MpIcon name="error" variant="fill"` (x) while the field is focused and filled. The (x) empties the value and
   leaves the field focused so typing starts at once; the list only filters after the user types. Used by the
   builder's Legend label (`docs/patterns/builder-modal.md`).
 - No match shows "No results found" instead of an empty bordered box.
