@@ -33,6 +33,19 @@ Sequence for any UI work:
 > docs tell you *how this project composes those components into pages* — the recurring
 > layout, spacing, and behaviour decisions that aren't captured upstream.
 
+### Styling: keep `<script>` TSX-safe
+
+`css()` classes only exist if Panda's extractor (`@mekari/pixel3-postcss`) finds the
+call. Panda parses a Vue `<script>` as **TSX**, so TS syntax that TSX can't read stops
+the parse silently. Every `css()` after it then has no CSS, and the page renders unstyled
+or with a broken layout. There's no build error, and a dev-server restart doesn't help.
+
+- **Never write an arrow generic** `const f = <T>(v: T) => …`, because TSX reads `<T>` as a
+  JSX tag. Use `function f<T>(v: T) { … }` instead.
+- `npm test` runs `tests/panda-extraction.test.ts`, which fails when a `.vue` file
+  declares more `const x = css({` than Panda extracts. If a layout looks unstyled (for
+  example, two panes stacked on desktop), run it first.
+
 ---
 
 ## Pattern docs

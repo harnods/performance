@@ -11,6 +11,7 @@ import IdpDevTools from './IdpDevTools.vue'
 import IdpListDevTools from './IdpListDevTools.vue'
 import EvaluationCycleDevTools from './EvaluationCycleDevTools.vue'
 import RolesFormDevTools from './RolesFormDevTools.vue'
+import TemplateDevTools from './TemplateDevTools.vue'
 import { COACHMARKS, type CoachmarkDef } from './coachmarks'
 
 const route = useRoute()
@@ -20,6 +21,8 @@ const active = computed(() => COACHMARKS.filter(c => c.route.test(route.path) &&
 const isEvaluationCycle = computed(() => route.path.startsWith('/reviews/review-cycles'))
 // Add / Edit role: one panel with the Version 1 / 2 switch + coachmarks (shown even with no pulses, for the switch).
 const isRoleForm = computed(() => /^\/settings\/manage-users\/roles\/(add|edit)/.test(route.path))
+// Template builder: its coachmarks live inside a full-size modal, so a small dev tools button sits above it.
+const isTemplates = computed(() => /^\/settings\/templates\/?$/.test(route.path))
 
 // id → host <span> appended inside the anchor element.
 const hosts = shallowRef(new Map<string, HTMLElement>())
@@ -114,6 +117,9 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
       <DevCoachmark :id="def.id" :title="def.title" :description="def.description" :placement="def.placement" />
     </Teleport>
     <RolesFormDevTools v-if="isRoleForm" />
+    <template v-else-if="isTemplates">
+      <TemplateDevTools v-if="mounted.length" />
+    </template>
     <EvaluationCycleDevTools v-else-if="active.length && isEvaluationCycle" />
     <IdpListDevTools v-else-if="isIdpList" />
     <IdpDevTools v-else-if="active.length" />

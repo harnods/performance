@@ -264,7 +264,7 @@ const clearBtn = css({ display: 'inline-flex', cursor: 'pointer' })
             />
             <MpInputRightAddon>
               <span v-if="keepTextOnFocus && isEditingField && fieldText" :class="clearBtn" role="button" aria-label="Clear" @mousedown.prevent @click.stop="onFieldClear">
-                <MpIcon name="error" />
+                <MpIcon name="error" variant="fill" />
               </span>
               <MpIcon v-else name="chevrons-down" />
             </MpInputRightAddon>
