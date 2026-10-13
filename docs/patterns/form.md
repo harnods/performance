@@ -21,6 +21,18 @@ Every field: `MpFormControl` (with `id`) + `MpFormLabel` + `MpFormErrorMessage`.
 </MpFormControl>
 ```
 
+> ⚠️ **Don't put `:class` on `MpFormErrorMessage`.** It renders a fragment while the
+> control is valid, so Vue drops the class and warns "Extraneous non-props attributes
+> (class)" on every render. To indent or offset the message, wrap it in a plain
+> `<div :class="…">` (see `components/cycle/RatingList.vue`'s `errorIndent`).
+
+> ⚠️ **Form ids must be unique per component instance.** A `<label for>` binds to the
+> *first* element with that id in the document. If the same form is mounted twice on
+> a page (e.g. a hidden copy used to build a duplicate payload), static ids make
+> clicks on the visible radio/checkbox label toggle the hidden copy's input — it looks
+> "unclickable". Prefix every `id` with `const uid = useId()` (`:id="`${uid}-name`"`).
+> Reference: `components/template/TemplateForm.vue`, `CategoryForm.vue`.
+
 ### Required marker
 
 ⚠️ Two conventions coexist. **Preferred: `:is-required="true"` on `MpFormControl`** (built-in, `competencies/create.vue:477`). The drawers roll a manual red asterisk (`MpFlex align="center" gap="0"` + `<MpText :class="css({ color: 'text.danger' })">*</MpText>`, `AddGoalDrawer.vue`). Pick one per form; don't mix. **Either way, there's no space between the label and the asterisk**: the manual wrapper is `gap="0"`, there's no whitespace before an inline `*`, and the built-in marker's 4px Pixel margin is zeroed in `main.css`.
@@ -35,7 +47,7 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `maxlength` (`customValueLabel` deprecated). `searchPlaceholder` is deprecated and ignored.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `maxlength`, `keepTextOnFocus` (`customValueLabel` deprecated). `searchPlaceholder` is deprecated and ignored.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
@@ -102,6 +114,10 @@ Behavior (`PxSelectPopover.vue`, `onField`):
   list live (label, description and trailing text).
 - Blurring without picking reverts the field to the current selection's label.
 - With `is-clearable`, deleting the text and blurring clears the value.
+- `keep-text-on-focus` (opt-in): focusing keeps the current text instead of clearing it; the trailing chevron
+  becomes an `MpIcon name="error"` (x) while the field is focused and filled. The (x) empties the value and
+  leaves the field focused so typing starts at once; the list only filters after the user types. Used by the
+  builder's Legend label (`docs/patterns/builder-modal.md`).
 - No match shows "No results found" instead of an empty bordered box.
 - `search-placeholder` is ignored. The field's `placeholder` is the only
   prompt, so phrase it to cover both (e.g. "Search or select employee").
@@ -714,6 +730,17 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 
 `%` weight inputs = `width: '104px'`. Suppress number spinners with a `noSpinner` class when needed.
 
+**Gotcha — a narrow `MpInput` overflows its box:** the native `<input>` keeps its default
+intrinsic width (~88px) even when `MpFormControl`/the root is `width: '70px'`, so a
+short numeric field (point range `from – to`, legend range) spills past the card edge
+and overlaps its neighbour. Put `'& input': { width: '100%', minWidth: '0' }` and
+`flexShrink: '0'` on the width class (`components/cycle/RatingList.vue`
+`pointInput`, `components/template/LegendListForm.vue` `rangeInput`). `MpInput` is 38px tall, so an
+adjacent single-line `MpTextarea` (`rating description`, `point description`) is set to
+`height`/`minHeight` `38px` to line up (`PointList.vue` `descArea`). Centre a
+separator dash on such inputs with `alignItems: 'flex-end'` + `marginBottom: '17px'`
+(36px input, 2px dash), not per-row magic offsets.
+
 **Gotcha — addon overlaps the input text:** `MpInputLeftAddon`/`MpInputRightAddon` measure their own width via `getComputedStyle()` in `onMounted` to set `--mp-input-offset--{left,right}`, but inside a just-opened drawer that read can happen before layout settles, coming back empty — the var lands as literal `NaNpx`. The input's padding is `calc(var(--mp-input-offset--left) + 14px)` with no fallback, so the invalid var invalidates the whole `calc()` and padding collapses to `0`, letting the addon box sit on top of the input's own text. It's invisible on short single-char addons (`%`) and glaring on 2-char ones (`Rp`). Fix with a scoped `:deep()` override forcing fixed padding (see `AddGoalDrawer.vue`'s `<style scoped>` block):
 ```css
 :deep(.mp-input-group__root[data-with-left-addon='true'] .mp-input__control) {
@@ -723,6 +750,28 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
   padding-right: 46px !important;
 }
 ```
+
+## Colour swatch picker — `MpColorPicker`
+
+For a user-picked colour (review template legends), use Pixel 3's
+`MpColorPicker` with a **custom trigger** in its default slot — a 36px
+`radius: md` swatch filled with the current colour (dynamic `:style`, it's
+data) holding an `icon.inverse` `paint-bucket` icon. `variant="basic"`,
+`is-show-preset` + `is-show-input`, `use-portal` (it's usually inside a modal),
+and the 16-colour `LEGEND_COLOR_PRESET` from `utils/reviewTemplate.ts`. It emits
+`change` with `{ hex }`. Reference: `components/template/LegendListForm.vue`.
+
+## Drag to reorder repeatable blocks
+
+Native HTML5 drag & drop — no library. The **handle** (`MpIcon name="drag"`,
+`cursor: grab`, `icon.secondary`) is the only `draggable="true"` element; the
+block container takes `@dragenter.prevent` / `@dragover.prevent` / `@drop`.
+While dragging, the source block dims (`opacity: 0.4`) and the drop target shows
+a 3px `border.brand` insertion line at its top. Nested lists (indicators inside
+a category) call `stopPropagation()` on their own drop so the outer list doesn't
+also reorder. References: `pages/talents/competencies/create.vue` (columns /
+rows), `components/template/TemplateForm.vue` + `CategoryForm.vue` (categories /
+indicators).
 
 ## Cross-field / cross-record validation blocking save
 

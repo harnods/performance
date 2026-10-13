@@ -40,7 +40,8 @@ When is a create/edit a full page, a drawer, or a modal? Established split:
   `MpModalFooter` with the destructive ghost action (Delete item) and the primary submit,
   right-aligned. A sub-edit opened from it may be a second `MpModal` (rating description); that
   works here because both are mounted by the same component. Don't pick a full-size modal for new
-  work: use a full page.
+  work: use a full page. The two-pane **builder** variant (review template builder, actions in
+  the header, canvas + settings panel) is in [`builder-modal.md`](builder-modal.md).
 - **Modal** (`MpModal`): confirmation and small single-purpose inputs (purpose selection, disable-prefill confirm, save-cascade confirm).
 
 ## Drawer must open via "Manage", never on toggle
