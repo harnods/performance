@@ -159,6 +159,9 @@ then **8px** below an `MpCheckbox` "Set as default" (one line).
 - **Validation:** an empty field on Save shows the error state with `MpFormErrorMessage` "You must select legend
   label"; it clears once a label is chosen. Only when the
   block is visible and not view-only.
+- **Editing an existing template:** "Set as default" stays visible but **disabled**; hovering it (the checkbox sits in a `span` because disabled controls swallow hover) shows the tooltip "You can only set a default legend label when creating a template". An existing template can't change the company default.
+- **Add button label:** always "Add legend", whatever the legend label is (the label can be 60 characters, too long to repeat in a button).
+- **Legend label limits:** max **60** characters with a `0 / 60` counter top-right of the label (same `labelRow` + `charCount` as Template name). Checked on save: letters (any script), numbers, spaces and `- ( ) & /` only — other symbols and emoji are blocked with "Legend label has invalid characters. Please use only letters, numbers, spaces and - ( ) & /" (`LEGEND_NAME_PATTERN`).
 - **Checkbox rules:** "Set as default" with a one-line `#description` caption "Applies to every template you create". It is **hidden whenever the selected label already is the default** — at first that is "Legends", so a
   fresh template shows no checkbox; later it is hidden on the saved default label too. Selecting any other
   label reveals it (unticked); changing the label back to the default hides it again. Ticking and saving makes
@@ -166,3 +169,43 @@ then **8px** below an `MpCheckbox` "Set as default" (one line).
   with the default label and no checkbox**. To change the default later, pick another label (or "Legends" to go
   back) and tick the box.
 - Copy follows the Mekari UXW library: sentence case, no periods.
+
+
+## Private template — "View / edit template" (cycle detail)
+
+`components/template/ModalViewEdit.vue` (production `ModalViewEdit.vue`, name `ModalTemplateView`), opened by
+"Edit template" on a review cycle. It edits the cycle's **private copy** of its template for the active
+review method — not the shared template — so it is NOT the two-pane builder above:
+
+- Full-size `MpModal`; **white** header (`background.neutral`, as the builder) = H1 "View / edit template" + primary **Save changes**. The body clips
+  (`overflow: hidden`) and one inner pane scrolls (same reason as the builder: `overflowY` on `MpModalBody`
+  itself is overridden by Pixel).
+- Sticky sub-header (template name, question type, "Rating each indicators") on `background.neutral`, then a
+  single **684px** centred column: "Required to fill out summary", categories (`TemplateCategoryForm is-view-edit`),
+  Overall ratings / Define points, Legends.
+- **Legend label:** the legends heading reads the saved label + " (%)" for non-rating templates. A ghost `edit`
+  icon button (`size="sm"`, tooltip "Edit", `aria-label` "Edit legend label" for screen readers) sits **4px** after the heading
+  (`LegendListForm`'s `#title-action` slot) and opens "Edit legend label" (below). The field itself is not in
+  this form, so "Save changes" never carries the label.
+- **Save confirmation:** production copy only — "Edit template?" / "Changes you made will affect all cycle using
+  this information." (grammar kept as production).
+
+## "Edit legend label" modal (Story 7)
+
+> Story 7 AC1 puts the Legend label field directly inside "View / edit template". The prototype keeps the entry
+> point there but gives the field its own small modal, so the series-wide, retroactive rename has its own Save
+> and warning instead of riding on "Save changes". Flag to the PM as a refinement of AC1.
+
+`components/template/ModalEditLegendLabel.vue`, opened from the edit icon next to the legends heading in
+"View / edit template". Mounted as a **sibling** of that modal (never inside its content — Pixel 3 crashes on a
+modal opened inside another modal's content); it stacks on top. On save it updates the private template's label
+and the heading behind it.
+
+- Small `MpModal` (480px, top-centre 80px per [`modal.md`](modal.md)), title "Edit legend label".
+- One field: "Legend label" — saved-label picker (typed value allowed), `n / 60` counter, character rule. The
+  current label has a "Current" badge. **No "Set as default"** and **no "Remove"** on saved labels (a cycle
+  screen must not change company settings).
+- Recurring series: caption under the field "Applies to all {N} cycles in this recurring series, including
+  completed ones" (no period) — the warning is shown before Save, so there's no second confirmation. One-off
+  cycle: no caption.
+- Footer: Cancel (ghost) / Save. Toast "Legend label saved".

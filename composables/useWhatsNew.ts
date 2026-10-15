@@ -26,6 +26,30 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '15 Oct 2026',
+    module: 'Settings',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Templates · Legend label rules',
+        detail: 'Legend label now allows up to 60 characters with a 0 / 60 counter and is checked on save (letters, numbers, spaces and - ( ) & / only; other symbols and emoji are blocked). When editing an existing template, "Set as default" is disabled with an "only when creating a template" tooltip.',
+        files: ['components/template/TemplateForm.vue', 'utils/reviewTemplate.ts', 'docs/patterns/builder-modal.md'],
+      },
+    ],
+  },
+  {
+    date: '15 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Cycle detail · View / edit template',
+        detail: 'Edit template on a review cycle opens the cycle\'s private template (migrated from talenta-review ModalViewEdit.vue, commit eca8e8d55) with mock data. An edit icon next to the legends heading opens "Edit legend label", which renames the label for the whole recurring series and says so before saving (Story 7).',
+        files: ['components/template/ModalViewEdit.vue', 'components/template/ModalEditLegendLabel.vue', 'components/template/LegendListForm.vue', 'composables/usePrivateTemplatesStore.ts', 'pages/reviews/review-cycles/[id]/timeframe/[timeframeId].vue', 'docs/patterns/builder-modal.md', 'docs/review-cycles-link-audit.md', 'docs/README.md'],
+      },
+    ],
+  },
+  {
     date: '13 Oct 2026',
     module: 'Settings',
     items: [

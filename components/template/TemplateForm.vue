@@ -19,7 +19,7 @@ import {
   MpBanner, MpBannerIcon, MpBannerDescription, toast, css,
 } from '@mekari/pixel3'
 import {
-  ANSWER_TYPES, DEFAULT_LEGEND_COLOR, NAME_MAX, LEGEND_NAME_MAX, LEGEND_NAME_DEFAULT,
+  ANSWER_TYPES, DEFAULT_LEGEND_COLOR, NAME_MAX, LEGEND_NAME_MAX, LEGEND_NAME_PATTERN, LEGEND_NAME_DEFAULT,
   type AnswerType, type TemplateCategory, type TemplateDetail, type TemplateLegend, type TemplateRating,
 } from '~/utils/reviewTemplate'
 import type { TemplateApiError, TemplatePayload } from '~/composables/useReviewTemplateStore'
@@ -138,7 +138,13 @@ const legendOptions = computed(() => [LEGEND_NAME_DEFAULT, ...savedLegendNames.v
 const effectiveLegendDefault = computed(() => nextLegendName.value || LEGEND_NAME_DEFAULT)
 const isDefaultLegendLabel = computed(() => form.legend_name.trim() === effectiveLegendDefault.value)
 watch(() => form.legend_name, () => { form.legend_apply_next = isDefaultLegendLabel.value })
-const legendLabelError = computed(() => (legendLabelTouched.value && isLegend.value && !form.legend_name.trim() ? 'You must select legend label' : ''))
+const legendLabelError = computed(() => {
+  if (!legendLabelTouched.value || !isLegend.value) return ''
+  const name = form.legend_name.trim()
+  if (!name) return 'You must select legend label'
+  if (!LEGEND_NAME_PATTERN.test(name)) return 'Legend label has invalid characters. Please use only letters, numbers, spaces and - ( ) & /'
+  return ''
+})
 function onRemoveLegendLabel(name: string) {
   removeLegendName(name)
   if (form.legend_name === name) form.legend_name = ''
@@ -697,7 +703,10 @@ const goalCheckbox = css({ marginTop: '4' })
 
         <!-- Legend label: its own block, same 24px rhythm as the other settings groups -->
         <MpFormControl v-if="isLegend" :id="`${uid}-template-legend-name`" :is-invalid="!!legendLabelError" :is-disabled="isViewOnly">
-          <MpFormLabel>Legend label</MpFormLabel>
+          <div :class="labelRow">
+            <MpFormLabel>Legend label</MpFormLabel>
+            <span :class="charCount">{{ form.legend_name.length }} / {{ LEGEND_NAME_MAX }}</span>
+          </div>
           <PxSelectPopover
             v-model="form.legend_name"
             :options="legendOptions"
@@ -722,15 +731,20 @@ const goalCheckbox = css({ marginTop: '4' })
           </PxSelectPopover>
           <MpFormErrorMessage>{{ legendLabelError }}</MpFormErrorMessage>
           <div v-if="!isDefaultLegendLabel && form.legend_name.trim()" :class="legendNameCheckbox">
-            <MpCheckbox
-              :id="`${uid}-legend-apply-next`"
-              :is-checked="form.legend_apply_next"
-              :is-disabled="isViewOnly"
-              @update:is-checked="(v: boolean) => (form.legend_apply_next = v)"
-            >
-              Set as default
-              <template #description>Applies to every template you create</template>
-            </MpCheckbox>
+            <!-- Disabled checkboxes swallow hover, so the tooltip wraps a span. Editing never changes the default. -->
+            <component :is="isEdit ? MpTooltip : 'div'" v-bind="isEdit ? { label: 'You can only set a default legend label when creating a template', showDelay: 0, usePortal: true } : {}">
+              <span>
+                <MpCheckbox
+                  :id="`${uid}-legend-apply-next`"
+                  :is-checked="form.legend_apply_next"
+                  :is-disabled="isViewOnly || isEdit"
+                  @update:is-checked="(v: boolean) => (form.legend_apply_next = v)"
+                >
+                  Set as default
+                  <template #description>Applies to every template you create</template>
+                </MpCheckbox>
+              </span>
+            </component>
           </div>
         </MpFormControl>
       </div>

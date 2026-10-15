@@ -102,6 +102,8 @@ function validate() {
 defineExpose({ validate })
 
 const titleClass = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default', marginBottom: '4' })
+const titleRow = css({ display: 'flex', alignItems: 'center', gap: '1', marginBottom: '4' })
+const titleText = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
 const list = css({ display: 'flex', flexDirection: 'column', gap: '4' })
 const row = css({ display: 'flex', gap: '2', alignItems: 'flex-start' })
 const col = css({ display: 'flex', flexDirection: 'column', gap: '1' })
@@ -119,7 +121,12 @@ const addBtn = css({ color: 'text.link', '& svg': { color: 'text.link' }, margin
 
 <template>
   <div>
-    <MpText v-if="title" :class="titleClass">{{ title }}</MpText>
+    <!-- #title-action: optional control 4px after the title (Story 7 "Edit legend label" in ModalViewEdit). -->
+    <div v-if="title && $slots['title-action']" :class="titleRow">
+      <MpText :class="titleText">{{ title }}</MpText>
+      <slot name="title-action" />
+    </div>
+    <MpText v-else-if="title" :class="titleClass">{{ title }}</MpText>
 
     <div :class="list">
       <div v-for="(legend, idx) in legends" :key="idx" :class="[row, isViewOnly && viewOnly]" :data-qa="`view-settings-template-legend-${idx}`">
