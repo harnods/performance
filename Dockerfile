@@ -5,7 +5,9 @@ WORKDIR /app
 # `npm ci` requires package-lock.json to match package.json exactly — run `npm install`
 # locally and commit the lockfile after changing dependencies.
 COPY package.json package-lock.json ./
-RUN npm ci
+# node:22 bundles npm 10, which reads this lockfile differently from npm 11 (the version that
+# generates it): npm 10 rejects nuxt's nested esbuild 0.28 optional binaries with EBADPLATFORM.
+RUN npm install -g npm@11 && npm ci
 
 COPY . .
 
