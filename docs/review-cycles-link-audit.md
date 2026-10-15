@@ -41,7 +41,7 @@ Tidak ada route assessment/result terpisah di area ini.
 | 420 | Import adjustment score | import adjustment score |
 | 421 | Sync discipline data | Sync attendance data |
 | 425 | Add employee (header) | Add member popover |
-| 453 | Edit template (info row) | `ModalViewEditTemplate` |
+| 453 | Edit template (info row) | `ModalViewEditTemplate` — **wired**: opens `components/template/ModalViewEdit.vue` (the cycle's private template, per active review method; mock `usePrivateTemplatesStore`) ; Story 7: edit icon next to the legends heading opens "Edit legend label" |
 | 602 | Remove employee (row) | **inkonsisten** — di cycle page (L1592) sudah jalan, di sini mati |
 
 ---
