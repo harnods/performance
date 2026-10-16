@@ -205,7 +205,8 @@ and the heading behind it.
 - One field: "Legend label" — saved-label picker (typed value allowed), `n / 60` counter, character rule. The
   current label has a "Current" badge. **No "Set as default"** and **no "Remove"** on saved labels (a cycle
   screen must not change company settings).
-- Recurring series: caption under the field "Applies to all {N} cycles in this recurring series, including
-  completed ones" (no period) — the warning is shown before Save, so there's no second confirmation. One-off
-  cycle: no caption.
+- Repeating cycles: caption under the field "Applies to all {N} repeating cycles, including completed ones"
+  (no period) — the warning is shown before Save, so there's no second confirmation. One-off cycle: no caption.
+  Say "repeating cycles", not "recurring series": the product already uses "Repeat cycle" / "Repeats quarterly"
+  (review cycles list), and "series" is a data-model word users never see.
 - Footer: Cancel (ghost) / Save. Toast "Legend label saved".

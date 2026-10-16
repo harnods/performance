@@ -26,6 +26,18 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '16 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Cycle detail · Edit legend label',
+        detail: 'The Edit legend label caption now reads "Applies to all 4 repeating cycles, including completed ones" instead of "…in this recurring series…", matching the "Repeat cycle" wording used on the review cycles list.',
+        files: ['components/template/ModalEditLegendLabel.vue', 'docs/patterns/builder-modal.md'],
+      },
+    ],
+  },
+  {
     date: '15 Oct 2026',
     module: 'Settings',
     items: [

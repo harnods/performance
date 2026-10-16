@@ -109,7 +109,7 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
             </PxSelectPopover>
             <MpFormErrorMessage>{{ error }}</MpFormErrorMessage>
             <MpText v-if="!error && seriesCount > 1" size="label-small" :class="caption">
-              Applies to all {{ seriesCount }} cycles in this recurring series, including completed ones
+              Applies to all {{ seriesCount }} repeating cycles, including completed ones
             </MpText>
           </MpFormControl>
         </MpModalBody>
