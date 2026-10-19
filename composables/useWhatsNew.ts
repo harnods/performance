@@ -26,6 +26,84 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '19 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Added a Goal reminder section with Goal creation and Update goal progress reminders that repeat over the whole goal period (Repeat every, Reminder target, Notify via); Update goal progress is the existing production reminder, relabelled, and Goal creation targets employees with no goals yet.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'Create goal is now disabled, with a tooltip linking to Goal settings, until the new Goals interface is on, and it switches off when that interface is turned off.',
+        files: ['pages/settings/reminders.vue', 'pages/goals/goal-settings.vue', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Goal reminders now follow the PRD: Update goal achievement first, then Create goal, with Notify via checkboxes (at least one required) shown in the row summary.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder summary',
+        detail: 'Goal reminder rows drop the "During the goal period" line; the repeat line now reads "Repeat reminder every 2 day(s) during the goal cycle", and Create goal keeps the Employee target label.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'On the old Goals interface the disabled toggle tooltip now only says it is available in the new Goals interface; the Goal settings link moved into the toggle caption.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'Renamed the Reminder to create goal row to Create goal, in Settings › Reminders, its drawer and Goal cycle info.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder order',
+        detail: 'Create goal now sits above Update goal achievement in Settings › Reminders and in Goal cycle info.',
+        files: ['utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Section headers',
+        detail: 'Removed the gap between each section title and its description on Settings › Reminders.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · View-only',
+        detail: 'Users without edit access see reminders as view-only: toggles are disabled and the drawer opens read-only.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal cycle info · Reminders row',
+        detail: 'Added a Reminders row listing the goal reminders that run for the cycle, with a Manage reminders link that opens Settings › Reminders in a new tab.',
+        files: ['components/GoalCycleInfoPanel.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal settings · Goal reminders',
+        detail: 'Added a Goal reminders section with an Active or Inactive badge and an Open reminder settings link.',
+        files: ['pages/goals/goal-settings.vue'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'Added coachmarks for the Goal reminder section and the Reminders row, with the small dev panel on Settings › Reminders and the goal cycle page.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md', 'docs/README.md'],
+      },
+    ],
+  },
+  {
     date: '15 Oct 2026',
     module: 'Settings',
     items: [

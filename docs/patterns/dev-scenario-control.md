@@ -142,7 +142,7 @@ talenta-review copies nothing demo-related.
   inside each anchor, and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
   `/reviews/review-cycles`, `RolesFormDevTools` on Add / Edit role (always, since
-  it also holds the Version switch), `IdpListDevTools` on the IDP list,
+  it also holds the Version switch), `IdpListDevTools` on the IDP list, `TemplateDevTools` on Settings › Reminders and a goal cycle's page (Goal reminders),
   `IdpDevTools` everywhere else. It rescans on
   `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
@@ -294,3 +294,7 @@ use `visible()` in `coachmarks.ts` to pick the element that is on screen.
 - **Full-size modal exception** (`TemplateDevTools`): when the modal header is already
   full of actions, keep the 32px button but pin it **bottom-left** (`fixed`, `16px`,
   `zIndex: 1450`, above the modal's 1400) with a `top-start` popover.
+
+## Goal reminders coachmarks
+
+Goal reminders are flagged with pulses too (entries `goal-info-reminders` and `settings-goal-reminder-section` in `coachmarks.ts`): the **Reminders** row on Goal cycle info, and the **Goal reminder** section on Settings › Reminders. Both routes get the small bottom-left `TemplateDevTools` panel (coachmarks group only).

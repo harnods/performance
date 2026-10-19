@@ -2,7 +2,7 @@
 
 ## Size
 
-Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls (matrix add/remove, popover triggers) — never on primary CTAs unless explicitly requested.
+Default = **md** (no `size` prop). Use `size="sm"` only for dense icon controls (matrix add/remove, popover triggers) — never on primary CTAs unless explicitly requested. Also used for the secondary **Edit** button on a Settings › Reminders toggle row (`pages/settings/reminders.vue`, 30px tall, matching production — see [`toggle.md`](toggle.md)).
 
 ## Variants
 

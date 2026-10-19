@@ -22,6 +22,8 @@ import {
 import type { ProgressUpdateMethod } from '~/composables/useGoalCyclesStore'
 import type { PeriodValue } from '~/utils/periodPicker'
 import { reconstructPeriod } from '~/utils/periodPicker'
+import { goalRemindersForCycle } from '~/utils/goalReminders'
+import type { CycleReminderItem } from '~/utils/goalReminders'
 
 const PROGRESS_UPDATE_METHOD_LABEL: Record<string, string> = {
   manual: 'Manual entry',
@@ -40,10 +42,11 @@ function formatUpdatedAt(iso: string): string {
   return `${d.getDate()} ${MONTH_SHORT[d.getMonth()]} ${d.getFullYear()}, ${hh}:${mm}`
 }
 
-interface CycleInfoRow { label: string, value: string, caption?: string }
+interface CycleInfoRow { label: string, value: string, caption?: string, reminders?: CycleReminderItem[] }
 
 const route = useRoute()
 const { cycles, updateCycle } = useGoalCyclesStore()
+const { goalReminders } = useGoalRemindersStore()
 const cycle = computed(() => cycles.value.find(c => c.id === route.params.id))
 
 const cycleInfoRows = computed<CycleInfoRow[]>(() => {
@@ -63,6 +66,8 @@ const cycleInfoRows = computed<CycleInfoRow[]>(() => {
         ? 'Users must assign a weight when creating or editing goals.'
         : 'Users can leave goal weight empty when creating or editing goals.',
     },
+    // Reminders that run for this cycle (set on Settings › Reminders; both cover the goal period).
+    { label: 'Reminders', value: '', reminders: goalRemindersForCycle(goalReminders.value) },
     {
       label: 'Last updated',
       value: cycle.value.updatedAt ? formatUpdatedAt(cycle.value.updatedAt) : '—',
@@ -115,6 +120,11 @@ function saveEdit() {
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 const infoLabelCol = css({ width: '168px', flexShrink: '0' })
+// Reminders row (measured off the design reference): title → caption 6px, item → item 10px,
+// "Manage reminders" 16px below the last caption. Explicit px: '1.5' / '2.5' aren't spacing tokens.
+const reminderList = css({ display: 'flex', flexDirection: 'column', gap: '10px' })
+const reminderItem = css({ display: 'flex', flexDirection: 'column', gap: '6px' })
+const manageReminders = css({ marginTop: '4', alignSelf: 'flex-start' })
 // Form is 6 grid columns wide (12-col grid, span 6 on desktop; full on mobile).
 const formGrid = css({ display: 'grid', gridTemplateColumns: 'repeat(12, minmax(0, 1fr))', gap: '6', width: '100%' })
 const formCol = css({ gridColumn: { base: '1 / -1', lg: 'span 6 / span 6' }, maxWidth: { lg: '656px' }, display: 'flex', flexDirection: 'column', gap: '5' })
@@ -129,7 +139,17 @@ const charCount = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secon
     <MpFlex direction="column" gap="4">
       <MpFlex v-for="row in cycleInfoRows" :key="row.label" align="flex-start" gap="6">
         <MpText size="label" :class="[valueText, infoLabelCol]">{{ row.label }}</MpText>
-        <MpFlex direction="column" gap="0">
+        <MpFlex v-if="row.reminders" direction="column" gap="0">
+          <div v-if="row.reminders.length" :class="reminderList">
+            <div v-for="item in row.reminders" :key="item.key" :class="reminderItem">
+              <MpText size="label" :class="valueText">{{ item.label }}</MpText>
+              <MpText size="label-small" :class="captionText">{{ item.caption }}</MpText>
+            </div>
+          </div>
+          <MpText v-else size="label" :class="valueText">No reminders</MpText>
+          <MpButton variant="secondary" left-icon="newtab" as="a" href="/settings/reminders#goal-reminder" target="_blank" rel="noopener" :class="manageReminders">Manage reminders</MpButton>
+        </MpFlex>
+        <MpFlex v-else direction="column" gap="0">
           <MpText size="label" :class="valueText">{{ row.value }}</MpText>
           <MpText v-if="row.caption" size="label-small" :class="captionText">{{ row.caption }}</MpText>
         </MpFlex>
