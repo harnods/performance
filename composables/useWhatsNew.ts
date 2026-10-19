@@ -26,6 +26,36 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '19 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Added a Goal reminder section with Goal creation and Update goal progress reminders that repeat over the whole goal period (Repeat every, Reminder target, Notify via); Update goal progress is the existing production reminder, relabelled, and Goal creation targets employees with no goals yet.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal cycle info · Reminders row',
+        detail: 'Added a Reminders row listing the goal reminders that run for the cycle, with a Manage reminders link that opens Settings › Reminders in a new tab.',
+        files: ['components/GoalCycleInfoPanel.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal settings · Goal reminders',
+        detail: 'Added a Goal reminders section with an Active or Inactive badge and an Open reminder settings link.',
+        files: ['pages/goals/goal-settings.vue'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'Added coachmarks for the Goal reminder section and the Reminders row, with the small dev panel on Settings › Reminders and the goal cycle page.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md', 'docs/README.md'],
+      },
+    ],
+  },
+  {
     date: '13 Oct 2026',
     module: 'Settings',
     items: [

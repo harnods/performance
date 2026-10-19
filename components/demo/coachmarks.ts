@@ -62,7 +62,28 @@ function visible(els: Iterable<Element>, match: (el: Element) => boolean = () =>
   return [...els].find(el => (el as HTMLElement).offsetParent !== null && match(el)) ?? null
 }
 
+// ─── Goals: goal reminders ───────────────────────────────────────────────────
+const GC_DETAIL = /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+\/?$/
+const SETTINGS_REMINDERS = /^\/settings\/reminders\/?$/
+const onScreen = (selector: string, match: (el: Element) => boolean) => visible(document.querySelectorAll(selector), match)
+
 export const COACHMARKS: CoachmarkDef[] = [
+  {
+    id: 'goal-info-reminders',
+    route: GC_DETAIL,
+    find: () => onScreen('p', el => ownText(el) === 'Reminders'),
+    title: 'Reminders row',
+    description: 'New: the goal reminders that run for this cycle (set on Settings › Reminders), e.g. "Repeat every 2 days". Both run over the whole goal period.',
+    placement: 'right-start',
+  },
+  {
+    id: 'settings-goal-reminder-section',
+    route: SETTINGS_REMINDERS,
+    find: () => document.querySelector('#goal-reminder h2'),
+    title: 'Goal reminder section',
+    description: 'New: Goal creation repeats over the goal period, like Update goal progress (the existing production reminder). It targets employees with no goals yet (drafted or awaiting-approval goals don\'t count).',
+    placement: 'right-start',
+  },
   {
     id: 'template-legend-label',
     route: TEMPLATES,

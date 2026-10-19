@@ -22,6 +22,8 @@ const isEvaluationCycle = computed(() => route.path.startsWith('/reviews/review-
 // Add / Edit role: one panel with the Version 1 / 2 switch + coachmarks (shown even with no pulses, for the switch).
 const isRoleForm = computed(() => /^\/settings\/manage-users\/roles\/(add|edit)/.test(route.path))
 // Template builder: its coachmarks live inside a full-size modal, so a small dev tools button sits above it.
+// Goal reminders: Settings › Reminders and a goal cycle's page (Reminders row on Goal cycle info) get the small panel.
+const isGoalReminderPage = computed(() => /^\/(settings\/reminders\/?|goals\/goal-cycles\/(?!new\/?$)[^/]+\/?)$/.test(route.path))
 const isTemplates = computed(() => /^\/settings\/templates\/?$/.test(route.path))
 
 // id → host <span> appended inside the anchor element.
@@ -120,6 +122,7 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
     <template v-else-if="isTemplates">
       <TemplateDevTools v-if="mounted.length" />
     </template>
+    <TemplateDevTools v-else-if="isGoalReminderPage && active.length" />
     <EvaluationCycleDevTools v-else-if="active.length && isEvaluationCycle" />
     <IdpListDevTools v-else-if="isIdpList" />
     <IdpDevTools v-else-if="active.length" />
