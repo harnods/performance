@@ -99,7 +99,9 @@ export const LEGEND_COLOR_PRESET = [
 ]
 export const DEFAULT_LEGEND_COLOR = '#14B8A6'
 export const NAME_MAX = 60
-export const LEGEND_NAME_MAX = 30
+export const LEGEND_NAME_MAX = 60
+// Letters (any script), marks, numbers, spaces and - ( ) & /. Everything else, emoji included, is blocked.
+export const LEGEND_NAME_PATTERN = /^[\p{L}\p{M}\p{N} \-()&/]+$/u
 export const LEGEND_NAME_DEFAULT = 'Legends'
 
 // ─── Seed list ──────────────────────────────────────────────────────────────────
