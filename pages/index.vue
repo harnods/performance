@@ -74,7 +74,7 @@ const aiSummaries = [
     lead: "The summary result for ",
     strong: "26Q1 PA",
     tail: " is complete",
-    time: "20 Apr 2026, 19:01",
+    time: "20 Apr 2026, 19:05",
   },
   {
     lead: "The summary result for ",
