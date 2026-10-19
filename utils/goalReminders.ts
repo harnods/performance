@@ -1,7 +1,7 @@
 // Goal reminders. Both run over the whole goal period and only repeat (no lead time).
 // Configured on Settings › Reminders
 // (Goal reminder section) and summarised on Goal cycle info. Row names and order follow the
-// PRD (Update goal achievement, then Create goal); other copy follows the Mekari
+// PRD names (Create goal, then Update goal achievement); other copy follows the Mekari
 // UX writing library: sentence case, no period on captions, "Save changes" for settings edits.
 export type GoalReminderKey = 'creation' | 'progress'
 
@@ -30,6 +30,18 @@ export interface GoalReminderMeta {
 
 export const GOAL_REMINDERS: GoalReminderMeta[] = [
   {
+    key: 'creation',
+    title: 'Create goal',
+    description: 'Notify employees to create and save their goals',
+    toggleId: 'goal-creation-toggle',
+    stopHint: 'Reminder will stop when the goal cycle ends',
+    periodLabel: 'Create goal',
+    targets: [
+      { value: 'goal-owner', label: 'Employee', description: 'Employee who has no goals yet. Drafted goals and goals awaiting approval don’t count' },
+      { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can follow up on subordinate’s goals based on approval line field' },
+    ],
+  },
+  {
     // Production row (slug / toggle id "update-goal-achievement" kept).
     key: 'progress',
     title: 'Update goal achievement',
@@ -40,18 +52,6 @@ export const GOAL_REMINDERS: GoalReminderMeta[] = [
     targets: [
       { value: 'goal-owner', label: 'Goal owner', description: 'Employee who has ownership for the goal and able to update the progress' },
       { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can monitor subordinate’s goal progress based on approval line field' },
-    ],
-  },
-  {
-    key: 'creation',
-    title: 'Create goal',
-    description: 'Notify employees to create and save their goals',
-    toggleId: 'goal-creation-toggle',
-    stopHint: 'Reminder will stop when the goal cycle ends',
-    periodLabel: 'Create goal',
-    targets: [
-      { value: 'goal-owner', label: 'Employee', description: 'Employee who has no goals yet. Drafted goals and goals awaiting approval don’t count' },
-      { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can follow up on subordinate’s goals based on approval line field' },
     ],
   },
 ]

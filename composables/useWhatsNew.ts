@@ -67,6 +67,12 @@ export const CHANGELOG: ChangelogEntry[] = [
       },
       {
         category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder order',
+        detail: 'Create goal now sits above Update goal achievement in Settings › Reminders and in Goal cycle info.',
+        files: ['utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
         area: 'Settings › Reminders · Section headers',
         detail: 'Removed the gap between each section title and its description on Settings › Reminders.',
         files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
