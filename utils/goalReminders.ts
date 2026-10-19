@@ -1,8 +1,8 @@
 // Goal reminders. Both run over the whole goal period and only repeat (no lead time).
 // Configured on Settings › Reminders
-// (Goal reminder section) and summarised on Goal cycle info. Copy follows the
-// Mekari UX writing library: sentence case, no period on captions, "Save changes"
-// for settings edits, "Repeat every 2 days" (never "day(s)").
+// (Goal reminder section) and summarised on Goal cycle info. Row names and order follow the
+// PRD (Update goal achievement, then Create goal); other copy follows the Mekari
+// UX writing library: sentence case, no period on captions, "Save changes" for settings edits.
 export type GoalReminderKey = 'creation' | 'progress'
 
 export interface GoalReminder {
@@ -11,6 +11,7 @@ export interface GoalReminder {
   time_before_end: number | null // unused by goal reminders (kept for the shared reminder shape)
   repeat_reminder: number | null
   reminder_for: string[]
+  notify_via: string[] // 'email' | 'push'
 }
 
 export interface GoalReminderTarget { value: string, label: string, description: string }
@@ -21,7 +22,6 @@ export interface GoalReminderMeta {
   title: string
   description: string
   toggleId: string
-  phaseLine: string // summary line: when it runs ("During the goal period")
   stopHint: string // drawer help text under "Repeat every"
   targets: GoalReminderTarget[]
   // Goal cycle info
@@ -30,33 +30,43 @@ export interface GoalReminderMeta {
 
 export const GOAL_REMINDERS: GoalReminderMeta[] = [
   {
-    key: 'creation',
-    title: 'Goal creation',
-    description: 'Notify employees to create and save their goals',
-    toggleId: 'goal-creation-toggle',
-    phaseLine: 'During the goal period',
-    stopHint: 'Reminder will stop when the goal period ends',
-    periodLabel: 'Goal creation',
-    targets: [
-      { value: 'goal-owner', label: 'Employee', description: 'Employee who has no goals yet. Drafted goals and goals awaiting approval don’t count' },
-      { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can follow up on subordinate’s goals based on approval line field' },
-    ],
-  },
-  {
     // Production row (slug / toggle id "update-goal-achievement" kept).
     key: 'progress',
-    title: 'Update goal progress',
+    title: 'Update goal achievement',
     description: 'Notify employee to update their goal progress',
     toggleId: 'update-goal-achievement-toggle',
-    phaseLine: 'During the goal period',
-    stopHint: 'Reminder will stop when the goal period ends',
-    periodLabel: 'Update goal progress',
+    stopHint: 'Reminder will stop when the goal cycle ends',
+    periodLabel: 'Update goal achievement',
     targets: [
       { value: 'goal-owner', label: 'Goal owner', description: 'Employee who has ownership for the goal and able to update the progress' },
       { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can monitor subordinate’s goal progress based on approval line field' },
     ],
   },
+  {
+    key: 'creation',
+    title: 'Create goal',
+    description: 'Notify employees to create and save their goals',
+    toggleId: 'goal-creation-toggle',
+    stopHint: 'Reminder will stop when the goal cycle ends',
+    periodLabel: 'Create goal',
+    targets: [
+      { value: 'goal-owner', label: 'Employee', description: 'Employee who has no goals yet. Drafted goals and goals awaiting approval don’t count' },
+      { value: 'superior', label: 'Superior', description: 'Manager / supervisor who can follow up on subordinate’s goals based on approval line field' },
+    ],
+  },
 ]
+
+export const NOTIFY_CHANNELS = [
+  { value: 'email', label: 'Email notification', short: 'Email', icon: 'envelope' },
+  { value: 'push', label: 'Mobile push notification', short: 'Push notification', icon: 'notification' },
+]
+
+// Settings summary: "Email, push notification".
+export function goalReminderChannelText(values: string[]): string {
+  return NOTIFY_CHANNELS.filter(c => values.includes(c.value))
+    .map((c, i) => (i === 0 ? c.short : c.short.charAt(0).toLowerCase() + c.short.slice(1)))
+    .join(', ')
+}
 
 export function goalReminderMeta(key: GoalReminderKey): GoalReminderMeta {
   return GOAL_REMINDERS.find(m => m.key === key)!

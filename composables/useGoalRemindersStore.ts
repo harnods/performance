@@ -4,12 +4,12 @@ import type { GoalReminder, GoalReminderKey } from '~/utils/goalReminders'
 // reminder section). Shared so Goal cycle info can show which reminders run for a
 // cycle. Persisted to localStorage like the other prototype stores.
 const STORAGE_KEY = 'talenta-goal-reminders-db'
-const SEED_VERSION = 4
+const SEED_VERSION = 5
 
 function seed(): Record<GoalReminderKey, GoalReminder> {
   return {
-    creation: { uuid: 'uuid-7', is_active: true, time_before_end: null, repeat_reminder: 2, reminder_for: ['goal-owner', 'superior'] },
-    progress: { uuid: 'uuid-6', is_active: true, time_before_end: null, repeat_reminder: 2, reminder_for: ['goal-owner', 'superior'] },
+    creation: { uuid: 'uuid-7', is_active: true, time_before_end: null, repeat_reminder: 2, reminder_for: ['goal-owner', 'superior'], notify_via: ['email', 'push'] },
+    progress: { uuid: 'uuid-6', is_active: true, time_before_end: null, repeat_reminder: 2, reminder_for: ['goal-owner', 'superior'], notify_via: ['email', 'push'] },
   }
 }
 
@@ -44,5 +44,12 @@ export function useGoalRemindersStore() {
     persist()
   }
 
-  return { goalReminders, saveGoalReminder }
+  // The create-goal reminder needs the new Goals interface: when that is switched off the row switches off too.
+  function turnOffGoalCreation() {
+    if (!goalReminders.value.creation.is_active) return
+    goalReminders.value = { ...goalReminders.value, creation: { ...goalReminders.value.creation, is_active: false } }
+    persist()
+  }
+
+  return { goalReminders, saveGoalReminder, turnOffGoalCreation }
 }

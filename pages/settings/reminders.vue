@@ -14,7 +14,7 @@
 
   State names, copy, ids and slugs match production on purpose so a diff against
   Form.vue stays meaningful. Exception: the Goal reminder section is a prototype
-  addition (Goal creation + Update goal progress, both over the goal period, see utils/goalReminders.ts) and its
+  addition (Update goal achievement + Create goal, both over the goal period, see utils/goalReminders.ts) and its
   copy follows the Mekari UX writing library; its values live in
   useGoalRemindersStore so Goal cycle info can show which reminders run.
   ━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━
@@ -36,6 +36,8 @@ import {
   MpFormLabel,
   MpFormHelpText,
   MpFormErrorMessage,
+  MpTooltip,
+  MpTextlink,
   MpDrawer,
   MpDrawerContent,
   MpDrawerHeader,
@@ -48,7 +50,7 @@ import {
 } from '@mekari/pixel3'
 
 import type { Ref } from 'vue'
-import { GOAL_REMINDERS, goalReminderMeta, goalReminderRepeatText, goalReminderTargetText } from '~/utils/goalReminders'
+import { GOAL_REMINDERS, NOTIFY_CHANNELS, goalReminderChannelText, goalReminderMeta, goalReminderRepeatText, goalReminderTargetText } from '~/utils/goalReminders'
 import type { GoalReminderKey } from '~/utils/goalReminders'
 
 definePageMeta({ title: 'Reminders' })
@@ -59,6 +61,7 @@ interface ReminderSetting {
   time_before_end: number | null
   repeat_reminder: number | null
   reminder_for?: string[]
+  notify_via?: string[]
 }
 
 type ReminderKey =
@@ -106,10 +109,19 @@ const reviewReminderCycleReadyToPublish = ref<ReminderSetting>(fromContent('cycl
 
 // Goal reminders come from the shared store (see header comment), copied so the drawer can
 // edit freely and Cancel can restore; only Save changes / toggle-off writes back.
-const { goalReminders, saveGoalReminder } = useGoalRemindersStore()
+const { goalReminders, saveGoalReminder, turnOffGoalCreation } = useGoalRemindersStore()
+// Create goal depends on the new Goals interface (Goal settings): off there = disabled and off here.
+const newInterface = useCookie<boolean>('goals-new-interface', { default: () => true })
+if (!newInterface.value) turnOffGoalCreation()
+// Only a Super Admin edits reminders (stand-in for the Reminder edit permission); everyone else is view-only.
+const { currentUserId } = useCurrentUser()
+const mounted = ref(false)
+onMounted(() => { mounted.value = true })
+const canEdit = computed(() => !mounted.value || isSuperAdmin(currentUserId.value))
+function isRowLocked(key: GoalReminderKey) { return !canEdit.value || (key === 'creation' && !newInterface.value) }
 function fromStore(k: GoalReminderKey): ReminderSetting {
   const r = goalReminders.value[k]
-  return { uuid: r.uuid, is_active: r.is_active, time_before_end: r.time_before_end, repeat_reminder: r.repeat_reminder, reminder_for: [...r.reminder_for] }
+  return { uuid: r.uuid, is_active: r.is_active, time_before_end: r.time_before_end, repeat_reminder: r.repeat_reminder, reminder_for: [...r.reminder_for], notify_via: [...r.notify_via] }
 }
 const goalReminderCreateGoal = ref<ReminderSetting>(fromStore('creation'))
 const goalReminderUpdateGoalAchievement = ref<ReminderSetting>(fromStore('progress'))
@@ -133,8 +145,8 @@ const reminders: Record<ReminderKey, Ref<ReminderSetting>> = {
 }
 
 const DRAWER_TITLES: Partial<Record<ReminderKey, string>> = {
-  goalReminderCreateGoal: 'Goal creation',
-  goalReminderUpdateGoalAchievement: 'Update goal progress',
+  goalReminderCreateGoal: 'Create goal',
+  goalReminderUpdateGoalAchievement: 'Update goal achievement',
   reviewReminderEndReviewPeriod: 'End review period',
   reviewReminderPickCoworker: 'Pick co-worker',
   reviewReminderToCompleteReview: 'Reminder to review',
@@ -165,6 +177,7 @@ const repeatInvalid = computed(() => startValidation.value && !active.value?.rep
 const hasBeforeEnd = computed(() => activeReminder.value === 'reviewReminderEndReviewPeriod')
 const beforeEndInvalid = computed(() => startValidation.value && !active.value?.time_before_end)
 const targetInvalid = computed(() => startValidation.value && !active.value?.reminder_for?.length)
+const notifyInvalid = computed(() => startValidation.value && !!activeGoalMeta.value && !active.value?.notify_via?.length)
 
 function onChangeToggle(val: boolean | 'edit', typeReminder: ReminderKey) {
   if (val) {
@@ -173,7 +186,7 @@ function onChangeToggle(val: boolean | 'edit', typeReminder: ReminderKey) {
     titleDrawer.value = DRAWER_TITLES[typeReminder] ?? ''
     // temp copy for cancel; is_active based on edit (a toggle-on that is cancelled stays off)
     const current = reminders[typeReminder].value
-    tempReminder.value = { ...current, reminder_for: current.reminder_for && [...current.reminder_for], is_active: val === 'edit' }
+    tempReminder.value = { ...current, reminder_for: current.reminder_for && [...current.reminder_for], notify_via: current.notify_via && [...current.notify_via], is_active: val === 'edit' }
   } else {
     saveReminder(typeReminder)
   }
@@ -193,10 +206,10 @@ async function saveReminder(typeReminder: ReminderKey | '') {
   const needsBeforeEnd = typeReminder === 'reviewReminderEndReviewPeriod'
   const needsTarget = !!GOAL_KEY[typeReminder]
   const drawerOpen = isDrawerReminder.value
-  if (drawerOpen && (!r.repeat_reminder || (needsBeforeEnd && !r.time_before_end) || (needsTarget && !r.reminder_for?.length))) return
+  if (drawerOpen && (!r.repeat_reminder || (needsBeforeEnd && !r.time_before_end) || (needsTarget && (!r.reminder_for?.length || !r.notify_via?.length)))) return
   // Mock "PUT /reminder-settings/{uuid}" — local state only (goal reminders also go to the shared store).
   const goalKey = GOAL_KEY[typeReminder]
-  if (goalKey) saveGoalReminder(goalKey, { uuid: r.uuid, is_active: r.is_active, time_before_end: r.time_before_end, repeat_reminder: r.repeat_reminder, reminder_for: r.reminder_for ?? [] })
+  if (goalKey) saveGoalReminder(goalKey, { uuid: r.uuid, is_active: r.is_active, time_before_end: r.time_before_end, repeat_reminder: r.repeat_reminder, reminder_for: r.reminder_for ?? [], notify_via: r.notify_via ?? [] })
   isDrawerReminder.value = false
   startValidation.value = false
   toast.notify({ id: 'reminder-saved', position: 'top-center', variant: 'success', title: goalKey ? 'Reminder changes saved' : 'Reminder successfully updated' })
@@ -229,8 +242,8 @@ onMounted(() => {
 // last row caption → next H2 44px; rows split by a 1px divider with 12px margins.
 const gridArea = css({ width: '100%', maxWidth: '684px' })
 const formColumn = css({ display: 'flex', flexDirection: 'column' })
-const firstSectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginBottom: '4' })
-const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '44px', marginBottom: '4' })
+const firstSectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '0', marginBottom: '4' })
+const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '0', marginTop: '44px', marginBottom: '4' })
 const h2Class = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
 // Divider gap above: 24px under a plain row's caption, 12px under a summary block; 14px below
 // (production's toggle label carries 4px of its own padding).
@@ -243,6 +256,7 @@ const summary = css({ display: 'flex', flexDirection: 'column', gap: '2', paddin
 const summaryLine = css({ display: 'flex', alignItems: 'center', gap: '2', minHeight: '24px' })
 const unitText = css({ paddingX: '2' })
 const drawerFields = css({ display: 'flex', flexDirection: 'column', gap: '5' })
+const notifyViaGoal = css({ marginTop: '5' })
 const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marginTop: '5' })
 </script>
 
@@ -261,6 +275,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
           <MpToggle
             id="reminder-to-complete-review-toggle"
             :is-checked="reviewReminderToCompleteReview.is_active"
+            :is-disabled="!canEdit"
             @update:is-checked="(v: boolean) => onToggle('reviewReminderToCompleteReview', v, true)"
           >
             Reminder to complete review
@@ -282,7 +297,8 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
         <MpToggle
           id="added-as-a-reviewer-toggle"
           :is-checked="reviewReminderAddedAsReviewer.is_active"
-          @update:is-checked="(v: boolean) => onToggle('reviewReminderAddedAsReviewer', v, false)"
+          :is-disabled="!canEdit"
+            @update:is-checked="(v: boolean) => onToggle('reviewReminderAddedAsReviewer', v, false)"
         >
           Added as a reviewer
           <template #description>Notify employee when they are assigned as reviewer</template>
@@ -296,6 +312,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
           <MpToggle
             id="pick-co-worker-toggle"
             :is-checked="reviewReminderPickCoworker.is_active"
+            :is-disabled="!canEdit"
             @update:is-checked="(v: boolean) => onToggle('reviewReminderPickCoworker', v, true)"
           >
             Pick co-worker
@@ -318,6 +335,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
           <MpToggle
             id="end-review-periode-toggle"
             :is-checked="reviewReminderEndReviewPeriod.is_active"
+            :is-disabled="!canEdit"
             @update:is-checked="(v: boolean) => onToggle('reviewReminderEndReviewPeriod', v, true)"
           >
             End review period
@@ -343,7 +361,8 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
         <MpToggle
           id="cycle-ready-to-publish-toggle"
           :is-checked="reviewReminderCycleReadyToPublish.is_active"
-          @update:is-checked="(v: boolean) => onToggle('reviewReminderCycleReadyToPublish', v, false)"
+          :is-disabled="!canEdit"
+            @update:is-checked="(v: boolean) => onToggle('reviewReminderCycleReadyToPublish', v, false)"
         >
           Cycle ready to publish
           <template #description>Notify HR when review cycle is ready to publish</template>
@@ -359,28 +378,44 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
       <template v-for="(row, i) in goalRows" :key="row.key">
         <div>
           <div :class="toggleRow">
+            <MpTooltip v-if="row.meta.key === 'creation' && !newInterface" label="Only available in the new Goals interface" :show-delay="0" placement="top" use-portal>
+              <span><!-- wrapper keeps hover alive on the disabled toggle -->
+                <MpToggle
+                  :id="row.meta.toggleId"
+                  :is-checked="false"
+                  is-disabled
+                >
+                  {{ row.meta.title }}
+                  <template #description>
+                    {{ row.meta.description }}.<br>Turn on the new Goals interface in <MpTextlink as="a" href="/goals/goal-settings" target="_blank" rel="noopener">Goal settings</MpTextlink> to use it
+                  </template>
+                </MpToggle>
+              </span>
+            </MpTooltip>
             <MpToggle
+              v-else
               :id="row.meta.toggleId"
               :is-checked="reminders[row.key].value.is_active"
+              :is-disabled="isRowLocked(row.key)"
               @update:is-checked="(v: boolean) => onToggle(row.key, v, true)"
             >
               {{ row.meta.title }}
               <template #description>{{ row.meta.description }}</template>
             </MpToggle>
-            <MpButton v-if="reminders[row.key].value.is_active" variant="secondary" size="sm" :class="editButton" @click="onChangeToggle('edit', row.key)">Edit</MpButton>
+            <MpButton v-if="reminders[row.key].value.is_active" variant="secondary" size="sm" :class="editButton" @click="onChangeToggle('edit', row.key)">{{ canEdit ? 'Edit' : 'View' }}</MpButton>
           </div>
           <div v-if="reminders[row.key].value.is_active" :class="summary">
-            <div :class="summaryLine">
-              <MpIcon name="calendar" size="sm" />
-              <MpText color="text.secondary">{{ row.meta.phaseLine }}</MpText>
-            </div>
             <div :class="summaryLine">
               <MpIcon name="employee" size="sm" />
               <MpText color="text.secondary">{{ goalReminderTargetText(row.meta.key, reminders[row.key].value.reminder_for ?? []) }}</MpText>
             </div>
             <div :class="summaryLine">
               <MpIcon name="refresh" size="sm" />
-              <MpText color="text.secondary">Repeat reminder <MpText as="span" weight="semiBold" color="text.default">{{ goalReminderRepeatText(reminders[row.key].value.repeat_reminder) }}</MpText></MpText>
+              <MpText color="text.secondary">Repeat reminder <MpText as="span" weight="semiBold" color="text.default">{{ goalReminderRepeatText(reminders[row.key].value.repeat_reminder) }}</MpText> during the goal cycle</MpText>
+            </div>
+            <div :class="summaryLine">
+              <MpIcon name="notification" size="sm" />
+              <MpText color="text.secondary">Notify via <MpText as="span" weight="semiBold" color="text.default">{{ goalReminderChannelText(reminders[row.key].value.notify_via ?? []) }}</MpText></MpText>
             </div>
           </div>
         </div>
@@ -407,6 +442,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
                   type="number"
                   min="1"
                   max="999"
+                  :is-disabled="!canEdit"
                   :model-value="active.time_before_end ?? ''"
                   @update:model-value="(v: string | number) => (active!.time_before_end = toPositiveInt(v))"
                 />
@@ -424,6 +460,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
                   type="number"
                   min="1"
                   max="999"
+                  :is-disabled="!canEdit"
                   :model-value="active.repeat_reminder ?? ''"
                   @update:model-value="(v: string | number) => (active!.repeat_reminder = toPositiveInt(v))"
                 />
@@ -443,6 +480,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
                   :key="t.value"
                   v-model="active.reminder_for"
                   :value="t.value"
+                  :is-disabled="!canEdit"
                   name="reminder-target"
                 >
                   {{ t.label }}
@@ -453,7 +491,26 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
             </MpFormControl>
           </div>
 
-          <div :class="notifyVia">
+          <div v-if="activeGoalMeta" :class="notifyViaGoal">
+          <MpFormControl id="reminder-notify-via" :is-invalid="notifyInvalid">
+            <MpFormLabel>Notify via</MpFormLabel>
+            <MpFlex direction="column" gap="2">
+              <MpCheckbox
+                v-for="c in NOTIFY_CHANNELS"
+                :id="`reminder-notify-${c.value}`"
+                :key="c.value"
+                v-model="active!.notify_via"
+                :value="c.value"
+                :is-disabled="!canEdit"
+                name="reminder-notify-via"
+              >
+                {{ c.label }}
+              </MpCheckbox>
+            </MpFlex>
+            <MpFormErrorMessage>You must select at least one</MpFormErrorMessage>
+          </MpFormControl>
+          </div>
+          <div v-else :class="notifyVia">
             <MpText weight="semiBold">Notify via</MpText>
             <div :class="summaryLine">
               <MpIcon name="envelope" />
@@ -467,8 +524,9 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
         </MpDrawerBody>
         <MpDrawerFooter>
           <MpButtonGroup>
-            <MpButton variant="ghost" @click="onClose">Cancel</MpButton>
-            <MpButton variant="primary" @click="saveReminder(activeReminder)">{{ activeGoalMeta ? 'Save changes' : 'Submit' }}</MpButton>
+            <MpButton v-if="!canEdit" variant="secondary" @click="onClose">Close</MpButton>
+            <MpButton v-if="canEdit" variant="ghost" @click="onClose">Cancel</MpButton>
+            <MpButton v-if="canEdit" variant="primary" @click="saveReminder(activeReminder)">{{ activeGoalMeta ? 'Save changes' : 'Submit' }}</MpButton>
           </MpButtonGroup>
         </MpDrawerFooter>
       </MpDrawerContent>

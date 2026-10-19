@@ -124,7 +124,9 @@ const formColumn = css({
 })
 
 // Active when at least one of the goal reminders (creation, update progress) is on in Settings › Reminders.
-const { goalReminders } = useGoalRemindersStore()
+const { goalReminders, turnOffGoalCreation } = useGoalRemindersStore()
+// Create goal only works on the new Goals interface, so it switches off with it.
+watch(useNewInterface, (v) => { if (!v) turnOffGoalCreation() })
 const remindersActive = computed(() => Object.values(goalReminders.value).some(r => r.is_active))
 
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '10', marginBottom: '3' })
