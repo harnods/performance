@@ -50,7 +50,7 @@ import {
 } from '@mekari/pixel3'
 
 import type { Ref } from 'vue'
-import { GOAL_REMINDERS, NOTIFY_CHANNELS, goalReminderChannelText, goalReminderMeta, goalReminderRepeatText, goalReminderTargetText } from '~/utils/goalReminders'
+import { GOAL_REMINDERS, goalReminderChannelText, goalReminderMeta, goalReminderRepeatText, goalReminderTargetText } from '~/utils/goalReminders'
 import type { GoalReminderKey } from '~/utils/goalReminders'
 
 definePageMeta({ title: 'Reminders' })
@@ -177,7 +177,6 @@ const repeatInvalid = computed(() => startValidation.value && !active.value?.rep
 const hasBeforeEnd = computed(() => activeReminder.value === 'reviewReminderEndReviewPeriod')
 const beforeEndInvalid = computed(() => startValidation.value && !active.value?.time_before_end)
 const targetInvalid = computed(() => startValidation.value && !active.value?.reminder_for?.length)
-const notifyInvalid = computed(() => startValidation.value && !!activeGoalMeta.value && !active.value?.notify_via?.length)
 
 function onChangeToggle(val: boolean | 'edit', typeReminder: ReminderKey) {
   if (val) {
@@ -206,7 +205,7 @@ async function saveReminder(typeReminder: ReminderKey | '') {
   const needsBeforeEnd = typeReminder === 'reviewReminderEndReviewPeriod'
   const needsTarget = !!GOAL_KEY[typeReminder]
   const drawerOpen = isDrawerReminder.value
-  if (drawerOpen && (!r.repeat_reminder || (needsBeforeEnd && !r.time_before_end) || (needsTarget && (!r.reminder_for?.length || !r.notify_via?.length)))) return
+  if (drawerOpen && (!r.repeat_reminder || (needsBeforeEnd && !r.time_before_end) || (needsTarget && !r.reminder_for?.length))) return
   // Mock "PUT /reminder-settings/{uuid}" — local state only (goal reminders also go to the shared store).
   const goalKey = GOAL_KEY[typeReminder]
   if (goalKey) saveGoalReminder(goalKey, { uuid: r.uuid, is_active: r.is_active, time_before_end: r.time_before_end, repeat_reminder: r.repeat_reminder, reminder_for: r.reminder_for ?? [], notify_via: r.notify_via ?? [] })
@@ -256,7 +255,6 @@ const summary = css({ display: 'flex', flexDirection: 'column', gap: '2', paddin
 const summaryLine = css({ display: 'flex', alignItems: 'center', gap: '2', minHeight: '24px' })
 const unitText = css({ paddingX: '2' })
 const drawerFields = css({ display: 'flex', flexDirection: 'column', gap: '5' })
-const notifyViaGoal = css({ marginTop: '5' })
 const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marginTop: '5' })
 </script>
 
@@ -491,26 +489,7 @@ const notifyVia = css({ display: 'flex', flexDirection: 'column', gap: '2', marg
             </MpFormControl>
           </div>
 
-          <div v-if="activeGoalMeta" :class="notifyViaGoal">
-          <MpFormControl id="reminder-notify-via" :is-invalid="notifyInvalid">
-            <MpFormLabel>Notify via</MpFormLabel>
-            <MpFlex direction="column" gap="2">
-              <MpCheckbox
-                v-for="c in NOTIFY_CHANNELS"
-                :id="`reminder-notify-${c.value}`"
-                :key="c.value"
-                v-model="active!.notify_via"
-                :value="c.value"
-                :is-disabled="!canEdit"
-                name="reminder-notify-via"
-              >
-                {{ c.label }}
-              </MpCheckbox>
-            </MpFlex>
-            <MpFormErrorMessage>You must select at least one</MpFormErrorMessage>
-          </MpFormControl>
-          </div>
-          <div v-else :class="notifyVia">
+          <div :class="notifyVia">
             <MpText weight="semiBold">Notify via</MpText>
             <div :class="summaryLine">
               <MpIcon name="envelope" />

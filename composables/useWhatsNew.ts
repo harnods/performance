@@ -26,6 +26,18 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '20 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Notify via on Create goal and Update goal achievement is now read-only info with icons, the same as the review reminders, instead of checkboxes.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+    ],
+  },
+  {
     date: '19 Oct 2026',
     module: 'Goals',
     items: [
