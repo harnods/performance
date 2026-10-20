@@ -5,6 +5,8 @@ import {
   MpAvatar,
   MpText,
   MpTextlink,
+  MpButton,
+  MpTooltip,
   MpSpinner,
   MpPopover,
   MpPopoverTrigger,
@@ -30,10 +32,15 @@ const currentMonitorList = computed(() => (activeMonitorTab.value === 'import' ?
 // When a job requests it (Process upload → Import, Request template → Download),
 // pop the monitor open on the matching tab by clicking its (uncontrolled)
 // trigger, so the user sees progress and can grab the finished file.
-const monitorTriggerBtn = ref<HTMLButtonElement | null>(null)
+// Looked up by its aria-label, not a template ref: MpPopoverTrigger re-creates its slot child, so a
+// `ref` on the button stays null and the monitor never opened.
+// The trigger toggles, so only click it when the monitor is closed: a second job started while it is
+// already open (e.g. Download template twice) must switch the tab, not shut the monitor.
+const isMonitorOpen = ref(false)
 watch(openSignal, () => {
   activeMonitorTab.value = requestedTab.value
-  nextTick(() => monitorTriggerBtn.value?.click())
+  if (isMonitorOpen.value) return
+  nextTick(() => document.querySelector<HTMLButtonElement>('button[aria-label="Activity monitor"]')?.click())
 })
 function downloadFromMonitor(fileName: string) {
   toast.notify({ id: 'monitor-download', position: 'top-center', variant: 'success', title: 'Template downloaded' })
@@ -43,11 +50,13 @@ const { resetToSeed } = useGoalCyclesStore()
 const { resetToSeed: resetGoalsToSeed } = useGoalsStore()
 const { resetToSeed: resetReviewerWeights } = useReviewerWeightsStore()
 const { clearRecorded: clearActivityLog } = useGoalActivityStore()
+const { resetDemo: resetManageUsers } = useManageUserStore()
 function resetDemoData() {
   resetToSeed()
   resetGoalsToSeed()
   resetReviewerWeights()
   clearActivityLog()
+  resetManageUsers()
   toast.notify({
     id: 'demo-data-reset',
     position: 'top-center',
@@ -255,9 +264,9 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
 
     <MpFlex align="center" gap="4">
       <!-- Activity monitor — background Import / Download jobs -->
-      <MpPopover placement="bottom-end" trigger="click" use-portal>
+      <MpPopover placement="bottom-end" trigger="click" use-portal @open="isMonitorOpen = true" @close="isMonitorOpen = false">
         <MpPopoverTrigger>
-          <button ref="monitorTriggerBtn" type="button" :class="monitorTrigger" aria-label="Activity monitor">
+          <button type="button" :class="monitorTrigger" aria-label="Activity monitor">
             <span :class="{ 'monitor-icon-spin': activeCount > 0 }" :style="{ display: 'inline-flex' }">
               <MpIcon name="refresh" :size="20" />
             </span>
@@ -282,7 +291,9 @@ const footerLinkRow = css({ display: 'flex', flexWrap: 'wrap', gap: '2' })
                   </span>
                 </div>
                 <span v-if="p.status === 'processing'" :class="monitorPct">{{ p.progress }}%</span>
-                <MpTextlink v-else-if="p.kind === 'download'" as="button" size="label" @click="downloadFromMonitor(p.fileName)">Download</MpTextlink>
+                <MpTooltip v-else-if="p.kind === 'download'" label="Download" use-portal>
+                  <MpButton variant="ghost" left-icon="download" aria-label="Download" @click="downloadFromMonitor(p.fileName)" />
+                </MpTooltip>
               </div>
             </div>
             <div v-else :class="monitorEmpty">No {{ activeMonitorTab }} in progress</div>

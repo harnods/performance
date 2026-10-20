@@ -13,9 +13,9 @@ Set via `definePageMeta({ title })`. Rendered as the `<h1>` at `layouts/default.
 Simplest page declaration:
 
 ```vue
-<!-- pages/settings/manage-users.vue -->
+<!-- pages/settings/manage-users/roles/index.vue -->
 <script setup lang="ts">
-definePageMeta({ title: 'Manage Users' })
+definePageMeta({ title: 'Roles', layout: 'default' })
 </script>
 ```
 

@@ -123,6 +123,12 @@ const formColumn = css({
   flexDirection: 'column',
 })
 
+// Active when at least one of the goal reminders (creation, update progress) is on in Settings › Reminders.
+const { goalReminders, turnOffGoalCreation } = useGoalRemindersStore()
+// Create goal only works on the new Goals interface, so it switches off with it.
+watch(useNewInterface, (v) => { if (!v) turnOffGoalCreation() })
+const remindersActive = computed(() => Object.values(goalReminders.value).some(r => r.is_active))
+
 const sectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginTop: '10', marginBottom: '3' })
 const firstSectionHeader = css({ display: 'flex', flexDirection: 'column', gap: '1', marginBottom: '3' })
 const h2Class = css({ fontSize: '20px', fontWeight: '600', lineHeight: '32px', color: 'text.default' })
@@ -223,6 +229,20 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <div :class="linkRow">
           <MpTextlink @click="router.push('/goals/goal-categories')">Manage goal categories</MpTextlink>
         </div>
+      </div>
+
+      <!-- ── Goal reminders ──────────────────────────────────────────── -->
+      <div :class="sectionHeader">
+        <MpFlex align="center" gap="2">
+          <MpText as="h2" :class="h2Class">Goal reminders</MpText>
+          <MpBadge for="additionalInformation" :type="remindersActive ? 'completed' : 'announcement'">{{ remindersActive ? 'Active' : 'Inactive' }}</MpBadge>
+        </MpFlex>
+        <MpText size="label" color="text.secondary">
+          Remind employees to create their goals and update their progress during the goal period.
+        </MpText>
+      </div>
+      <div :class="fields">
+        <MpButton variant="secondary" left-icon="newtab" as="a" href="/settings/reminders#goal-reminder" target="_blank" rel="noopener">Open reminder settings</MpButton>
       </div>
 
       <!-- ── Grouped notifications ────────────────────────────────────── -->

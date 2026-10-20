@@ -33,6 +33,19 @@ Sequence for any UI work:
 > docs tell you *how this project composes those components into pages* — the recurring
 > layout, spacing, and behaviour decisions that aren't captured upstream.
 
+### Styling: keep `<script>` TSX-safe
+
+`css()` classes only exist if Panda's extractor (`@mekari/pixel3-postcss`) finds the
+call. Panda parses a Vue `<script>` as **TSX**, so TS syntax that TSX can't read stops
+the parse silently. Every `css()` after it then has no CSS, and the page renders unstyled
+or with a broken layout. There's no build error, and a dev-server restart doesn't help.
+
+- **Never write an arrow generic** `const f = <T>(v: T) => …`, because TSX reads `<T>` as a
+  JSX tag. Use `function f<T>(v: T) { … }` instead.
+- `npm test` runs `tests/panda-extraction.test.ts`, which fails when a `.vue` file
+  declares more `const x = css({` than Panda extracts. If a layout looks unstyled (for
+  example, two panes stacked on desktop), run it first.
+
 ---
 
 ## Pattern docs
@@ -60,8 +73,9 @@ Sequence for any UI work:
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
 | [`patterns/upload.md`](patterns/upload.md) | Single-file dropzone upload (drag/drop + browse, file-selected summary row, inline validation), and the full upload page with a template download (`UploadPage.vue`). |
 | [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. |
+| [`patterns/builder-modal.md`](patterns/builder-modal.md) | The full-size two-pane builder (review template builder): header actions, grey canvas of block cards + right settings panel, view-only mode, sibling sub-modals; plus the single-column private-template "View / edit template" modal opened from a review cycle and the small "Edit legend label" modal opened from its legends heading (Story 7). Migration parity only. |
 | [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, gate/confirmation modals (validate on the triggering action, share logic via a composable), and the read-only two-column record modal (production paddings). |
-| [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon. |
+| [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon; a settings toggle row with an Edit button, summary lines and an edit drawer (Settings › Reminders), incl. the Goal reminder rows and the Reminders row on Goal cycle info. |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, the rules for faking data safely, and **dev coachmarks** (pulses flagging what is new vs production). |
 | [`patterns/tokens.md`](patterns/tokens.md) | DT 2.4 token hygiene — no raw hex, no inline style. |

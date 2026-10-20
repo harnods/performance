@@ -21,6 +21,18 @@ Every field: `MpFormControl` (with `id`) + `MpFormLabel` + `MpFormErrorMessage`.
 </MpFormControl>
 ```
 
+> ⚠️ **Don't put `:class` on `MpFormErrorMessage`.** It renders a fragment while the
+> control is valid, so Vue drops the class and warns "Extraneous non-props attributes
+> (class)" on every render. To indent or offset the message, wrap it in a plain
+> `<div :class="…">` (see `components/cycle/RatingList.vue`'s `errorIndent`).
+
+> ⚠️ **Form ids must be unique per component instance.** A `<label for>` binds to the
+> *first* element with that id in the document. If the same form is mounted twice on
+> a page (e.g. a hidden copy used to build a duplicate payload), static ids make
+> clicks on the visible radio/checkbox label toggle the hidden copy's input — it looks
+> "unclickable". Prefix every `id` with `const uid = useId()` (`:id="`${uid}-name`"`).
+> Reference: `components/template/TemplateForm.vue`, `CategoryForm.vue`.
+
 ### Required marker
 
 ⚠️ Two conventions coexist. **Preferred: `:is-required="true"` on `MpFormControl`** (built-in, `competencies/create.vue:477`). The drawers roll a manual red asterisk (`MpFlex align="center" gap="0"` + `<MpText :class="css({ color: 'text.danger' })">*</MpText>`, `AddGoalDrawer.vue`). Pick one per form; don't mix. **Either way, there's no space between the label and the asterisk**: the manual wrapper is `gap="0"`, there's no whitespace before an inline `*`, and the built-in marker's 4px Pixel margin is zeroed in `main.css`.
@@ -35,7 +47,7 @@ Prefer built-in **`MpFormHelpText`** (`competencies/create.vue:506`). Field hint
 
 ## Dropdowns — `PxSelectPopover` always
 
-Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `maxlength` (`customValueLabel` deprecated). `searchPlaceholder` is deprecated and ignored.
+Never raw `MpSelect` in a form (raw `MpSelect` appears only *inside* `PxSelectPopover.vue` as the hidden visual trigger, and only for a non-searchable select). Props (`PxSelectPopover.vue`): `modelValue`, `options: {value,label,description?,trailing?,group?,photo?}[]`, `placeholder`, `isClearable`, `isDisabled`, `width`, `searchable` / `searchOnField` (synonyms), `allowCustomValue`, `maxlength`, `keepTextOnFocus` (`customValueLabel` deprecated). `searchPlaceholder` is deprecated and ignored.
 
 Width — two valid ways:
 - `:width` prop (string): `width="100%"`, `:width="'240px'"`.
@@ -102,6 +114,10 @@ Behavior (`PxSelectPopover.vue`, `onField`):
   list live (label, description and trailing text).
 - Blurring without picking reverts the field to the current selection's label.
 - With `is-clearable`, deleting the text and blurring clears the value.
+- `keep-text-on-focus` (opt-in): focusing keeps the current text instead of clearing it; the trailing chevron
+  becomes a filled `MpIcon name="error" variant="fill"` (x) while the field is focused and filled. The (x) empties the value and
+  leaves the field focused so typing starts at once; the list only filters after the user types. Used by the
+  builder's Legend label (`docs/patterns/builder-modal.md`).
 - No match shows "No results found" instead of an empty bordered box.
 - `search-placeholder` is ignored. The field's `placeholder` is the only
   prompt, so phrase it to cover both (e.g. "Search or select employee").
@@ -500,6 +516,14 @@ Use the built-in default slot for the label + `#description` slot for the captio
 
 ### A radio group with a disabled "coming soon" option reveals a field between the options
 
+**Clearing an optional radio group:** an optional group (nothing selected is valid) gets a small
+**"Clear selection"** link on the label row, right-aligned (`labelRow`), shown **only while
+something is selected**; it deselects the radio and clears any value revealed under it
+(`IdpActionPlanModal.vue`'s Relates to). Copy per the Mekari library: **Clear** (undo a
+selection), not "Remove" (take an item out of a list). It's 12px: `MpText as="button"
+size="label-small" color="text.link"`, because `MpTextlink` is pinned to 14px by Pixel's `_base`
+layer (its `size="label-small"` has no effect and a `css()` font size can't win).
+
 `IdpActionPlanModal.vue`'s "Relates to" field picks what this action plan
 develops — Competency (live) or Goal (not built yet) — as a two-option
 `MpRadio` group. Unlike the "reveal below the whole group" shape you might
@@ -706,6 +730,17 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 
 `%` weight inputs = `width: '104px'`. Suppress number spinners with a `noSpinner` class when needed.
 
+**Gotcha — a narrow `MpInput` overflows its box:** the native `<input>` keeps its default
+intrinsic width (~88px) even when `MpFormControl`/the root is `width: '70px'`, so a
+short numeric field (point range `from – to`, legend range) spills past the card edge
+and overlaps its neighbour. Put `'& input': { width: '100%', minWidth: '0' }` and
+`flexShrink: '0'` on the width class (`components/cycle/RatingList.vue`
+`pointInput`, `components/template/LegendListForm.vue` `rangeInput`). `MpInput` is 38px tall, so an
+adjacent single-line `MpTextarea` (`rating description`, `point description`) is set to
+`height`/`minHeight` `38px` to line up (`PointList.vue` `descArea`). Centre a
+separator dash on such inputs with `alignItems: 'flex-end'` + `marginBottom: '17px'`
+(36px input, 2px dash), not per-row magic offsets.
+
 **Gotcha — addon overlaps the input text:** `MpInputLeftAddon`/`MpInputRightAddon` measure their own width via `getComputedStyle()` in `onMounted` to set `--mp-input-offset--{left,right}`, but inside a just-opened drawer that read can happen before layout settles, coming back empty — the var lands as literal `NaNpx`. The input's padding is `calc(var(--mp-input-offset--left) + 14px)` with no fallback, so the invalid var invalidates the whole `calc()` and padding collapses to `0`, letting the addon box sit on top of the input's own text. It's invisible on short single-char addons (`%`) and glaring on 2-char ones (`Rp`). Fix with a scoped `:deep()` override forcing fixed padding (see `AddGoalDrawer.vue`'s `<style scoped>` block):
 ```css
 :deep(.mp-input-group__root[data-with-left-addon='true'] .mp-input__control) {
@@ -716,9 +751,111 @@ The value is HTML — render it back with `MpRTEStyleProvider`. Example: `AddGoa
 }
 ```
 
+## Colour swatch picker — `MpColorPicker`
+
+For a user-picked colour (review template legends), use Pixel 3's
+`MpColorPicker` with a **custom trigger** in its default slot — a 36px
+`radius: md` swatch filled with the current colour (dynamic `:style`, it's
+data) holding an `icon.inverse` `paint-bucket` icon. `variant="basic"`,
+`is-show-preset` + `is-show-input`, `use-portal` (it's usually inside a modal),
+and the 16-colour `LEGEND_COLOR_PRESET` from `utils/reviewTemplate.ts`. It emits
+`change` with `{ hex }`. Reference: `components/template/LegendListForm.vue`.
+
+## Drag to reorder repeatable blocks
+
+Native HTML5 drag & drop — no library. The **handle** (`MpIcon name="drag"`,
+`cursor: grab`, `icon.secondary`) is the only `draggable="true"` element; the
+block container takes `@dragenter.prevent` / `@dragover.prevent` / `@drop`.
+While dragging, the source block dims (`opacity: 0.4`) and the drop target shows
+a 3px `border.brand` insertion line at its top. Nested lists (indicators inside
+a category) call `stopPropagation()` on their own drop so the outer list doesn't
+also reorder. References: `pages/talents/competencies/create.vue` (columns /
+rows), `components/template/TemplateForm.vue` + `CategoryForm.vue` (categories /
+indicators).
+
 ## Cross-field / cross-record validation blocking save
 
 A field can be locally valid but still violate a rule that depends on state outside the form (e.g. `AddGoalDrawer.vue`'s weight field: 1–100 is locally fine, but a `weightMandatory` cycle also needs it to land the owner's total on exactly 100%). Validate this *inside* the form component itself, gated on a prop the caller passes in (`weightMandatory` + `alreadyUsedWeight`), not in the `@save` handler after the fact — a handler-level check runs too late: the drawer's own `save()` already emits `'update:isOpen', false` in the same breath as `'save'`, so by the time a parent-side check could reject it, the drawer has already closed. Fold the extra rule into the same `errors.*` + `MpFormErrorMessage` used for local validation, and block `emit('save', …)` from firing at all. Because the drawer can be long, also scroll the offending field into view (`document.getElementById(fieldId)?.scrollIntoView({ behavior: 'smooth', block: 'center' })` inside `nextTick`) so an error on a field the user didn't touch (scrolled past, off the visible area) isn't silently invisible. Do **not** fall back to a `toast.notify()` for this — a toast next to a drawer that already closed reads as "it saved, but here's a warning," when what actually happened is it didn't save at all.
+
+## Permission matrix (parent/child checkbox table)
+
+A role's permissions render as a 2-column `MpTable` (`:is-hoverable="false"`): **Access** (40%,
+the parent `MpCheckbox`, `:is-indeterminate` when only some children are on) and **Permission**
+(a `View` checkbox + one checkbox per child, each with its caption in `#description`, 16px apart).
+A parent with no children shows just its description as `MpText size="label" color="text.secondary"`.
+The Permission cell stacks 3+ lines, so the whole table is `verticalAlign: 'top'`. Checking a
+child also checks the parent's View; unchecking View clears its children. Reference:
+`components/manage-user/RolesForm.vue` (migrated from production's flex-row layout).
+
+**Purpose-scoped permissions (Review cycle — PRD "Custom Role Improvement" S1).** The
+scoped group renders as its own row ("Review cycle" checkbox, empty Permission cell)
+followed by **one table sub-row per cycle purpose** — Performance, Competency, Evaluation —
+not an accordion and no summary text. Each sub-row:
+- **Access cell**: the purpose `MpCheckbox`, indented **32px** from the group checkbox
+  (`paddingLeft: '40px'` = the cell's own 8px + 32px). Checked = every permission granted
+  for that purpose; some = indeterminate. Clicking it grants/clears all of them.
+- **Permission cell**: the group's normal View / Add / Edit / Delete checkboxes (Report is its own group — below),
+  with the purpose spelled out in each `#description` ("View performance review cycles and
+  their progress." — `SCOPED_PERMISSION_DESCRIPTIONS` in `utils/manageUser.ts`).
+- **Evaluation only**: once any Evaluation permission is on, one `MpCheckbox` per employment
+  status (Contract / Probation / Internship) appears **16px** below the Evaluation checkbox
+  (`gap: '16px'` on the cell's flex column — explicit px, the spacing token renders slightly
+  off), indented **32px** (the reveal indent), 12px apart. **No title** above them — the
+  options read as Evaluation's children. It's a plain `div role="group"
+  aria-label="Employment status"` (not `MpFormControl`, whose id would land on every
+  checkbox). Granting Evaluation starts with every status ticked; **unticking the last
+  status removes Evaluation** (evaluation access needs ≥1 status), which hides the group.
+- **No line under the group row** ("Review cycle"): every cell of a row that has sub-rows
+  below it gets `borderBottomColor: 'transparent'`. Dividers between purpose sub-rows start
+  at the 32px indent: the Access cell's border goes transparent and a 1px `linear-gradient`
+  background (`calc(100% - 40px)`, right-bottom) draws it. The last purpose row keeps the
+  normal full-width row border.
+- The table is `tableLayout: 'fixed'` so Access keeps its 40% (the status checkboxes live
+  there), and cells get `whiteSpace: 'normal'` so descriptions wrap instead of clipping.
+- Production's "child implies View" rule applies per purpose; unticking View for a purpose
+  clears that purpose from every other permission.
+- **Group checkbox**: fully checked → clears every purpose, permission and status; otherwise
+  grants all. Compute the next value **once** before looping the nodes — re-reading
+  "is everything on?" inside the loop flips after the first node changes and leaves the
+  rest ticked.
+
+**Report (PRD S2).** Its own group, below Review cycle — not a child of Review cycle. No
+View row: the Permission cell holds **Standard report** (production's review-cycle report,
+same id) and **9-Box report**. Below it, indented sub-rows like Review cycle's:
+- **"Same scope as Review cycle"** `MpCheckbox` (a checkbox, not the PRD's switch, so the
+  page keeps one control type), on by default. Its `#description` shows what it tracks —
+  `scopeSummary()` of Review cycle's current purposes ("Performance, Evaluation (Contract,
+  Internship)"; statuses only when not all) or "No Review cycle purpose selected yet".
+- Unticking it starts a custom scope **from Review cycle's current one** and reveals one
+  purpose sub-row each (purpose checkbox + the same Employment Status checkboxes under
+  Evaluation). Permission cell empty — the scope applies to both report types.
+- A granted Report with a custom scope and no purpose blocks Save
+  ("Select at least one purpose for Report", toast).
+- Stored on every Report grant as `scope` + `same_as_review_cycle`; migrated roles get all
+  purposes/statuses and `same_as_review_cycle: true`, 9-Box unchecked (PRD S5).
+
+**Dashboard (PRD S3).** One group checkbox, no scope picker. The Permission cell adds a
+second `text.secondary` line under the description: "Scoped to Review cycle: …". With no
+Review cycle purpose the checkbox is **`is-disabled`** and the line explains why
+("Select a Review cycle purpose first…"); clearing Review cycle's last purpose also unticks
+it (`watch`).
+
+**Version 2 — one checkbox column per action (dev scenario, `rolesFormVersion`).** Same
+rows and Access column, but the Permission column splits into **View / Create / Edit /
+Delete** (`ACTION_COLUMNS`, 12% each; the Report column went away when Report became its
+own section, header and checkbox centred via a
+`display: flex; justifyContent: center` wrapper). Cells hold a **bare `MpCheckbox`** with an
+`aria-label` ("Edit performance review cycle") — no label, no description; a cell with no
+matching permission stays empty. Children map to columns by name (`Add` → Create, `Edit`,
+`Delete`; the parent itself → View). The **Goals** module (renamed from Manage Goal, listed right after Review cycle) is plain View / Create / Edit / Delete. Children that aren't an action (Report's Review results / 9-Box) become indented Access-only sub-rows under
+their group, with the same no-line-under-group rule; Report's scope rows follow them, action
+cells empty. Dashboard's scope note moves into its Access checkbox's `#description` (no
+description column in V2). In V2 an unscoped group checkbox reflects its whole row
+(all → checked, some → indeterminate, click → all on / all off), unlike V1's production
+rule. Switched by the Scenario group in `components/demo/RolesFormDevTools.vue`
+([`dev-scenario-control.md`](dev-scenario-control.md)).
+
+Reference: `components/manage-user/RolesForm.vue`.
 
 ### Saved Employee filters on the cycle detail page
 
@@ -748,3 +885,7 @@ a new tab, with no bottom padding under the link row (the list's 8px is dropped)
 ("No competency items yet" / "Add competency item"). A radio that reveals a
 select has **no label** on that select, a 4px gap under the radio and a 32px
 indent (`marginLeft: '8'`); `IdpPlanForm.vue`'s future job position follows it.
+
+### Role form: Save → Edit keeps the selection
+
+The permission ids can't express everything the form shows (Version 2's tree cells and toggles, Report / Dashboard sub-row checkboxes, the "Same scope" toggles). The form therefore saves a `ui_state` blob with the role (`useManageUserStore`'s `RolePayload.ui_state`) and restores it on Edit. Version 2's `RolesPermissionTreeV2` takes it as a `v-model`, so the selection also survives switching between Version 1 and 2 while editing. Prototype only: production would persist these as real permissions.

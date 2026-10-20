@@ -9,7 +9,7 @@
 import {
   MpFlex, MpText, MpButton, MpButtonGroup, MpIcon, MpDivider, MpTextlink, MpBanner, MpBannerDescription,
   MpFormControl, MpFormErrorMessage, MpInput, MpInputGroup, MpInputLeftAddon,
-  MpTooltip, MpSpinner, toast, css,
+  MpTooltip, MpSpinner, MpModal, MpModalContent, MpModalHeader, MpModalBody, MpModalFooter, toast, css,
 } from '@mekari/pixel3'
 import { EMPLOYEES, employeeMeta } from '~/utils/employees'
 import { buildImportedIdpDrafts } from '~/utils/idpImportMock'
@@ -25,12 +25,12 @@ const props = withDefaults(defineProps<{
   submitText?: string
 }>(), {
   intro: 'Follow these steps to import IDPs.',
-  maxMb: 5,
+  maxMb: 10,
   submitText: 'Import',
 })
 
 const router = useRouter()
-const { addImport } = useActivityMonitor()
+const { addImport, addDownload } = useActivityMonitor()
 const { createPlan } = useIdpStore()
 const { currentUserId } = useCurrentUser()
 
@@ -55,7 +55,7 @@ const GENERATE_MS = 2000
 const isGenerating = ref(false)
 // The dev tools' "Loading state" scenario keeps step 2 on the loader.
 const showLoader = computed(() => isGenerating.value || (step.value === 2 && importScenario.value === 'loading'))
-const fileTypeHint = computed(() => `File must be in XLSX format with a maximum of ${props.maxMb} MB`)
+const fileTypeHint = computed(() => `.xlsx only with max size ${props.maxMb}mb`)
 function goNext() {
   nextAttempted.value = true
   if (!selectedIds.value.length) return
@@ -78,19 +78,21 @@ const filteredEmployees = computed(() => {
 })
 const visibleEmployees = computed(() => filteredEmployees.value.slice(0, visibleCount.value))
 const remaining = computed(() => Math.max(0, filteredEmployees.value.length - visibleCount.value))
-function loadMore() { visibleCount.value += PAGE }
+// 10 at a time; when fewer than 10 are left, loads just the remaining ones.
+function loadMore() { visibleCount.value += Math.min(PAGE, remaining.value) }
 // Dev tools can force an error state on the dropzone (docs/patterns/dev-scenario-control.md).
 const { importError, importScenario, importStep } = useIdpImportFlag()
 watch(step, (n) => { importStep.value = n }, { immediate: true })
 onBeforeUnmount(() => { importStep.value = 1 })
 
-function downloadTemplate() {
-  toast.notify({ id: 'import-template', position: 'top-center', variant: 'success', title: `${props.templateName} downloaded`, description: 'Prototype only. No file is generated.' })
-}
+// No toast: the header activity monitor opens on its Download tab with the template as a job; when it
+// is ready, the row gets a download icon button (docs/patterns/upload.md).
+function downloadTemplate() { addDownload(props.templateName) }
 
 // ─── File picker (docs/patterns/upload.md dropzone) ─────────────────────────
 const fileName = ref('')
 const fileSizeLabel = ref('')
+const pickedFile = ref<File | null>(null)
 const pickedInvalidReason = ref('')
 const forcedReason = computed(() => importError.value === 'too-large'
   ? `File size is over ${props.maxMb} MB. Please upload a smaller file`
@@ -125,10 +127,40 @@ function acceptFile(file: File | undefined) {
   }
   fileName.value = file.name
   fileSizeLabel.value = formatSize(file.size)
+  pickedFile.value = file
 }
 function onInputChange(e: Event) { acceptFile((e.target as HTMLInputElement).files?.[0]) }
+// Drag & drop. dragleave also fires when the pointer moves onto a child (icon, text), so only
+// un-highlight when it really leaves the dropzone, or the highlight flickers off mid-drag.
+function hasFiles(e: DragEvent) { return !!e.dataTransfer?.types?.includes('Files') }
+function onDragOver(e: DragEvent) {
+  if (!hasFiles(e)) return
+  e.preventDefault()
+  if (e.dataTransfer) e.dataTransfer.dropEffect = 'copy'
+  isDragging.value = true
+}
+function onDragLeave(e: DragEvent) {
+  if (!(e.currentTarget as Node).contains(e.relatedTarget as Node | null)) isDragging.value = false
+}
+// Dropping on the dropzone or on the picked file's row (replaces it). One file only: the first.
 function onDrop(e: DragEvent) { isDragging.value = false; acceptFile(e.dataTransfer?.files?.[0]) }
+// A drop that misses the dropzone would make the browser open the file and leave this page.
+function blockStrayDrop(e: DragEvent) { if (hasFiles(e)) e.preventDefault() }
+onMounted(() => { window.addEventListener('dragover', blockStrayDrop); window.addEventListener('drop', blockStrayDrop) })
+onBeforeUnmount(() => { window.removeEventListener('dragover', blockStrayDrop); window.removeEventListener('drop', blockStrayDrop) })
+// The uploaded file's name is a text link: clicking it downloads the file back (a blob URL, nothing leaves the browser).
+function downloadPickedFile() {
+  const f = pickedFile.value
+  if (!f) return
+  const url = URL.createObjectURL(f)
+  const a = document.createElement('a')
+  a.href = url
+  a.download = f.name
+  a.click()
+  URL.revokeObjectURL(url)
+}
 function clearFile() {
+  pickedFile.value = null
   fileName.value = ''
   fileSizeLabel.value = ''
   fileInvalidReason.value = ''
@@ -145,7 +177,7 @@ async function submit() {
   }
   const name = fileName.value
   const ids = [...selectedIds.value]
-  toast.notify({ id: 'import-started', position: 'top-center', variant: 'success', title: 'Import started', description: 'Track the progress in the Import tab.' })
+  toast.notify({ id: 'import-started', position: 'top-center', variant: 'success', duration: 3000, title: 'Import started', description: 'Track the progress in the Import tab.' })
   await router.push(props.redirectUrl)
   // Hand off to the header activity monitor (docs/patterns/upload.md) AFTER the page change: it opens on the Import tab and
   // shows the job progressing. Opening it mid-navigation fails (the popover anchors to a header that is re-rendering).
@@ -155,6 +187,27 @@ async function submit() {
 // Back keeps the picked employees; the file and its errors are cleared.
 function goBack() { clearFile(); errorRows.value = []; step.value = 1 }
 function cancel() { router.push(props.redirectUrl) }
+
+// Step 2 · Cancel asks first. The confirm card is an MpModal with NO overlay, anchored just above the
+// Cancel button (bottom edge 4px over its top, left edges aligned) instead of top-centre (docs/patterns/modal.md).
+const leaveOpen = ref(false)
+const cancelAnchor = ref<HTMLElement | null>(null)
+const leavePos = ref({ left: 0, bottom: 0 })
+function placeLeaveModal() {
+  const r = cancelAnchor.value?.getBoundingClientRect()
+  if (r) leavePos.value = { left: Math.round(r.left), bottom: Math.round(window.innerHeight - r.top + 4) }
+}
+function askLeave() { placeLeaveModal(); leaveOpen.value = true }
+function closeLeave() { leaveOpen.value = false }
+function leave() { leaveOpen.value = false; cancel() }
+// Keep the card glued to the button if the page scrolls or resizes while it is open.
+watch(leaveOpen, (open) => {
+  const fn = open ? window.addEventListener : window.removeEventListener
+  fn.call(window, 'scroll', placeLeaveModal, true)
+  fn.call(window, 'resize', placeLeaveModal)
+})
+onBeforeUnmount(() => { window.removeEventListener('scroll', placeLeaveModal, true); window.removeEventListener('resize', placeLeaveModal) })
+const leaveCard = computed(() => ({ position: 'fixed', margin: '0', left: `${leavePos.value.left}px`, bottom: `${leavePos.value.bottom}px`, top: 'auto', width: '400px', maxWidth: '90vw' }))
 
 // ─── Styles (DT 2.4) ────────────────────────────────────────────────────────
 const badge = css({
@@ -191,6 +244,9 @@ const dropRow = css({ display: 'flex', flexDirection: 'column', alignItems: 'cen
 const dropTitle = css({ fontSize: '16px', lineHeight: '24px', color: 'text.default' })
 const dropHint = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
 const hiddenInput = css({ display: 'none' })
+const fileLink = css({ alignSelf: 'flex-start', textAlign: 'left' })
+const cancelAnchorWrap = css({ display: 'inline-flex' })
+const leaveFooter = css({ display: 'flex', justifyContent: 'flex-end', gap: '3' })
 
 // Stepper (hand-rolled: Pixel has no stepper). 32px circles joined by a 2px brand line.
 const BRAND = 'var(--mp-colors-border-brand)'
@@ -284,7 +340,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
             </div>
             <MpFlex v-if="filteredEmployees.length" align="center" gap="1" :class="loadMoreBar">
               <MpText size="label" :class="captionText">Showing {{ visibleEmployees.length }} of {{ filteredEmployees.length }} employees.</MpText>
-              <MpTextlink v-if="remaining > 0" as="button" size="label" @click="loadMore">Load more</MpTextlink>
+              <MpTextlink v-if="remaining > 0" as="button" size="label" @click="loadMore">Load {{ Math.min(PAGE, remaining) }} more</MpTextlink>
             </MpFlex>
           </div>
 
@@ -306,6 +362,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
       <SelectEmployeesDrawer
         v-model:is-open="drawerOpen"
         drawer-id="drawer-import-employees"
+        paginated
         title="Select employees"
         description="Select the employees you want to import IDPs for."
         confirm-label="Save"
@@ -364,13 +421,15 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
             </MpBanner>
 
             <MpFormControl id="step-import-file" :is-invalid="!!fileInvalidReason">
-              <MpFlex v-if="hasFile" align="center" gap="3" :class="fileRow">
+              <MpFlex v-if="hasFile" align="center" gap="3" :class="fileRow" @drop.prevent="onDrop">
                 <MpIcon name="excel-document" />
                 <MpFlex direction="column" flex="1" minWidth="0">
-                  <MpText size="label" color="text.default">{{ fileName }}</MpText>
+                  <MpTextlink as="button" size="label" :class="fileLink" @click="downloadPickedFile">{{ fileName }}</MpTextlink>
                   <MpText size="caption" color="text.secondary">{{ fileSizeLabel }}</MpText>
                 </MpFlex>
-                <MpButton variant="ghost" left-icon="close" aria-label="Remove file" @click="clearFile" />
+                <MpTooltip label="Remove" use-portal>
+                  <MpButton variant="ghost" left-icon="minus-circular" aria-label="Remove file" @click="clearFile" />
+                </MpTooltip>
               </MpFlex>
               <div
                 v-else
@@ -380,8 +439,9 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
                 @click="browse"
                 @keydown.enter.prevent="browse"
                 @keydown.space.prevent="browse"
-                @dragover.prevent="isDragging = true"
-                @dragleave.prevent="isDragging = false"
+                @dragenter="onDragOver"
+                @dragover="onDragOver"
+                @dragleave="onDragLeave"
                 @drop.prevent="onDrop"
               >
                 <div :class="blankSlate">
@@ -397,13 +457,30 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
             </MpFormControl>
           </MpFlex>
         </MpFlex>
-        <MpFlex justify="flex-end">
+        <MpFlex justify="space-between" align="center">
+          <span ref="cancelAnchor" :class="cancelAnchorWrap">
+            <MpButton variant="ghost" @click="askLeave">Cancel</MpButton>
+          </span>
           <MpButtonGroup>
-            <MpButton variant="ghost" @click="cancel">Cancel</MpButton>
-            <MpButton variant="secondary" @click="goBack">Back</MpButton>
-            <MpButton variant="primary" @click="submit">{{ submitText }}</MpButton>
+            <MpButton variant="secondary" :is-disabled="leaveOpen" @click="goBack">Back</MpButton>
+            <MpButton variant="primary" :is-disabled="leaveOpen" @click="submit">{{ submitText }}</MpButton>
           </MpButtonGroup>
         </MpFlex>
+
+        <MpModal id="modal-import-leave" :is-open="leaveOpen" :is-block-scroll-on-mount="false" @close="closeLeave">
+          <MpModalContent :style="leaveCard">
+            <MpModalHeader>Leave this page?</MpModalHeader>
+            <MpModalBody>
+              <MpText color="text.default">Your progress on this page will not be saved.</MpText>
+            </MpModalBody>
+            <MpModalFooter>
+              <div :class="leaveFooter">
+                <MpButton variant="ghost" @click="closeLeave">Cancel</MpButton>
+                <MpButton variant="danger" @click="leave">Leave</MpButton>
+              </div>
+            </MpModalFooter>
+          </MpModalContent>
+        </MpModal>
       </MpFlex>
     </template>
   </MpFlex>

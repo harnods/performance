@@ -41,6 +41,37 @@ Example: `TooManyEmployeesModal` (bulk goal owners) is shown the instant "Contin
 clicked in `SelectEmployeesDrawer` — see [`composables/useBulkOwnerGate.ts`](../../composables/useBulkOwnerGate.ts) —
 not after landing on the "New goals" page and clicking "Add goal".
 
+## Anchored confirm modal (no overlay)
+
+A leave-the-page confirmation can hang off the button that asked for it instead of
+sitting top-centre. This is the one allowed exception to the **80px top-centre** rule
+above (first user: the IDP import step 2's Cancel, `components/StepImportPage.vue`).
+
+- `MpModal` **without `MpModalOverlay`**: no dimming, the page stays visible. Don't pass
+  `is-centered`; pass `:is-block-scroll-on-mount="false"` so the page can still scroll.
+- No close button (`MpModalCloseButton` omitted): the footer's ghost **Cancel** is the
+  way out. Esc and a click outside also close it (Pixel's wrapper handles both).
+- Position the card yourself through `MpModalContent`'s `style`: `position: fixed`,
+  `margin: 0`, `left` = the trigger's left edge, `bottom` = `innerHeight - trigger.top + 4`
+  (**card bottom 4px above the trigger**), `top: auto`, `width: 400px`. Read the rect from
+  a wrapper `<span ref>` around the button (a ref on `MpButton` is the component, not the
+  element), when opening, and again on `scroll` (capture) and `resize` while open, so the
+  card stays glued to the button.
+- While it is open, **disable the page's other footer actions** (Back, Import) so the only
+  choices are the modal's.
+- Copy: title is the question ("Leave this page?"), body one sentence of what is lost,
+  footer ghost **Cancel** + the verb button (**Leave**).
+- **Pixel 3's `MpButton` has no `warning` variant** (primary, secondary, ghost, danger,
+  tertiary, textLink, unstyled), so a warning-weight action uses `variant="danger"`.
+
+## Production-matched full modal (competency item)
+
+`components/competency-item/ModalForm.vue` (full-size `MpModal`) copies production's Pixel 1 look
+instead of Pixel 3's grey header bar: `MpModalHeader` gets a white background with 14px / 16px
+padding and a **24px / 600** title, the body starts 20px lower, and `MpModalFooter` gets a 1px
+`border.default` top border with 20px / 24px padding. Use it only for screens migrated to match
+production; other full modals keep the Pixel 3 defaults.
+
 ## Destructive confirmation modal
 
 For a "delete this thing" confirmation (not a bulk multi-select delete — see the
@@ -72,6 +103,18 @@ Reference: [`pages/reviews/review-cycles/[id]/index.vue`](../../pages/reviews/re
 (`deleteTimeframeModalOpen` / `askDeleteTimeframe`), mirroring the existing
 `removeEmployeeModalOpen` confirm modal in the same file and the `dangerText` popover
 item in [`components/GoalBulkActionsMenu.vue`](../../components/GoalBulkActionsMenu.vue).
+
+## Stacking modals — mount them as siblings
+
+A modal opened **inside another modal's content** crashes in this Pixel build
+(`element.getBoundingClientRect is not a function`, see
+[`avatar.md`](avatar.md)). Two or three modals open at once **do** work when
+they're mounted as **siblings** by the same component: the builder `MpModal`
+plus its preview, template-library list, preset detail and confirmations all sit
+side by side in `components/template/ModalForm.vue`, and open on top of each
+other fine. If a child component inside the modal owns the sub-modal in
+production (`TemplateForm` → `ModalPreview`), lift the mount to the modal's
+parent component and pass the data out (`defineExpose`).
 
 ## Reusing a gate modal across multiple entry points
 

@@ -45,6 +45,13 @@ definePageMeta({
 
 const route = useRoute()
 
+// "Edit template" opens the cycle's PRIVATE template (ModalViewEdit, production
+// ModalViewEditTemplate) for the active review method — not the Settings builder.
+// Story 7: the legend label is edited here too. Data: usePrivateTemplatesStore (mock).
+const isTemplateModalOpen = ref(false)
+// nextTick: the click that opened the modal must finish before it mounts (outside-click guard).
+function onEditTemplate() { nextTick(() => { isTemplateModalOpen.value = true }) }
+
 interface TfPeriod {
   label: string
   reviewWindow: string
@@ -501,7 +508,7 @@ function confirmRemoveEmployee() {
           <MpText size="label" :class="valueText">Talenta template - Probation Evaluation</MpText>
           <MpFlex align="center" gap="1">
             <MpIcon name="edit" size="sm" :class="css({ color: 'icon.brand', flexShrink: '0' })" />
-            <MpTextlink size="small">Edit template</MpTextlink>
+            <MpTextlink as="button" size="small" @click="onEditTemplate">Edit template</MpTextlink>
           </MpFlex>
         </MpFlex>
       </MpFlex>
@@ -798,6 +805,8 @@ function confirmRemoveEmployee() {
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
+
+  <TemplateModalViewEdit v-model:is-open="isTemplateModalOpen" :cycle-uuid="String(route.params.id)" :review-method="activeMethod" />
 </template>
 
 <style scoped>

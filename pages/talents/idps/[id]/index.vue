@@ -55,10 +55,8 @@ const summaryStatuses = computed(() => [...ACTION_PLAN_STATUSES].reverse())
 // ─── Column sort (docs/patterns/table.md) ────────────────────────────────────
 const sortKey = ref('')
 const sortDir = ref<'asc' | 'desc'>('asc')
+// Production's header sort (PxColumnSortToggle): click sorts asc, click again flips to desc.
 function onSortChange(key: string, dir: 'asc' | 'desc') { sortKey.value = key; sortDir.value = dir }
-const columnSortTypes: Record<string, 'text' | 'number' | 'date'> = {
-  name: 'text', category: 'text', startDate: 'date', dueDate: 'date', status: 'number',
-}
 function sortValue(a: ActionPlan, key: string): string | number {
   if (key === 'name') return a.name
   if (key === 'category') return a.category
@@ -159,7 +157,6 @@ const filterBar = css({ display: 'flex', alignItems: 'center', justifyContent: '
 // 14px/600/text.default styling. Only padding + alignment are ours to set
 // (docs/patterns/table.md's "Header (th) styling" rule).
 const headCell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
-const thInner = css({ display: 'inline-flex', alignItems: 'center', gap: '2', maxWidth: '100%', verticalAlign: 'middle' })
 const cell = css({ paddingTop: '2', paddingBottom: '2', verticalAlign: 'middle' })
 // Trailing action column shrinks to its content instead of stretching
 // (docs/patterns/table.md's numeric-cols idiom).
@@ -226,12 +223,12 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
           <MpTable :is-hoverable="false">
             <MpTableHead>
               <MpTableRow>
-                <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Action plan</span><PxColumnSortMenu col-key="name" :sort-type="columnSortTypes.name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-                <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Category</span><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Action plan" col-key="name" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+                <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Category" col-key="category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
                 <MpTableCell as="th" :class="headCell">Relates to</MpTableCell>
-                <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Start date</span><PxColumnSortMenu col-key="startDate" :sort-type="columnSortTypes.startDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-                <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Due date</span><PxColumnSortMenu col-key="dueDate" :sort-type="columnSortTypes.dueDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
-                <MpTableCell as="th" class="sort-th" :class="headCell"><span :class="thInner"><span>Status</span><PxColumnSortMenu col-key="status" :sort-type="columnSortTypes.status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
+                <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Start date" col-key="startDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+                <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Due date" col-key="dueDate" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
+                <MpTableCell as="th" :class="headCell"><PxColumnSortToggle label="Status" col-key="status" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></MpTableCell>
                 <MpTableCell as="th" :class="actionHead" />
               </MpTableRow>
             </MpTableHead>
@@ -343,8 +340,3 @@ const notFound = css({ display: 'flex', flexDirection: 'column', alignItems: 'ce
   </MpFlex>
 </template>
 
-<style scoped>
-/* Reveal the column sort icon on header hover. UNLAYERED scoped rule so it beats
-   PxColumnSortMenu's unlayered scoped `visibility: hidden` on specificity. */
-.sort-th:hover :deep(.px-sort-btn) { visibility: visible; }
-</style>

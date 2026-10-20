@@ -97,7 +97,12 @@ try {
 } catch {}
 const initiativeLines =
   (initiative.name ? `*Initiative:* ${initiative.name}\n` : "") +
-  (initiative.prd ? `*Document:* <${initiative.prd}|Open document>\n` : "");
+  // A non-URL value (e.g. "-" when there is no document yet) prints as plain text.
+  (initiative.prd
+    ? /^https?:\/\//.test(initiative.prd)
+      ? `*Document:* <${initiative.prd}|Open document>\n`
+      : `*Document:* ${initiative.prd}\n`
+    : "");
 
 const date = new Date().toLocaleDateString("en-US", {
   weekday: "short", month: "short", day: "numeric", year: "numeric",

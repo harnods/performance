@@ -16,9 +16,10 @@ export interface CoachmarkDef {
   title: string
   description: string
   placement?: 'top' | 'bottom' | 'left' | 'right' | 'top-start' | 'bottom-start' | 'right-start'
-  /** Pin the pulse to the anchor's top-right corner (absolutely positioned) instead
-   *  of appending it inline — for anchors inside a flex layout, where an extra
-   *  inline child would take a gap slot and shift its siblings. */
+  /** Pin the pulse over the anchor's top-right corner instead of just after its
+   *  last text. Use it for anchors that are a box of their own (buttons, fields).
+   *  Either way the pulse is absolutely positioned: it never changes the size or
+   *  layout of the element it marks. */
   corner?: boolean
 }
 
@@ -37,6 +38,7 @@ const FORM = /^\/talents\/idps\/(create|[^/]+\/edit)\/?$/
 const DETAIL = /^\/talents\/idps\/(?!create)[^/]+\/?$/
 const IDP_LIST = /^\/talents\/idps\/?$/
 const IDP_IMPORT = /^\/talents\/idps\/import\/?$/
+const IDP_IMPORT_OR_LIST = /^\/talents\/idps(\/import)?\/?$/
 const ITEMS = /^\/talents\/competencies\/items\/?$/
 const IDP_DETAIL_OR_FORM = /^\/talents\/idps\/[^/]+/
 
@@ -46,7 +48,60 @@ const CYCLE_EDIT = /^\/reviews\/review-cycles\/[^/]+\/edit\/?$/
 const isEvaluation = (r: RouteLocationNormalizedLoaded) => r.query.purpose === 'evaluation'
 const employeeFilter = () => document.getElementById('employee-filter-label')?.parentElement ?? null
 
+// ─── Settings: Add / Edit role → Permissions ─────────────────────────────────
+const ROLE_FORM = /^\/settings\/manage-users\/roles\/(add|edit\/[^/]+)\/?$/
+// A label in the permission table: inside Version 2's tree row when it's on screen,
+// else the first match in Version 1's table body (group titles come before sub-rows).
+const roleLabel = (v2Key: string, text: string) =>
+  byText(document.querySelector(`[data-qa="roles-v2-row-${v2Key}"]`) ?? document.querySelector('form tbody'), 'span, p', text)
+
+// ─── Settings: Templates → builder (full-size modal) ─────────────────────────
+const TEMPLATES = /^\/settings\/templates\/?$/
+// The list page mounts a hidden second TemplateForm (duplicate flow): only mark the visible one.
+function visible(els: Iterable<Element>, match: (el: Element) => boolean = () => true): Element | null {
+  return [...els].find(el => (el as HTMLElement).offsetParent !== null && match(el)) ?? null
+}
+
+// ─── Goals: goal reminders ───────────────────────────────────────────────────
+const GC_DETAIL = /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+\/?$/
+const SETTINGS_REMINDERS = /^\/settings\/reminders\/?$/
+const onScreen = (selector: string, match: (el: Element) => boolean) => visible(document.querySelectorAll(selector), match)
+
 export const COACHMARKS: CoachmarkDef[] = [
+  {
+    id: 'goal-info-reminders',
+    route: GC_DETAIL,
+    find: () => onScreen('p', el => ownText(el) === 'Reminders'),
+    title: 'Reminders row',
+    description: 'New: the goal reminders that run for this cycle (set on Settings › Reminders), e.g. "Repeat every 2 days". Both run over the whole goal period.',
+    placement: 'right-start',
+  },
+  {
+    id: 'settings-goal-reminder-section',
+    route: SETTINGS_REMINDERS,
+    find: () => document.querySelector('#goal-reminder h2'),
+    title: 'Goal reminder section',
+    description: 'New: Goal creation repeats over the goal period, like Update goal progress (the existing production reminder). It targets employees with no goals yet (drafted or awaiting-approval goals don\'t count).',
+    placement: 'right-start',
+  },
+  {
+    id: 'template-legend-label',
+    route: TEMPLATES,
+    find: () => visible(document.querySelectorAll('label[id$="-template-legend-name-label"]')),
+    title: 'Legend label',
+    description: 'New: rename the "Legends" heading for this template. Pick a saved label or type a new one. "Set as default" makes it the starting label for every template you create. The label shows in the builder and the preview. Production always shows "Legends".',
+    placement: 'left',
+  },
+  {
+    id: 'template-legend-percent',
+    route: TEMPLATES,
+    // The first legend row's "from" field, pinned to its corner; only percentage templates have the % addon.
+    find: () => visible(document.querySelectorAll('[data-qa="view-settings-template-legend-0"] [data-pixel-component="MpInputGroup"]'), g => g.textContent?.includes('%') ?? false),
+    corner: true,
+    title: 'Percent sign on legend ranges',
+    description: 'New: for percentage templates, each legend range field shows a % sign, so it is clear the range is a percentage. The fields are slightly wider to fit it. Production shows plain numbers.',
+    placement: 'bottom-start',
+  },
   {
     id: 'idp-form-informal-education',
     route: FORM,
@@ -128,17 +183,78 @@ export const COACHMARKS: CoachmarkDef[] = [
     id: 'idp-list-import-button',
     route: IDP_LIST,
     find: () => byText(document.getElementById('page-header-actions'), 'button, span, p', 'Import'),
+    corner: true,
     title: 'Import button',
     description: 'New: a secondary Import button in the page header opens the import page, where a spreadsheet of IDPs is uploaded. Production has no Import. Turn it on or off from the dev tools.',
     placement: 'bottom-end',
   },
   {
-    id: 'idp-import-steps',
+    id: 'idp-import-dropzone-hint',
     route: IDP_IMPORT,
-    find: () => byText(document, 'p, span, div', 'Download the data template'),
-    title: 'Import page',
-    description: 'New page: three steps (download the template, fill it in, upload the .xlsx) like the production import pages, but stepped. Download and upload are mocked. A file named "error" shows the row-error banner.',
+    find: () => [...document.querySelectorAll('span')].find(el => ownText(el) === '.xlsx only with max size 10mb') ?? null,
+    title: 'Dropzone description',
+    description: 'Changed: the hint now reads ".xlsx only with max size 10mb", and the limit really is 10 MB (it was 5 MB). A larger file shows "File size is over 10 MB. Please upload a smaller file".',
+    placement: 'bottom-start',
+  },
+  // ─── Import IDP step 2 + action plan drawer (8 Oct 2026 changes) ───────────────
+  {
+    id: 'idp-import-template-monitor',
+    route: IDP_IMPORT,
+    find: () => byText(document, 'button', 'Download template'),
+    corner: true,
+    title: 'Template goes to the activity monitor',
+    description: 'Changed: Download template no longer shows a toast. It opens the header activity monitor on the Download tab, where the template is prepared and then ready to download from a download icon button.',
     placement: 'right-start',
+  },
+  {
+    id: 'idp-import-monitor-download',
+    route: IDP_IMPORT_OR_LIST,
+    // The finished download row's icon button, inside the header activity monitor popover.
+    find: () => document.querySelector('[data-pixel-component="MpPopoverContent"] button[aria-label="Download"]'),
+    corner: true,
+    title: 'Download icon button',
+    description: 'Changed: a finished download in the activity monitor ends with a download icon button (tooltip "Download") instead of a "Download" text link. Applies to every download job.',
+    placement: 'left',
+  },
+  {
+    id: 'idp-import-drag-drop',
+    route: IDP_IMPORT,
+    find: () => byText(document, 'p, span', 'Drop your file here or'),
+    title: 'Drag and drop',
+    description: 'Changed: the dropzone stays highlighted while a file is dragged over it, a file dropped just outside it no longer opens in the browser, and dropping a file on the picked file replaces it.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'idp-import-file-row',
+    route: IDP_IMPORT,
+    // The picked file's name link (its own text is the .xlsx file name).
+    find: () => [...document.querySelectorAll('[data-pixel-component="MpTextlink"]')].find(b => /\.xlsx$/i.test(ownText(b))) ?? null,
+    title: 'Uploaded file',
+    description: 'Changed: the file name is a text link that downloads the uploaded file, and the remove button is a minus-circular icon with a "Remove" tooltip (it was an X).',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'idp-import-cancel-leave',
+    route: IDP_IMPORT,
+    // Step 2's Cancel: the one sharing a footer with Back (step 1 has no Back).
+    find: () => [...document.querySelectorAll('button')].find(b => ownText(b) === 'Cancel'
+      && !b.closest('[data-pixel-component="MpModalContent"]')
+      && [...(b.parentElement?.parentElement?.querySelectorAll('button') ?? [])].some(x => ownText(x) === 'Back')) ?? null,
+    corner: true,
+    title: 'Cancel asks first',
+    description: 'Changed: Cancel now sits alone on the left. It opens a "Leave this page?" confirmation anchored above it (no overlay): Cancel stays, Leave goes back to the IDP list. Back and Import are disabled while it is open.',
+    placement: 'top-start',
+  },
+  {
+    id: 'idp-drawer-no-error-toast',
+    route: IDP_DETAIL_OR_FORM,
+    // The action plan drawer's primary button (Add / Save).
+    find: () => [...(document.getElementById('ap-related-to-label')?.closest('[data-pixel-component="MpDrawerContent"]')?.querySelectorAll('button') ?? [])]
+      .find(b => ['Add', 'Save changes'].includes(ownText(b))) ?? null,
+    corner: true,
+    title: 'No error toast',
+    description: 'Changed: an invalid Add / Save changes shows only the inline field errors. The "Please check the form\'s error" toast no longer appears.',
+    placement: 'top-start',
   },
   {
     id: 'eval-filter-multiple',
@@ -182,5 +298,63 @@ export const COACHMARKS: CoachmarkDef[] = [
     find: () => document.getElementById('employee-filter-label'),
     title: 'Locked on Edit, with a reason',
     description: 'Changed: production also disables this section on Edit, but says nothing. Hovering a locked field (Employee filter, and now Employment status) shows why it can\'t be changed.',
+  },
+  {
+    id: 'role-form-module-search',
+    route: ROLE_FORM,
+    // The search field itself, pinned to its corner so the input's layout is untouched.
+    find: () => document.getElementById('roles-permission-search')?.closest('[data-pixel-component="MpInputGroup"]') ?? null,
+    corner: true,
+    title: 'Search modules',
+    description: 'New: type a module name to filter the permission table. A match on a row inside a module (e.g. Company goals or Evaluation review) shows that module, opened. Production has no search.',
+    placement: 'bottom-end',
+  },
+  {
+    id: 'role-form-goals-together',
+    route: ROLE_FORM,
+    find: () => roleLabel('goals', 'Goals'),
+    title: 'Goals split by goal type',
+    description: 'Changed: Goals now has Organization goals and Company goals beneath it, and each can be granted on its own. Within one goal type, View, Create, Edit and Delete are selected and cleared together, because the backend stores that access as all or nothing. Hover a Goals box to see why. Production has one set of Goals permissions with each action picked on its own.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-review-cycle-types',
+    route: ROLE_FORM,
+    find: () => roleLabel('review-cycle', 'Review cycle'),
+    title: 'Review cycle split by review type',
+    description: 'Changed: Review cycle permissions are now set per review type (Performance, Competency and Evaluation review), and Evaluation review can be limited to certain employment statuses. Production has one set of Review cycle permissions that covers every cycle.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-report-module',
+    route: ROLE_FORM,
+    find: () => roleLabel('report', 'Report'),
+    title: 'Report is its own module',
+    description: 'Changed: Report moved out of Review cycle into a module of its own, split by report type (Review results, Goals result and 9-box matrix), each with View and Create. Production has Report as one permission inside Review cycle.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-ninebox',
+    route: ROLE_FORM,
+    find: () => roleLabel('report-9box', '9-box matrix'),
+    title: '9-box matrix has its own permission',
+    description: 'Changed: the 9-box matrix is granted separately from the other reports, with its own "Same scope" toggle, so it can cover different review types than Review results. Production grants it as part of the single review cycle Report permission, with no 9-box check at all.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-same-scope-toggle',
+    route: ROLE_FORM,
+    find: () => roleLabel('report-results', 'Same scope as review cycle module setting'),
+    title: 'Same scope toggle',
+    description: 'New, on by default. On: this row covers the same review types (and employment statuses) as the Review cycle module, and follows it when that changes. Off: pick the review types for this row yourself; they start unselected.',
+    placement: 'right-start',
+  },
+  {
+    id: 'role-form-dashboard',
+    route: ROLE_FORM,
+    find: () => roleLabel('dashboard', 'Dashboard'),
+    title: 'Dashboard permission',
+    description: 'New: not in production yet. Production has no Dashboard permission. Here a role can be given view access to the dashboard, scoped by review type like Review cycle. It stays locked until at least one review type is picked in Review cycle, and clears if Review cycle is emptied.',
+    placement: 'right-start',
   },
 ]

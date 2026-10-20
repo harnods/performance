@@ -26,6 +26,366 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '20 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Notify via on Create goal and Update goal achievement is now read-only info with icons, the same as the review reminders, instead of checkboxes.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+    ],
+  },
+  {
+    date: '19 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Added a Goal reminder section with Goal creation and Update goal progress reminders that repeat over the whole goal period (Repeat every, Reminder target, Notify via); Update goal progress is the existing production reminder, relabelled, and Goal creation targets employees with no goals yet.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'Create goal is now disabled, with a tooltip linking to Goal settings, until the new Goals interface is on, and it switches off when that interface is turned off.',
+        files: ['pages/settings/reminders.vue', 'pages/goals/goal-settings.vue', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder',
+        detail: 'Goal reminders now follow the PRD: Update goal achievement first, then Create goal, with Notify via checkboxes (at least one required) shown in the row summary.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'composables/useGoalRemindersStore.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder summary',
+        detail: 'Goal reminder rows drop the "During the goal period" line; the repeat line now reads "Repeat reminder every 2 day(s) during the goal cycle", and Create goal keeps the Employee target label.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'On the old Goals interface the disabled toggle tooltip now only says it is available in the new Goals interface; the Goal settings link moved into the toggle caption.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Create goal',
+        detail: 'Renamed the Reminder to create goal row to Create goal, in Settings › Reminders, its drawer and Goal cycle info.',
+        files: ['pages/settings/reminders.vue', 'utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Goal reminder order',
+        detail: 'Create goal now sits above Update goal achievement in Settings › Reminders and in Goal cycle info.',
+        files: ['utils/goalReminders.ts', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · Section headers',
+        detail: 'Removed the gap between each section title and its description on Settings › Reminders.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Settings › Reminders · View-only',
+        detail: 'Users without edit access see reminders as view-only: toggles are disabled and the drawer opens read-only.',
+        files: ['pages/settings/reminders.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal cycle info · Reminders row',
+        detail: 'Added a Reminders row listing the goal reminders that run for the cycle, with a Manage reminders link that opens Settings › Reminders in a new tab.',
+        files: ['components/GoalCycleInfoPanel.vue', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal settings · Goal reminders',
+        detail: 'Added a Goal reminders section with an Active or Inactive badge and an Open reminder settings link.',
+        files: ['pages/goals/goal-settings.vue'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'Added coachmarks for the Goal reminder section and the Reminders row, with the small dev panel on Settings › Reminders and the goal cycle page.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md', 'docs/README.md'],
+      },
+    ],
+  },
+  {
+    date: '15 Oct 2026',
+    module: 'Settings',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Templates · Legend label rules',
+        detail: 'Legend label now allows up to 60 characters with a 0 / 60 counter and is checked on save (letters, numbers, spaces and - ( ) & / only; other symbols and emoji are blocked). When editing an existing template, "Set as default" is disabled with an "only when creating a template" tooltip.',
+        files: ['components/template/TemplateForm.vue', 'utils/reviewTemplate.ts', 'docs/patterns/builder-modal.md'],
+      },
+    ],
+  },
+  {
+    date: '15 Oct 2026',
+    module: 'Review cycles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Cycle detail · View / edit template',
+        detail: 'Edit template on a review cycle opens the cycle\'s private template (migrated from talenta-review ModalViewEdit.vue, commit eca8e8d55) with mock data. An edit icon next to the legends heading opens "Edit legend label", which renames the label for the whole recurring series and says so before saving (Story 7).',
+        files: ['components/template/ModalViewEdit.vue', 'components/template/ModalEditLegendLabel.vue', 'components/template/LegendListForm.vue', 'composables/usePrivateTemplatesStore.ts', 'pages/reviews/review-cycles/[id]/timeframe/[timeframeId].vue', 'docs/patterns/builder-modal.md', 'docs/review-cycles-link-audit.md', 'docs/README.md'],
+      },
+    ],
+  },
+  {
+    date: '13 Oct 2026',
+    module: 'Settings',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Templates · list + builder',
+        detail: 'Migrated review templates from talenta-review (commit 010875214aba) as a static prototype on Pixel 3: list (search, Default badge, usage-cycle modal, status toggle, View and edit / Duplicate / Delete), full-size builder (categories + indicators with drag to reorder, weights, overall ratings, layered scoring, points, legends with MpColorPicker, free-text / negative indicators, score for goal only), preview, template library presets and the preset feedback modal. Mock data in utils/reviewTemplate.ts, shaped on talenta-noncore-api getTemplateDetail.',
+        files: ['pages/settings/templates.vue', 'components/template/*', 'components/cycle/RatingList.vue', 'components/cycle/PointList.vue', 'components/cycle/InputRatingPercent.vue', 'components/pending-action/ReviewFormBlock.vue', 'components/pending-action/SummaryFooter.vue', 'components/form/Ratings.vue', 'components/form/Points.vue', 'components/form/SliderBar.vue', 'components/LegendList.vue', 'composables/useReviewTemplateStore.ts', 'utils/reviewTemplate.ts', 'docs/patterns/builder-modal.md', 'docs/patterns/modal.md', 'docs/patterns/form.md', 'docs/patterns/page-form.md', 'docs/README.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Templates · Legend label',
+        detail: 'Rating / percentage / point templates get a "Legend label" select (default "Legends"): type a custom label or pick a saved one (remove button per saved label, "Default" badge). "Set as default" ("Applies to every template you create") makes it the starting label for new templates and is hidden when the selected label already is the default. Clicking the field keeps the label and swaps the chevron for an (x) to clear it; saving with no label shows "You must select legend label". Percentage legends get a % addon. PxSelectPopover gains keepTextOnFocus.',
+        files: ['components/template/TemplateForm.vue', 'components/LegendList.vue', 'components/template/LegendListForm.vue', 'components/PxSelectPopover.vue', 'composables/useReviewTemplateStore.ts', 'docs/patterns/builder-modal.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Templates · Builder layout and save feedback',
+        detail: 'Builder panes stack below 768px (was 1024px) instead of looking like mobile on narrower desktop windows. Saving with empty required fields shows inline errors only, no "Please check the form\'s error" toast.',
+        files: ['components/template/TemplateForm.vue', 'components/template/ModalForm.vue', 'docs/patterns/builder-modal.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Templates · Builder layout',
+        detail: 'Template builder shows the form and settings side by side again. An arrow generic (`<T>(v) =>`) in the script made Panda skip every css() call after it, so the layout styles were never generated. A new test (tests/panda-extraction.test.ts) fails if any .vue file loses css() calls this way.',
+        files: ['components/template/TemplateForm.vue', 'tests/panda-extraction.test.ts', 'tests/panda-extraction.config.mjs', 'docs/README.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Templates · Legend label',
+        detail: 'The clear (x) icon in the Legend label field is now filled instead of outlined.',
+        files: ['components/PxSelectPopover.vue', 'docs/patterns/builder-modal.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Templates · Dev tools and coachmarks',
+        detail: 'Template builder gets coachmarks on the Legend label field and the % legend ranges, plus a small bottom-left dev tools button (above the modal) to show, hide or reset them.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/TemplateDevTools.vue', 'components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '13 Oct 2026',
+    module: 'Build & deploy',
+    items: [
+      {
+        category: 'Chore',
+        area: 'Google Chat deploy notification',
+        detail: 'A Document value that is not a URL (e.g. "-") now prints as plain text instead of a broken link. Initiative set to Template Settings.',
+        files: ['.github/scripts/notify.mjs', '.github/initiative.json'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Competency items · Create / Edit item modal',
+        detail: 'The Create / Edit item modal now looks like production: white header with a 24px title, footer with a top border, "0/60" counter, an empty name shows only the inline error (no toast), and the rating scale table has a light rounded border, column dividers, 12px cells, lighter description text and small 20px edit icons.',
+        files: ['components/competency-item/ModalForm.vue', 'docs/patterns/table.md', 'docs/patterns/modal.md', 'docs/patterns/buttons.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Fix',
+        area: 'IDP list · Filter bar',
+        detail: 'The IDP list now has the production filter dropdown beside All employee: one "Select filter" menu with Organization, Branch, Job Position, Job Level and Status Employee.',
+        files: ['pages/talents/idps/index.vue', 'docs/patterns/filter-bar.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'IDP list · IDP detail · Table sort',
+        detail: 'Sortable table headers on the IDP list and IDP detail now show their sort icon all the time, like production: click a header to sort ascending, click again for descending. Progress on the IDP list is no longer sortable, as in production.',
+        files: ['components/PxColumnSortToggle.vue', 'pages/talents/idps/index.vue', 'pages/talents/idps/[id]/index.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Edit action plan drawer',
+        detail: 'The primary button on Edit action plan now reads "Save changes" instead of "Save" (Add action plan still reads "Add").',
+        files: ['components/IdpActionPlanModal.vue'],
+      },
+      {
+        category: 'Feature',
+        area: 'Add / Edit action plan drawer · Relates to',
+        detail: 'A small "Clear selection" link now sits on the right of the Relates to label while an option is selected, and clears the selection (the radio and the picked competency item).',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Add / Edit action plan drawer',
+        detail: 'An invalid Save in the action plan drawer now shows only the inline field errors, without the "Please check the form\'s error" toast.',
+        files: ['components/IdpActionPlanModal.vue', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Download template no longer shows a toast: it opens the header activity monitor on the Download tab with the template as a job, and a finished download row now ends with a download icon button (tooltip "Download") instead of a text link. The uploaded file\'s name is a text link that downloads the file, the remove button is a minus-circular icon with a "Remove" tooltip, and Back and Import are disabled while the Leave modal is open. Starting a second job while the monitor is already open no longer closes it.',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md', 'docs/patterns/modal.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2 footer',
+        detail: 'Cancel now sits alone at the far left of step 2, with Back and Import grouped at the right. Pressing Cancel opens a "Leave this page?" confirmation anchored just above the button (no overlay, no close button): "Your progress on this page will not be saved.", with Cancel to stay and Leave (a danger button, as Pixel has no warning variant) to go back to the IDP list.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/modal.md', 'docs/patterns/upload.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Import IDP · Step 2',
+        detail: 'Drag and drop on the upload step is now solid: the dropzone stays highlighted while a file is dragged over its icon and text (it flickered off before), a file dropped just outside the zone no longer makes the browser open it and leave the page, and dropping a file on the picked file\'s row replaces it. Only the first file is used and it gets the same type and size checks.',
+        files: ['components/StepImportPage.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 1',
+        detail: 'The selected-employee list\'s load link now says how many it loads: "Load 10 more" while more than 10 are left, otherwise just the remaining ones (e.g. "Load 6 more"), with no trailing period. The Select employees drawer on this page now shows at most 10 employees per list (Employees and Selected employees), then "Load N more" (opt-in paginated prop; other pages that use the drawer are unchanged).',
+        files: ['components/StepImportPage.vue', 'components/SelectEmployeesDrawer.vue', 'components/demo/coachmarks.ts', 'docs/patterns/pagination.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Import hand-off',
+        detail: 'The "Import started" toast now lasts 3 seconds instead of Pixel\'s 5s default, so it no longer lingers until the (mocked) import finishes. The header activity monitor now really opens by itself on the Import tab after Import (the click on its trigger never fired because the template ref was always null).',
+        files: ['components/StepImportPage.vue', 'components/AppHeader.vue', 'docs/patterns/upload.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Import IDP · Step 2',
+        detail: 'The dropzone hint now reads ".xlsx only with max size 10mb", and the size limit is 10 MB instead of 5 MB (the "File size is over 10 MB" error follows). Coachmark added on the hint; the Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard.',
+        files: ['components/StepImportPage.vue', 'components/demo/coachmarks.ts', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '08 Oct 2026',
+    module: 'Internal tools',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'A table column header with a coachmark (e.g. Relates to) no longer loses its bottom border. Coachmarks on table cells now sit after the text without repositioning the cell.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer slide back over the end of a label that only takes its text width (e.g. Relates to beside Clear selection), and they move when the element they mark changes size.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev coachmarks',
+        detail: 'New coachmarks for the 8 Oct changes: Download template going to the activity monitor, the monitor\'s download icon button, drag and drop, the uploaded file row, the step 2 Cancel confirmation, and the action plan drawer\'s missing error toast. Removed the "Import page" coachmark.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'Coachmark dots no longer sit on top of the first letters of a label (Employee, Select focus, Relates to). They were left to the browser\'s default position, which in a flex label is the left edge. Each dot is now placed from the measured end of its anchor\'s last line of text, so it stays attached to the element and scrolls with it.',
+        files: ['components/demo/DemoLayer.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'An open coachmark now closes when its pulse scrolls out of view, instead of staying behind floating over the header with nothing to point at. While the pulse is visible it still follows the page as you scroll.',
+        files: ['components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Dev coachmarks',
+        detail: 'The IDP list Import button\'s coachmark now overlaps the button\'s top-right corner (corner: true) instead of sitting inline, so the button no longer grows. The Import page coachmark was re-anchored to the "Download the IDP template" step and describes the two-step wizard, and a new coachmark marks the dropzone hint.',
+        files: ['components/demo/coachmarks.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '07 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Goals',
+        detail: 'Goals is split into Organization goals and Company goals, each granted on its own. Within one goal type, View, Create, Edit and Delete tick and clear together, and hovering a box says "Goals access applies to View, Create, Edit and Delete together". The Goals checkbox above them sets both types. Version 1 keeps the split in ui_state.goalsOn; the payload still grants Goals when either type is on.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Module search',
+        detail: 'A search field above the permission table filters modules by name, in both versions. A match on a row inside a module (e.g. Company goals) shows that module, opened; no match shows "No result found".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Dashboard',
+        detail: 'Dashboard is view only and stays locked until Review cycle has a review type. Its one row is now named Review cycle, with a single View box ("View dashboard for review cycles."). The Dashboard › Goals row and its toggle are removed in both versions, and emptying Review cycle clears Dashboard.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · 9-box matrix',
+        detail: 'The 9-box matrix has its own scope toggle and review types, like Review results. The toggle reads "Same scope as review cycle module setting". Its scope is saved with the 9-box permission and restored on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/table.md', 'docs/patterns/toggle.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Goals result',
+        detail: 'Goals result is all or nothing, like the Goals module. Ticking or unticking View or Create sets both, in both versions, and hovering says "Goals result access applies to View and Create together".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/checkbox.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Version 2 Report',
+        detail: 'Review results no longer has an extra Review cycle row beneath it. Its "Same scope" toggle sits directly under its title, and roles saved before still load.',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Copy',
+        detail: 'Review Settings and Manage Users use production\'s copy word for word. In Version 1, "Employee status" is renamed "Employment status" and sits 4px above its checkboxes.',
+        files: ['utils/manageUser.ts', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Default persona',
+        detail: 'The role form opens as Super Admin Rizal Candra on its first open per page load. Switching to Rio from View as still works until the next reload.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/checkbox.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools · Role form',
+        detail: 'Add / Edit role has one dev tools button, bottom-left, holding the Version 1 / 2 switch and the coachmark controls. RolesFormScenarioControl is removed.',
+        files: ['components/demo/RolesFormDevTools.vue', 'components/demo/DemoLayer.vue', 'pages/settings/manage-users/roles/add.vue', 'pages/settings/manage-users/roles/edit/[id].vue', 'docs/patterns/dev-scenario-control.md', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Coachmarks',
+        detail: 'Role form coachmarks for module search, Review cycle, Goals, Report, the Same scope toggle, 9-box matrix and Dashboard. Pulses no longer change any layout on any page: the host is out of flow and zero-size.',
+        files: ['components/demo/coachmarks.ts', 'components/demo/DemoLayer.vue', 'components/demo/DevCoachmark.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
     date: '07 Oct 2026',
     module: 'IDPs',
     items: [
@@ -88,6 +448,60 @@ export const CHANGELOG: ChangelogEntry[] = [
         area: 'Dev tools · Import page',
         detail: 'On step 2 the dev tools gain a Scenario group (Default / Loading state, which keeps step 2 on the loader) next to Error states; both show only on step 2 (new importScenario / importStep flags).',
         files: ['components/demo/IdpDevTools.vue', 'composables/useIdpImportFlag.ts', 'docs/patterns/dev-scenario-control.md'],
+      },
+    ],
+  },
+  {
+    date: '06 Oct 2026',
+    module: 'Roles',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Role form · Delegated user',
+        detail: 'Permission checkboxes are locked by who is editing (new useRoleActor): Rizal (Super Admin) grants anything; Rio is a delegated user who can only grant what his own role holds (mock: Performance + Evaluation purposes, Probation + Contract statuses, no Delete, no 9-box report, no Dashboard); everyone else gets every checkbox locked and a disabled "Add role" button with the tooltip "Contact your admin to get access to add roles". Each locked checkbox explains why on hover (RolesLock). The Roles list button is renamed from "Add new role" to "Add role".',
+        files: ['composables/useRoleActor.ts', 'components/manage-user/RolesLock.vue', 'components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'pages/settings/manage-users/roles/index.vue', 'docs/patterns/checkbox.md', 'docs/patterns/buttons.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Goals and View rules',
+        detail: 'Manage Goal is now Goals (View / Create / Edit / Delete), listed after Review cycle, and is all-or-nothing in both versions: ticking any Goals box ticks all of them, with a "Goals access is all or nothing" tooltip. Dashboard > Goals gets a "Same scope as goals module setting" toggle. Create / Edit / Delete now also tick View (and unticking View clears them) everywhere else. "Same scope" toggles default on with a caption that is hidden until something is selected; Version 2 toggles are disabled when the module is locked. Version 1 parent rows have a semibold title.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/checkbox.md', 'docs/patterns/toggle.md', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Fix',
+        area: 'Role form · Save then Edit',
+        detail: 'Editing a saved role now restores the selection (it opened blank, mainly in Version 2). The form saves a ui_state blob with the role (Version 2 tree, Report / Dashboard rows, scope toggles) and restores it on Edit.',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'composables/useManageUserStore.ts', 'docs/patterns/form.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Dev tools',
+        detail: 'The roles form scenario control moved to the bottom-left, like the IDP dev tools.',
+        files: ['components/manage-user/RolesFormScenarioControl.vue', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 2 permission table',
+        detail: 'Version 2 is now a full-width collapsible module tree (Figma "Table / Custom role performance"): 440px Permission column + View / Create / Edit / Delete columns, consistent 24px indent per level, parent boxes reflect their subtree. Turning on an "Apply … settings" toggle removes the caret and hides the node\'s children. Prototype state only (not in the submitted payload).',
+        files: ['components/manage-user/RolesPermissionTreeV2.vue', 'components/manage-user/RolesForm.vue', 'docs/patterns/table.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 permission table',
+        detail: 'Table is now full width: Module (renamed from Access) is a fixed 440px, Permission fills the rest. Report\'s "Same scope as review cycle module" is a toggle (same as Version 2), review purposes read "Performance / Competency / Evaluation review", and the Dashboard checkbox is always enabled. Version 2\'s toggles are renamed "Same scope as … module".',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'Role form · Version 1 Report & Dashboard',
+        detail: 'Review cycle, Report and Dashboard fold with a caret. Report rows: Standard report (same-scope toggle 8px below its title; off → unchecked purpose checkboxes aligned with the toggle title, no borders), 9-Box report and Goals — each View + Create. Dashboard rows: Performance review and Goals mirror Review cycle\'s Performance and Manage Goal permissions.',
+        files: ['components/manage-user/RolesForm.vue', 'docs/patterns/table.md'],
+      },
+      {
+        category: 'Chore',
+        area: 'Role form · Report & Dashboard naming and scope',
+        detail: 'Renamed (all versions) Standard report → Review results, 9-Box report → 9-box matrix, Goals → Goals result (now ordered Review results, Goals result, 9-box matrix). The toggle reads "Same scope as review cycle module setting" with no caption. Version 1 dividers are full width everywhere, and Dashboard\'s Performance review gets the same toggle + scope checkboxes as Review results. Version 2 is middle-aligned now (no 3-line cell).',
+        files: ['components/manage-user/RolesForm.vue', 'components/manage-user/RolesPermissionTreeV2.vue', 'utils/manageUser.ts', 'docs/patterns/table.md'],
       },
     ],
   },
