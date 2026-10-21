@@ -201,6 +201,8 @@ function deleteRow(row: { id: string }) {
 }
 const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose } = useGoalCloser()
 function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.has(g.id))) }
+// Bulk close is hidden as soon as any selected goal is already closed.
+const hasClosedSelected = computed(() => goals.value.some(g => g.isClosed && selectedIds.value.has(g.id)))
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
@@ -686,6 +688,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                  the department name, not flush to the header's right edge. -->
             <span v-if="soleSelectedDeptKey === dept.key" @click.stop>
               <GoalBulkActionsMenu
+                :hide-close-goals="hasClosedSelected"
                 @edit-goals="goToImport('edit-goals')"
                 @update-progress="goToImport('update-progress')"
                 @close-goals="onBulkClose"
@@ -857,6 +860,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <GoalFloatingBulkBar
       v-if="isMultiDeptSelected"
       :selected-count="selectedCount"
+      :hide-close-goals="hasClosedSelected"
       @edit-goals="goToImport('edit-goals')"
       @update-progress="goToImport('update-progress')"
       @close-goals="onBulkClose"

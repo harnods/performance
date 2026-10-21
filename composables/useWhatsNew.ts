@@ -26,6 +26,24 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '21 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Goal cycles · Company, Individual, Team, Organization goals',
+        detail: 'Bulk Close selected goals is now available for Company goals too, and is hidden when any selected goal is already closed.',
+        files: [
+          'pages/goals/goal-cycles/[id]/company-goals.vue',
+          'pages/goals/goal-cycles/[id]/individual-goals.vue',
+          'pages/goals/goal-cycles/[id]/team-goals.vue',
+          'pages/goals/goal-cycles/[id]/organization-goals.vue',
+          'docs/patterns/checkbox.md',
+        ],
+      },
+    ],
+  },
+  {
     date: '20 Oct 2026',
     module: 'Goals',
     items: [

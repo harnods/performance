@@ -190,9 +190,10 @@ is **not** an extra bar added above the table, and the filter bar above stays un
   `update-progress`, `close-goals`, `delete-goals`, `toggle-select-all`.
 - **Per-page opt-out**: `hide-update-progress` / `hide-close-goals` props on both
   `GoalBulkActionBar` and `GoalBulkActionsMenu` (both default `false`) hide just that one
-  `MpPopoverListItem` — Edit and Delete always stay. Company goals sets both (bulk
-  progress-update and bulk-close don't apply at that level; the row-level "Update goal
-  progress" / "Close goal" actions are unaffected).
+  `MpPopoverListItem` — Edit and Delete always stay. Company goals sets only
+  `hide-update-progress` (bulk progress-update doesn't apply at that level). Bulk close is
+  available for every goal type (Individual, Team, Organization, Company) — wire `close-goals`
+  to `useGoalCloser().askBulkClose`, bind `:hide-close-goals` to "any selected goal is already closed" (`hasClosedSelected`), and render the "Close N goals?" confirm modal.
 
 ### Wiring — swap the header row via `colspan`
 

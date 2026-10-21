@@ -199,9 +199,10 @@ function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
-// Company goals don't offer bulk close (see GoalBulkActionBar's
-// hide-close-goals) — only the per-row close stays wired up here.
-const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose } = useGoalCloser()
+function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.has(g.id))) }
+// Bulk close is hidden as soon as any selected goal is already closed.
+const hasClosedSelected = computed(() => goals.value.some(g => g.isClosed && selectedIds.value.has(g.id)))
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
@@ -560,10 +561,11 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                   :selected-count="selectedCount"
                   :is-all-selected="isAllSelected(selectableIds)"
                   hide-update-progress
-                  hide-close-goals
                   @toggle-select-all="toggleSelectAll(selectableIds)"
                   @clear="clearSelection"
                   @edit-goals="goToImport('edit-goals')"
+                  :hide-close-goals="hasClosedSelected"
+                  @close-goals="onBulkClose"
                   @delete-goals="isBulkDeleteModalOpen = true"
                 />
               </MpTableCell>
@@ -774,6 +776,25 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       </MpModalFooter>
     </MpModalContent>
   </MpModal>
+  </ClientOnly>
+
+  <!-- Bulk close confirmation -->
+  <ClientOnly>
+    <MpModal :is-open="isBulkCloseModalOpen" size="sm" @close="isBulkCloseModalOpen = false">
+      <MpModalOverlay />
+      <MpModalContent>
+        <MpModalHeader>Close {{ goalsToClose.length }} goal{{ goalsToClose.length === 1 ? '' : 's' }}?<MpModalCloseButton @click="isBulkCloseModalOpen = false" /></MpModalHeader>
+        <MpModalBody>
+          <MpText size="label" :class="css({ color: 'text.default' })">Once closed, these goals can no longer submit progress or be edited. Goals owned by direct reports are sent for approval first.</MpText>
+        </MpModalBody>
+        <MpModalFooter>
+          <MpButtonGroup>
+            <MpButton variant="ghost" @click="isBulkCloseModalOpen = false">Cancel</MpButton>
+            <MpButton variant="primary" @click="confirmBulkClose(); clearSelection()">Yes, close goals</MpButton>
+          </MpButtonGroup>
+        </MpModalFooter>
+      </MpModalContent>
+    </MpModal>
   </ClientOnly>
 
   <!-- Bulk delete confirmation -->
