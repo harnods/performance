@@ -13,7 +13,8 @@ These exist today:
 
 | Where | What it previews |
 |---|---|
-| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds, **only while the wizard is on step 2** (`useIdpImportFlag().importStep`), a **Scenario** section (**Default** / **Loading state**, which keeps step 2 on the "Generating template..." loader via `useIdpImportFlag().importScenario`) and an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
+| `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds, **only while the wizard is on step 2** (`useIdpImportFlag().importStep`), a **Scenario** section (**Default** / **Loading state**, which keeps step 2 on the "Generating template..." loader via `useIdpImportFlag().importScenario`) and an **Error states** section (None / File is too large / File format is incorrect / More than 500 rows, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
+| `components/demo/EmployeePickerDevTools.vue` (IDP import → **Select employees** drawer, via the drawer's `#dev-tools` slot) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Switches the employee pool: Default (30-person seed) vs More than 500 (612 fabricated people, `dev-scenario-emp-…` ids) via `useIdpImportFlag().importPool`. |
 | `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB with the coachmark controls only (the header **Import** button always shows, no toggle). |
 | `components/demo/EvaluationCycleDevTools.vue` (Create new cycle + Edit cycle, `?purpose=evaluation`, via `DemoLayer`) | The **Coachmarks** group only. There's no scenario switch: Edit cycle is a real page (`/reviews/review-cycles/:id/edit`), so nothing is faked. Bottom-left, like IDP's. |
 | `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
@@ -229,7 +230,7 @@ Current IDP coachmarks:
 | Update modal | Action plan title | "Update action plan" header, title + description in content, timestamps under each activity |
 | Update modal | "Relates to" label | New Relates to info |
 | IDP list | Import button (`corner: true`) | New; always shown in the page header |
-| Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb"; the limit is 10 MB (was 5 MB) |
+| Import page, step 2 | Dropzone hint | Hint reads ".xlsx only with max size 10mb and 500 rows"; the size limit is 10 MB (was 5 MB) and a file is capped at 500 rows |
 | Import page, step 2 | "Download template" button (`corner: true`) | No toast; the template goes to the activity monitor's Download tab |
 | Header activity monitor (Import page, IDP list) | A finished download row's icon button (`corner: true`) | Download icon button with a "Download" tooltip instead of a text link |
 | Import page, step 2 | "Drop your file here or" | Drag & drop: steady highlight, stray drops blocked, drop on the file replaces it |

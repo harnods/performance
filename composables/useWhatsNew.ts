@@ -26,6 +26,36 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '22 Oct 2026',
+    module: 'Competencies',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Competency items list',
+        detail: 'Row actions are now a labelled Actions button instead of a kebab icon, and the divider between Edit and Delete is gone.',
+        files: ['pages/talents/competencies/items/index.vue', 'docs/patterns/table.md'],
+      },
+    ],
+  },
+  {
+    date: '22 Oct 2026',
+    module: 'IDPs',
+    items: [
+      {
+        category: 'Feature',
+        area: 'IDP import · Select employees',
+        detail: 'The employee picker loads 25 at a time, Select all adds what is showing, and Select all and the + on each row are disabled at 500 employees (the tooltip sits above the icon).',
+        files: ['components/SelectEmployeesDrawer.vue', 'components/StepImportPage.vue', 'composables/useIdpImportFlag.ts', 'components/demo/EmployeePickerDevTools.vue', 'docs/patterns/upload.md', 'docs/patterns/dev-scenario-control.md'],
+      },
+      {
+        category: 'Feature',
+        area: 'IDP import · Upload file',
+        detail: 'Step 2 now says to only add up to 500 rows per file, in the fill-in list and the dropzone hint, with an error when a file has more.',
+        files: ['components/StepImportPage.vue', 'components/demo/IdpDevTools.vue', 'components/demo/coachmarks.ts', 'docs/patterns/upload.md'],
+      },
+    ],
+  },
+  {
     date: '20 Oct 2026',
     module: 'Goals',
     items: [

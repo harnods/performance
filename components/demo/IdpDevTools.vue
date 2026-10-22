@@ -53,6 +53,7 @@ const hint = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary'
             <MpRadio name="dev-import-error" value="none" :is-checked="importError === 'none'" @update:is-checked="importError = 'none'">None (default)</MpRadio>
             <MpRadio name="dev-import-error" value="too-large" :is-checked="importError === 'too-large'" @update:is-checked="importError = 'too-large'">File is too large</MpRadio>
             <MpRadio name="dev-import-error" value="wrong-format" :is-checked="importError === 'wrong-format'" @update:is-checked="importError = 'wrong-format'">File format is incorrect</MpRadio>
+            <MpRadio name="dev-import-error" value="too-many-rows" :is-checked="importError === 'too-many-rows'" @update:is-checked="importError = 'too-many-rows'">More than 500 rows</MpRadio>
           </div>
           <div :class="group">
             <span :class="groupLabel">Coachmarks</span>

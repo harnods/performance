@@ -12,14 +12,26 @@
     "test:watch": "vitest"
   },
   "devDependencies": {
-    "nuxt": "^3.13.2",
+    "nuxt": "^3.21.11",
     "pixel-review": "github:masfajs/pixel-review",
     "vitest": "^4.1.10",
-    "vue": "^3.5.13",
+    "vue": "^3.5.42",
     "vue-router": "^4.4.5"
   },
   "dependencies": {
+    "@auth0/auth0-vue": "^2.8.0",
     "@mekari/pixel3": "^1.0.12",
     "@mekari/pixel3-postcss": "^1.0.12"
+  },
+  "overrides": {
+    "brace-expansion@^5.0.0": "^5.0.11",
+    "browserslist": "^4.28.7",
+    "fast-uri": "^3.1.7",
+    "linkify-it": "^5.0.2",
+    "nanoid": "^3.3.18",
+    "picomatch@^4.0.0": "^4.0.4",
+    "postcss": "^8.5.18",
+    "prosemirror-view": "^1.42.3",
+    "source-map-js": "^1.2.2"
   }
 }

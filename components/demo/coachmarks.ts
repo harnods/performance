@@ -191,9 +191,9 @@ export const COACHMARKS: CoachmarkDef[] = [
   {
     id: 'idp-import-dropzone-hint',
     route: IDP_IMPORT,
-    find: () => [...document.querySelectorAll('span')].find(el => ownText(el) === '.xlsx only with max size 10mb') ?? null,
+    find: () => [...document.querySelectorAll('span')].find(el => ownText(el) === '.xlsx only with max size 10mb and 500 rows') ?? null,
     title: 'Dropzone description',
-    description: 'Changed: the hint now reads ".xlsx only with max size 10mb", and the limit really is 10 MB (it was 5 MB). A larger file shows "File size is over 10 MB. Please upload a smaller file".',
+    description: 'Changed: the hint now reads ".xlsx only with max size 10mb and 500 rows", and the limit really is 10 MB (it was 5 MB). A larger file shows "File size is over 10 MB. Please upload a smaller file"; a file with more than 500 rows shows "File has more than 500 rows. Please upload a file with 500 rows or fewer".',
     placement: 'bottom-start',
   },
   // ─── Import IDP step 2 + action plan drawer (8 Oct 2026 changes) ───────────────

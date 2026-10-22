@@ -17,7 +17,7 @@ import {
 import { employeeById } from '~/utils/employees'
 import { VIEW_AS_PERSONAS } from '~/composables/useCurrentUser'
 
-function signOut() { /* hook real auth here */ }
+const { signOut } = useAuth()
 
 const { currentUserId, setCurrentUser } = useCurrentUser()
 const activeEmployee = computed(() => employeeById(currentUserId.value))

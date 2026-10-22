@@ -102,3 +102,5 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 ## Disabled by permission: "Add role"
 
 When the user can't create roles, the header "Add role" button (and the empty-state one) is `is-disabled` with a tooltip: "Contact your admin to get access to add roles". A disabled button fires no mouse events, so the `MpButton` sits inside a `div` inside an `MpTooltip` (`:is-manual="canManageRoles" :is-open="false"` turns it off for users who can). See [`checkbox.md`](checkbox.md) › Locked by permission.
+
+**Tooltip placement.** A tooltip always opens **above** its component: `MpTooltip placement="top"`, centred on the control with Pixel's default 4px gap (never `bottom` / `bottom-end`). Keep Pixel's own 280px max width, so a long message wraps; don't override it. On a small icon, make the icon the tooltip's child so it centres on the icon. Example: the **+** and Select all in the IDP import employee picker, see [`upload.md`](upload.md) › Step 1.
