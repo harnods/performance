@@ -232,7 +232,7 @@ opening an `MpPopover` (`placement="bottom-end"`, `is-close-on-select`, `use-por
 with the actions listed, and Delete in `text.danger`. Never use a row of separate
 edit/delete icon buttons. This includes in-form tables, such as `IdpPlanForm.vue`'s
 action-plan rows (Edit, Delete). Pages that already use a labelled "Actions" secondary
-button dropdown (e.g. the IDP detail table) keep it.
+button dropdown (e.g. the IDP detail table, and the **Competency items** list: `MpButton variant="secondary" right-icon="caret-down"` labelled "Actions", `aria-label="Actions for {name}"`) keep it. The popover items sit flush: **no `MpDivider` between Edit and Delete** (the red text is the separator), in the row menu and in the bulk-actions menu alike.
 
 
 The trailing action cell is a `MpPopover` + `MpPopoverList` of `MpPopoverListItem`s.

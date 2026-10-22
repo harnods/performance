@@ -34,9 +34,10 @@ import {
   MpBannerIcon,
   MpBannerDescription,
   MpTextlink,
+  MpTooltip,
   css,
 } from '@mekari/pixel3'
-import { EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { EMPLOYEES, employeeMeta, type Employee } from '~/utils/employees'
 
 const props = defineProps<{
   isOpen: boolean
@@ -57,6 +58,15 @@ const props = defineProps<{
   /** Show at most PAGE employees per list, then "Load N more" (append-only,
    * docs/patterns/pagination.md). Off by default so other callers still list everyone. */
   paginated?: boolean
+  /** Most employees that can be picked in total. "Select all" is disabled when adding the
+   * employees now showing would go past it, and Continue/Save refuses a bigger pick
+   * (inline error). Off by default. */
+  maxSelectAll?: number
+  /** Rows shown per list and added per "Load more" when `paginated` (default 10). */
+  pageSize?: number
+  /** Employees to pick from (default: the shared mock EMPLOYEES). The IDP import's dev
+   * control swaps in a bigger fabricated pool (docs/patterns/dev-scenario-control.md). */
+  employees?: Employee[]
 }>()
 const emit = defineEmits<{
   'update:isOpen': [boolean]
@@ -72,9 +82,10 @@ const resolvedExcludeNote = computed(() => props.excludeNote
   ?? `The goal owner${(props.excludeIds?.length ?? 0) > 1 ? 's' : ''} won't appear in the list below. They can't be their own contributor or viewer.`)
 
 // Progressive "Load more": 10 at a time; the last load brings just the remainder.
-const PAGE = 10
-const availableVisible = ref(PAGE)
-const selectedVisible = ref(PAGE)
+const PAGE = computed(() => props.pageSize ?? 10)
+const pool = computed(() => props.employees ?? EMPLOYEES)
+const availableVisible = ref(PAGE.value)
+const selectedVisible = ref(PAGE.value)
 const selectedIds = ref<string[]>([])
 const availableSearch = ref('')
 const selectedSearch = ref('')
@@ -86,13 +97,22 @@ watch(() => props.isOpen, (open) => {
     availableSearch.value = ''
     selectedSearch.value = ''
     hasSelectionError.value = false
-    availableVisible.value = PAGE
-    selectedVisible.value = PAGE
+    hasLimitError.value = false
+    availableVisible.value = PAGE.value
+    selectedVisible.value = PAGE.value
   }
 })
-watch(selectedIds, () => { hasSelectionError.value = false })
-watch(availableSearch, () => { availableVisible.value = PAGE })
-watch(selectedSearch, () => { selectedVisible.value = PAGE })
+const hasLimitError = ref(false)
+watch(selectedIds, () => { hasSelectionError.value = false; hasLimitError.value = false })
+watch(availableSearch, () => { availableVisible.value = PAGE.value })
+watch(selectedSearch, () => { selectedVisible.value = PAGE.value })
+// A different pool (dev control) drops picks that are not in it.
+watch(pool, (list) => {
+  const ids = new Set(list.map(e => e.id))
+  selectedIds.value = selectedIds.value.filter(id => ids.has(id))
+  availableVisible.value = PAGE.value
+  selectedVisible.value = PAGE.value
+})
 
 function matches(name: string, code: string, q: string) {
   const query = q.trim().toLowerCase()
@@ -100,23 +120,30 @@ function matches(name: string, code: string, q: string) {
 }
 
 const availableEmployees = computed(() =>
-  EMPLOYEES.filter(e => !selectedIds.value.includes(e.id) && !excluded.value.has(e.id)
+  pool.value.filter(e => !selectedIds.value.includes(e.id) && !excluded.value.has(e.id)
     && (!included.value || included.value.has(e.id))
     && matches(e.name, e.code, availableSearch.value)),
 )
 const selectedEmployees = computed(() =>
   selectedIds.value
-    .map(id => EMPLOYEES.find(e => e.id === id))
-    .filter((e): e is typeof EMPLOYEES[number] => Boolean(e))
+    .map(id => pool.value.find(e => e.id === id))
+    .filter((e): e is Employee => Boolean(e))
     .filter(e => matches(e.name, e.code, selectedSearch.value)),
 )
 
+const selectAllTooltip = computed(() => `You can only select up to ${props.maxSelectAll} employees at a time`)
+
 const shownAvailable = computed(() => props.paginated ? availableEmployees.value.slice(0, availableVisible.value) : availableEmployees.value)
 const shownSelected = computed(() => props.paginated ? selectedEmployees.value.slice(0, selectedVisible.value) : selectedEmployees.value)
+// Select all adds the employees now showing (not the whole pool): 100 → 100, after two loads → 200.
+// Disabled only when that would take the picks past the limit.
+const selectAllBlocked = computed(() => !!props.maxSelectAll && selectedIds.value.length + shownAvailable.value.length > props.maxSelectAll)
+// At the limit, the + on every row is disabled too (same tooltip as Select all).
+const pickBlocked = computed(() => !!props.maxSelectAll && selectedIds.value.length >= props.maxSelectAll)
 const availableRemaining = computed(() => Math.max(0, availableEmployees.value.length - shownAvailable.value.length))
 const selectedRemaining = computed(() => Math.max(0, selectedEmployees.value.length - shownSelected.value.length))
-function loadMoreAvailable() { availableVisible.value += Math.min(PAGE, availableRemaining.value) }
-function loadMoreSelected() { selectedVisible.value += Math.min(PAGE, selectedRemaining.value) }
+function loadMoreAvailable() { availableVisible.value += Math.min(PAGE.value, availableRemaining.value) }
+function loadMoreSelected() { selectedVisible.value += Math.min(PAGE.value, selectedRemaining.value) }
 
 // Block the moment a user pick crosses the limit — don't wait for
 // "Continue" — so picking a second employee immediately hands off to the
@@ -136,7 +163,7 @@ function checkSelectionLimit() {
 }
 
 function selectEmployee(id: string) {
-  if (selectedIds.value.includes(id)) return
+  if (pickBlocked.value || selectedIds.value.includes(id)) return
   selectedIds.value = [...selectedIds.value, id]
   checkSelectionLimit()
 }
@@ -144,7 +171,8 @@ function removeEmployee(id: string) {
   selectedIds.value = selectedIds.value.filter(eid => eid !== id)
 }
 function selectAllVisible() {
-  const ids = availableEmployees.value.map(e => e.id)
+  if (selectAllBlocked.value) return
+  const ids = shownAvailable.value.map(e => e.id)
   selectedIds.value = [...selectedIds.value, ...ids]
   checkSelectionLimit()
 }
@@ -158,6 +186,8 @@ function close() {
 function continueNext() {
   hasSelectionError.value = (props.isRequired ?? true) && !selectedIds.value.length
   if (hasSelectionError.value) return
+  hasLimitError.value = !!props.maxSelectAll && selectedIds.value.length > props.maxSelectAll
+  if (hasLimitError.value) return
   emit('continue', [...selectedIds.value])
   emit('update:isOpen', false)
 }
@@ -175,6 +205,7 @@ const listHeaderTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '
 const listAction = css({
   background: 'transparent', border: 'none', padding: '0', cursor: 'pointer',
   color: 'text.link', fontSize: '14px', lineHeight: '20px', textDecoration: 'underline',
+  _disabled: { color: 'text.disabled', cursor: 'not-allowed', textDecoration: 'none' },
 })
 
 const searchWrap = css({
@@ -201,10 +232,13 @@ const employeeRowClickable = css({
   _hover: { background: 'background.neutral.subtle' },
   '& .add-employee-icon': { opacity: '0', transition: 'opacity 0.12s ease' },
   '&:hover .add-employee-icon': { opacity: '1' },
+  '&[aria-disabled="true"], &[aria-disabled="true"]:hover': { cursor: 'not-allowed', background: 'transparent' },
+  '&[aria-disabled="true"] .add-employee-icon': { color: 'icon.disabled' },
 })
 const employeeName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 const employeeMetaText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
-const addEmployeeIcon = css({ color: 'icon.brand', flexShrink: '0', marginLeft: 'auto' })
+const addEmployeeIcon = css({ color: 'icon.brand', flexShrink: '0' })
+const addIconSlot = css({ display: 'flex', flexShrink: '0', marginLeft: 'auto' })
 const removeBtn = css({ background: 'transparent', border: 'none', padding: '2', cursor: 'pointer', color: 'icon.secondary', display: 'flex', flexShrink: '0' })
 const loadMoreBar = css({ display: 'flex', alignItems: 'center', gap: '1', paddingBlock: '3', paddingInline: '2', flexShrink: '0' })
 const loadMoreCaption = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secondary' })
@@ -213,10 +247,11 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
 
 <template>
   <ClientOnly>
-    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="lg" is-keep-alive @close="close">
+    <MpDrawer :id="resolvedDrawerId" :is-open="isOpen" placement="right" size="xl" is-keep-alive @close="close">
       <MpDrawerContent>
         <MpDrawerHeader>
           {{ drawerTitle }}
+          <slot name="dev-tools" />
           <MpDrawerCloseButton @click="close" />
         </MpDrawerHeader>
         <MpDrawerBody :class="css({ display: 'flex', flexDirection: 'column', minHeight: '0' })">
@@ -237,14 +272,22 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
               <div :class="css({ display: 'flex', flexDirection: 'column', flex: '1', minHeight: '0' })">
                 <div :class="listHeader">
                   <span :class="listHeaderTitle">Employees ({{ availableEmployees.length }})</span>
-                  <button type="button" :class="listAction" @click="selectAllVisible">Select all</button>
+                  <!-- A disabled button swallows hover, so the tooltip wraps a span -->
+                  <MpTooltip v-if="selectAllBlocked" :label="selectAllTooltip" use-portal placement="top">
+                    <span>
+                      <button type="button" :class="listAction" disabled>Select all</button>
+                    </span>
+                  </MpTooltip>
+                  <button v-else type="button" :class="listAction" @click="selectAllVisible">Select all</button>
                 </div>
                 <div :class="listScroll">
+                  <!-- At the limit the row is aria-disabled (not `disabled`, which would swallow hover) and the tooltip sits on the + icon -->
                   <button
                     v-for="e in shownAvailable"
                     :key="e.id"
                     type="button"
                     :class="employeeRowClickable"
+                    :aria-disabled="pickBlocked"
                     @click="selectEmployee(e.id)"
                   >
                     <PxAvatar :id="e.id" :name="e.name" :src="e.photo" size="lg" variant-color="gray" />
@@ -252,7 +295,17 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
                       <span :class="employeeName">{{ e.name }}</span>
                       <span :class="employeeMetaText">{{ employeeMeta(e) }}</span>
                     </MpFlex>
-                    <MpIcon name="add" size="sm" class="add-employee-icon" :class="addEmployeeIcon" />
+                    <span :class="addIconSlot">
+                      <MpTooltip
+                        :label="selectAllTooltip"
+                        use-portal
+                        placement="top"
+                        :is-manual="!pickBlocked"
+                        :is-open="false"
+                      >
+                        <MpIcon name="add" size="sm" class="add-employee-icon" :class="addEmployeeIcon" />
+                      </MpTooltip>
+                    </span>
                   </button>
                   <p v-if="!availableEmployees.length" :class="emptyText">No employees found</p>
                   <div v-else-if="paginated && availableRemaining > 0" :class="loadMoreBar">
@@ -302,6 +355,9 @@ const emptyText = css({ fontSize: '14px', lineHeight: '20px', color: 'text.secon
           <MpFlex align="center" justify="space-between" :class="css({ width: '100%' })">
             <MpText v-if="hasSelectionError" size="label" :class="css({ color: 'text.danger' })">
               You must select at least one employee
+            </MpText>
+            <MpText v-else-if="hasLimitError" size="label" :class="css({ color: 'text.danger' })">
+              {{ selectAllTooltip }}
             </MpText>
             <span v-else />
             <MpButtonGroup>

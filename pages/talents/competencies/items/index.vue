@@ -13,7 +13,7 @@
 -->
 <script setup lang="ts">
 import {
-  MpFlex, MpButton, MpText, MpIcon, MpInput, MpInputGroup, MpInputLeftAddon, MpCheckbox, MpDivider,
+  MpFlex, MpButton, MpText, MpIcon, MpInput, MpInputGroup, MpInputLeftAddon, MpCheckbox,
   MpTable, MpTableContainer, MpTableHead, MpTableBody, MpTableRow, MpTableCell,
   MpPopover, MpPopoverTrigger, MpPopoverContent, MpPopoverList, MpPopoverListItem,
   MpModal, MpModalOverlay, MpModalContent, MpModalHeader, MpModalCloseButton, MpModalBody, MpModalFooter,
@@ -310,7 +310,6 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
                       <MpPopoverContent>
                         <MpPopoverList>
                           <MpPopoverListItem @click="onBulk('edit')">Edit bulk item</MpPopoverListItem>
-                          <MpDivider />
                           <MpPopoverListItem @click="onBulk('delete')"><span :class="dangerText">Delete bulk item</span></MpPopoverListItem>
                         </MpPopoverList>
                       </MpPopoverContent>
@@ -362,12 +361,11 @@ const footerRow = css({ display: 'flex', justifyContent: 'flex-end', gap: '3', w
               <MpTableCell as="td" :class="actionCell">
                 <MpPopover is-close-on-select use-portal placement="bottom-end">
                   <MpPopoverTrigger>
-                    <MpButton variant="ghost" left-icon="menu-kebab" :aria-label="`Actions for ${item.name}`" />
+                    <MpButton variant="secondary" right-icon="caret-down" :aria-label="`Actions for ${item.name}`">Actions</MpButton>
                   </MpPopoverTrigger>
                   <MpPopoverContent :class="css({ minWidth: '160px' })">
                     <MpPopoverList>
                       <MpPopoverListItem @click="openForm(item)">Edit</MpPopoverListItem>
-                      <MpDivider />
                       <MpPopoverListItem :id="`btn-delete-competency-${item.uuid}`" @click="deleteCompetency(item)"><span :class="dangerText">Delete</span></MpPopoverListItem>
                     </MpPopoverList>
                   </MpPopoverContent>

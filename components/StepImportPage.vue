@@ -11,7 +11,8 @@ import {
   MpFormControl, MpFormErrorMessage, MpInput, MpInputGroup, MpInputLeftAddon,
   MpTooltip, MpSpinner, MpModal, MpModalContent, MpModalHeader, MpModalBody, MpModalFooter, toast, css,
 } from '@mekari/pixel3'
-import { EMPLOYEES, employeeMeta } from '~/utils/employees'
+import { employeeMeta, type Employee } from '~/utils/employees'
+import EmployeePickerDevTools from '~/components/demo/EmployeePickerDevTools.vue'
 import { buildImportedIdpDrafts } from '~/utils/idpImportMock'
 
 defineOptions({ name: 'StepImportPage' })
@@ -39,10 +40,17 @@ const step = ref<1 | 2>(1)
 const STEPS = ['Select employees', 'Upload file']
 
 // Step 1: employees come from the shared SelectEmployeesDrawer.
+const MAX_EMPLOYEES = 500 // most employees one import can cover
 const drawerOpen = ref(false)
 const selectedIds = ref<string[]>([])
+// Dev control (EmployeePickerDevTools in the drawer) can swap in a bigger fabricated pool.
+const { importError, importScenario, importStep, importPool, importPoolEmployees } = useIdpImportFlag()
 const selectedEmployees = computed(() =>
-  selectedIds.value.map(id => EMPLOYEES.find(e => e.id === id)).filter((e): e is typeof EMPLOYEES[number] => Boolean(e)))
+  selectedIds.value.map(id => importPoolEmployees.value.find(e => e.id === id)).filter((e): e is Employee => Boolean(e)))
+watch(importPoolEmployees, (list) => {
+  const ids = new Set(list.map(e => e.id))
+  selectedIds.value = selectedIds.value.filter(id => ids.has(id))
+})
 const nextAttempted = ref(false)
 const selectionError = computed(() => (nextAttempted.value && !selectedIds.value.length ? 'You must select at least one employee' : ''))
 // The empty-selection error only appears when Continue is clicked; any change to the selection clears it.
@@ -55,7 +63,8 @@ const GENERATE_MS = 2000
 const isGenerating = ref(false)
 // The dev tools' "Loading state" scenario keeps step 2 on the loader.
 const showLoader = computed(() => isGenerating.value || (step.value === 2 && importScenario.value === 'loading'))
-const fileTypeHint = computed(() => `.xlsx only with max size ${props.maxMb}mb`)
+const MAX_ROWS = 500 // most rows one file can have
+const fileTypeHint = computed(() => `.xlsx only with max size ${props.maxMb}mb and ${MAX_ROWS} rows`)
 function goNext() {
   nextAttempted.value = true
   if (!selectedIds.value.length) return
@@ -81,9 +90,8 @@ const remaining = computed(() => Math.max(0, filteredEmployees.value.length - vi
 // 10 at a time; when fewer than 10 are left, loads just the remaining ones.
 function loadMore() { visibleCount.value += Math.min(PAGE, remaining.value) }
 // Dev tools can force an error state on the dropzone (docs/patterns/dev-scenario-control.md).
-const { importError, importScenario, importStep } = useIdpImportFlag()
 watch(step, (n) => { importStep.value = n }, { immediate: true })
-onBeforeUnmount(() => { importStep.value = 1 })
+onBeforeUnmount(() => { importStep.value = 1; importPool.value = 'default' })
 
 // No toast: the header activity monitor opens on its Download tab with the template as a job; when it
 // is ready, the row gets a download icon button (docs/patterns/upload.md).
@@ -94,9 +102,12 @@ const fileName = ref('')
 const fileSizeLabel = ref('')
 const pickedFile = ref<File | null>(null)
 const pickedInvalidReason = ref('')
+// The prototype never reads the file, so the row limit is only reachable through the dev error state.
+const TOO_MANY_ROWS = `File has more than ${MAX_ROWS} rows. Please upload a file with ${MAX_ROWS} rows or fewer`
 const forcedReason = computed(() => importError.value === 'too-large'
   ? `File size is over ${props.maxMb} MB. Please upload a smaller file`
-  : importError.value === 'wrong-format' ? 'File must be in XLSX format. Please upload a different file' : '')
+  : importError.value === 'wrong-format' ? 'File must be in XLSX format. Please upload a different file'
+    : importError.value === 'too-many-rows' ? TOO_MANY_ROWS : '')
 const fileInvalidReason = computed({
   get: () => forcedReason.value || pickedInvalidReason.value,
   set: (v: string) => { pickedInvalidReason.value = v },
@@ -364,11 +375,16 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
         drawer-id="drawer-import-employees"
         paginated
         title="Select employees"
-        description="Select the employees you want to import IDPs for."
+        description="Select the employees you want to import IDPs for. You can select up to 500 employees at a time."
         confirm-label="Save"
+        :max-select-all="MAX_EMPLOYEES"
+        :page-size="25"
+        :employees="importPoolEmployees"
         :initial-selected="selectedIds"
         @continue="onEmployeesContinue"
-      />
+      >
+        <template #dev-tools><EmployeePickerDevTools /></template>
+      </SelectEmployeesDrawer>
     </template>
 
     <!-- Step 2 · Upload data -->
@@ -400,6 +416,7 @@ const errorText = css({ fontSize: '12px', lineHeight: '16px', color: 'text.dange
             <MpFlex as="ul" direction="column" gap="1" :class="bulletList">
               <MpText as="li" size="label" color="text.secondary">Follow the column guidelines in the template.</MpText>
               <MpText as="li" size="label" color="text.secondary">Fill in all required fields.</MpText>
+              <MpText as="li" size="label" color="text.secondary">Ensure you only add up to {{ MAX_ROWS }} rows per file.</MpText>
               <MpText as="li" size="label" color="text.secondary">Each row is one action plan. Rows with the same employee ID are grouped into one IDP.</MpText>
             </MpFlex>
           </MpFlex>
