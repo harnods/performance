@@ -18,11 +18,12 @@ import {
   css,
 } from '@mekari/pixel3'
 
-// Company goals hide Update/Close — bulk progress updates and closing don't
-// apply to that level (prod parity); every other goal-listing page keeps all
-// four actions, so these default to shown rather than opting each page in.
-withDefaults(defineProps<{ selectedCount: number, isAllSelected: boolean, hideUpdateProgress?: boolean, hideCloseGoals?: boolean }>(), {
+// Company goals hide Update (bulk progress updates don't apply at that level);
+// the Closed goals tab hides Update/Edit/Close, leaving Delete only. Every
+// other case keeps all four actions, so these default to shown.
+withDefaults(defineProps<{ selectedCount: number, isAllSelected: boolean, hideUpdateProgress?: boolean, hideEditGoals?: boolean, hideCloseGoals?: boolean }>(), {
   hideUpdateProgress: false,
+  hideEditGoals: false,
   hideCloseGoals: false,
 })
 const emit = defineEmits<{ clear: [], 'edit-goals': [], 'update-progress': [], 'close-goals': [], 'delete-goals': [], 'toggle-select-all': [] }>()
@@ -63,6 +64,7 @@ const hintText = css({ color: 'text.secondary' })
       </MpFlex>
       <GoalBulkActionsMenu
         :hide-update-progress="hideUpdateProgress"
+        :hide-edit-goals="hideEditGoals"
         :hide-close-goals="hideCloseGoals"
         @update-progress="$emit('update-progress')"
         @edit-goals="$emit('edit-goals')"

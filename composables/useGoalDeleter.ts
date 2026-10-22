@@ -4,13 +4,16 @@
 
 import { toast } from '@mekari/pixel3'
 import type { Goal } from './useGoalsStore'
+import { alignedChildCount } from '~/utils/goalLock'
 
 export function useGoalDeleter() {
-  const { deleteGoal } = useGoalsStore()
+  const { deleteGoal, goals: allGoals } = useGoalsStore()
   const { createSubmission } = useGoalApprovalsStore()
 
   const isDeleteModalOpen = ref(false)
   const goalToDelete = ref<Goal | null>(null)
+  // Goals aligned to the one being deleted — they lose that alignment (modal copy variant).
+  const deleteAlignedCount = computed(() => goalToDelete.value ? alignedChildCount(goalToDelete.value, allGoals.value) : 0)
 
   function askDeleteGoal(goal: Goal) {
     goalToDelete.value = goal
@@ -52,6 +55,7 @@ export function useGoalDeleter() {
   return {
     isDeleteModalOpen,
     goalToDelete,
+    deleteAlignedCount,
     askDeleteGoal,
     confirmDeleteGoal,
   }

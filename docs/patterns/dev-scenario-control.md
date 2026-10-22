@@ -16,8 +16,9 @@ These exist today:
 | `components/demo/IdpDevTools.vue` (IDP create/edit form + plan detail, via `DemoLayer`) | **Coachmarks**: pulses marking what the prototype changes vs production (see below). **Bottom-left**, not bottom-right. On the IDP import page it adds, **only while the wizard is on step 2** (`useIdpImportFlag().importStep`), a **Scenario** section (**Default** / **Loading state**, which keeps step 2 on the "Generating template..." loader via `useIdpImportFlag().importScenario`) and an **Error states** section (None / File is too large / File format is incorrect, forces the dropzone's inline error via `useIdpImportFlag().importError`). |
 | `components/demo/IdpListDevTools.vue` (IDP list, via `DemoLayer`; replaces `IdpDevTools` there) | **Bottom-right** FAB with the coachmark controls only (the header **Import** button always shows, no toggle). |
 | `components/demo/EvaluationCycleDevTools.vue` (Create new cycle + Edit cycle, `?purpose=evaluation`, via `DemoLayer`) | The **Coachmarks** group only. There's no scenario switch: Edit cycle is a real page (`/reviews/review-cycles/:id/edit`), so nothing is faked. Bottom-left, like IDP's. |
-| `pages/goals/goal-cycles/[id]/index.vue` | One FAB, one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
+| `pages/goals/goal-cycles/[id]/index.vue` (**bottom-left**, with a Coachmarks group on every tab) | One FAB; its **Scenario** group has one axis at a time — which axis depends on the active tab: on **All goals** it's **Submission status** (Default vs Async, the bulk-approved-goal-creation banner + pending-row skeleton merge); on **Closed** it's **Default vs Empty** (forces the Closed tab's empty state even though the cycle already has closed goals). The two never show together since the tabs are mutually exclusive. |
 | `components/GoalsDashScenarioControl.vue` | The Goals dashboard's section/layout variants (below) |
+| Goal-type pages (`company-` / `individual-` / `team-` / `organization-goals.vue`) and Goal Detail (`goals/[goalId].vue`) | No scenario of their own, so `DemoLayer` mounts the small bottom-left **coachmarks-only** `TemplateDevTools` panel (the goal-reminders precedent). Coachmarks for the Closed goals tab, closed/locked rows, the close / bulk-close / delete modals, the Align drawer and Goal Detail's banner, badges and key results (table below). |
 | `components/demo/RolesFormDevTools.vue` (Settings → Manage users → Roles → Add / Edit role, via `DemoLayer`) | The page's **only** dev control, **bottom-left**. **Scenario** group (`MpRadio`): **Version 1 (Default)** (Module + Permission list) vs **Version 2 — Action columns** (full-width module tree, View / Create / Edit / Delete columns — see `table.md` › Permission tree table), state in `useManageUserStore().rolesFormVersion`; then the **Coachmarks** group. Replaces the old `RolesFormScenarioControl` + separate coachmark FAB. |
 | `components/CompetencyItemScenarioControl.vue` | Competency items list: **Filled (Default)** (mock seed) vs **Empty state** (blank slate). One axis, flat list. State in `useCompetencyItemStore().scenario`. |
 | `components/demo/ActionPlanDevTools.vue` (IDP → Add/Edit action plan drawer) | Small round `sliders` button **in the drawer header, left of the X** (not a FAB, since the drawer covers the corner). Forces the Competency item picker's source: Filled vs Empty (blank slate). Shares `useCompetencyItemStore().scenario`. |
@@ -142,8 +143,8 @@ talenta-review copies nothing demo-related.
   inside each anchor, and teleports a `DevCoachmark` into it. It also renders the module's dev
   tools panel on any route that has coachmarks: `EvaluationCycleDevTools` under
   `/reviews/review-cycles`, `RolesFormDevTools` on Add / Edit role (always, since
-  it also holds the Version switch), `IdpListDevTools` on the IDP list, `TemplateDevTools` on Settings › Reminders and a goal cycle's page (Goal reminders),
-  `IdpDevTools` everywhere else. It rescans on
+  it also holds the Version switch), `IdpListDevTools` on the IDP list, `TemplateDevTools` on Settings › Reminders and on the goal-type pages / Goal Detail (not the cycle index, which owns its control, below),
+  `IdpDevTools` everywhere else. The **goal cycle index** (`/goals/goal-cycles/:id`) gets no panel from `DemoLayer`: its own scenario button (in `[id]/index.vue`) is the page's single dev control and carries the Coachmarks group via `components/demo/CoachmarkControls.vue` (imported explicitly), so a Goal cycle info tab with no scenario still has the coachmark toggle. It rescans on
   `route.fullPath`, so a query change (e.g. a scenario flag) updates the pulses.
 - **Off switch:** `runtimeConfig.public.demoMode` (default `true` in this
   prototype; `NUXT_PUBLIC_DEMO_MODE=false` hides everything).
@@ -273,6 +274,26 @@ Current template builder coachmarks (Settings → Templates → Add / View and e
 The list page mounts a hidden second `TemplateForm` (duplicate flow), so both anchors
 use `visible()` in `coachmarks.ts` to pick the element that is on screen.
 
+Current goal coachmarks (`goals-*` on the cycle index, the four goal-type pages and the archive cycle; `goal-detail-*` on Goal Detail):
+
+| Where | Anchor | What it explains |
+|---|---|---|
+| Type pages | "Closed goals" tab | New on Company / Organization / Team / Individual: closed goals of that type only; only departments with one; "No closed goals yet" |
+| Archive cycle | "Closed goals" tab | A goal outside any real cycle is browsable on its own cycle's Closed tab (D10; archive stands in for the Mix Cycle) |
+| Type pages | "Delete goals" button (`corner: true`) | Closed tab bulk bar is one Delete goals button |
+| Type pages | A disabled row checkbox (`corner: true`) | Closed rows aren't selectable on mixed tabs (D9) |
+| Individual / Team / Organization | Search field (`corner: true`) | Search and the Closed tab hide departments with no match; "No goals found" |
+| Cycle index, type pages, Goal Detail | "Close goal?" modal header | Aligned-goals / needs-approval copy variants |
+| Type pages | "Close N goals?" modal header | Bulk close lists effects as bullets |
+| Cycle index, type pages, Goal Detail | "Delete goal?" modal header | Aligned goals listed and un-aligned |
+| Cycle index, type pages, Goal Detail | "Align to parent goal" drawer header | Closed goals are never offered as parents |
+| Goal Detail | "Update progress locked" banner title | Parent closed → progress locked (direct children only; Edit / Align allowed) |
+| Goal Detail | Closed badge / Alignment card's Closed tag | Closed state shown next to the status; parent tagged Closed |
+| Goal Detail | "Key Results (n)" title | Closed goal: Add / Edit disabled, Delete stays; locked goal: all disabled |
+| Goal Detail | Header **Actions** button (`corner: true`) | Update progress disabled with a tooltip when the parent is closed |
+
+Modal and drawer anchors are matched with `modalHeader()` / `visible()` so a pulse only exists while the modal is open (the drawer is kept alive, hence `visible()`).
+
 ## Rules
 
 - **One dev-tools FAB per page, bottom-left.** A page's scenario switches and its
@@ -280,10 +301,11 @@ use `visible()` in `coachmarks.ts` to pick the element that is on screen.
   never a second FAB beside it. (`IdpListDevTools` bottom-right is a legacy exception
   on a page with no other FAB.)
 - Floating FAB = dev only. Never for product actions.
-- Fixed bottom-right, 24px, 48px circle, `background.inverse`, `sliders` icon,
-  popover `placement="top-end"`. **Exception:** the demo-layer panels
-  (`IdpDevTools`, `EvaluationCycleDevTools`, `RolesFormDevTools`) sit **bottom-left** (`left: 24px`, popover `placement="top-start"`), so it never
-  collides with a page's own bottom-right scenario FAB.
+- **Always bottom-left**: fixed, `left: 24px; bottom: 24px`, 48px circle, `background.inverse`, `sliders` icon,
+  popover `placement="top-start"`. This holds for every Goals page — the cycles list (`goal-cycles/index.vue`),
+  the cycle index (`goal-cycles/[id]/index.vue`), the goal-type pages and Goal Detail — as well as the demo-layer
+  panels (`IdpDevTools`, `EvaluationCycleDevTools`, `RolesFormDevTools`). (Older controls elsewhere — the
+  Goals dashboard, competency items, `IdpListDevTools` — are still bottom-right until they're moved.)
 - Multi-group panel: no `is-close-on-select`; always a `Reset` + a `Default` choice.
 - State in a module-scope composable; defaults mirror the real seed.
 - A forced state fakes its own preconditions, reusing the real rule's constants.
@@ -297,4 +319,4 @@ use `visible()` in `coachmarks.ts` to pick the element that is on screen.
 
 ## Goal reminders coachmarks
 
-Goal reminders are flagged with pulses too (entries `goal-info-reminders` and `settings-goal-reminder-section` in `coachmarks.ts`): the **Reminders** row on Goal cycle info, and the **Goal reminder** section on Settings › Reminders. Both routes get the small bottom-left `TemplateDevTools` panel (coachmarks group only).
+Goal reminders are flagged with pulses too (entries `goal-info-reminders` and `settings-goal-reminder-section` in `coachmarks.ts`): the **Reminders** row on Goal cycle info, and the **Goal reminder** section on Settings › Reminders. Settings › Reminders gets the small bottom-left `TemplateDevTools` panel (coachmarks group only); the Goal cycle info tab's pulse is controlled from the cycle index's own dev button (its Coachmarks group, `CoachmarkControls.vue`).

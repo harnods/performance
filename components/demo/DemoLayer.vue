@@ -23,7 +23,11 @@ const isEvaluationCycle = computed(() => route.path.startsWith('/reviews/review-
 const isRoleForm = computed(() => /^\/settings\/manage-users\/roles\/(add|edit)/.test(route.path))
 // Template builder: its coachmarks live inside a full-size modal, so a small dev tools button sits above it.
 // Goal reminders: Settings › Reminders and a goal cycle's page (Reminders row on Goal cycle info) get the small panel.
-const isGoalReminderPage = computed(() => /^\/(settings\/reminders\/?|goals\/goal-cycles\/(?!new\/?$)[^/]+\/?)$/.test(route.path))
+const isSettingsReminders = computed(() => /^\/settings\/reminders\/?$/.test(route.path))
+// Goal cycle index: owns its dev control (scenario FAB + a Coachmarks group, in the page), so DemoLayer adds no panel there.
+const isGoalCycleIndex = computed(() => /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+\/?$/.test(route.path))
+// Goal-type pages and Goal Detail have no dev control of their own: they get the small bottom-left coachmarks panel.
+const isGoalCyclePage = computed(() => /^\/goals\/goal-cycles\/[^/]+\/((company|individual|team|organization)-goals|goals\/[^/]+)\/?$/.test(route.path))
 const isTemplates = computed(() => /^\/settings\/templates\/?$/.test(route.path))
 
 // id → host <span> appended inside the anchor element.
@@ -122,7 +126,8 @@ const mounted = computed(() => active.value.filter(d => hosts.value.has(d.id)) a
     <template v-else-if="isTemplates">
       <TemplateDevTools v-if="mounted.length" />
     </template>
-    <TemplateDevTools v-else-if="isGoalReminderPage && active.length" />
+    <TemplateDevTools v-else-if="(isSettingsReminders || isGoalCyclePage) && active.length" />
+    <template v-else-if="isGoalCycleIndex" />
     <EvaluationCycleDevTools v-else-if="active.length && isEvaluationCycle" />
     <IdpListDevTools v-else-if="isIdpList" />
     <IdpDevTools v-else-if="active.length" />

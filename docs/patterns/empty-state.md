@@ -90,3 +90,7 @@ button while the batch is active. Reference: `goal-cycles/[id]/index.vue`.
 Not a separate block: use `PxSelectPopover`'s `empty-text` / `empty-action-*`
 props (see [`form.md`](form.md) §"Empty source list"). Reference:
 `components/IdpActionPlanModal.vue`.
+
+## Closed goals tab
+
+The Goal cycle pages' **Closed goals** tab uses the same illustration + title + caption, but **no action button** (nothing to create from that tab). See [`tabs.md`](tabs.md#closed-goals-tab-goal-cycle-pages).

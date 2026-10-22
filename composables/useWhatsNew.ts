@@ -26,6 +26,83 @@ export interface ChangelogEntry {
 // module already exists, append an item to it; otherwise add a new entry on top.
 export const CHANGELOG: ChangelogEntry[] = [
   {
+    date: '23 Oct 2026',
+    module: 'Internal tools',
+    items: [
+      {
+        category: 'Chore',
+        area: 'What\'s new changelog',
+        detail: 'Added a test that fails when the changelog file has a syntax error, so a stray apostrophe can no longer take the whole app down.',
+        files: ['tests/changelog-syntax.test.ts', 'composables/useWhatsNew.ts'],
+      },
+    ],
+  },
+  {
+    date: '22 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Feature',
+        area: 'Goal cycles · Company, Individual, Team, Organization goals',
+        detail: 'Added a Closed goals tab to each goal type page, listing only closed goals with its own empty state.',
+        files: [
+          'pages/goals/goal-cycles/[id]/company-goals.vue',
+          'pages/goals/goal-cycles/[id]/individual-goals.vue',
+          'pages/goals/goal-cycles/[id]/team-goals.vue',
+          'pages/goals/goal-cycles/[id]/organization-goals.vue',
+          'docs/goals-revamp.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal cycles · Closed goals tab',
+        detail: 'Bulk actions on the Closed goals tab are now a single Delete goals button, and the selection clears when you switch tabs.',
+        files: [
+          'components/GoalBulkActionsMenu.vue',
+          'components/GoalBulkActionBar.vue',
+          'components/GoalFloatingBulkBar.vue',
+          'pages/goals/goal-cycles/[id]/company-goals.vue',
+          'pages/goals/goal-cycles/[id]/individual-goals.vue',
+          'pages/goals/goal-cycles/[id]/team-goals.vue',
+          'pages/goals/goal-cycles/[id]/organization-goals.vue',
+          'docs/patterns/checkbox.md',
+        ],
+      },
+      {
+        category: 'Feature',
+        area: 'Goal cycles · Closing a goal with aligned goals',
+        detail: 'Closing a goal now warns when it has aligned goals (bulk close lists the effects as bullet points), and those aligned goals show Progress locked (notice with a View parent goal link, a disabled Update progress and locked key results); a closed goal shows a Closed badge next to its status and keeps Delete on its key results (Add and Edit are disabled with a tooltip). Closed rows are not bulk-selectable on the All goals tab, the Closed badge and closed-row actions now work on the Company, Individual, Team and Organization pages, the Align drawer no longer offers closed goals as parents, and closing an already-closed goal is ignored. Deleting a goal now lists its aligned goals as bullets and un-aligns them, the close modal for a goal that needs approval lists what happens once approved, and the archive cycle has closed goals on its Closed tab. The close modal for a goal with aligned goals lists its effects as bullets, and the dev buttons on the Goals pages now sit bottom-left. Dev coachmarks now flag these changes on the cycle index, the four goal pages and Goal Detail, with a dev button (bottom-left where the page had none). Searching, and the Closed goals tab, on Individual, Team and Organization goals now hide departments with no match.',
+        files: [
+          'utils/goalLock.ts',
+          'composables/useGoalProgressLock.ts',
+          'composables/useGoalCloser.ts',
+          'components/GoalCloseConfirmText.vue',
+          'components/GoalBulkCloseConfirmText.vue',
+          'pages/goals/goal-cycles/[id]/goals/[goalId].vue',
+          'pages/goals/goal-cycles/[id]/index.vue',
+          'pages/goals/goal-cycles/[id]/company-goals.vue',
+          'pages/goals/goal-cycles/[id]/individual-goals.vue',
+          'pages/goals/goal-cycles/[id]/team-goals.vue',
+          'pages/goals/goal-cycles/[id]/organization-goals.vue',
+          'docs/ux-writing-review-goal-close-locked.md',
+          'docs/patterns/badges.md',
+          'docs/patterns/banner.md',
+          'docs/patterns/modal.md',
+          'docs/patterns/buttons.md',
+          'components/GoalAlignDrawer.vue',
+          'components/demo/coachmarks.ts',
+          'components/demo/CoachmarkControls.vue',
+          'components/demo/DemoLayer.vue',
+          'components/GoalDeleteConfirmText.vue',
+          'composables/useGoalDeleter.ts',
+          'docs/patterns/checkbox.md',
+          'docs/patterns/filter-bar.md',
+          'docs/patterns/page-title.md',
+        ],
+      },
+    ],
+  },
+  {
     date: '21 Oct 2026',
     module: 'Goals',
     items: [

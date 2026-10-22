@@ -22,6 +22,7 @@ Check `cycle.isArchive` (or `cycle.id === 'archive-legacy'` if only the id is at
 | Edit the goal | ✅ allowed, same edit-lock rules as any goal | ❌ never editable |
 | Delete | ✅ allowed | ❌ never deletable |
 | Move to another cycle | ❌ no such feature exists yet; if built, must stay blocked for archive-cycle goals | n/a |
+| Closed goals tab | ✅ works like any cycle — closed archive goals (2020–2022 in the seed) show on its **Closed goals** tab; no archive-specific guard (closed-goal-index PRD, D10, with this cycle standing in for the not-yet-modeled Mix Cycle) | — |
 | Import goals / New goals | ❌ hidden — nothing can be added to a frozen container | n/a |
 | "weight mandatory" validation | never enforced (`weightMandatory: false` on the seed) | n/a |
 

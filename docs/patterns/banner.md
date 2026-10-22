@@ -52,6 +52,10 @@ with a genuine `click` emit and correct link styling (brand-blue,
 </MpBannerDescription>
 ```
 
+## Locked-progress notice (Goal Detail)
+
+A **persistent state** banner, not dismissible: `variant="info"` at the top of the **main (left) column** of a goal's Detail page — inside `mainCol`, not full-width above the two-column row, so it lines up with the title and text below and never runs over the right info sidebar — when the goal's parent goal is closed. Title **Update progress locked**; description "You can no longer update progress for this goal because the parent goal is closed." followed by an inline `MpTextlink as="button"` **View parent goal** (verb + object, no period) that opens the parent. It disappears when the alignment is removed (the lock is derived — `utils/goalLock.ts`). Reference: `pages/goals/goal-cycles/[id]/goals/[goalId].vue`.
+
 ## Multiple points — bullet list inside `MpBannerDescription`
 
 `MpBannerDescription` has no built-in list affordance. When the banner needs

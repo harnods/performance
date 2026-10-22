@@ -5,14 +5,18 @@
 
 import { toast } from '@mekari/pixel3'
 import type { Goal } from './useGoalsStore'
+import { openAlignedCount } from '~/utils/goalLock'
 
 export function useGoalCloser() {
-  const { updateGoal } = useGoalsStore()
+  const { updateGoal, goals: allGoals } = useGoalsStore()
   const { logActivity } = useGoalActivityStore()
   const { createSubmission } = useGoalApprovalsStore()
 
   const isCloseModalOpen = ref(false)
   const goalToClose = ref<Goal | null>(null)
+  // Open aligned goals that closing this goal would lock — drives the modal's
+  // aligned-goals copy variant.
+  const closeAlignedCount = computed(() => goalToClose.value ? openAlignedCount(goalToClose.value, allGoals.value) : 0)
 
   function applyClose(g: Goal) {
     updateGoal(g.id, { isClosed: true })
@@ -34,9 +38,16 @@ export function useGoalCloser() {
     goalToClose.value = goal
     isCloseModalOpen.value = true
   }
+  // The modal holds a snapshot — re-read the store so a stale/duplicate confirm can't close (and log) twice.
+  const isAlreadyClosed = (g: Goal) => !!allGoals.value.find(x => x.id === g.id)?.isClosed
   function confirmCloseGoal() {
     const g = goalToClose.value
     if (!g) return
+    if (isAlreadyClosed(g)) {
+      isCloseModalOpen.value = false
+      goalToClose.value = null
+      return
+    }
     if (needsApproval(g.ownerId)) {
       submitClose(g)
       toast.notify({ id: 'goal-close-submitted', position: 'top-center', variant: 'success', title: 'Close request sent for approval' })
@@ -51,13 +62,19 @@ export function useGoalCloser() {
   // ─── Bulk ───────────────────────────────────────────────────────────────
   const isBulkCloseModalOpen = ref(false)
   const goalsToClose = ref<Goal[]>([])
+  // How many of the selected goals have open aligned goals.
+  const bulkAlignedParentCount = computed(() => goalsToClose.value.filter(g => openAlignedCount(g, allGoals.value) > 0).length)
   function askBulkClose(goals: Goal[]) {
     goalsToClose.value = goals
     if (goals.length) isBulkCloseModalOpen.value = true
   }
   function confirmBulkClose() {
-    const list = goalsToClose.value
-    if (!list.length) return
+    const list = goalsToClose.value.filter(g => !isAlreadyClosed(g))
+    if (!list.length) {
+      isBulkCloseModalOpen.value = false
+      goalsToClose.value = []
+      return
+    }
     const needApproval = list.filter(g => needsApproval(g.ownerId))
     const immediate = list.filter(g => !needsApproval(g.ownerId))
     immediate.forEach(applyClose)
@@ -80,7 +97,7 @@ export function useGoalCloser() {
   }
 
   return {
-    isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal,
-    isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose,
+    isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, closeAlignedCount,
+    isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose, bulkAlignedParentCount,
   }
 }

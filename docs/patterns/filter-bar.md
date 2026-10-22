@@ -37,6 +37,10 @@ Many-filter pages add `wrap="wrap"` and nest a left `MpFlex gap="3"` cluster (ta
 > and `advancedCount` (from `allFiltersCount`) feeds both the button's badge and whether
 > `Clear` shows at all.
 
+## Search on department-accordion tables
+
+On the department-grouped goal tables (Individual / Team / Organization goals), searching **hides every department with no match** instead of listing them all with "No goals in this department yet." The matching departments **auto-expand** so the hits are visible, and a search that matches nothing shows a centred "No goals found" / "Recheck the keywords you have typed and try searching again." inside the table border (no action button — `empty-state.md`). Clearing the search restores every department. Implemented in each page's `departments` computed (`.filter(d => !search.value.trim() || d.rows.length > 0)`; Individual uses `d.owners.length`) plus a `watch(search, …)` that expands the survivors. Status / All-filters still show empty departments as before. The **Closed goals** tab applies the same rule (hide departments with no closed goal, auto-expand the rest) — see [`tabs.md`](tabs.md).
+
 ## Search input
 
 ⚠️ **Recurring bug: the search icon overlapping the placeholder text.** There are TWO
