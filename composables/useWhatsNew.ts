@@ -27,6 +27,18 @@ export interface ChangelogEntry {
 export const CHANGELOG: ChangelogEntry[] = [
   {
     date: '23 Oct 2026',
+    module: 'Goals',
+    items: [
+      {
+        category: 'Fix',
+        area: 'Goal cycles · Company, Team, Organization goals',
+        detail: 'Closed goals now show as closed in the list, so they get the Closed badge and are skipped when bulk-selecting, and Close selected goals is offered when only open goals are selected.',
+        files: ['utils/goalRows.ts', 'utils/goalRows.test.ts'],
+      },
+    ],
+  },
+  {
+    date: '23 Oct 2026',
     module: 'Internal tools',
     items: [
       {
