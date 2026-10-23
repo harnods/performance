@@ -32,8 +32,8 @@ export const CHANGELOG: ChangelogEntry[] = [
       {
         category: 'Fix',
         area: 'Goal cycles · Company, Team, Organization goals',
-        detail: 'Closed goals now show as closed in the list, so they get the Closed badge and are skipped when bulk-selecting, and Close selected goals is offered when only open goals are selected.',
-        files: ['utils/goalRows.ts', 'utils/goalRows.test.ts'],
+        detail: 'Closed goals now show as closed in the list, so they get the Closed badge and are skipped when bulk-selecting, and Close selected goals is offered when only open goals are selected. The Company goals bulk Actions menu now sits in the Company-wide goals header, like the other goal pages.',
+        files: ['utils/goalRows.ts', 'utils/goalRows.test.ts', 'pages/goals/goal-cycles/[id]/company-goals.vue', 'docs/patterns/checkbox.md'],
       },
     ],
   },

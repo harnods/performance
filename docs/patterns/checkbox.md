@@ -165,7 +165,9 @@ a 20px shift), even with `<col>` widths.
 
 ## 3. Bulk action bar — replaces the table header, never shifts the body
 
-**Company goals only** (the one page with a single, non-collapsible group — see "Multi-group
+> **Superseded on Company goals.** Company goals no longer swaps its header row: like the department pages, it shows the Actions menu (`GoalBulkActionsMenu`) **inline in the "Company-wide goals" group header** while 1+ goals are selected (no "N goals selected" bar), and its column headers stay put. The bar anatomy below still describes `GoalBulkActionBar.vue`, which no goal page uses now; the *Closed tab* and *closed-row* rules in this doc apply as written.
+
+**Company goals only (former behaviour)** (the one page with a single, non-collapsible group — see "Multi-group
 bulk actions" below for why Organization/Team/Individual do it differently). When 1+ rows are
 selected, a bulk-action bar appears **in place of the table's column-header row** (`thead`) — it
 is **not** an extra bar added above the table, and the filter bar above stays untouched. Source:
@@ -333,9 +335,7 @@ const isMultiDeptSelected = computed(() => selectedDeptKeys.value.length > 1)
 - Table row-select checkbox = inside the first content cell, not its own column.
 - Select-all checkbox = in the accordion/category header (after the caret), not the
   column-header `th`; needs `:is-indeterminate` since it's visible at 0 selected too.
-- Company goals: bulk action bar replaces the header row (`colspan`); Actions = primary
-  `caret-down` popover; Delete is danger. Body never shifts (widths locked by `colgroup`;
-  only the header row swaps).
+- Company goals: Actions = primary `caret-down` popover, inline in the "Company-wide goals" group header (same as the department headers); Delete is danger. The column headers never swap, so the body never shifts.
 - Bulk-bar inset comes from the **host `th`** (`paddingBlock: '1'`, keep the horizontal),
   never from the bar (`paddingInline: '0'`) — otherwise the select-all checkbox sits 8px
   off the row-checkbox column. Background + bottom border are the `th`'s too.

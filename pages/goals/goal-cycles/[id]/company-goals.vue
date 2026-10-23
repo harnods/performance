@@ -227,11 +227,6 @@ function goToImport(mode: 'edit-goals') {
   router.push({ path: `/goals/goal-cycles/${route.params.id}/import`, query: { mode, ids: [...selectedIds.value].join(',') } })
 }
 const { isBulkDeleteModalOpen, confirmBulkDelete } = useGoalBulkDeleter()
-// Select + Goal + Actions are always rendered; the rest follow visibleColumns.
-// Used as the colspan for the single merged cell that replaces this header
-// row's columns while 1+ rows are selected.
-const headerColCount = computed(() => 2 // Goal + action (checkbox now lives inside the Goal cell)
-  + [visibleColumns.category, visibleColumns.subCategory, visibleColumns.owner, visibleColumns.progress, visibleColumns.status].filter(Boolean).length)
 
 const filteredGoals = computed(() => companyGoals.value.filter(g =>
   (activeTab.value !== 'closed' || g.isClosed)
@@ -345,6 +340,7 @@ const accordionHeader = css({
   background: 'gray.50', borderBottom: '1px solid', borderBottomColor: 'border.default',
 })
 const accordionLeft = css({ display: 'flex', alignItems: 'center', gap: '2' })
+const accordionLeftGroup = css({ display: 'flex', alignItems: 'center', gap: '6' })
 
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 // Header label + column-sort menu inline (mirrors goal-cycles/index.vue's thInner).
@@ -375,9 +371,6 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 // other column divider, not a heavier "sticky" emphasis.
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
-// Zeroes out the default th/td padding so GoalBulkActionBar's own 52px
-// height/fill is exactly what renders — no extra cell padding stacking on top.
-const noCellPadding = css({ paddingBlock: '1', borderBottomWidth: '1px', borderBottomStyle: 'solid', borderBottomColor: 'border.default' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -542,9 +535,29 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Company goals table -->
     <div ref="wrapperRef" :class="tableOuterBorder">
       <div :class="accordionHeader">
-        <span :class="accordionLeft">
-          <MpCheckbox :is-checked="isAllSelected(selectableIds)" @update:is-checked="toggleSelectAll(selectableIds)" aria-label="Select all" />
-          <MpText size="label" weight="semiBold" :class="valueText">Company-wide goals</MpText>
+        <span :class="accordionLeftGroup">
+          <span :class="accordionLeft">
+            <MpCheckbox
+              :is-checked="isAllSelected(selectableIds)"
+              :is-indeterminate="selectedCount > 0 && !isAllSelected(selectableIds)"
+              @update:is-checked="toggleSelectAll(selectableIds)"
+              aria-label="Select all"
+            />
+            <MpText size="label" weight="semiBold" :class="valueText">Company-wide goals</MpText>
+          </span>
+          <!-- Bulk Actions sit inline in this group header while 1+ goals are selected —
+               same as the department headers on the other goal pages (no bar replacing
+               the column headers). -->
+          <span v-if="selectedCount > 0" @click.stop>
+            <GoalBulkActionsMenu
+              hide-update-progress
+              :hide-edit-goals="isClosedTab"
+              :hide-close-goals="isClosedTab || hasClosedSelected"
+              @edit-goals="goToImport('edit-goals')"
+              @close-goals="onBulkClose"
+              @delete-goals="isBulkDeleteModalOpen = true"
+            />
+          </span>
         </span>
       </div>
       <MpTableContainer>
@@ -565,25 +578,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
             <col :class="actionHead">
           </colgroup>
           <MpTableHead>
-            <!-- Selection summary replaces the column-header row entirely
-                 (not a bar above the table) while 1+ rows are selected. -->
-            <MpTableRow v-if="selectedCount > 0">
-              <MpTableCell as="th" :colspan="headerColCount" :class="noCellPadding">
-                <GoalBulkActionBar
-                  :selected-count="selectedCount"
-                  :is-all-selected="isAllSelected(selectableIds)"
-                  hide-update-progress
-                  @toggle-select-all="toggleSelectAll(selectableIds)"
-                  @clear="clearSelection"
-                  @edit-goals="goToImport('edit-goals')"
-                  :hide-edit-goals="isClosedTab"
-                  :hide-close-goals="isClosedTab || hasClosedSelected"
-                  @close-goals="onBulkClose"
-                  @delete-goals="isBulkDeleteModalOpen = true"
-                />
-              </MpTableCell>
-            </MpTableRow>
-            <MpTableRow v-else>
+            <MpTableRow>
               <MpTableCell as="th" class="sort-th" :class="colDivider"><span :class="thInner"><span>Goal</span><PxColumnSortMenu col-key="goal" :sort-type="columnSortTypes.goal" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.category" as="th" class="sort-th" :class="[colDivider, colCategory]"><span :class="thInner"><span>Category</span><MpTooltip label="Category weight is the sum of its goals' weights — the category's share of the owner's 100% weight budget." use-portal placement="top"><MpIcon name="info" size="sm" :class="css({ color: 'icon.secondary', cursor: 'help' })" /></MpTooltip><PxColumnSortMenu col-key="category" :sort-type="columnSortTypes.category" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
               <MpTableCell v-if="visibleColumns.subCategory" as="th" class="sort-th" :class="[colDivider, colSubCategory]"><span :class="thInner"><span>Sub-category</span><PxColumnSortMenu col-key="subCategory" :sort-type="columnSortTypes.subCategory" :sort-key="sortKey" :sort-dir="sortDir" @sort-change="onSortChange" /></span></MpTableCell>
