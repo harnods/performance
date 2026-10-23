@@ -287,10 +287,10 @@ const emptyStateWrap = css({ paddingY: '20', textAlign: 'center' })
 const emptyIllustration = css({ height: '240px', width: 'auto' })
 const emptyTextWrap = css({ maxWidth: '420px' })
 const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px', color: 'text.default' })
-// Floating demo toggle (bottom-right) to preview the empty state — a round,
+// Floating demo toggle (bottom-left) to preview the empty state — a round,
 // black, icon-only FAB.
 const fab = css({
-  position: 'fixed', bottom: '24px', right: '24px', zIndex: '20',
+  position: 'fixed', bottom: '24px', left: '24px', zIndex: '20',
   display: 'inline-flex', alignItems: 'center', justifyContent: 'center',
   width: '48px', height: '48px', borderRadius: 'full',
   background: 'gray.900', color: 'white', border: 'none',
@@ -477,7 +477,7 @@ const fab = css({
     </template>
 
     <!-- Demo-only FAB: round black icon button → scenario picker popover -->
-    <MpPopover is-close-on-select use-portal placement="top-end">
+    <MpPopover is-close-on-select use-portal placement="top-start">
       <MpPopoverTrigger>
         <button type="button" :class="fab" title="Preview scenario" aria-label="Preview scenario">
           <MpIcon name="burger" />

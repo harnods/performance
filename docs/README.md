@@ -62,19 +62,19 @@ or with a broken layout. There's no build error, and a dev-server restart doesn'
 | [`patterns/checkbox.md`](patterns/checkbox.md) | Checkboxes — label gap (the 24px bug), checkbox-in-table (first cell), and the bulk-action bar. |
 | [`patterns/form.md`](patterns/form.md) | Any form — fields, selects, grid, section headers. |
 | [`patterns/page-form.md`](patterns/page-form.md) | Full-page create/edit vs drawer; when to use which. |
-| [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule. |
+| [`patterns/buttons.md`](patterns/buttons.md) | Button variants, sizes, Save vs Save changes, no-disabled rule, disabled menu item + tooltip (locked progress). |
 | [`patterns/date-format.md`](patterns/date-format.md) | Date & timestamp formatting (table vs non-table golden rule). |
 | [`patterns/date-picker.md`](patterns/date-picker.md) | `MpDatePicker` — `value-type` decides whether your model holds a `Date` or an ISO string, `use-portal` in dialogs, ranges vs two fields. |
-| [`patterns/badges.md`](patterns/badges.md) | Status badges/pills. |
+| [`patterns/badges.md`](patterns/badges.md) | Status badges/pills, incl. the goal lifecycle badges (Draft / Awaiting approval / Closed). |
 | [`patterns/dashboard-section.md`](patterns/dashboard-section.md) | **Any dashboard.** How sections compose — the section card shell (and why the table inside stays borderless), the compact no-illustration empty state, the "Last updated + Refresh" freshness row, and apply-on-demand filters. |
 | [`patterns/stat-card.md`](patterns/stat-card.md) | Tinted headline-figure cards (On track / Off track / Not started), plus the flat inline status-totals row on detail pages (equal-width items) — tone table, the delta's "is-this-good" colour rule, and why dashboard triage tables order most-stale-first. |
 | [`patterns/donut-chart.md`](patterns/donut-chart.md) | Single-proportion donut cards — `MpChart type="doughnut"`, legend/tooltip off, centre-label overlay, and the Chart.js hex exception. |
 | [`patterns/avatar.md`](patterns/avatar.md) | Avatar sizing — `lg` beside a full employee identity block. |
 | [`patterns/empty-state.md`](patterns/empty-state.md) | Empty states (illustration + secondary button). |
 | [`patterns/upload.md`](patterns/upload.md) | Single-file dropzone upload (drag/drop + browse, file-selected summary row, inline validation), and the full upload page with a template download (`UploadPage.vue`). |
-| [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. |
+| [`patterns/banner.md`](patterns/banner.md) | Any `MpBanner` — page-level info/success/warning/danger message above a table's filter bar. `MpBannerLink` is broken (use `MpTextlink`), and it has no progress affordance. Also the persistent locked-progress notice on Goal Detail. |
 | [`patterns/builder-modal.md`](patterns/builder-modal.md) | The full-size two-pane builder (review template builder): header actions, grey canvas of block cards + right settings panel, view-only mode, sibling sub-modals; plus the single-column private-template "View / edit template" modal opened from a review cycle and the small "Edit legend label" modal opened from its legends heading (Story 7). Migration parity only. |
-| [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, gate/confirmation modals (validate on the triggering action, share logic via a composable), and the read-only two-column record modal (production paddings). |
+| [`patterns/modal.md`](patterns/modal.md) | Any `MpModal` — top-center alignment at 80px, gate/confirmation modals (validate on the triggering action, share logic via a composable), the read-only two-column record modal (production paddings), the Close goal aligned-goals variant (incl. the needs-approval bullets), and the Delete goal aligned-goals variant. |
 | [`patterns/toggle.md`](patterns/toggle.md) | Any `MpToggle` — label-before-switch layout, and wrapping the whole control in a state-aware tooltip instead of a separate info icon; a settings toggle row with an Edit button, summary lines and an edit drawer (Settings › Reminders), incl. the Goal reminder rows and the Reminders row on Goal cycle info. |
 | [`patterns/icons.md`](patterns/icons.md) | PxIcon vs MpIcon, icon naming. |
 | [`patterns/dev-scenario-control.md`](patterns/dev-scenario-control.md) | The floating dev-only scenario FAB — **never** for product actions. Panel shape, module-scope state, the rules for faking data safely, and **dev coachmarks** (pulses flagging what is new vs production). |

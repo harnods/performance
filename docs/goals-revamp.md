@@ -221,10 +221,10 @@ log · Edit · **Close goal** · Delete) on the goal-cycle index + all scoped pa
 detail Actions menu. Prod parity (`ModalDelete type="close"`): **no approval, no progress threshold** —
 immediate on confirm. Confirmation modal is **non-destructive** (primary/blue, not red): title
 *"Close goal?"*, body *"Once a goal has closed, {name} can no longer submit progress or be edited."*,
-confirm **"Yes, close goal"**. Sets `Goal.isClosed = true` (prod `goal_status === 2`), logs an activity
+confirm **"Close goal"** (bulk: **"Close goals"**). Sets `Goal.isClosed = true` (prod `goal_status === 2`), logs an activity
 event ("closed the goal") and stamps `updatedAt`. A closed goal is **read-only**: Update progress /
-Align / Edit / Close and the KR Add/Edit/Delete controls are hidden; View details, Activity log and
-Delete remain. Shown with a **"Closed" badge** next to the goal name. No reopen (terminal, as in prod).
+Align / Edit / Close are hidden; View details, Activity log and
+Delete remain — and the KR **Add** / **Edit** controls stay visible but disabled with a tooltip ("Key results locked because this goal is closed"), while a key result's **Delete** stays enabled (closed-goal-index PRD, E9). Shown with a **"Closed" badge** next to the status pill. Every goal type page (Company, Organization, Team, Individual) and the cycle index has a **Closed goals** tab beside the scope dropdown; it filters to `isClosed` goals, keeps the same filter bar/table, and shows a "No closed goals yet" empty state (no "New goals" CTA) when none exist. No reopen (terminal, as in prod). **Locked progress:** when a goal is closed, the open goals aligned to it (direct children only) can no longer update progress — a derived state (`utils/goalLock.ts`; removing the alignment unlocks). Its **key results are locked too** (Add / Edit / Delete disabled on Goal Detail); Edit goal / Align stay allowed (the Align drawer never offers a **closed** goal as a parent — it would lock the child at once). Deleting a goal un-aligns every goal aligned to it (so a closed parent's children also unlock). Closing is idempotent: `useGoalCloser` re-reads the store and skips goals that are already closed. Surfaces: aligned-goals variant of both close modals, a **Progress locked** banner on the child's Detail page, a disabled "Update progress" (with tooltip), a **Closed** tag on the Detail page's Alignment card, a **Closed** badge next to the status pill on a closed goal's own Detail page, and a disabled "Update goal progress" row action (tooltip, no row badge).
 Handled by shared `composables/useGoalCloser.ts`.
 
 ### J. Goal categories

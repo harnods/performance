@@ -182,17 +182,33 @@ is **not** an extra bar added above the table, and the filter bar above stays un
   - `<MpText size="label" weight="semiBold">{{ n }} goal(s) selected</MpText>`;
   - an **Actions** button — `<GoalBulkActionsMenu>` (`components/GoalBulkActionsMenu.vue`),
     the shared trigger + `MpPopoverList`: Update / Edit / Close, an `MpDivider`, then **Delete**
-    (danger, `color: text.danger`). Also reused by the inline group-header Actions and
+    (danger, `color: text.danger`). When every other item is hidden (the Closed goals tab) it
+    collapses to a single primary **Delete goals** button instead — see "Per-page opt-out" below.
+    Also reused by the inline group-header Actions and
     `GoalFloatingBulkBar` — see "Multi-group bulk actions" below. Don't re-inline this popover
     markup anywhere; always reach for the shared component.
 - **Right cluster**: `<MpText size="label" color="text.secondary">Press esc to deselect</MpText>`.
 - Behaviour: `Escape` emits `clear` (deselect all); events `clear`, `edit-goals`,
   `update-progress`, `close-goals`, `delete-goals`, `toggle-select-all`.
-- **Per-page opt-out**: `hide-update-progress` / `hide-close-goals` props on both
-  `GoalBulkActionBar` and `GoalBulkActionsMenu` (both default `false`) hide just that one
-  `MpPopoverListItem` — Edit and Delete always stay. Company goals sets both (bulk
-  progress-update and bulk-close don't apply at that level; the row-level "Update goal
-  progress" / "Close goal" actions are unaffected).
+- **Per-page opt-out**: `hide-update-progress` / `hide-edit-goals` / `hide-close-goals` props on
+  `GoalBulkActionBar`, `GoalBulkActionsMenu` and `GoalFloatingBulkBar` (all default `false`) hide just
+  that one `MpPopoverListItem` — Delete always stays, and the `MpDivider` above it disappears when
+  nothing is left above it. Company goals sets only
+  `hide-update-progress` (bulk progress-update doesn't apply at that level). Bulk close is
+  available for every goal type (Individual, Team, Organization, Company) — wire `close-goals`
+  to `useGoalCloser().askBulkClose`, bind `:hide-close-goals` to "any selected goal is already closed" (`hasClosedSelected`), and render the "Close N goals?" confirm modal.
+
+- **Closed rows aren't selectable off the Closed tab (closed-goal-index PRD, D9).** On a tab that
+  mixes statuses (All goals), a closed row's checkbox is `is-disabled` (`row.isClosed && !isClosedTab`),
+  and the page's `selectableIds` / `selectableIdsFor` / `selectableIdsForDept` leave closed rows out, so a
+  department "select all" never picks them up. This depends on the row object carrying `isClosed`
+  (`isClosed: g.isClosed` in each page's row mapping) — without it the Closed badge and the closed-row
+  menu (Update / Align / Edit / Close hidden) silently stop working.
+- **Closed goals tab → Delete-only.** On a goal-cycle page's **Closed goals** tab a closed goal
+  can't be updated, edited or closed again, so the page binds `isClosedTab`
+  (`activeTab === 'closed'`) to `hide-update-progress`, `hide-edit-goals` and `hide-close-goals`
+  — nothing is left but Delete, so `GoalBulkActionsMenu` swaps the **Actions ▾** popover for a single primary **Delete goals** button (no one-item dropdown); it still opens the existing bulk-delete confirm modal. A `watch(activeTab, clearSelection)` stops a selection
+  from carrying across tabs. Reference: `pages/goals/goal-cycles/[id]/individual-goals.vue`.
 
 ### Wiring — swap the header row via `colspan`
 

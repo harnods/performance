@@ -58,6 +58,7 @@ import {
 import { computeRepeatPeriods } from '~/utils/goalSchedule'
 import { EMPLOYEES } from '~/utils/employees'
 import { MANUAL_CREATE_OWNER_LIMIT } from '~/composables/useBulkOwnerGate'
+import CoachmarkControls from '~/components/demo/CoachmarkControls.vue' // demo-only: the dev panel's Coachmarks group
 
 definePageMeta({
   layout: 'default',
@@ -257,12 +258,12 @@ function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) openEditGoal(g)
 }
-const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
+const { isDeleteModalOpen, goalToDelete, deleteAlignedCount, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
 function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
-const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, closeAlignedCount } = useGoalCloser()
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
@@ -298,7 +299,9 @@ function onAligned(parentId: string, krId?: string) {
 // Update progress — opens the shared drawer in place (no navigation to detail).
 const isUpdateProgressOpen = ref(false)
 const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
+const { isLocked, lockTip } = useGoalProgressLock()
 function openUpdateProgress(row: { id: string }) {
+  if (isLocked(row.id)) return
   updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
   if (updatingGoal.value) isUpdateProgressOpen.value = true
 }
@@ -841,7 +844,11 @@ const statusFieldClass = css({ width: '160px', cursor: 'pointer', '& select': { 
 const colDivider = css({ borderRightWidth: '1px', borderRightStyle: 'solid', borderRightColor: 'border.default', paddingTop: '2', paddingBottom: '2', verticalAlign: 'top' })
 const tableOuterBorder = css({ borderWidth: '1px', borderStyle: 'solid', borderColor: 'border.bold', borderRadius: '6px', overflow: 'hidden' })
 // Dev scenario control FAB — fixed bottom-right, 24px margin, above everything.
-const scenarioFab = css({ position: 'fixed', right: '24px', bottom: '24px', zIndex: '100' })
+const devPanel = css({ display: 'flex', flexDirection: 'column', gap: '4', padding: '4', width: '280px' })
+const devPanelTitle = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px', color: 'text.default' })
+const devGroup = css({ display: 'flex', flexDirection: 'column', gap: '2' })
+const devGroupLabel = css({ fontSize: '12px', fontWeight: '600', lineHeight: '16px', color: 'text.secondary', textTransform: 'uppercase', letterSpacing: '0.04em' })
+const scenarioFab = css({ position: 'fixed', left: '24px', bottom: '24px', zIndex: '100' })
 const scenarioFabButton = css({
   display: 'flex', alignItems: 'center', justifyContent: 'center',
   width: '48px', height: '48px', borderRadius: 'full',
@@ -968,7 +975,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <MpButton variant="primary" @click="openSelectEmployee">New goals</MpButton>
   </Teleport>
 
-  <!-- Dev scenario control — floating, bottom-right of the page (not a real
+  <!-- Dev scenario control — floating, bottom-left of the page (not a real
        product control). Single axis of state, so a flat MpPopoverList (see
        dev-scenario-control.md) — its content depends on which tab is active,
        since the two tabs preview unrelated things:
@@ -978,24 +985,34 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
            Approve.
          Closed     → Default vs Empty — forces the Closed tab's empty state
            for preview even when the cycle already has closed goals.
-       Hidden on the archive cycle for the same reason as the header actions
-       above — neither scenario applies to that frozen, migrated bucket. -->
-  <div v-if="!cycle?.isArchive && (activeTab === 'all' || activeTab === 'closed')" :class="scenarioFab">
-    <MpPopover is-close-on-select use-portal placement="top-end">
+       The Scenario group is hidden on the archive cycle (same reason as the
+       header actions above — neither scenario applies to that frozen, migrated
+       bucket) and on the other tabs; the Coachmarks group is always there, so this
+       is the page's single dev control (DemoLayer adds no second panel here). -->
+  <div :class="scenarioFab">
+    <MpPopover use-portal placement="top-start">
       <MpPopoverTrigger>
-        <button type="button" :class="scenarioFabButton" aria-label="Scenario control">
+        <button type="button" :class="scenarioFabButton" aria-label="Dev tools">
           <MpIcon name="sliders" size="sm" color="icon.inverse" />
         </button>
       </MpPopoverTrigger>
       <MpPopoverContent>
-        <MpPopoverList v-if="activeTab === 'all'">
-          <MpPopoverListItem :is-active="currentScenario === 'default'" @click="deactivateScenario">Default</MpPopoverListItem>
-          <MpPopoverListItem :is-active="currentScenario === 'async'" @click="activateAsyncScenario">Async (goals being submitted)</MpPopoverListItem>
-        </MpPopoverList>
-        <MpPopoverList v-else>
-          <MpPopoverListItem :is-active="currentClosedScenario === 'default'" @click="deactivateClosedScenario">Default</MpPopoverListItem>
-          <MpPopoverListItem :is-active="currentClosedScenario === 'empty'" @click="activateClosedEmptyScenario">Empty</MpPopoverListItem>
-        </MpPopoverList>
+        <div :class="devPanel">
+          <span :class="devPanelTitle">Dev tools</span>
+          <!-- Scenario group — only where a scenario applies (see the note above). -->
+          <div v-if="!cycle?.isArchive && (activeTab === 'all' || activeTab === 'closed')" :class="devGroup">
+            <span :class="devGroupLabel">Scenario</span>
+            <MpPopoverList v-if="activeTab === 'all'">
+              <MpPopoverListItem :is-active="currentScenario === 'default'" @click="deactivateScenario">Default</MpPopoverListItem>
+              <MpPopoverListItem :is-active="currentScenario === 'async'" @click="activateAsyncScenario">Async (goals being submitted)</MpPopoverListItem>
+            </MpPopoverList>
+            <MpPopoverList v-else>
+              <MpPopoverListItem :is-active="currentClosedScenario === 'default'" @click="deactivateClosedScenario">Default</MpPopoverListItem>
+              <MpPopoverListItem :is-active="currentClosedScenario === 'empty'" @click="activateClosedEmptyScenario">Empty</MpPopoverListItem>
+            </MpPopoverList>
+          </div>
+          <CoachmarkControls />
+        </div>
       </MpPopoverContent>
     </MpPopover>
   </div>
@@ -1364,7 +1381,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                     </template>
                     <template v-else>
                       <MpPopoverListItem @click="goToGoal(row)">View details</MpPopoverListItem>
-                      <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                      <MpTooltip v-if="isLocked(row.id)" :label="lockTip" placement="top" use-portal>
+                        <MpPopoverListItem is-disabled>Update goal progress</MpPopoverListItem>
+                      </MpTooltip>
+                      <MpPopoverListItem v-else-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                       <MpPopoverListItem v-if="!row.isClosed && row.kind === 'main' && row.level !== 'company'" @click="openAlign(row)">Align goal</MpPopoverListItem>
                       <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                       <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
@@ -1465,12 +1485,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           <MpModalCloseButton @click="isCloseModalOpen = false" />
         </MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.<template v-if="needsApproval(goalToClose?.ownerId)"> This close will be sent to the manager for approval before it takes effect.</template></MpText>
+          <GoalCloseConfirmText :goal="goalToClose" :aligned-count="closeAlignedCount" />
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
             <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Close goal</MpButton>
           </MpButtonGroup>
         </MpModalFooter>
       </MpModalContent>
@@ -1487,9 +1507,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpModalCloseButton @click="isDeleteModalOpen = false" />
       </MpModalHeader>
       <MpModalBody>
-        <MpText :class="valueText">
-          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.<template v-if="needsApproval(goalToDelete?.ownerId)"> This delete will be sent to the manager for approval before it takes effect.</template>
-        </MpText>
+        <GoalDeleteConfirmText :goal="goalToDelete" :aligned-count="deleteAlignedCount" />
       </MpModalBody>
       <MpModalFooter>
         <MpButtonGroup>

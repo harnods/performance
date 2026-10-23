@@ -168,3 +168,13 @@ more than one kind, group them under 14/600 labels ("Group:", "IDP:"); with a si
 Succession plans do not block deletion. Reference: `pages/talents/competencies/items/index.vue`. A competency item counts
 each IDP that links it from an action plan in **Applied**, and is blocked from
 deletion while linked.
+
+## Close goal — aligned-goals variant
+
+The "Close goal?" and "Close N goals?" confirm modals have a second body when closing would **lock aligned goals** (`openAlignedCount` in `utils/goalLock.ts`): the single modal lists the effects as a plain `<ul>` (same `css()` list as below): "This goal will be locked and can't be reopened." • "{N} aligned goal(s) can no longer update their progress." (no aligned goals → the original sentence), and the primary button is **Close goal** / **Close goals** in both variants (verb + object, matching the title). The bulk modal lists three short points as a plain `<ul>` (same `css()` list as the banner's multi-point list — `docs/patterns/banner.md`): aligned goals can no longer update progress, closed goals can't be reopened, direct reports' goals go for approval first. Plural-aware copy lives in `components/GoalCloseConfirmText.vue` (single) and `components/GoalBulkCloseConfirmText.vue` (bulk). Copy source: `docs/ux-writing-review-goal-close-locked.md`.
+
+When the close **needs manager approval** (a direct report's goal) *and* the goal has aligned goals, nothing locks until approval, so `GoalCloseConfirmText` puts one intro line above the same two bullets: "Closing this goal needs the manager's approval. Once approved:"
+
+## Delete goal — aligned-goals variant
+
+The single "Delete goal?" modal (`components/GoalDeleteConfirmText.vue`, count from `useGoalDeleter().deleteAlignedCount`) switches to a plain `<ul>` (same `css()` list as above) when the goal has aligned goals: • "{Goal title} will be permanently deleted and cannot be recovered." • "{N} aligned goal(s) will lose this alignment." • (if it needs approval) "This delete will be sent to the manager for approval before it takes effect." The effect is real: `useGoalsStore().deleteGoal` clears `alignedToId` / `alignedToKrId` on every child. Without aligned goals the original one-sentence body stays. The bulk delete modal is unchanged.

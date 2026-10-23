@@ -12,8 +12,9 @@
 <script setup lang="ts">
 import { MpFlex, MpText, css } from '@mekari/pixel3'
 
-withDefaults(defineProps<{ selectedCount: number, hideUpdateProgress?: boolean, hideCloseGoals?: boolean }>(), {
+withDefaults(defineProps<{ selectedCount: number, hideUpdateProgress?: boolean, hideEditGoals?: boolean, hideCloseGoals?: boolean }>(), {
   hideUpdateProgress: false,
+  hideEditGoals: false,
   hideCloseGoals: false,
 })
 defineEmits<{ 'edit-goals': [], 'update-progress': [], 'close-goals': [], 'delete-goals': [] }>()
@@ -33,6 +34,7 @@ const valueText = css({ color: 'text.default', whiteSpace: 'nowrap' })
     <MpText size="label" weight="semiBold" :class="valueText">{{ selectedCount }} goal{{ selectedCount === 1 ? '' : 's' }} selected</MpText>
     <GoalBulkActionsMenu
       :hide-update-progress="hideUpdateProgress"
+      :hide-edit-goals="hideEditGoals"
       :hide-close-goals="hideCloseGoals"
       @update-progress="$emit('update-progress')"
       @edit-goals="$emit('edit-goals')"

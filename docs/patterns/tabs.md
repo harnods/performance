@@ -65,6 +65,26 @@ so a query param can't grant access to a tab the persona isn't allowed to see.
 Reference: `pages/goals/goal-cycles/[id]/index.vue:127-134`. The same param convention
 covers filters — see [`stat-card.md`](stat-card.md)'s drill-down contract.
 
+### "Closed goals" tab (Goal cycle pages)
+
+Every Goal cycle page — the index and the Company / Organization / Team / Individual
+pages — has a **Closed goals** tab straight after the scope-dropdown tab (before My
+requests · Awaiting approval · Goal cycle info). It is not a separate view: it re-uses the
+page's own filter bar and table, narrowed to `isClosed` goals by adding
+`activeTab.value !== 'closed' || g.isClosed` to the page's existing goal filter (`.value`
+— this runs in `<script>`). Its empty state ("No closed goals yet" / "Goals you close in
+this cycle will appear here.") swaps in when there are **no closed goals of that page's own goal type**
+(`companyGoals` / `individualGoals` / `teamGoals` / `organizationGoals` — not every level in the cycle), and
+carries **no** "New goals" button — closing happens from a goal row, not this tab. See
+[`empty-state.md`](empty-state.md).
+
+On the **department-grouped** type pages (Individual / Team / Organization) the Closed tab lists **only the
+departments that have a closed goal** — empty departments are hidden (same `departments` filter as search,
+see [`filter-bar.md`](filter-bar.md)) — and the remaining ones auto-expand (`watch([search, activeTab], …)`).
+
+Reference: `pages/goals/goal-cycles/[id]/company-goals.vue` (tab button + `filteredGoals`
++ empty state); `[id]/index.vue` for the original.
+
 ### Tabs that also swap the header actions
 
 `pages/dashboard.vue` puts **two whole dashboards** (Performance review · Goals) under

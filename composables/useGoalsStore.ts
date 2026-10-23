@@ -1207,6 +1207,10 @@ function seedArchive(): Goal[] {
         endDate: `${year}-12-31`,
         direction: 'higher',
         carriedOver: true,
+        // Older legacy goals are finished — closed, so the archive cycle's Closed tab has them
+        // (closed-goal-index PRD, D10: a goal outside any real cycle is browsable on its own
+        // cycle's Closed tab like any other).
+        isClosed: year <= 2022,
         keyResults: [], // old UI had no structured key results
         description: '',
         updatedAt: `31 Dec ${year}, 17:00`,
@@ -1223,7 +1227,7 @@ const STORAGE_KEY = 'talenta-goals-db'
 // contradict (e.g. reweighting company goals) — otherwise a browser that
 // already persisted the old seed keeps showing it forever, since
 // loadFromStorage() below always prefers localStorage over a fresh seed().
-const SEED_VERSION = 29
+const SEED_VERSION = 30
 
 // 26 H2 (the current cycle) reuses every owner's 26 H1 goal set — same titles,
 // categories, weights, targets — but re-cast into an early/mid-cycle in-progress
@@ -1395,7 +1399,10 @@ export function useGoalsStore(cycleId?: string) {
   }
 
   function deleteGoal(id: string) {
-    goals.value = goals.value.filter(g => g.id !== id)
+    // Goals aligned to the deleted goal lose that alignment (and, if it was closed, their progress lock).
+    goals.value = goals.value
+      .filter(g => g.id !== id)
+      .map(g => (g.alignedToId === id ? { ...g, alignedToId: undefined, alignedToKrId: undefined } : g))
     persist()
   }
 

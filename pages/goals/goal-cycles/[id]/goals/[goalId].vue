@@ -23,6 +23,12 @@ import {
   MpAvatar,
   MpAvatarGroup,
   MpBadge,
+  MpBanner,
+  MpBannerIcon,
+  MpBannerTitle,
+  MpBannerDescription,
+  MpTextlink,
+  MpTooltip,
   MpIcon,
   MpButton,
   MpButtonGroup,
@@ -50,6 +56,7 @@ import {
 import type { Goal, GoalStatus } from '~/composables/useGoalsStore'
 import type { DraftKeyResult } from '~/utils/goalDraft'
 import { ownerOf, alignedGoalsOf } from '~/utils/goalRows'
+import { PROGRESS_LOCKED_TOOLTIP, KEY_RESULTS_LOCKED_TOOLTIP, KEY_RESULTS_CLOSED_TOOLTIP } from '~/utils/goalLock'
 import { EMPLOYEES, employeeById, employeeMeta } from '~/utils/employees'
 
 definePageMeta({
@@ -324,7 +331,13 @@ function goalHref(id: string) {
 
 // ─── Update progress (opens the shared UpdateProgressDrawer component) ──────
 const isUpdateOpen = ref(false)
-function openUpdate() { isUpdateOpen.value = true }
+// Progress is locked while the parent goal this one aligns to is closed
+// (utils/goalLock.ts). Derived, so removing the alignment unlocks it.
+const isProgressLockedByParent = computed(() => !!goal.value && !goal.value.isClosed && !!parentGoal.value?.isClosed)
+function openUpdate() {
+  if (isProgressLockedByParent.value) return
+  isUpdateOpen.value = true
+}
 // Activity log (history) drawer for this goal.
 const isActivityLogOpen = ref(false)
 
@@ -335,11 +348,11 @@ function editGoal() {
 }
 
 // ─── Delete (reuse the shared flow) — return to the cycle once it's gone ──────
-const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
+const { isDeleteModalOpen, goalToDelete, deleteAlignedCount, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
 function deleteGoalAction() {
   if (goal.value) askDeleteGoal(goal.value)
 }
-const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal } = useGoalCloser()
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, closeAlignedCount } = useGoalCloser()
 function closeGoalAction() {
   if (goal.value) askCloseGoal(goal.value)
 }
@@ -366,11 +379,16 @@ watch(goal, (v) => {
 // target exactly like it does in the New-goals flow.
 const isKrDrawerOpen = ref(false)
 const editingKr = ref<DraftKeyResult | null>(null)
+// Add / Edit key result are blocked when the goal is closed or its parent is closed;
+// the tooltip says which. (Delete is only blocked by the parent lock.)
+const keyResultsLockedTip = computed(() => goal.value?.isClosed ? KEY_RESULTS_CLOSED_TOOLTIP : isProgressLockedByParent.value ? KEY_RESULTS_LOCKED_TOOLTIP : '')
 function openAddKr() {
+  if (keyResultsLockedTip.value) return
   editingKr.value = null
   isKrDrawerOpen.value = true
 }
 function openEditKr(kr: DraftKeyResult) {
+  if (keyResultsLockedTip.value) return
   editingKr.value = kr
   isKrDrawerOpen.value = true
 }
@@ -461,6 +479,7 @@ function krFillClass(_kr?: DraftKeyResult) {
 const krToDelete = ref<DraftKeyResult | null>(null)
 const isKrDeleteOpen = ref(false)
 function askDeleteKr(kr: DraftKeyResult) {
+  if (isProgressLockedByParent.value) return
   krToDelete.value = kr
   isKrDeleteOpen.value = true
 }
@@ -561,6 +580,7 @@ const krFillGray = css({ background: 'gray.400' })
 const krName = css({ fontSize: '14px', lineHeight: '20px', color: 'text.default' })
 const krSub = css({ fontSize: '12px', lineHeight: '16px', color: 'text.secondary' })
 // "+ Add key result" text link (Figma) — not a button.
+const addKrLinkLocked = css({ display: 'inline-flex', alignItems: 'center', gap: '1', color: 'text.disabled', fontSize: '14px', fontWeight: '600', lineHeight: '20px', cursor: 'not-allowed' })
 const addKrLink = css({ display: 'inline-flex', alignItems: 'center', gap: '1', border: 'none', background: 'transparent', color: 'text.link', fontSize: '14px', fontWeight: '600', lineHeight: '20px', cursor: 'pointer', padding: '0', _hover: { textDecoration: 'underline' } })
 const krHeaderRow = css({ display: 'flex', alignItems: 'flex-start', justifyContent: 'space-between', gap: '4' })
 
@@ -570,6 +590,8 @@ const cardLabel = css({ fontSize: '14px', fontWeight: '600', lineHeight: '20px',
 // Goal-type badge — same colour for every level (tableStatus look): purple
 // bg #E8E0FF / text #4829A6.
 const badgePill = css({ display: 'inline-flex', alignItems: 'center', width: 'fit-content', borderRadius: 'sm', paddingInline: '2', paddingBlock: '0.5', fontSize: '12px', lineHeight: '16px', fontWeight: '500', background: '#E8E0FF', color: '#4829A6' })
+// "Closed" beside the level pill: same shape/size as badgePill, but the neutral gray of the Closed badge.
+const badgePillClosed = css({ display: 'inline-flex', alignItems: 'center', width: 'fit-content', borderRadius: 'sm', paddingInline: '2', paddingBlock: '0.5', fontSize: '12px', lineHeight: '16px', fontWeight: '500', background: 'background.neutral.subtle', color: 'text.default' })
 // Badge + goal name + period sit tight together (8px), separate from the
 // key/value rows below.
 const alignHeadGroup = css({ display: 'flex', flexDirection: 'column', gap: '2' })
@@ -666,7 +688,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
               </MpPopoverListItem>
             </template>
             <template v-else>
-              <MpPopoverListItem v-if="!goal.isClosed" @click="openUpdate">Update progress</MpPopoverListItem>
+              <MpTooltip v-if="isProgressLockedByParent" :label="PROGRESS_LOCKED_TOOLTIP" placement="top" use-portal>
+                <MpPopoverListItem is-disabled>Update progress</MpPopoverListItem>
+              </MpTooltip>
+              <MpPopoverListItem v-else-if="!goal.isClosed" @click="openUpdate">Update progress</MpPopoverListItem>
               <MpPopoverListItem @click="isActivityLogOpen = true">Activity log</MpPopoverListItem>
               <MpPopoverListItem v-if="!goal.isClosed" @click="editGoal">Edit goal</MpPopoverListItem>
               <MpPopoverListItem v-if="!goal.isClosed" @click="closeGoalAction">Close goal</MpPopoverListItem>
@@ -682,6 +707,16 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
     <div :class="bodyRow">
       <!-- ═════ Main column ═════ -->
       <div :class="mainCol">
+        <!-- Locked progress — the parent goal this one aligns to is closed. Sits in
+             the main column (not full-width) so it lines up with the content below. -->
+        <MpBanner v-if="isProgressLockedByParent && parentGoal" variant="info" :class="css({ marginBottom: '4' })">
+          <MpBannerIcon name="info" />
+          <MpBannerTitle>Update progress locked</MpBannerTitle>
+          <MpBannerDescription>
+            You can no longer update progress for this goal because the parent goal is closed.
+            <MpTextlink as="button" @click="router.push(goalHref(parentGoal.id))">View parent goal</MpTextlink>
+          </MpBannerDescription>
+        </MpBanner>
         <!-- Title + status -->
         <MpFlex align="center" gap="2" wrap="wrap">
           <span :class="nameText">{{ goal.title }}</span>
@@ -689,6 +724,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                beside a page title, not in a table cell. -->
           <MpBadge v-if="goal.isDraft" for="tableStatus" type="announcement">Draft</MpBadge>
           <span v-else :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
+          <MpBadge v-if="goal.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
           <!-- Carried-over badge hidden for now (flag retained in the store):
           <MpBadge v-if="goal.carriedOver" for="tableStatus" type="announcement" size="sm">Carried over</MpBadge> -->
         </MpFlex>
@@ -802,7 +838,11 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                 Key Results track specific outcomes that automatically update the goal progress.
               </MpText>
             </div>
-            <button v-if="!goal.isClosed" type="button" :class="addKrLink" @click="openAddKr">
+            <!-- Parent goal closed → key results are locked along with progress. -->
+            <MpTooltip v-if="keyResultsLockedTip" :label="keyResultsLockedTip" placement="top" use-portal>
+              <span :class="addKrLinkLocked"><MpIcon name="add" size="sm" />Add key result</span>
+            </MpTooltip>
+            <button v-else type="button" :class="addKrLink" @click="openAddKr">
               <MpIcon name="add" size="sm" />
               Add key result
             </button>
@@ -844,14 +884,22 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
                     <span v-else :class="kvValue">{{ kr.target || '—' }}</span>
                   </MpTableCell>
                   <MpTableCell as="td" :class="[cell, actionCell]">
-                    <MpPopover v-if="!goal.isClosed" is-close-on-select use-portal placement="bottom-end">
+                    <MpPopover is-close-on-select use-portal placement="bottom-end">
                       <MpPopoverTrigger>
                         <MpButton variant="ghost" left-icon="menu-kebab" aria-label="Key result actions" />
                       </MpPopoverTrigger>
                       <MpPopoverContent :class="css({ minWidth: '140px' })">
                         <MpPopoverList>
-                          <MpPopoverListItem @click="openEditKr(kr)">Edit</MpPopoverListItem>
-                          <MpPopoverListItem @click="askDeleteKr(kr)">
+                          <!-- Edit: disabled (with the reason) when the goal or its parent is closed. -->
+                          <MpTooltip v-if="keyResultsLockedTip" :label="keyResultsLockedTip" placement="top" use-portal>
+                            <MpPopoverListItem is-disabled>Edit</MpPopoverListItem>
+                          </MpTooltip>
+                          <MpPopoverListItem v-else @click="openEditKr(kr)">Edit</MpPopoverListItem>
+                          <!-- Delete stays on a closed goal (PRD E9); only the parent lock disables it. -->
+                          <MpTooltip v-if="isProgressLockedByParent" :label="KEY_RESULTS_LOCKED_TOOLTIP" placement="top" use-portal>
+                            <MpPopoverListItem is-disabled>Delete</MpPopoverListItem>
+                          </MpTooltip>
+                          <MpPopoverListItem v-else @click="askDeleteKr(kr)">
                             <span :class="css({ color: 'text.danger' })">Delete</span>
                           </MpPopoverListItem>
                         </MpPopoverList>
@@ -1083,7 +1131,10 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           </template>
 
           <div :class="alignHeadGroup">
-            <span :class="badgePill">{{ parentLevelLabel }}</span>
+            <MpFlex align="center" gap="2">
+              <span :class="badgePill">{{ parentLevelLabel }}</span>
+              <span v-if="parentGoal.isClosed" :class="badgePillClosed">Closed</span>
+            </MpFlex>
 
             <div :class="alignTitleRow">
               <div :class="alignTitleCol">
@@ -1165,12 +1216,12 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           <MpModalCloseButton @click="isCloseModalOpen = false" />
         </MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="valueText">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.<template v-if="needsApproval(goalToClose?.ownerId)"> This close will be sent to the manager for approval before it takes effect.</template></MpText>
+          <GoalCloseConfirmText :goal="goalToClose" :aligned-count="closeAlignedCount" />
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
             <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Close goal</MpButton>
           </MpButtonGroup>
         </MpModalFooter>
       </MpModalContent>
@@ -1248,9 +1299,7 @@ const attachmentSize = css({ fontSize: '12px', lineHeight: '16px', color: 'text.
           <MpModalCloseButton @click="isDeleteModalOpen = false" />
         </MpModalHeader>
         <MpModalBody>
-          <MpText :class="valueText">
-            <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.<template v-if="needsApproval(goalToDelete?.ownerId)"> This delete will be sent to the manager for approval before it takes effect.</template>
-          </MpText>
+          <GoalDeleteConfirmText :goal="goalToDelete" :aligned-count="deleteAlignedCount" />
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>

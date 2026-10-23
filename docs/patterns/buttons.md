@@ -102,3 +102,13 @@ read as clutter. See [form.md](form.md) "Repeatable filter rows".
 ## Disabled by permission: "Add role"
 
 When the user can't create roles, the header "Add role" button (and the empty-state one) is `is-disabled` with a tooltip: "Contact your admin to get access to add roles". A disabled button fires no mouse events, so the `MpButton` sits inside a `div` inside an `MpTooltip` (`:is-manual="canManageRoles" :is-open="false"` turns it off for users who can). See [`checkbox.md`](checkbox.md) › Locked by permission.
+
+## Disabled menu item with a tooltip (locked progress)
+
+A row/Actions menu item that is unavailable for a reason the user can fix or should know shows `is-disabled` inside an `MpTooltip` (same precedent as the goal-categories "Delete"): `<MpTooltip :label="PROGRESS_LOCKED_TOOLTIP" placement="top" use-portal><MpPopoverListItem is-disabled>Update progress</MpPopoverListItem></MpTooltip>`. Used for **Update progress / Update goal progress** while a goal's parent is closed (Goal Detail Actions menu and every goal-table row menu). Guard the handler too (`openUpdateProgress` returns early when locked).
+
+The same lock covers a locked goal's **Key results** on Goal Detail: the **Add key result** text link renders as a non-interactive grey span (`addKrLinkLocked`, `cursor: not-allowed`) and the row kebab's **Edit** / **Delete** are `is-disabled` items, each inside an `MpTooltip` with `KEY_RESULTS_LOCKED_TOOLTIP` ("Key results locked because the parent goal is closed"). `openAddKr` / `openEditKr` / `askDeleteKr` return early too.
+
+On a **closed** goal (not locked) **Add key result** and the row menu's **Edit** stay visible but disabled, each in an `MpTooltip` with `KEY_RESULTS_CLOSED_TOOLTIP` ("Key results locked because this goal is closed"); **Delete** stays enabled (closed-goal-index PRD, E9). One computed (`keyResultsLockedTip`) picks the closed vs parent-closed tooltip and also guards `openAddKr` / `openEditKr`.
+
+**Lock tooltips are `placement="top"`** — `MpTooltip` already puts a 4px gap between the bubble and its anchor (`offset(4)`) and centres it on the anchor, so use `top` (not `left`/`right`) for these; it only shifts sideways when the anchor sits at a screen edge (e.g. a row menu at the far right), which is Pixel's own `shift()`.

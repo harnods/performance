@@ -37,6 +37,8 @@ A goal row carries at most one lifecycle badge, in this precedence:
 <MpBadge v-if="row.isClosed" for="tableStatus" type="announcement">Closed</MpBadge>
 ```
 
+**No "Progress locked" badge in table rows.** A goal whose parent is closed (progress locked — `utils/goalLock.ts`) gets no row badge; the lock shows as the disabled **Update progress** menu item (tooltip) and on its Detail page (banner). The lock is derived (`useGoalProgressLock().isLocked(id)`), never stored.
+
 `isAwaitingApproval` wins over `isDraft` because a submitted draft is still a draft
 underneath (rejection sends it straight back to plain Draft) — but it must not read as
 one, since it offers no draft actions while the decision is pending. Applied identically
@@ -53,6 +55,14 @@ table cell, so `sm` reads too small next to it. Table rows keep `size="sm"`.
 <MpBadge v-if="goal.isDraft" for="tableStatus" type="announcement">Draft</MpBadge>
 <span v-else :class="statusClass(goal.status)">{{ STATUS_LABEL[goal.status] }}</span>
 ```
+
+## Goal Detail › goal name row — "Closed" badge
+
+A closed goal shows `<MpBadge for="tableStatus" type="announcement">Closed</MpBadge>` (default size, like the Draft badge) **right after the status pill**: `Name [Off track] [Closed]`. It stays in the content's name row — it is not teleported into the page header (`#page-title-badge`), which keeps the plain "Goal details" title. Reference: `pages/goals/goal-cycles/[id]/goals/[goalId].vue`.
+
+## Goal Detail › Alignment card — "Closed" tag beside the level pill
+
+The parent's **Closed** tag sits next to the level pill ("Organization goal"), so it is **not** an `MpBadge` (pill-shaped, 14px): it is a plain `<span>` styled like the level pill — `borderRadius: 'sm'`, `12px / 16px`, weight 500, `paddingInline: '2'`, `paddingBlock: '0.5'` — with the neutral gray of the Closed badge (`background.neutral.subtle`, `text.default`). Reference: `badgePill` / `badgePillClosed` in `pages/goals/goal-cycles/[id]/goals/[goalId].vue`.
 
 ## Rules
 

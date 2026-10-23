@@ -81,7 +81,7 @@ function cancelBulkOwnerModal() {
   isSelectEmployeeOpen.value = true
 }
 
-type Tab = 'all' | 'requests' | 'awaiting' | 'info'
+type Tab = 'all' | 'closed' | 'requests' | 'awaiting' | 'info'
 const activeTab = ref<Tab>('all')
 
 // Switching "View as" persona can make the active tab invisible (e.g. an
@@ -178,13 +178,15 @@ function editRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) openEditGoal(g)
 }
-const { isDeleteModalOpen, goalToDelete, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
+const { isDeleteModalOpen, goalToDelete, deleteAlignedCount, askDeleteGoal, confirmDeleteGoal } = useGoalDeleter()
 function deleteRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askDeleteGoal(g)
 }
-const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose } = useGoalCloser()
+const { isCloseModalOpen, goalToClose, askCloseGoal, confirmCloseGoal, closeAlignedCount, isBulkCloseModalOpen, goalsToClose, askBulkClose, confirmBulkClose, bulkAlignedParentCount } = useGoalCloser()
 function onBulkClose() { askBulkClose(goals.value.filter(g => selectedIds.value.has(g.id))) }
+// Bulk close is hidden as soon as any selected goal is already closed.
+const hasClosedSelected = computed(() => goals.value.some(g => g.isClosed && selectedIds.value.has(g.id)))
 function closeRow(row: { id: string }) {
   const g = goals.value.find(x => x.id === row.id)
   if (g) askCloseGoal(g)
@@ -212,7 +214,9 @@ function onAligned(parentId: string, krId?: string) {
 // Update progress — shared drawer, opened in place from the row action.
 const isUpdateProgressOpen = ref(false)
 const updatingGoal = ref<(typeof goals.value)[number] | null>(null)
+const { isLocked, lockTip } = useGoalProgressLock()
 function openUpdateProgress(row: { id: string }) {
+  if (isLocked(row.id)) return
   updatingGoal.value = goals.value.find(x => x.id === row.id) ?? null
   if (updatingGoal.value) isUpdateProgressOpen.value = true
 }
@@ -231,8 +235,13 @@ function openActivityLog(row: { id: string }) {
 // "select all" only touches the rows currently visible in that department
 // (collapsed owners contribute none).
 const { selectedIds, selectedCount, isSelected, toggleSelect, isAllSelected, toggleSelectAll, clearSelection } = useGoalBulkSelect()
-function selectableIdsForDept(dept: { owners: { rows: { id: string }[] }[] }) {
-  return dept.owners.flatMap(o => o.rows.map(r => r.id))
+// Closed tab → bulk bar is Delete-only (a closed goal can't be edited, updated
+// or closed again), and a selection never carries over from another tab.
+const isClosedTab = computed(() => activeTab.value === 'closed')
+watch(activeTab, () => clearSelection())
+// Closed rows aren't bulk-selectable on tabs that mix statuses (closed-goal-index PRD, D9).
+function selectableIdsForDept(dept: { owners: { rows: { id: string, isClosed?: boolean }[] }[] }) {
+  return dept.owners.flatMap(o => o.rows.filter(r => isClosedTab.value || !r.isClosed).map(r => r.id))
 }
 // Bulk selection is scoped per department: each department's own "select
 // all" and indeterminate state only look at the rows currently selected
@@ -293,7 +302,7 @@ const departments = computed(() => DEPARTMENTS
   const deptEmployees = EMPLOYEES.filter(e => e.department === deptName)
   let owners = deptEmployees.map((emp) => {
     const ownerGoals = sortGoalRows(sortByCategory(individualGoals.value.filter(g =>
-      g.ownerId === emp.id && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
+      g.ownerId === emp.id && (activeTab.value !== 'closed' || g.isClosed) && (!statusFilter.value || g.status === STATUS_FILTER_TO_GOAL_STATUS[statusFilter.value])
       && matchesSearch(g, search.value) && goalMatchesAllFilters(g, appliedFilters.value),
     )), {
       sortKey: sortKey.value === 'owner' ? '' : sortKey.value,
@@ -323,6 +332,7 @@ const departments = computed(() => DEPARTMENTS
       max: g.max,
       isDraft: g.isDraft,
       isAwaitingApproval: g.isAwaitingApproval,
+      isClosed: g.isClosed,
     }))
     return { key: emp.id, name: emp.name, code: emp.code, title: emp.title, department: emp.department, rows }
   }).filter(owner => owner.rows.length > 0)
@@ -333,7 +343,9 @@ const departments = computed(() => DEPARTMENTS
     owners = [...owners].sort((a, b) => a.name.localeCompare(b.name, undefined, { sensitivity: 'base' }) * dir)
   }
   return { key: slugify(deptName), name: deptName, owners }
-}))
+})
+  // While searching — or on the Closed goals tab — only keep departments that actually have rows.
+  .filter(d => (!search.value.trim() && activeTab.value !== 'closed') || d.owners.length > 0))
 
 const expandedDepts = reactive<Record<string, boolean>>({ accounting: true })
 function toggleDept(key: string) {
@@ -350,6 +362,10 @@ watch(departmentFilter, (selected) => {
   for (const dept of selected) {
     expandedDepts[slugify(dept)] = true
   }
+})
+// Same for search and the Closed goals tab: open the departments that remain, so the hits are visible.
+watch([search, activeTab], ([q, tab]) => {
+  if (q.trim() || tab === 'closed') for (const d of departments.value) expandedDepts[d.key] = true
 })
 
 function formatNumber(n: number): string {
@@ -441,6 +457,7 @@ const actionCell = css({ paddingTop: '2', paddingBottom: '2', paddingLeft: '2', 
 const fixedRightCol = css({ position: 'sticky', right: '0', zIndex: '1', boxShadow: 'inset 1px 0px var(--mp-colors-border-default)' })
 const fixedBodyBg = css({ background: 'white' })
 const colCheckbox = css({ width: '48px', paddingLeft: '4', paddingRight: '2' })
+const noResultWrap = css({ display: 'flex', flexDirection: 'column', alignItems: 'center', gap: '1', paddingBlock: '10', textAlign: 'center' })
 const captionText = css({ color: 'text.secondary' })
 const valueText = css({ color: 'text.default' })
 
@@ -522,6 +539,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
           </MpPopoverList>
         </MpPopoverContent>
       </MpPopover>
+      <button type="button" :class="activeTab === 'closed' ? tabItemActive : tabItem" @click="activeTab = 'closed'">
+        Closed goals
+      </button>
       <button v-if="hasManager(currentUserId)" type="button" :class="activeTab === 'requests' ? tabItemActive : tabItem" @click="activeTab = 'requests'">
         My requests
         <span v-if="myPendingRequestsCount > 0" :class="awaitingBadge">{{ myPendingRequestsCount }}</span>
@@ -541,13 +561,13 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <GoalApprovalQueue v-else-if="activeTab === 'awaiting'" :cycle-id="route.params.id as string" />
     <template v-else>
     <!-- Empty state: brand-new goal cycle, no Individual-level goals yet -->
-    <MpFlex v-if="goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
+    <MpFlex v-if="activeTab === 'closed' ? !individualGoals.some(g => g.isClosed) : goals.length === 0" direction="column" align="center" justify="center" gap="4" :class="emptyStateWrap">
       <img src="/illustrations/empty-timeframe.png" alt="" aria-hidden="true" :class="emptyIllustration">
       <MpFlex direction="column" align="center" gap="1" :class="emptyTextWrap">
-        <MpText :class="emptyTitle">No goals in this cycle yet</MpText>
-        <MpText size="label" :class="captionText">Goals you add to this cycle will appear here.</MpText>
+        <MpText :class="emptyTitle">{{ activeTab === 'closed' ? 'No closed goals yet' : 'No goals in this cycle yet' }}</MpText>
+        <MpText size="label" :class="captionText">{{ activeTab === 'closed' ? 'Goals you close in this cycle will appear here.' : 'Goals you add to this cycle will appear here.' }}</MpText>
       </MpFlex>
-      <MpButton v-if="!cycle?.isArchive" variant="primary" left-icon="add" @click="openSelectEmployee">New goals</MpButton>
+      <MpButton v-if="activeTab !== 'closed' && !cycle?.isArchive" variant="primary" left-icon="add" @click="openSelectEmployee">New goals</MpButton>
     </MpFlex>
 
     <template v-else>
@@ -633,6 +653,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <!-- Individual goals — Department accordion, each containing an Owner
          rowspan-group (no Team layer, unlike ../team-goals) -->
     <div ref="wrapperRef" :class="tableOuterBorder">
+      <!-- Search/filter matched nothing in any department — hide the empty
+           sections and say so (filter-bar/empty-state: no action button). -->
+      <div v-if="departments.length === 0" :class="noResultWrap">
+        <MpText :class="emptyTitle">No goals found</MpText>
+        <MpText size="label" :class="captionText">Recheck the keywords you have typed and try searching again.</MpText>
+      </div>
       <div v-for="(dept, di) in departments" :key="dept.key">
         <div :class="accordionHeader" role="button" tabindex="0" :aria-expanded="expandedDepts[dept.key]" @click="toggleDept(dept.key)" @keydown.enter="toggleDept(dept.key)">
           <span :class="accordionLeftGroup">
@@ -653,6 +679,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                  the department name, not flush to the header's right edge. -->
             <span v-if="soleSelectedDeptKey === dept.key" @click.stop>
               <GoalBulkActionsMenu
+                :hide-update-progress="isClosedTab"
+                :hide-edit-goals="isClosedTab"
+                :hide-close-goals="isClosedTab || hasClosedSelected"
                 @edit-goals="goToImport('edit-goals')"
                 @update-progress="goToImport('update-progress')"
                 @close-goals="onBulkClose"
@@ -713,7 +742,8 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                         <MpFlex align="flex-start" gap="2">
                           <MpCheckbox
                             :is-checked="isSelected(row.id)"
-                            @update:is-checked="toggleSelect(row.id)"
+                            :is-disabled="row.isClosed && !isClosedTab"
+@update:is-checked="toggleSelect(row.id)"
                             :aria-label="`Select ${row.title}`"
                           />
                           <MpFlex direction="column" gap="0.5" :class="cellContent">
@@ -804,7 +834,10 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
                               </template>
                               <template v-else>
                                 <MpPopoverListItem @click="goToGoal(row.id)">View details</MpPopoverListItem>
-                                <MpPopoverListItem v-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
+                                <MpTooltip v-if="isLocked(row.id)" :label="lockTip" placement="top" use-portal>
+                                  <MpPopoverListItem is-disabled>Update goal progress</MpPopoverListItem>
+                                </MpTooltip>
+                                <MpPopoverListItem v-else-if="!row.isClosed" @click="openUpdateProgress(row)">Update goal progress</MpPopoverListItem>
                                 <MpPopoverListItem v-if="!row.isClosed" @click="openAlign(row)">Align goal</MpPopoverListItem>
                                 <MpPopoverListItem @click="openActivityLog(row)">Activity log</MpPopoverListItem>
                                 <MpPopoverListItem v-if="!row.isClosed" @click="editRow(row)">Edit</MpPopoverListItem>
@@ -831,6 +864,9 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
     <GoalFloatingBulkBar
       v-if="isMultiDeptSelected"
       :selected-count="selectedCount"
+      :hide-update-progress="isClosedTab"
+                :hide-edit-goals="isClosedTab"
+                :hide-close-goals="isClosedTab || hasClosedSelected"
       @edit-goals="goToImport('edit-goals')"
       @update-progress="goToImport('update-progress')"
       @close-goals="onBulkClose"
@@ -891,12 +927,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpModalContent>
         <MpModalHeader>Close goal?<MpModalCloseButton @click="isCloseModalOpen = false" /></MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="css({ color: 'text.default' })">Once a goal has closed, {{ goalToClose?.title }} can no longer submit progress or be edited.<template v-if="needsApproval(goalToClose?.ownerId)"> This close will be sent to the manager for approval before it takes effect.</template></MpText>
+          <GoalCloseConfirmText :goal="goalToClose" :aligned-count="closeAlignedCount" />
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
             <MpButton variant="ghost" @click="isCloseModalOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmCloseGoal">Yes, close goal</MpButton>
+            <MpButton variant="primary" @click="confirmCloseGoal">Close goal</MpButton>
           </MpButtonGroup>
         </MpModalFooter>
       </MpModalContent>
@@ -913,9 +949,7 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
         <MpModalCloseButton @click="isDeleteModalOpen = false" />
       </MpModalHeader>
       <MpModalBody>
-        <MpText :class="valueText">
-          <strong>{{ goalToDelete?.title }}</strong> will be permanently deleted and cannot be recovered.<template v-if="needsApproval(goalToDelete?.ownerId)"> This delete will be sent to the manager for approval before it takes effect.</template>
-        </MpText>
+        <GoalDeleteConfirmText :goal="goalToDelete" :aligned-count="deleteAlignedCount" />
       </MpModalBody>
       <MpModalFooter>
         <MpButtonGroup>
@@ -935,12 +969,12 @@ const emptyTitle = css({ fontSize: '16px', fontWeight: '600', lineHeight: '24px'
       <MpModalContent>
         <MpModalHeader>Close {{ goalsToClose.length }} goal{{ goalsToClose.length === 1 ? '' : 's' }}?<MpModalCloseButton @click="isBulkCloseModalOpen = false" /></MpModalHeader>
         <MpModalBody>
-          <MpText size="label" :class="css({ color: 'text.default' })">Once closed, these goals can no longer submit progress or be edited. Goals owned by direct reports are sent for approval first.</MpText>
+          <GoalBulkCloseConfirmText :parent-count="bulkAlignedParentCount" />
         </MpModalBody>
         <MpModalFooter>
           <MpButtonGroup>
             <MpButton variant="ghost" @click="isBulkCloseModalOpen = false">Cancel</MpButton>
-            <MpButton variant="primary" @click="confirmBulkClose(); clearSelection()">Yes, close goals</MpButton>
+            <MpButton variant="primary" @click="confirmBulkClose(); clearSelection()">Close goals</MpButton>
           </MpButtonGroup>
         </MpModalFooter>
       </MpModalContent>

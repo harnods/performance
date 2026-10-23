@@ -67,7 +67,141 @@ const GC_DETAIL = /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+\/?$/
 const SETTINGS_REMINDERS = /^\/settings\/reminders\/?$/
 const onScreen = (selector: string, match: (el: Element) => boolean) => visible(document.querySelectorAll(selector), match)
 
+
+// ─── Goals: closing a goal, aligned goals, locked progress, Closed goals tab ──
+// Cycle index + the four goal-type pages + the Goal Detail page (+ the archive cycle's tabs).
+const GC_LIST = /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+(\/(company|individual|team|organization)-goals)?\/?$/
+const GC_TYPE_PAGES = /^\/goals\/goal-cycles\/[^/]+\/(company|individual|team|organization)-goals\/?$/
+const GC_DEPT_PAGES = /^\/goals\/goal-cycles\/[^/]+\/(individual|team|organization)-goals\/?$/
+const GC_GOAL_DETAIL = /^\/goals\/goal-cycles\/[^/]+\/goals\/[^/]+\/?$/
+const GC_ANY_GOAL_PAGE = /^\/goals\/goal-cycles\/(?!new\/?$)[^/]+(\/((company|individual|team|organization)-goals|goals\/[^/]+))?\/?$/
+const isArchiveCycle = (r: RouteLocationNormalizedLoaded) => r.params.id === 'archive-legacy'
+const modalHeader = (title: RegExp) =>
+  visible(document.querySelectorAll('[data-pixel-component="MpModalHeader"]'), el => title.test((el.textContent ?? '').trim()))
+const closedTab = () => onScreen('#page-tabs button', el => (el.textContent ?? '').trim() === 'Closed goals')
+
 export const COACHMARKS: CoachmarkDef[] = [
+  // ── Goals: Closed goals tab (type pages) ──
+  {
+    id: 'goals-closed-tab',
+    route: GC_TYPE_PAGES,
+    when: r => !isArchiveCycle(r),
+    find: closedTab,
+    title: 'Closed goals tab',
+    description: 'New on the Company, Organization, Team and Individual goals pages (production only had it on All goals). It lists just the closed goals of that goal type. On Organization, Team and Individual only the departments that have a closed goal show; a type with none shows "No closed goals yet".',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'goals-closed-tab-archive',
+    route: GC_LIST,
+    when: isArchiveCycle,
+    find: closedTab,
+    title: 'Closed goals in the archive',
+    description: 'A goal outside any real cycle (here the "All goals from 2020-2025" archive, standing in for the Mix Cycle) is browsable on that cycle\'s own Closed goals tab, like any other cycle. The 2020-2022 archive goals are seeded as closed.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'goals-closed-bulk-delete',
+    route: GC_TYPE_PAGES,
+    find: () => onScreen('button', el => (el.textContent ?? '').trim() === 'Delete goals'),
+    title: 'Delete goals',
+    description: 'New: on the Closed goals tab the bulk Actions menu is a single Delete goals button, since a closed goal can\'t be edited, updated or closed again. The selection clears when you switch tabs.',
+    placement: 'bottom',
+    corner: true,
+  },
+  {
+    id: 'goals-closed-row-checkbox',
+    route: GC_TYPE_PAGES,
+    find: () => visible(document.querySelectorAll('tbody label[aria-disabled="true"]')),
+    title: 'Closed rows can\'t be selected',
+    description: 'New: on a tab that mixes open and closed goals (All goals), a closed row\'s checkbox is disabled and "select all" skips it. They can be selected on the Closed goals tab (for Delete).',
+    placement: 'right-start',
+    corner: true,
+  },
+  {
+    id: 'goals-search-departments',
+    route: GC_DEPT_PAGES,
+    find: () => [...document.querySelectorAll('input')].find(i => /^Search/i.test(i.placeholder))?.closest('[data-pixel-component="MpInputGroup"]') ?? null,
+    title: 'Search hides empty departments',
+    description: 'New: searching (and the Closed goals tab) only lists departments that have a match, and opens them. No match anywhere shows "No goals found". Production listed every department.',
+    placement: 'bottom',
+    corner: true,
+  },
+  // ── Goals: confirm modals and the Align drawer ──
+  {
+    id: 'goals-close-modal',
+    route: GC_ANY_GOAL_PAGE,
+    find: () => modalHeader(/^Close goal\?/),
+    title: 'Close goal modal',
+    description: 'New copy variants. Aligned goals: bullets say the goal is locked and can\'t be reopened and the aligned goals can no longer update progress. If the close needs the manager\'s approval an intro line comes first, since nothing locks until approved. Primary button: Close goal. Closing an already-closed goal is ignored.',
+    placement: 'right-start',
+  },
+  {
+    id: 'goals-bulk-close-modal',
+    route: GC_TYPE_PAGES,
+    find: () => modalHeader(/^Close \d+ goals?\?/),
+    title: 'Close goals modal',
+    description: 'New: when selected goals have aligned goals, the effects are listed as bullets (aligned goals can no longer update progress; closed goals can\'t be reopened; direct reports\' goals go for approval first). The bulk Close option is hidden if any selected goal is already closed.',
+    placement: 'right-start',
+  },
+  {
+    id: 'goals-delete-modal',
+    route: GC_ANY_GOAL_PAGE,
+    find: () => modalHeader(/^Delete goal\?/),
+    title: 'Delete goal modal',
+    description: 'New variant: a goal with aligned goals lists, as bullets, that it is deleted for good and that its aligned goals lose the alignment (a closed parent\'s children also unlock). Deleting really clears their alignment.',
+    placement: 'right-start',
+  },
+  {
+    id: 'goals-align-drawer',
+    route: GC_ANY_GOAL_PAGE,
+    find: () => visible(document.querySelectorAll('[data-pixel-component="MpDrawerHeader"]'), el => /^Align to parent goal/.test((el.textContent ?? '').trim())),
+    title: 'Closed goals aren\'t parents',
+    description: 'New: the parent list never offers a closed goal. Aligning to one would lock this goal\'s progress at once.',
+    placement: 'left',
+  },
+  // ── Goal Detail: locked progress and closed goals ──
+  {
+    id: 'goal-detail-locked-banner',
+    route: GC_GOAL_DETAIL,
+    find: () => onScreen('[data-pixel-component="MpBannerTitle"]', el => ownText(el) === 'Update progress locked'),
+    title: 'Update progress locked',
+    description: 'New: when the parent goal this one aligns to is closed, progress can\'t be updated. Only direct children are locked; Edit and Align stay allowed. Removing the alignment unlocks it. "View parent goal" opens the parent.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'goal-detail-closed-badge',
+    route: GC_GOAL_DETAIL,
+    find: () => onScreen('span[data-pixel-component="MpBadge"]', el => ownText(el) === 'Closed'),
+    title: 'Closed badge',
+    description: 'New: a closed goal shows a Closed badge next to its status. Update progress, Align, Edit and Close are hidden; View details, Activity log and Delete stay.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'goal-detail-alignment-closed',
+    route: GC_GOAL_DETAIL,
+    find: () => onScreen('span', el => ownText(el) === 'Closed' && el.getAttribute('data-pixel-component') !== 'MpBadge'),
+    title: 'Closed parent',
+    description: 'New: the Alignment card tags the parent goal as Closed (same shape as the level pill).',
+    placement: 'left',
+  },
+  {
+    id: 'goal-detail-key-results',
+    route: GC_GOAL_DETAIL,
+    find: () => onScreen('p, span', el => ownText(el).startsWith('Key Results (')),
+    title: 'Key results lock',
+    description: 'New: on a closed goal, Add key result and Edit are disabled with a tooltip ("Key results locked because this goal is closed") and Delete stays. On a goal whose parent is closed, Add, Edit and Delete are all disabled.',
+    placement: 'bottom-start',
+  },
+  {
+    id: 'goal-detail-actions',
+    route: GC_GOAL_DETAIL,
+    find: () => onScreen('#page-header-actions button', el => (el.textContent ?? '').trim() === 'Actions'),
+    title: 'Actions menu',
+    description: 'New: Update progress stays in the menu but is disabled (tooltip: "Progress locked because the parent goal is closed") when the parent is closed. On a closed goal Update progress, Edit goal and Close goal are hidden.',
+    placement: 'bottom',
+    corner: true,
+  },
   {
     id: 'goal-info-reminders',
     route: GC_DETAIL,

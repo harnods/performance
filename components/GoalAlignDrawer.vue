@@ -76,6 +76,7 @@ const parents = computed(() => {
   const allowed = ALLOWED_PARENT_LEVELS[props.goal?.level ?? 'individual'] ?? []
   return props.candidates.filter((g) => {
     if (!allowed.includes(g.level)) return false // only the allowed parent level(s) for this goal
+    if (g.isClosed) return false // a closed goal can't be a parent (it would lock this goal at once)
     if (g.id === self || g.alignedToId === self) return false // not itself; no direct loop
     if (g.level === 'company') return true // company goals have no member pool — open to all
     // Team / Organization parents are member-gated (viewerIds = who may align).
