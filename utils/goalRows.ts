@@ -242,6 +242,11 @@ export interface DisplayGoalRow {
   pill?: number
   min?: number
   max?: number
+  // Lifecycle flags — the table's badges, row menu and bulk selection read these, so they must
+  // survive the flattening (dropping isClosed made every closed goal look open).
+  isDraft?: boolean
+  isAwaitingApproval?: boolean
+  isClosed?: boolean
 }
 
 // Flattens rowspan-grouped goal rows into real display rows: every expanded
@@ -253,7 +258,7 @@ export interface DisplayGoalRow {
 // categoryWeight is untouched — it's still only the sum of the REAL goals'
 // own weight, never the aligned children's, since those belong to a
 // different level's 100% budget entirely.
-export function expandAlignedRows<T extends RowSpanFields & { id: string, category: string, subCategory: string, code: string, title: string, weight: number, alignedGoals: AlignedGoal[], owner: GoalOwner, status: GoalStatus, unit?: GoalUnit, value?: number, pill?: number, min?: number, max?: number }>(
+export function expandAlignedRows<T extends RowSpanFields & { id: string, category: string, subCategory: string, code: string, title: string, weight: number, alignedGoals: AlignedGoal[], owner: GoalOwner, status: GoalStatus, unit?: GoalUnit, value?: number, pill?: number, min?: number, max?: number, isDraft?: boolean, isAwaitingApproval?: boolean, isClosed?: boolean }>(
   rows: T[],
   expanded: Record<string, boolean>,
 ): DisplayGoalRow[] {
@@ -293,6 +298,9 @@ export function expandAlignedRows<T extends RowSpanFields & { id: string, catego
       pill: row.pill,
       min: row.min,
       max: row.max,
+      isDraft: row.isDraft,
+      isAwaitingApproval: row.isAwaitingApproval,
+      isClosed: row.isClosed,
     })
     if (expanded[row.id]) {
       for (const child of row.alignedGoals) {

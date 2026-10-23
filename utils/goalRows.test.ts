@@ -204,6 +204,11 @@ describe('expandAlignedRows', () => {
     alignedGoals: [alignedChild],
   }
 
+  it('keeps the lifecycle flags (closed / draft / awaiting approval) on the main row', () => {
+    const out = expandAlignedRows([{ ...baseRow, isClosed: true, isDraft: true, isAwaitingApproval: true }], {})
+    expect(out[0]).toMatchObject({ isClosed: true, isDraft: true, isAwaitingApproval: true })
+  })
+
   it('emits only the main row when not expanded', () => {
     const out = expandAlignedRows([baseRow], {})
     expect(out).toHaveLength(1)
